@@ -383,3 +383,84 @@ TEST(PrintParametersChecks, s_parameter_variable_list_survives_dialog_round_trip
     const std::string expected = ".PRINT AC FORMAT=RAW FILE=lin-simple-01.raw " + line_edit_text;
     EXPECT_EQ(rebuilt, expected);
 }
+
+// ========================================================================================
+// strip_print_file_option
+// ========================================================================================
+
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_raw_statement) {
+    // arrange
+    const std::string statement = ".PRINT TRAN FORMAT=RAW FILE=waves.raw V(OUT) I(V1)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT) I(V1)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_before_format) {
+    // arrange: the FILE option appearing before the FORMAT option must be
+    // stripped as well (the format is discovered in a first pass)
+    const std::string statement = ".PRINT TRAN FILE=waves.raw FORMAT=RAW V(OUT)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_without_format) {
+    // arrange: an unspecified format defaults to RAW output
+    const std::string statement = ".PRINT TRAN FILE=waves.raw V(OUT)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN V(OUT)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_keeps_file_option_for_non_raw_format) {
+    // arrange: a CSV print keeps its explicit output file
+    const std::string statement = ".PRINT TRAN FORMAT=CSV FILE=out.csv V(OUT)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=CSV FILE=out.csv V(OUT)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_keeps_statement_without_file_option) {
+    // arrange
+    const std::string statement = ".PRINT TRAN FORMAT=RAW V(OUT) {V(OUT) * 2}";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, statement);
+}
+
+TEST(PrintParametersChecks, strip_print_file_returns_non_print_statement_unchanged) {
+    // arrange
+    const std::string statement = ".TRAN 1u 1m";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, statement);
+}
+
+TEST(PrintParametersChecks, strip_print_file_keeps_braced_expressions_intact) {
+    // arrange: the output variables carry brace-enclosed expressions with spaces
+    const std::string statement = ".PRINT TRAN FORMAT=RAW FILE=waves.raw V(OUT) {V(OUT) * I(V1)}";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT) {V(OUT) * I(V1)}");
+}
+
+TEST(PrintParametersChecks, strip_print_file_result_reparses_without_file) {
+    // arrange
+    const std::string statement = ".print dc FORMAT=RAW FILE=dc.raw V(1)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    const auto reparsed = PrintParameters::from_xyce_statement(stripped);
+    // assert: the stripped statement round-trips through the parser without a file
+    ASSERT_TRUE(reparsed.has_value());
+    ASSERT_EQ(reparsed->print_file, "");
+    ASSERT_EQ(reparsed->print_format, "RAW");
+    ASSERT_EQ(reparsed->output_variables.size(), 1);
+}

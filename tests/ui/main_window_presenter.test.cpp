@@ -354,6 +354,50 @@ TEST(SlintMainWindowPresenterChecks, rerun_with_saved_config_does_not_show_empty
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, raw_print_file_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — netlist with a transient analysis whose RAW print carries an output file
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=copy_test_user_out.raw V(1)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — launch the simulation
+    presenter.on_run_simulation();
+    // assert — the netlist handed to Xyce does not carry the FILE= option
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find("FILE=copy_test_user_out.raw"), std::string::npos);
+        EXPECT_NE(content.find(".PRINT TRAN FORMAT=RAW V(1)"), std::string::npos);
+    }
+    // the editor keeps the user-facing directive with the FILE= option intact
+    EXPECT_NE(view.m_editor_content.find("FILE=copy_test_user_out.raw"), std::string::npos);
+    // simulate Xyce producing the RAW file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    const std::string payload = "raw payload";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced file was copied to the user-indicated location
+    const auto copied_path = working_directory / "copy_test_user_out.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, payload);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, schematic_change_without_directives_preserves_saved_config) {
     // arrange — directive-less netlist, valid executable
     RecordingView view;

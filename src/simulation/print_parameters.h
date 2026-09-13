@@ -41,3 +41,9 @@ public:
 
 // tokenize a .PRINT statement respecting brace-enclosed expressions and quotes
 [[nodiscard]] std::vector<std::string> tokenize_print_statement(const std::string& print_statement);
+
+// remove the FILE= option from a .PRINT statement that produces RAW output
+// (FORMAT=RAW or no FORMAT option); any other statement is returned unchanged.
+// used to force Xyce to write the RAW file to its default netlist-derived
+// location so the simulation never rewrites a file the application holds open
+[[nodiscard]] std::string strip_print_file_option(const std::string& print_statement);

@@ -275,9 +275,9 @@ bool SimulationConfig::operator==(const SimulationConfig& other) const {
     return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && replace_ground == other.replace_ground;
 }
 
-std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& working_directory, const std::filesystem::path& netlist_path) const {
+std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& netlist_file_path) const {
     // process simuation types
-    auto l = [&working_directory, &netlist_path]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
+    auto l = [&netlist_file_path]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
         // actual parameter type
         using TX = std::decay_t<T0>;
         // std::monostate
@@ -290,19 +290,45 @@ std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(cons
             if (a.print_parameters.has_value()) {
                 // check if the print format is RAW
                 if (a.print_parameters->print_format.empty() || to_upper(a.print_parameters->print_format) == "RAW") {
-                    // compute the raw output file path
-                    if (!a.print_parameters->print_file.empty()) {
-                        // build raw output file path based on working directory and specified print file
-                        return std::optional<std::filesystem::path>(working_directory / a.print_parameters->print_file);
-                    }
-                    // build raw output file path based on netlist file path
-                    return std::optional<std::filesystem::path>(netlist_path.string() + ".raw");
+                    // the FILE= option is stripped for the Xyce run, so the RAW
+                    // file is always produced next to the netlist under Xyce's
+                    // default name regardless of the user's print file
+                    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
                 }
                 // no output file
                 return {};
             }
             // build raw output file path based on netlist file path
-            return std::optional<std::filesystem::path>(netlist_path.string() + ".raw");
+            return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
+        }
+    };
+    return std::visit(l, analysis);
+}
+
+std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destination(const std::filesystem::path& working_directory) const {
+    // process simuation types
+    auto l = [&working_directory]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
+        // actual parameter type
+        using TX = std::decay_t<T0>;
+        // std::monostate
+        if constexpr (std::is_same_v<TX, std::monostate>) {
+            // error, unexpected analysis type
+            return std::optional<std::filesystem::path>();
+        }
+        else {
+            // check print parameters is set
+            if (a.print_parameters.has_value()) {
+                // check if the print format is RAW
+                if (a.print_parameters->print_format.empty() || to_upper(a.print_parameters->print_format) == "RAW") {
+                    // resolve the user's print file against the working directory
+                    if (!a.print_parameters->print_file.empty())
+                        return std::optional<std::filesystem::path>(working_directory / a.print_parameters->print_file);
+                    // no explicit file to copy to
+                    return {};
+                }
+            }
+            // no raw output file
+            return std::optional<std::filesystem::path>();
         }
     };
     return std::visit(l, analysis);

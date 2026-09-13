@@ -13,6 +13,7 @@
 #include "../kicad/kicad_session.h"
 #include "../netlist/editor_netlist_source.h"
 #include "../netlist/netlist.h"
+#include "../simulation/print_parameters.h"
 #include "../simulation/simulation_config.h"
 #include "main_window_presenter.h"
 #include "main_window_state.h"
@@ -218,15 +219,25 @@ void SlintMainWindowPresenter::on_cancel_simulation() {
 void SlintMainWindowPresenter::launch_simulation() {
     // build the directives from the config with topology expansion
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
-    // merge the directives into the sanitized netlist before .END
+    // merge the directives into the sanitized netlist before .END for the editor
     const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    // build the netlist handed to Xyce with the FILE= option stripped from RAW
+    // .PRINT statements; Xyce then writes the RAW file next to the temporary
+    // netlist under its own default name, so the file the application maps is
+    // never rewritten by a later run (on Windows the rewrite fails while the
+    // file is mapped, on macOS it invalidates the previous mapping)
+    std::vector<std::string> simulation_directives;
+    simulation_directives.reserve(directives.size());
+    for (const auto& directive : directives)
+        simulation_directives.push_back(strip_print_file_option(directive));
+    const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist
     if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))
         refresh_action_states();
     // working directory for the netlist source
     const auto working_directory = m_netlist_source->working_directory();
     // create a temporary netlist file for the runner
-    const auto temp_path = SimulationRunner::create_temp_netlist(final_netlist);
+    const auto temp_path = SimulationRunner::create_temp_netlist(simulation_netlist);
     // check the temporary netlist was created
     if (temp_path.empty()) {
         // update the statusbar with an error
@@ -605,10 +616,23 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     }
     // check for success
     if (exit_code == 0) {
-        // compute the expected raw output file path
-        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_working_directory, m_simulation_netlist_path);
+        // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
+        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
         // try to load the raw file when a path was computed and exists
         if (raw_path.has_value() && std::filesystem::exists(*raw_path)) {
+            // copy the produced raw file to the user-indicated location when the
+            // analysis print carries a file; the application maps the produced
+            // file (which is never rewritten by a later run) while the copy
+            // keeps the user-visible file up to date
+            if (const auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory); destination.has_value() && *destination != *raw_path) {
+                // create the destination parent directory when missing
+                std::error_code ec;
+                std::filesystem::create_directories(destination->parent_path(), ec);
+                // copy the produced file, overwriting the previous run's copy
+                std::filesystem::copy_file(*raw_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
+                if (ec)
+                    spdlog::warn("Failed to copy RAW output file to '{}': {}", destination->string(), ec.message());
+            }
             // parse the raw file
             auto raw_file = xyce_raw_file_parser(raw_path->string());
             // check the raw file was parsed

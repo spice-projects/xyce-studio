@@ -251,6 +251,70 @@ std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::s
     return PrintParameters(print_type, print_format, print_file, std::move(output_variables), std::move(extra_options));
 }
 
+std::string strip_print_file_option(const std::string& print_statement) {
+    // parse tokens
+    const auto tokens = tokenize_print_statement(print_statement);
+    // reject non-print statements
+    if (tokens.size() < 2 || to_upper(tokens[0]) != ".PRINT") {
+        // return unchanged
+        return print_statement;
+    }
+    // first pass: scan the option section (before the first output variable) for
+    // the format option; only RAW output (or an unspecified format) is redirected
+    bool is_raw = true;
+    bool in_output_variables = false;
+    for (size_t i = 2; i < tokens.size() && !in_output_variables; ++i) {
+        // parse option token
+        const auto option_pair = split_option_token(tokens[i]);
+        // check for the format option
+        if (option_pair.first == "FORMAT") {
+            // only RAW output is redirected to the netlist-derived file
+            is_raw = to_upper(option_pair.second) == "RAW";
+        }
+        // check for the start of the output-variable section
+        else if (option_pair.first.empty()) {
+            // mark output-variable section
+            in_output_variables = true;
+        }
+    }
+    // return non-raw statements unchanged
+    if (!is_raw)
+        return print_statement;
+    // second pass: rebuild the statement without the file option
+    std::vector<std::string> result;
+    result.reserve(tokens.size());
+    bool removed_file = false;
+    in_output_variables = false;
+    // the option section starts after the statement name and print type tokens
+    result.push_back(tokens[0]);
+    result.push_back(tokens[1]);
+    for (size_t i = 2; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        // parse option token when still in option section
+        const auto option_pair = (!in_output_variables) ? split_option_token(token) : std::pair<std::string, std::string>{};
+        // check option token
+        if (!option_pair.first.empty()) {
+            // drop the file option
+            if (option_pair.first == "FILE") {
+                removed_file = true;
+                continue;
+            }
+            // append the option token unchanged
+            result.push_back(token);
+            continue;
+        }
+        // mark output-variable section
+        in_output_variables = true;
+        // append token
+        result.push_back(token);
+    }
+    // return the statement unchanged when no file option was removed
+    if (!removed_file)
+        return print_statement;
+    // rebuild the statement from the remaining tokens
+    return join_tokens(result);
+}
+
 std::string PrintParameters::to_xyce_statement() const {
     // init token list
     std::vector<std::string> tokens = {".PRINT", print_type};
