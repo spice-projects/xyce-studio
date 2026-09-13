@@ -211,8 +211,14 @@ private:
             // allocate the scratch buffer on first use
             if (block.empty())
                 block.resize(BLOCK);
-            // total source span for this step
-            const size_t span = count * stride;
+            // empty steps have no elements
+            if (count == 0)
+                continue;
+            // total source span for this step, clamped to the last valid element:
+            // count * stride would sweep a full stride of padding past the last
+            // element, reading past the end of the mapped RAW file for the final
+            // block (issue #219)
+            const size_t span = (count - 1) * stride + 1;
             // loop source tiles, copying each contiguous tile into the scratch buffer
             // then pulling the strided column out of it (cache friendly instead of a strided walk)
             for (size_t offset = 0; offset < span; offset += BLOCK) {
