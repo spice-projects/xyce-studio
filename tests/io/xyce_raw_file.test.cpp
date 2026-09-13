@@ -1079,3 +1079,86 @@ TEST(XyceRawFileTest, multi_block_abscissa_value_ranges) {
     ASSERT_DOUBLE_EQ(raw.value()->step_information().step_abscissa_left_value(1), 0.0);
     ASSERT_DOUBLE_EQ(raw.value()->step_information().step_abscissa_right_value(1), 2.0);
 }
+
+TEST(XyceRawFileTest, load_real_binary_last_variable_materialization_does_not_read_past_file_end) {
+    // arrange: a real binary RAW file whose single data block ends exactly at EOF;
+    // materializing the last variable (index 599) must not sweep the contiguous
+    // tile window past the last valid element, otherwise the copy reads
+    // 599 * sizeof(double) = 4792 bytes past the end of the mapped file, which
+    // exceeds any mmap page tail and faults (issue #219)
+    constexpr size_t num_variables = 600;
+    constexpr size_t num_points = 64;
+    // variable definition lines
+    std::string variable_lines;
+    for (size_t i = 0; i < num_variables; ++i)
+        variable_lines += "\t" + std::to_string(i) + "\t" + (i == 0 ? "time" : "V(" + std::to_string(i) + ")") + "\t" + (i == 0 ? "time" : "voltage") + "\n";
+    // header followed by interleaved binary payload: point-major, value p * 1000 + variable index
+    std::string content = "Title: Test Circuit\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 600\nNo. Points: 64\nVariables:\n" + variable_lines + "Binary:\n";
+    for (size_t p = 0; p < num_points; ++p)
+        for (size_t i = 0; i < num_variables; ++i) {
+            const double value = static_cast<double>(p) * 1000.0 + static_cast<double>(i);
+            content.append(reinterpret_cast<const char*>(&value), sizeof(value));
+        }
+    const TempFileRAII temp_file(content);
+    // act
+    auto raw = xyce_raw_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(raw.has_value());
+    auto* last_expr = evaluate_real(raw.value()->expression_manager(), "V(599)");
+    ASSERT_NE(last_expr, nullptr);
+    const auto data = last_expr->data();
+    ASSERT_EQ(data.size(), num_points);
+    for (size_t p = 0; p < num_points; ++p)
+        ASSERT_DOUBLE_EQ(data[p], static_cast<double>(p) * 1000.0 + 599.0);
+    ASSERT_EQ(last_expr->step_data(0).size(), num_points);
+    ASSERT_DOUBLE_EQ(last_expr->step_data(0)[0], 599.0);
+    // the abscissa (variable index 0) materializes from the same mapping
+    ASSERT_EQ(raw.value()->abscissa().step_data(0).size(), num_points);
+    ASSERT_DOUBLE_EQ(raw.value()->abscissa().step_data(0)[num_points - 1], 63000.0);
+}
+
+TEST(XyceRawFileTest, load_complex_binary_last_variable_materialization_does_not_read_past_file_end) {
+    // arrange: a complex binary RAW file whose single data block ends exactly at
+    // EOF; materializing the last complex variable (index 599) must not sweep
+    // the contiguous tile window past the last valid element, otherwise the
+    // copy reads 599 * sizeof(complex<double>) = 9584 bytes past the end of the
+    // mapped file, which exceeds any mmap page tail and faults (issue #219)
+    constexpr size_t num_variables = 600;
+    constexpr size_t num_points = 64;
+    // variable definition lines
+    std::string variable_lines;
+    for (size_t i = 0; i < num_variables; ++i)
+        variable_lines += "\t" + std::to_string(i) + "\t" + (i == 0 ? "frequency" : "V(" + std::to_string(i) + ")") + "\t" + (i == 0 ? "frequency" : "voltage") + "\n";
+    // header followed by interleaved binary payload: every variable slot (the
+    // abscissa included) occupies one complex slot of real then imaginary part
+    std::string content = "Title: AC Sweep Test\nPlotname: AC Analysis\nFlags: complex\nNo. Variables: 600\nNo. Points: 64\nVariables:\n" + variable_lines + "Binary:\n";
+    for (size_t p = 0; p < num_points; ++p) {
+        const double frequency = static_cast<double>(p) * 1000.0;
+        const double zero = 0.0;
+        content.append(reinterpret_cast<const char*>(&frequency), sizeof(frequency));
+        content.append(reinterpret_cast<const char*>(&zero), sizeof(zero));
+        for (size_t i = 1; i < num_variables; ++i) {
+            const double real = static_cast<double>(p) * 1000.0 + static_cast<double>(i);
+            const double imag = static_cast<double>(i) + 0.5;
+            content.append(reinterpret_cast<const char*>(&real), sizeof(real));
+            content.append(reinterpret_cast<const char*>(&imag), sizeof(imag));
+        }
+    }
+    const TempFileRAII temp_file(content);
+    // act
+    auto raw = xyce_raw_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(raw.has_value());
+    ASSERT_TRUE(raw.value()->is_complex());
+    auto* last_expr = evaluate_complex(raw.value()->expression_manager(), "V(599)");
+    ASSERT_NE(last_expr, nullptr);
+    const auto data = last_expr->data();
+    ASSERT_EQ(data.size(), num_points);
+    for (size_t p = 0; p < num_points; ++p)
+        ASSERT_EQ(data[p], std::complex<double>(static_cast<double>(p) * 1000.0 + 599.0, 599.5));
+    ASSERT_EQ(last_expr->step_data(0).size(), num_points);
+    ASSERT_EQ(last_expr->step_data(0)[0], std::complex<double>(599.0, 599.5));
+    // the abscissa (variable index 0) materializes from the same mapping
+    ASSERT_EQ(raw.value()->abscissa().step_data(0).size(), num_points);
+    ASSERT_DOUBLE_EQ(raw.value()->abscissa().step_data(0)[num_points - 1], 63000.0);
+}
