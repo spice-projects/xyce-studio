@@ -7,8 +7,8 @@
 
 #include <core/SkData.h>
 #include <core/SkFont.h>
-#include <core/SkFontMgr.h>
 #include <core/SkFontMetrics.h>
+#include <core/SkFontMgr.h>
 #include <core/SkFontTypes.h>
 
 #include "charts/chart_style.h"
@@ -56,26 +56,7 @@ TEST(ChartTextMeasurerTest, default_font_manager_matches_core_text) {
     // labels covering the chart text shapes: tick numbers, si units, unicode
     // micro sign, negative values, legend names and long readouts
     const std::vector<std::string> labels = {
-        "0",
-        "1",
-        "10",
-        "900 m",
-        "2 ms",
-        "20 ms",
-        "1.5 kV",
-        "12.3 A",
-        "1 µA",
-        "10 GHz",
-        "-1.5 kV",
-        "0V",
-        "1e-13",
-        "V(N2)",
-        "I(L1)",
-        "P(V1)",
-        "FFT: I(L1)",
-        "Transient Analysis",
-        "Simulation finished successfully",
-        "the quick brown fox jumps over the lazy dog",
+        "0", "1", "10", "900 m", "2 ms", "20 ms", "1.5 kV", "12.3 A", "1 µA", "10 GHz", "-1.5 kV", "0V", "1e-13", "V(N2)", "I(L1)", "P(V1)", "FFT: I(L1)", "Transient Analysis", "Simulation finished successfully", "the quick brown fox jumps over the lazy dog",
     };
     // act and assert: identical measurements for every label
     for (const auto& label : labels)

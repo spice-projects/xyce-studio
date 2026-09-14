@@ -6,8 +6,8 @@
 
 #include <core/SkData.h>
 #include <core/SkFont.h>
-#include <core/SkFontMgr.h>
 #include <core/SkFontMetrics.h>
+#include <core/SkFontMgr.h>
 #include <core/SkFontTypes.h>
 #include <core/SkTypeface.h>
 
