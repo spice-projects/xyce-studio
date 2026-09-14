@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from slint_automation import TestSession, expect, launch
-from slint_automation.mcp_client import McpClient
 from slint_automation.slint_client import SlintClient
 
 
@@ -136,6 +135,7 @@ class ChartPanelChecks(unittest.TestCase):
             ticks_1 = _abscissa_tick_labels(abscissa_1)
             self.assertEqual(ticks_0, ticks_1)
             self.assertNotEqual(ticks_0, pre_ticks_0)
+            self.assertNotEqual(ticks_1, pre_ticks_1)
             # assert: the dragged magnitude chart received the vertical zoom as
             # well: its ordinate narrowed away from the pre-zoom range
             self.assertNotEqual(ordinate_0, pre_ordinate_0)

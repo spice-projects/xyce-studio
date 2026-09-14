@@ -296,3 +296,47 @@ TEST(ChartLayoutSeriesTest, multi_axis_series_map_to_their_own_axis) {
         ASSERT_LE(run.points.back().x, frame.plot_x + frame.plot_w + 1.0f);
     }
 }
+
+TEST(ChartLayoutLimitsTest, descending_sweep_maps_larger_values_toward_the_west_edge) {
+    // arrange — step ranges describing a descending sweep
+    std::vector<double> abscissa_data = {5.0, 4.0, 3.0, 2.0, 1.0, 0.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{5.0, 0.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the locator produced usable ticks on the reversed bounds
+    ASSERT_FALSE(frame.x_ticks.empty());
+    for (const auto& tick : frame.x_ticks)
+        ASSERT_TRUE(std::isfinite(tick.pixel_pos));
+    // the largest tick value sits at the plot west edge and the smallest at
+    // the east edge
+    double largest_value = frame.x_ticks.front().value;
+    double smallest_value = largest_value;
+    float position_of_largest = frame.x_ticks.front().pixel_pos;
+    float position_of_smallest = position_of_largest;
+    for (const auto& tick : frame.x_ticks) {
+        if (tick.value > largest_value) {
+            largest_value = tick.value;
+            position_of_largest = tick.pixel_pos;
+        }
+        if (tick.value < smallest_value) {
+            smallest_value = tick.value;
+            position_of_smallest = tick.pixel_pos;
+        }
+    }
+    EXPECT_LT(position_of_largest, position_of_smallest);
+    // the plotted series maps into the same plot rect with the largest
+    // sample value at the west edge
+    ASSERT_EQ(frame.series.size(), 1u);
+    const auto& run = frame.series.front();
+    ASSERT_EQ(run.points.size(), 6u);
+    EXPECT_LT(run.points.front().x, run.points.back().x);
+}

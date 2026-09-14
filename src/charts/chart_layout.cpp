@@ -283,6 +283,12 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     }
     // abscissa limits clamped for logarithmic scales
     const auto [x_left_value, x_right_value] = clamped_abscissa_limits(engine);
+    // normalize the limits for the locator and layout math; a descending
+    // sweep keeps the engine order (left is the larger bound) and maps
+    // larger values toward the panel west edge
+    const bool abscissa_descending = x_left_value > x_right_value;
+    const double x_lo = std::min(x_left_value, x_right_value);
+    const double x_hi = std::max(x_left_value, x_right_value);
     // y axis locator budget
     const float plot_height = frame.plot_h;
     // enabled y axes: y1 always on the west side, y2 and y3 opposite (east) when in use
@@ -333,12 +339,12 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         const AbscissaScale scale = engine.abscissa_scale();
         if (scale == AbscissaScale::DECADE) {
             // log10 locator on the clamped range
-            locator_log10(frame.x_ticks, x_left_value, x_right_value, frame.plot_w, false, engine.abscissa_unit(), m_measure);
+            locator_log10(frame.x_ticks, x_lo, x_hi, frame.plot_w, false, engine.abscissa_unit(), m_measure);
         }
         else if (scale == AbscissaScale::OCTAVE) {
             // custom log2 major ticks sized from the plot width
             const int max_ticks = std::max(2, static_cast<int>(std::lround(frame.plot_w * 0.01f)));
-            const auto log2_ticks = ChartEngine::log2_major_ticks(x_left_value, x_right_value, max_ticks);
+            const auto log2_ticks = ChartEngine::log2_major_ticks(x_lo, x_hi, max_ticks);
             // custom ticks carry labels but are classified as minor
             for (const double tick_value : log2_ticks) {
                 // custom tick with a formatted label
@@ -353,7 +359,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         }
         else {
             // linear locator
-            locator_default(frame.x_ticks, x_left_value, x_right_value, frame.plot_w, false, engine.abscissa_unit(), m_measure);
+            locator_default(frame.x_ticks, x_lo, x_hi, frame.plot_w, false, engine.abscissa_unit(), m_measure);
         }
     }
     // pixel mapping of the x ticks through the abscissa scale
@@ -363,16 +369,19 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         double t;
         if (log_scale) {
             // logarithmic fraction in log10 space (base cancels in the ratio, so it also covers log2)
-            const double log_left = x_left_value <= 0.0 ? -DBL_MAX : std::log10(x_left_value);
-            const double log_right = x_right_value <= 0.0 ? DBL_MAX : std::log10(x_right_value);
+            const double log_left = x_lo <= 0.0 ? -DBL_MAX : std::log10(x_lo);
+            const double log_right = x_hi <= 0.0 ? DBL_MAX : std::log10(x_hi);
             const double log_value = tick.value <= 0.0 ? log_left : std::log10(tick.value);
             t = log_right > log_left ? (log_value - log_left) / (log_right - log_left) : 0.0;
         }
         else {
             // linear fraction over the visible range
-            t = x_right_value > x_left_value ? (tick.value - x_left_value) / (x_right_value - x_left_value) : 0.0;
+            t = x_hi > x_lo ? (tick.value - x_lo) / (x_hi - x_lo) : 0.0;
         }
-        // pixel position inside the plot rect
+        // pixel position inside the plot rect; a descending sweep places
+        // larger values toward the west edge
+        if (abscissa_descending)
+            t = 1.0 - t;
         tick.pixel_pos = static_cast<float>(frame.plot_x + t * frame.plot_w);
     }
     // pixel mapping and grid subsets of the y axes
@@ -439,14 +448,17 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 // x fraction (linear or logarithmic, unclamped like implot)
                 double tx;
                 if (log_scale) {
-                    const double log_left = x_left_value <= 0.0 ? -DBL_MAX : std::log10(x_left_value);
-                    const double log_right = x_right_value <= 0.0 ? DBL_MAX : std::log10(x_right_value);
+                    const double log_left = x_lo <= 0.0 ? -DBL_MAX : std::log10(x_lo);
+                    const double log_right = x_hi <= 0.0 ? DBL_MAX : std::log10(x_hi);
                     const double log_value = x_value <= 0.0 ? log_left : std::log10(x_value);
                     tx = log_right > log_left ? (log_value - log_left) / (log_right - log_left) : 0.0;
                 }
                 else {
-                    tx = x_right_value > x_left_value ? (x_value - x_left_value) / (x_right_value - x_left_value) : 0.0;
+                    tx = x_hi > x_lo ? (x_value - x_lo) / (x_hi - x_lo) : 0.0;
                 }
+                // a descending sweep places larger values toward the west edge
+                if (abscissa_descending)
+                    tx = 1.0 - tx;
                 // y fraction of the owning axis range
                 const auto& axis_info = engine.axes()[static_cast<size_t>(axis)];
                 const double ty = axis_info.plot_max_value > axis_info.plot_min_value ? (y_value - axis_info.plot_min_value) / (axis_info.plot_max_value - axis_info.plot_min_value) : 0.0;
