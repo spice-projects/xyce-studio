@@ -214,6 +214,18 @@ namespace
         const float density_alpha = std::clamp(im_remap(density, 0.1f, 0.2f, 1.0f, 0.0f), 0.0f, 1.0f);
         return CHART_MINOR_ALPHA * density_alpha;
     }
+
+    // implot ApplyFit degenerate range expansion: an almost zero-width range
+    // is grown by half a unit so flat data and single point sweeps still get
+    // a usable axis scale
+    void expand_degenerate_range(double& range_min, double& range_max) {
+        // distance between the bounds
+        const double diff = std::fabs(range_max - range_min);
+        if (diff < DBL_EPSILON * std::fabs(range_max + range_min) * 2.0 || diff < DBL_MIN) {
+            range_max += 0.5;
+            range_min -= 0.5;
+        }
+    }
 } // namespace
 
 std::pair<double, double> clamped_abscissa_limits(const ChartEngine& engine) {
@@ -286,8 +298,11 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     // sweep keeps the engine order (left is the larger bound) and maps
     // larger values toward the panel west edge
     const bool abscissa_descending = x_left_value > x_right_value;
-    const double x_lo = std::min(x_left_value, x_right_value);
-    const double x_hi = std::max(x_left_value, x_right_value);
+    double x_lo = std::min(x_left_value, x_right_value);
+    double x_hi = std::max(x_left_value, x_right_value);
+    // expand a degenerate abscissa range like the implot fit so a flat sweep
+    // still gets a usable axis scale
+    expand_degenerate_range(x_lo, x_hi);
     // y axis locator budget
     const float plot_height = frame.plot_h;
     // enabled y axes: y1 always on the west side, y2 and y3 opposite (east) when in use
@@ -296,15 +311,23 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     frame.y_axes[1].opposite = frame.y_axes[1].enabled;
     frame.y_axes[2].enabled = engine.axes()[2].plots > 0;
     frame.y_axes[2].opposite = frame.y_axes[2].enabled;
+    // expanded y ranges of the enabled axes, shared by the locator, the tick
+    // mapping and the series mapping
+    double y_lo[3] = {};
+    double y_hi[3] = {};
     // y tick ranges and locators (linear axes, vertical orientation)
     for (size_t i = 0; i < frame.y_axes.size(); ++i) {
         // skip disabled axes and degenerate heights
         if (!frame.y_axes[i].enabled || plot_height <= 0.0f)
             continue;
-        // engine range of this axis
-        const auto& axis_info = engine.axes()[i];
+        // expanded range of this axis
+        y_lo[i] = engine.axes()[i].plot_min_value;
+        y_hi[i] = engine.axes()[i].plot_max_value;
+        // expand a degenerate ordinate range like the implot fit so flat
+        // data still gets a usable axis scale
+        expand_degenerate_range(y_lo[i], y_hi[i]);
         // locator ticks for the visible range
-        locator_default(frame.y_axes[i].ticks, axis_info.plot_min_value, axis_info.plot_max_value, plot_height, true, axis_info.unit, m_measure);
+        locator_default(frame.y_axes[i].ticks, y_lo[i], y_hi[i], plot_height, true, engine.axes()[i].unit, m_measure);
     }
     // y axis label widths per axis
     float max_label_width[3] = {0.0f, 0.0f, 0.0f};
@@ -392,8 +415,8 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         const auto& axis_info = engine.axes()[i];
         // invert the vertical fraction so larger values are higher
         for (auto& tick : frame.y_axes[i].ticks) {
-            // fraction of the tick inside the axis range (unclamped like implot)
-            const double t = axis_info.plot_max_value > axis_info.plot_min_value ? (tick.value - axis_info.plot_min_value) / (axis_info.plot_max_value - axis_info.plot_min_value) : 0.0;
+            // fraction of the tick inside the expanded axis range (unclamped like implot)
+            const double t = y_hi[i] > y_lo[i] ? (tick.value - y_lo[i]) / (y_hi[i] - y_lo[i]) : 0.0;
             // pixel position inside the plot rect (bottom to top)
             tick.pixel_pos = static_cast<float>(frame.plot_y + frame.plot_h - t * frame.plot_h);
         }
@@ -444,12 +467,20 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 // sample x fraction through the abscissa scale
                 const double x_value = x_view[p];
                 const double y_value = y_view[p];
-                // non-finite samples cannot be mapped to a path point
-                if (!std::isfinite(x_value) || !std::isfinite(y_value))
+                // non-finite samples and non-positive logarithmic abscissas
+                // break the polyline: flush the contiguous finite segment and
+                // start a new one instead of bridging across the gap
+                if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_scale && x_value <= 0.0)) {
+                    if (!run.points.empty()) {
+                        frame.series.push_back(std::move(run));
+                        run = ChartSeriesFrame{};
+                        run.name = name;
+                        run.color = color;
+                        run.axis = axis;
+                        run.step = step;
+                    }
                     continue;
-                // non-positive abscissas sit outside the logarithmic domain
-                if (log_scale && x_value <= 0.0)
-                    continue;
+                }
                 // x fraction (linear or logarithmic, unclamped like implot)
                 double tx;
                 if (log_scale) {
@@ -465,13 +496,13 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 if (abscissa_descending)
                     tx = 1.0 - tx;
                 // y fraction of the owning axis range
-                const auto& axis_info = engine.axes()[static_cast<size_t>(axis)];
-                const double ty = axis_info.plot_max_value > axis_info.plot_min_value ? (y_value - axis_info.plot_min_value) / (axis_info.plot_max_value - axis_info.plot_min_value) : 0.0;
+                const double ty = y_hi[axis] > y_lo[axis] ? (y_value - y_lo[axis]) / (y_hi[axis] - y_lo[axis]) : 0.0;
                 // append the mapped point
                 run.points.push_back({static_cast<float>(frame.plot_x + tx * frame.plot_w), static_cast<float>(frame.plot_y + frame.plot_h - ty * frame.plot_h)});
             }
-            // append the run
-            frame.series.push_back(std::move(run));
+            // append the trailing run when it carries points
+            if (!run.points.empty())
+                frame.series.push_back(std::move(run));
         }
     }
     return frame;

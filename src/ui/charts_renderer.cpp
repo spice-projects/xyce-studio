@@ -48,6 +48,9 @@ void ChartsRenderer::set_dark_mode(const bool dark_mode) {
 }
 
 void ChartsRenderer::reset_viewport() {
+    // clear the active hover readout so a hidden panel cannot retain the
+    // status text or publish a pending readout against the hidden dataset
+    hover_ended();
     // zero the stored geometry so publish_frames() short-circuits on the next call
     m_viewport_width = 0.0f;
     m_viewport_height = 0.0f;

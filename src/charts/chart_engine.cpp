@@ -69,9 +69,24 @@ namespace
 
     // scale-aware interpolation of an abscissa value at a window ratio
     double interpolate_abscissa(const double ratio, const double left_value, const double right_value, const AbscissaScale scale) {
-        // logarithmic scale: interpolate geometrically over the range
-        if (scale != AbscissaScale::LINEAR && left_value > 0.0 && right_value > 0.0 && left_value != right_value)
-            return left_value * std::pow(right_value / left_value, ratio);
+        // logarithmic scale: interpolate geometrically over the clamped range;
+        // non-positive bounds are clamped like the layout so the mapped
+        // interaction values match the drawn logarithmic plot
+        if (scale != AbscissaScale::LINEAR) {
+            // clamp non-positive bounds into the logarithmic domain
+            double lo = std::min(left_value, right_value);
+            double hi = std::max(left_value, right_value);
+            if (lo <= 0.0)
+                lo = hi > 0.0 ? hi / 1e6 : 1.0;
+            if (hi <= 0.0)
+                hi = lo > 0.0 ? lo * 1e6 : 1.0;
+            // avoid a degenerate zero-width range
+            if (lo == hi)
+                hi = lo * 2.0;
+            // a descending sweep maps larger values toward the west edge
+            const bool descending = left_value > right_value;
+            return lo * std::pow(hi / lo, descending ? 1.0 - ratio : ratio);
+        }
         // linear scale: interpolate linearly over the range
         return left_value + ratio * (right_value - left_value);
     }
@@ -216,8 +231,9 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
         for (AnyExpression* ordinate_variant : get_expressions_to_plot(m_expression_manager, ordinate)) {
             // ordinate expression is always an Expression<double> at this point
             Expression<double>& double_ordinate_variant = std::get<Expression<double>>(*ordinate_variant);
-            // lookup ordinate variant in series, create default if it does not exist
-            auto [it0, inserted0] = m_series.try_emplace(double_ordinate_variant.name(), OrdinateSeries(ordinate_variant, 0, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
+            // lookup ordinate variant in series, create default if it does not exist;
+            // the unassigned axis is the -1 sentinel because 0 is a valid axis index
+            auto [it0, inserted0] = m_series.try_emplace(double_ordinate_variant.name(), OrdinateSeries(ordinate_variant, -1, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
             // ordinate series data
             auto& [_, y_axis, rendered_series, min_value, max_value, color] = (it0->second);
             // loop rendered steps
@@ -232,8 +248,24 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
                 // next
                 ++it2;
             }
+            // recompute the extrema from the retained steps so a deselected
+            // outlier step no longer stretches the axis range
+            min_value = std::numeric_limits<double>::max();
+            max_value = -std::numeric_limits<double>::max();
+            const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+            for (const auto& [step, views] : rendered_series) {
+                // retained decimated views of this step
+                const auto& [x_view, y_view] = views;
+                for (size_t i = 0; i < x_view.size(); ++i) {
+                    // only plottable samples contribute to the extrema
+                    if (!std::isfinite(x_view[i]) || !std::isfinite(y_view[i]) || (log_axis && x_view[i] <= 0.0))
+                        continue;
+                    min_value = std::min(min_value, y_view[i]);
+                    max_value = std::max(max_value, y_view[i]);
+                }
+            }
             // process axis as needed
-            if (y_axis == 0) {
+            if (y_axis < 0) {
                 // find an axis for this unit
                 y_axis = get_y_axis(double_ordinate_variant.unit());
                 // no axis is available
@@ -318,6 +350,13 @@ void ChartEngine::auto_range() {
             // next
             continue;
         }
+        // no plottable data on this axis (all steps deselected): keep the default range
+        if (axis_info.min_value > axis_info.max_value) {
+            axis_info.plot_min_value = 0.0;
+            axis_info.plot_max_value = 1.0;
+            // next
+            continue;
+        }
         // range
         const double range = axis_info.max_value - axis_info.min_value;
         // delta
@@ -334,6 +373,9 @@ std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_s
     // step abscissa & ordinate values
     auto abscissa_values = abscissa.step_data(step);
     auto ordinate_values = ordinate_variant.step_data(step);
+    // empty spans carry no plottable data
+    if (abscissa_values.empty() || ordinate_values.empty())
+        return {};
     // check we have a zoom to apply
     if (x_left_ratio >= 0 && x_right_ratio >= 0) {
         // find indexes for the new zoom window
@@ -348,13 +390,29 @@ std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_s
         return {};
     // decimate x and y values
     auto [x_np, y_np] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-    // TODO: remove Inf values
-    // log information
-    // check all values were non-finite after filtering
-    if (x_np.empty() || y_np.empty())
+    // collect the extrema over the plottable samples: finite pairs with a
+    // positive abscissa on logarithmic scales; non-finite samples stay in the
+    // rendered views so the layout can break the polyline across the gap
+    const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+    double step_min_value = std::numeric_limits<double>::max();
+    double step_max_value = -std::numeric_limits<double>::max();
+    bool plottable = false;
+    for (size_t i = 0; i < x_np.size(); ++i) {
+        // sample pair
+        const double x_value = x_np[i];
+        const double y_value = y_np[i];
+        // only plottable samples contribute to the extrema
+        if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_axis && x_value <= 0.0))
+            continue;
+        plottable = true;
+        step_min_value = std::min(step_min_value, y_value);
+        step_max_value = std::max(step_max_value, y_value);
+    }
+    // check all samples were non-plottable
+    if (!plottable)
         return {};
     // exit
-    return {true, std::move(x_np), std::move(y_np), std::min(min_value, *std::ranges::min_element(y_np)), std::max(max_value, *std::ranges::max_element(y_np))};
+    return {true, std::move(x_np), std::move(y_np), std::min(min_value, step_min_value), std::max(max_value, step_max_value)};
 }
 
 void ChartEngine::clear() {
@@ -547,6 +605,10 @@ void ChartEngine::update(ExpressionManager* expression_manager, const StepInform
     // update internal references
     m_expression_manager = expression_manager;
     m_step_information = step_information;
+    // prune step selections beyond the new step count so the replot never
+    // reaches a stale step index of the replaced dataset
+    while (!m_selected_steps.empty() && *std::prev(m_selected_steps.end()) >= step_information->length())
+        m_selected_steps.erase(std::prev(m_selected_steps.end()));
     // abscissa
     auto& abscissa = expression_manager->abscissa();
     // abscissa name & unit
@@ -627,6 +689,9 @@ void ChartEngine::redraw_all_series() {
             // step abscissa & ordinate values — zero copy
             auto abscissa_values = abscissa.step_data(step);
             auto ordinate_values = ordinate_variant.step_data(step);
+            // empty spans carry no plottable data
+            if (abscissa_values.empty() || ordinate_values.empty())
+                continue;
             // check we have a zoom window to apply
             if (x_left_ratio >= 0 && x_right_ratio >= 0) {
                 // find indexes for the new zoom window
@@ -638,11 +703,28 @@ void ChartEngine::redraw_all_series() {
             }
             // decimate x and y values
             auto [x, y] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-            // TODO: remove Inf values
-            // log information
+            // collect the extrema over the plottable samples: finite pairs
+            // with a positive abscissa on logarithmic scales
+            const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+            bool plottable = false;
+            double step_min_value = std::numeric_limits<double>::max();
+            double step_max_value = -std::numeric_limits<double>::max();
+            for (size_t i = 0; i < x.size(); ++i) {
+                // sample pair
+                const double x_value = x[i];
+                const double y_value = y[i];
+                // only plottable samples contribute to the extrema
+                if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_axis && x_value <= 0.0))
+                    continue;
+                plottable = true;
+                step_min_value = std::min(step_min_value, y_value);
+                step_max_value = std::max(step_max_value, y_value);
+            }
             // update min and max values
-            min_value = std::min(min_value, *std::ranges::min_element(y));
-            max_value = std::max(max_value, *std::ranges::max_element(y));
+            if (plottable) {
+                min_value = std::min(min_value, step_min_value);
+                max_value = std::max(max_value, step_max_value);
+            }
             // update map value
             series = std::make_pair(std::move(x), std::move(y));
         }

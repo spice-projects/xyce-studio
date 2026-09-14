@@ -90,7 +90,7 @@ TEST(ChartRatioTest, octave_ratio_interpolates_geometrically) {
     ASSERT_NEAR(value, 16.0, 1e-9);
 }
 
-TEST(ChartRatioTest, logarithmic_ratio_with_non_positive_range_falls_back_to_linear) {
+TEST(ChartRatioTest, logarithmic_ratio_with_non_positive_range_clamps_into_the_log_domain) {
     // arrange
     std::vector<double> abscissa_data = {-1.0, 0.0, 1.0, 10.0};
     std::vector<std::pair<size_t, size_t>> step_slices = {{0, 4}};
@@ -101,9 +101,10 @@ TEST(ChartRatioTest, logarithmic_ratio_with_non_positive_range_falls_back_to_lin
     ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // act
     const double value = chart.ratio_to_abscissa_value(0.5);
-    // assert
+    // assert — the non-positive bound is clamped to a fraction of the positive
+    // bound like the layout, so interaction mapping matches the drawn plot
     ASSERT_TRUE(std::isfinite(value));
-    ASSERT_NEAR(value, 4.5, 1e-9);
+    ASSERT_NEAR(value, 1e-5 * std::pow(10.0 / 1e-5, 0.5), 1e-9);
 }
 
 TEST(ChartRatioTest, decade_plot_ratio_interpolates_geometrically_over_visible_range) {
@@ -543,4 +544,147 @@ TEST(ChartZoomTest, new_chart_joins_the_shared_abscissa_zoom_window) {
     EXPECT_EQ(std::get<2>(joined.zoom_window()), std::get<2>(shared));
     EXPECT_EQ(std::get<1>(joined.zoom_window()), -1.0);
     EXPECT_EQ(std::get<3>(joined.zoom_window()), -1.0);
+}
+
+TEST(ChartAxisTest, replotted_y1_series_does_not_increment_the_axis_refcount) {
+    // arrange — a series assigned to the west axis (index 0)
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    chart.plot_series({expression_manager.expressions()[1]});
+    ASSERT_EQ(chart.axes()[0].plots, 1);
+    // act — re-plot the same expression: the Y1 assignment must be kept
+    chart.plot_series({expression_manager.expressions()[1]});
+    // assert — the y1 ref count does not grow on replots
+    EXPECT_EQ(chart.axes()[0].plots, 1);
+    // act — remove the series
+    chart.plot_series({});
+    // assert — the axis is released exactly once and back to unused
+    EXPECT_EQ(chart.axes()[0].plots, 0);
+}
+
+TEST(ChartAxisTest, empty_step_spans_are_ignored_without_out_of_bounds_reads) {
+    // arrange — one step whose slice covers zero samples
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}, {0, 0}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}, {0.0, 2.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    // act — plot selecting the empty step must not read out of bounds
+    std::set<size_t> both_steps = {0, 1};
+    chart.set_selected_steps(both_steps);
+    chart.plot_series({expression_manager.expressions()[1]});
+    // assert — the plotted step keeps its range and the empty step leaves the
+    // axis extrema untouched
+    EXPECT_EQ(chart.axes()[0].min_value, 1.0);
+    EXPECT_EQ(chart.axes()[0].max_value, 3.0);
+    EXPECT_FALSE(chart.hovered_series_text(1.0).empty());
+}
+
+TEST(ChartExtremaTest, non_finite_samples_do_not_reach_the_axis_extrema) {
+    // arrange — a series whose first sample is nan
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 3.0};
+    std::vector<double> voltage_data = {std::nan(""), 3.0, 4.0, 5.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 4}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    // act
+    chart.plot_series({expression_manager.expressions()[1]});
+    // assert — the axis extrema come from the finite samples only
+    EXPECT_EQ(chart.axes()[0].min_value, 3.0);
+    EXPECT_EQ(chart.axes()[0].max_value, 5.0);
+    // the ordinate range stays finite through the padded autorange
+    ASSERT_LT(chart.axes()[0].plot_min_value, chart.axes()[0].plot_max_value);
+    EXPECT_TRUE(std::isfinite(chart.axes()[0].plot_min_value));
+    EXPECT_TRUE(std::isfinite(chart.axes()[0].plot_max_value));
+}
+
+TEST(ChartExtremaTest, deselected_outlier_step_no_longer_stretches_the_axis) {
+    // arrange — two steps with disjoint value ranges
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0, 100.0, 110.0, 120.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}, {3, 6}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}, {0.0, 2.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    std::set<size_t> both_steps = {0, 1};
+    chart.set_selected_steps(both_steps);
+    chart.plot_series({expression_manager.expressions()[1]});
+    ASSERT_EQ(chart.axes()[0].max_value, 120.0);
+    // act — deselect the outlier step
+    std::set<size_t> first_only = {0};
+    chart.set_selected_steps(first_only);
+    // assert — the axis extrema track the retained step only
+    EXPECT_EQ(chart.axes()[0].min_value, 1.0);
+    EXPECT_EQ(chart.axes()[0].max_value, 3.0);
+    ASSERT_LT(chart.axes()[0].plot_min_value, chart.axes()[0].plot_max_value);
+}
+
+TEST(ChartExtremaTest, axis_falls_back_to_the_default_range_when_no_step_is_plotted) {
+    // arrange — one plotted series
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    chart.plot_series({expression_manager.expressions()[1]});
+    // act — deselect every step
+    chart.set_selected_steps({});
+    // assert — the axis keeps a usable default range instead of a nan window
+    EXPECT_EQ(chart.axes()[0].plot_min_value, 0.0);
+    EXPECT_EQ(chart.axes()[0].plot_max_value, 1.0);
+}
+
+TEST(ChartUpdateTest, update_prunes_step_selections_beyond_the_new_dataset) {
+    // arrange — a chart with three selected steps over a three step dataset
+    std::vector<double> abscissa_a = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    std::vector<double> voltage_a = {1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
+    std::vector<std::pair<size_t, size_t>> slices_a = {{0, 2}, {2, 4}, {4, 6}};
+    std::vector<AnyExpression> expressions_a;
+    expressions_a.emplace_back(Expression<double>("time", std::move(abscissa_a), slices_a, "s"));
+    expressions_a.emplace_back(Expression<double>("V(out)", std::move(voltage_a), slices_a, "V"));
+    ExpressionManager first_manager(expressions_a, slices_a);
+    StepInformation first_information({"time"}, {{}}, {{0.0, 1.0}, {0.0, 1.0}, {0.0, 1.0}});
+    ChartEngine chart(&first_manager, &first_information, AbscissaScale::LINEAR, 1000);
+    chart.plot_series({first_manager.expressions()[1]});
+    std::set<size_t> all_steps = {0, 1, 2};
+    chart.set_selected_steps(all_steps);
+    // arrange — a replacement dataset carrying a single step
+    std::vector<double> abscissa_b = {0.0, 1.0};
+    std::vector<double> voltage_b = {3.0, 4.0};
+    std::vector<std::pair<size_t, size_t>> slices_b = {{0, 2}};
+    std::vector<AnyExpression> expressions_b;
+    expressions_b.emplace_back(Expression<double>("time", std::move(abscissa_b), slices_b, "s"));
+    expressions_b.emplace_back(Expression<double>("V(out)", std::move(voltage_b), slices_b, "V"));
+    ExpressionManager second_manager(expressions_b, slices_b);
+    StepInformation second_information({"time"}, {{}}, {{0.0, 1.0}});
+    // act — re-point the chart at the replacement dataset
+    chart.update(&second_manager, &second_information, AbscissaScale::LINEAR);
+    // assert — the stale third step was pruned and the series replotted
+    const auto& selected = chart.selected_steps();
+    EXPECT_EQ(selected.size(), 1u);
+    EXPECT_TRUE(selected.contains(0));
+    EXPECT_EQ(chart.axes()[0].min_value, 3.0);
+    EXPECT_EQ(chart.axes()[0].max_value, 4.0);
 }

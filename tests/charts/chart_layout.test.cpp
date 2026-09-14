@@ -341,8 +341,8 @@ TEST(ChartLayoutLimitsTest, descending_sweep_maps_larger_values_toward_the_west_
     EXPECT_LT(run.points.front().x, run.points.back().x);
 }
 
-TEST(ChartLayoutLimitsTest, non_finite_samples_are_skipped_in_series_mapping) {
-    // arrange — a series carrying one nan sample
+TEST(ChartLayoutLimitsTest, non_finite_samples_split_the_series_into_contiguous_segments) {
+    // arrange — a series carrying one nan sample between finite samples
     std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
     std::vector<double> voltage_data = {1.0, std::nan(""), 3.0};
     std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
@@ -356,17 +356,17 @@ TEST(ChartLayoutLimitsTest, non_finite_samples_are_skipped_in_series_mapping) {
     ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
     // act
     const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
-    // assert — the run carries only the two finite samples
-    ASSERT_EQ(frame.series.size(), 1u);
-    const auto& run = frame.series.front();
-    ASSERT_EQ(run.points.size(), 2u);
-    for (const auto& point : run.points) {
-        ASSERT_TRUE(std::isfinite(point.x));
-        ASSERT_TRUE(std::isfinite(point.y));
+    // assert — the polyline breaks across the gap: one run per contiguous
+    // finite segment, never a segment bridging the missing sample
+    ASSERT_EQ(frame.series.size(), 2u);
+    for (const auto& run : frame.series) {
+        ASSERT_EQ(run.points.size(), 1u);
+        ASSERT_TRUE(std::isfinite(run.points.front().x));
+        ASSERT_TRUE(std::isfinite(run.points.front().y));
     }
 }
 
-TEST(ChartLayoutLimitsTest, non_positive_abscissas_are_skipped_on_log_scales) {
+TEST(ChartLayoutLimitsTest, non_positive_abscissas_split_the_log_series_into_contiguous_segments) {
     // arrange — a decade abscissa whose samples include non-positive values
     std::vector<double> abscissa_data = {1.0, -1.0, 10.0, 100.0};
     std::vector<double> voltage_data = {1.0, 2.0, 3.0, 4.0};
@@ -381,12 +381,63 @@ TEST(ChartLayoutLimitsTest, non_positive_abscissas_are_skipped_on_log_scales) {
     ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
     // act
     const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
-    // assert — the run skips the non-positive sample and stays finite
+    // assert — the non-positive sample breaks the polyline into two segments
+    ASSERT_EQ(frame.series.size(), 2u);
+    ASSERT_EQ(frame.series.front().points.size(), 1u);
+    ASSERT_EQ(frame.series.back().points.size(), 2u);
+    for (const auto& run : frame.series)
+        for (const auto& point : run.points) {
+            ASSERT_TRUE(std::isfinite(point.x));
+            ASSERT_TRUE(std::isfinite(point.y));
+        }
+}
+
+TEST(ChartLayoutLimitsTest, flat_series_still_gets_a_usable_ordinate_scale) {
+    // arrange — a constant valued series produces a zero width ordinate range
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {2.0, 2.0, 2.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the degenerate range was expanded by half a unit like the
+    // implot fit, so the axis carries tick marks and labels
+    ASSERT_FALSE(frame.y_axes[0].ticks.empty());
+    for (const auto& tick : frame.y_axes[0].ticks)
+        ASSERT_TRUE(std::isfinite(tick.pixel_pos));
+    // the series point maps inside the expanded plot range
     ASSERT_EQ(frame.series.size(), 1u);
-    const auto& run = frame.series.front();
-    ASSERT_EQ(run.points.size(), 3u);
-    for (const auto& point : run.points) {
-        ASSERT_TRUE(std::isfinite(point.x));
-        ASSERT_TRUE(std::isfinite(point.y));
-    }
+    ASSERT_EQ(frame.series.front().points.size(), 3u);
+}
+
+TEST(ChartLayoutLimitsTest, single_point_sweep_still_gets_a_usable_abscissa_scale) {
+    // arrange — a sweep whose abscissa range is a single point
+    std::vector<double> abscissa_data = {2.0};
+    std::vector<double> voltage_data = {1.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 1}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{2.0, 2.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the degenerate abscissa range is expanded by half a unit and
+    // the axis carries tick marks
+    ASSERT_FALSE(frame.x_ticks.empty());
+    for (const auto& tick : frame.x_ticks)
+        ASSERT_TRUE(std::isfinite(tick.pixel_pos));
+    // the plotted point maps at the middle of the expanded range
+    ASSERT_EQ(frame.series.size(), 1u);
+    ASSERT_EQ(frame.series.front().points.size(), 1u);
 }

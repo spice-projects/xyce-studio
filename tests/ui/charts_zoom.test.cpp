@@ -82,8 +82,10 @@ TEST(ChartsZoomTest, chart_added_after_a_zoom_joins_the_shared_abscissa_range) {
     renderer.zoom_drag_moved(pre.plot_x + pre.plot_w * 0.80f, pre.plot_y + pre.plot_h * 0.80f);
     renderer.zoom_drag_ended();
     renderer.publish_frames();
-    const ChartFrame& zoomed = published.back()[0];
-    const ChartFrame& other = published.back()[1];
+    // copy the frames: the next publish appends to the outer vector and may
+    // reallocate it, invalidating references
+    const ChartFrame zoomed = published.back()[0];
+    const ChartFrame other = published.back()[1];
     // act — add a third chart after the zoom and plot the same signal on it
     renderer.add_chart();
     renderer.plot_chart_expressions(2, {expression_manager.expressions()[1]});
