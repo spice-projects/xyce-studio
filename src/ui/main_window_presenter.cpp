@@ -229,10 +229,18 @@ void SlintMainWindowPresenter::launch_simulation() {
     // previous mapping). Unassociated and legacy print directives are never
     // mapped by the application, so they keep their output files.
     const auto analysis_print = m_simulation_config.analysis_print_statement();
+    // the analysis print statement matches by prefix: analyses may append
+    // analysis-specific output variables to the serialized print statement
+    // (e.g. the NOISE DNI()/DNO() operators per the Xyce reference guide)
+    const auto is_analysis_print = [&analysis_print](const std::string& directive) -> bool {
+        if (!analysis_print.has_value() || directive.size() < analysis_print->size())
+            return false;
+        return directive.compare(0, analysis_print->size(), *analysis_print) == 0 && (directive.size() == analysis_print->size() || directive[analysis_print->size()] == ' ');
+    };
     std::vector<std::string> simulation_directives;
     simulation_directives.reserve(directives.size());
     for (const auto& directive : directives)
-        simulation_directives.push_back(analysis_print.has_value() && directive == *analysis_print ? strip_print_file_option(directive) : directive);
+        simulation_directives.push_back(is_analysis_print(directive) ? strip_print_file_option(directive) : directive);
     const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist
     if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))

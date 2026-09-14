@@ -283,6 +283,25 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_wi
     EXPECT_FALSE(statement.has_value());
 }
 
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_a_prefix_of_the_expanded_noise_print) {
+    // arrange — a NOISE analysis carrying device noise operators; the Xyce
+    // reference guide documents DNI()/DNO() as output variables on the
+    // .PRINT NOISE line, and the noise serializer appends them after the
+    // base print statement
+    const SimulationConfig config("NOISE", NoiseSimulationParameters("out", "", "V1", "1", "100MEG", "10", "DEC", {DeviceNoiseOperator("DNI", "R1", "")}, "", PrintParameters("NOISE", "RAW", "out.raw", {"INOISE"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    const auto directives = std::get<NoiseSimulationParameters>(config.analysis).to_xyce_directives(NetlistTopology{});
+    // find the emitted noise print directive
+    const auto emitted = std::find_if(directives.begin(), directives.end(), [](const std::string& d) { return d.find(".PRINT NOISE") == 0; });
+    // assert: the analysis print statement is a prefix of the emitted directive
+    ASSERT_TRUE(statement.has_value());
+    ASSERT_NE(emitted, directives.end());
+    EXPECT_EQ(emitted->compare(0, statement->size(), *statement), 0);
+    EXPECT_EQ(*statement, ".PRINT NOISE FORMAT=RAW FILE=out.raw INOISE");
+    EXPECT_EQ(*emitted, ".PRINT NOISE FORMAT=RAW FILE=out.raw INOISE DNI(R1)");
+}
+
 // ========================================================================================
 // FFT output file path pattern computation
 // ========================================================================================

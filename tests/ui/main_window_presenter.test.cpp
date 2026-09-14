@@ -445,6 +445,53 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
     std::filesystem::remove_all(working_directory, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — netlist with a noise analysis whose RAW print carries an output
+    // file and device noise operators; the emitted .PRINT NOISE statement
+    // appends the DNI()/DNO() operators after the base print serialization, so
+    // the stripping must match the analysis print statement by prefix
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_noise_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    StubNetlistSource* source = new StubNetlistSource("V1 1 2 5\nR1 1 2 1K\nR2 2 0 1K\n.NOISE V(2) V1 DEC 10 1 100MEG\n.PRINT NOISE FORMAT=RAW FILE=noise_out.raw INOISE DNI(R1)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — launch the simulation
+    presenter.on_run_simulation();
+    // assert — the netlist handed to Xyce does not carry the FILE= option
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find("FILE=noise_out.raw"), std::string::npos);
+        EXPECT_NE(content.find(".PRINT NOISE FORMAT=RAW INOISE DNI(R1)"), std::string::npos);
+    }
+    // the editor keeps the user-facing directive with the FILE= option intact
+    EXPECT_NE(view.m_editor_content.find("FILE=noise_out.raw"), std::string::npos);
+    // simulate Xyce producing the RAW file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    const std::string payload = "noise payload";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced file was copied to the user-indicated location
+    const auto copied_path = working_directory / "noise_out.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, payload);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, schematic_change_without_directives_preserves_saved_config) {
     // arrange — directive-less netlist, valid executable
     RecordingView view;
