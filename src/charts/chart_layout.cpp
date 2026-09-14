@@ -444,12 +444,18 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 // sample x fraction through the abscissa scale
                 const double x_value = x_view[p];
                 const double y_value = y_view[p];
+                // non-finite samples cannot be mapped to a path point
+                if (!std::isfinite(x_value) || !std::isfinite(y_value))
+                    continue;
+                // non-positive abscissas sit outside the logarithmic domain
+                if (log_scale && x_value <= 0.0)
+                    continue;
                 // x fraction (linear or logarithmic, unclamped like implot)
                 double tx;
                 if (log_scale) {
                     const double log_left = x_lo <= 0.0 ? -DBL_MAX : std::log10(x_lo);
                     const double log_right = x_hi <= 0.0 ? DBL_MAX : std::log10(x_hi);
-                    const double log_value = x_value <= 0.0 ? log_left : std::log10(x_value);
+                    const double log_value = std::log10(x_value);
                     tx = log_right > log_left ? (log_value - log_left) / (log_right - log_left) : 0.0;
                 }
                 else {

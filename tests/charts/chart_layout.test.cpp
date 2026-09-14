@@ -14,7 +14,7 @@
 
 TEST(ChartZoomLayoutTest, vertical_zoom_window_produces_ascending_axis_ranges) {
     // arrange
-    std::vector<double> abscissa_data = {0.0, 10.0};
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
     std::vector<double> voltage_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
     std::vector<std::pair<size_t, size_t>> step_slices = {{0, 11}};
     std::vector<AnyExpression> expressions;
@@ -339,4 +339,54 @@ TEST(ChartLayoutLimitsTest, descending_sweep_maps_larger_values_toward_the_west_
     const auto& run = frame.series.front();
     ASSERT_EQ(run.points.size(), 6u);
     EXPECT_LT(run.points.front().x, run.points.back().x);
+}
+
+TEST(ChartLayoutLimitsTest, non_finite_samples_are_skipped_in_series_mapping) {
+    // arrange — a series carrying one nan sample
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, std::nan(""), 3.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the run carries only the two finite samples
+    ASSERT_EQ(frame.series.size(), 1u);
+    const auto& run = frame.series.front();
+    ASSERT_EQ(run.points.size(), 2u);
+    for (const auto& point : run.points) {
+        ASSERT_TRUE(std::isfinite(point.x));
+        ASSERT_TRUE(std::isfinite(point.y));
+    }
+}
+
+TEST(ChartLayoutLimitsTest, non_positive_abscissas_are_skipped_on_log_scales) {
+    // arrange — a decade abscissa whose samples include non-positive values
+    std::vector<double> abscissa_data = {1.0, -1.0, 10.0, 100.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0, 4.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 4}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{1.0, 100.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the run skips the non-positive sample and stays finite
+    ASSERT_EQ(frame.series.size(), 1u);
+    const auto& run = frame.series.front();
+    ASSERT_EQ(run.points.size(), 3u);
+    for (const auto& point : run.points) {
+        ASSERT_TRUE(std::isfinite(point.x));
+        ASSERT_TRUE(std::isfinite(point.y));
+    }
 }

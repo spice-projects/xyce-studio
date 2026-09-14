@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -31,6 +32,10 @@ namespace
         for (size_t i = 0; i < run.points.size(); ++i) {
             // sample in plot rect coordinates
             const auto& point = run.points[i];
+            // non-finite coordinates would serialize as nan or inf, which is
+            // not a valid path number and would make the whole series vanish
+            if (!std::isfinite(point.x) || !std::isfinite(point.y))
+                continue;
             commands += std::format("{} {:.2f} {:.2f} ", i == 0 ? "M" : "L", point.x - frame.plot_x, point.y - frame.plot_y);
         }
         return commands;

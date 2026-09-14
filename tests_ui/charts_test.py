@@ -11,18 +11,15 @@ def _chart_axis_labels(app, chart_index: int) -> tuple[list[str], list[str]]:
     # labels sit in the band below the plot (overlapping the legend) and the
     # ordinate labels sit at the sides of the plot rect
     client: SlintClient = app.client()
-    tree = client._mcp.call_tool("get_element_tree", {"elementHandle": client.get_window_properties()["rootElementHandle"], "maxElements": 1000})
-    views = [element for element in tree.get("elements", []) if element.get("typeNamesAndIds", [{}])[0].get("typeName") == "ChartView"]
+    views = client.find_by_type("ChartView")
     view = views[chart_index]
-    origin_y = view.get("absolutePosition", {}).get("y", 0)
-    height = view.get("size", {}).get("height", 0)
-    subtree = client._mcp.call_tool("get_element_tree", {"elementHandle": view["handle"], "maxElements": 1000})
+    view_props = client.get_element_properties(view)
+    origin_y = view_props.get("absolutePosition", {}).get("y", 0)
+    height = view_props.get("size", {}).get("height", 0)
     abscissa_labels: list[str] = []
     ordinate_labels: list[str] = []
-    for element in subtree.get("elements", []):
-        if element.get("typeNamesAndIds", [{}])[0].get("typeName") != "Text":
-            continue
-        props = client._mcp.call_tool("get_element_properties", {"elementHandle": element["handle"]})
+    for text_handle in client.find_by_type_in(view, "Text"):
+        props = client.get_element_properties(text_handle)
         label = props.get("accessibleLabel")
         relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
         if relative_y > height - 60:
@@ -126,7 +123,7 @@ class ChartPanelChecks(unittest.TestCase):
             # inside it too
             client = app.client()
             view_handle = client.find_by_type("ChartView")[0]
-            client._mcp.call_tool("drag_element", {"elementHandle": view_handle, "target": {"x": 660.0, "y": 310.0}})
+            client.drag_element(view_handle, 660.0, 310.0)
             expect(app.get_by_type("ChartView").nth(0)).to_exist()
             # assert: both charts share the zoomed abscissa range
             abscissa_0, ordinate_0 = _chart_axis_labels(app, 0)
