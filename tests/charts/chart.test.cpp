@@ -688,3 +688,42 @@ TEST(ChartUpdateTest, update_prunes_step_selections_beyond_the_new_dataset) {
     EXPECT_EQ(chart.axes()[0].min_value, 3.0);
     EXPECT_EQ(chart.axes()[0].max_value, 4.0);
 }
+
+TEST(ChartExtremaTest, vertical_zoom_reset_keeps_a_finite_window_after_all_steps_are_deselected) {
+    // arrange — one plotted series whose every step gets deselected
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 2.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    chart.plot_series({expression_manager.expressions()[1]});
+    chart.set_selected_steps({});
+    // act — a later vertical zoom reset must not see the sentinel extrema
+    chart.reset_zoom_window(false, true);
+    // assert — the ordinate window stays finite and usable
+    ASSERT_LT(chart.axes()[0].plot_min_value, chart.axes()[0].plot_max_value);
+    EXPECT_TRUE(std::isfinite(chart.axes()[0].plot_min_value));
+    EXPECT_TRUE(std::isfinite(chart.axes()[0].plot_max_value));
+}
+
+TEST(ChartRatioTest, descending_log_range_keeps_the_sweep_direction_when_clamped) {
+    // arrange — a descending decade sweep whose lower bound is non positive
+    std::vector<double> abscissa_data = {1.0, 0.5, -1.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"sweep"}, {{}}, {{1.0, -1.0}});
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    // act
+    const double at_start = chart.ratio_to_abscissa_value(0.0);
+    const double at_end = chart.ratio_to_abscissa_value(1.0);
+    // assert — ratio zero maps to the sweep start (the larger bound) and the
+    // non-positive bound is clamped into the log domain on the way
+    EXPECT_NEAR(at_start, 1.0, 1e-9);
+    EXPECT_NEAR(at_end, 1e-6, 1e-15);
+}

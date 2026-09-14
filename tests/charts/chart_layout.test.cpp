@@ -441,3 +441,34 @@ TEST(ChartLayoutLimitsTest, single_point_sweep_still_gets_a_usable_abscissa_scal
     ASSERT_EQ(frame.series.size(), 1u);
     ASSERT_EQ(frame.series.front().points.size(), 1u);
 }
+
+TEST(ChartLayoutLimitsTest, descending_log_sweep_keeps_the_reversed_bounds_for_the_layout) {
+    // arrange — a descending decade sweep whose lower bound is non positive
+    std::vector<double> abscissa_data = {1.0, 0.5, -1.0};
+    std::vector<double> voltage_data = {1.0, 0.75, 0.25};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{1.0, -1.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
+    // assert — the locator produced usable ticks on the clamped reversed bounds
+    ASSERT_FALSE(frame.x_ticks.empty());
+    for (const auto& tick : frame.x_ticks)
+        ASSERT_TRUE(std::isfinite(tick.pixel_pos));
+    // the largest tick value sits at the plot west edge
+    double largest_value = frame.x_ticks.front().value;
+    float position_of_largest = frame.x_ticks.front().pixel_pos;
+    for (const auto& tick : frame.x_ticks) {
+        if (tick.value > largest_value) {
+            largest_value = tick.value;
+            position_of_largest = tick.pixel_pos;
+        }
+    }
+    EXPECT_LT(position_of_largest, frame.plot_x + frame.plot_w * 0.5f);
+}

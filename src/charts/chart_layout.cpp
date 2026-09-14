@@ -230,21 +230,27 @@ namespace
 
 std::pair<double, double> clamped_abscissa_limits(const ChartEngine& engine) {
     // visible abscissa range from the engine
-    double left_value = engine.abscissa_left_value();
-    double right_value = engine.abscissa_right_value();
+    const double left_value = engine.abscissa_left_value();
+    const double right_value = engine.abscissa_right_value();
+    // clamp on the normalized bounds so a descending sweep keeps its order;
+    // clamping the raw bounds would silently turn a reversed range ascending
+    const bool descending = left_value > right_value;
+    double lo = std::min(left_value, right_value);
+    double hi = std::max(left_value, right_value);
     // clamped above zero for logarithmic scales
     if (engine.abscissa_scale() != AbscissaScale::LINEAR) {
-        // clamp non-positive left limit to a fraction of the right limit
-        if (left_value <= 0.0)
-            left_value = right_value > 0.0 ? right_value / 1e6 : 1.0;
-        // clamp non-positive right limit to a multiple of the left limit
-        if (right_value <= 0.0)
-            right_value = left_value > 0.0 ? left_value * 1e6 : 1.0;
+        // clamp non-positive lower bound to a fraction of the upper bound
+        if (lo <= 0.0)
+            lo = hi > 0.0 ? hi / 1e6 : 1.0;
+        // clamp non-positive upper bound to a multiple of the lower bound
+        if (hi <= 0.0)
+            hi = lo > 0.0 ? lo * 1e6 : 1.0;
         // avoid a degenerate zero-width range
-        if (left_value == right_value)
-            right_value = left_value * 2.0;
+        if (lo == hi)
+            hi = lo * 2.0;
     }
-    return {left_value, right_value};
+    // restore the engine order
+    return descending ? std::make_pair(hi, lo) : std::make_pair(lo, hi);
 }
 
 ChartLayout::ChartLayout(TextMeasurer measure) :
@@ -411,8 +417,6 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // skip disabled axes
         if (!frame.y_axes[i].enabled)
             continue;
-        // engine range of this axis
-        const auto& axis_info = engine.axes()[i];
         // invert the vertical fraction so larger values are higher
         for (auto& tick : frame.y_axes[i].ticks) {
             // fraction of the tick inside the expanded axis range (unclamped like implot)

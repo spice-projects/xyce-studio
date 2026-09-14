@@ -19,6 +19,7 @@ export struct ChartTickData {
     label: string,
     pixel-pos: float,
     show: bool,
+    major: bool,
 }
 
 // one grid line at a pixel offset with its opacity
@@ -76,8 +77,11 @@ export component ChartView inherits Rectangle {
     property <length> scale-y: frame.frame-h > 0.0 ? self.height / frame.frame-h : 1px;
 
     // outward tick mark lengths matching the implot axis tick geometry
-    property <length> x-tick-length: 4px;
-    property <length> y-tick-length: 4px;
+    // (major tick len 4px, minor tick len 2px)
+    function tick-length(major: bool) -> length {
+        if major { return 4px; }
+        return 2px;
+    }
 
     // grid line color from the shared chart palette; minor lines carry their
     // own opacity
@@ -175,7 +179,7 @@ export component ChartView inherits Rectangle {
         x: tick.pixel-pos * root.scale-x;
         y: frame.x-datum * root.scale-y;
         width: 1px;
-        height: root.x-tick-length;
+        height: root.tick-length(tick.major);
         background: frame.border-color;
     }
 
@@ -203,8 +207,8 @@ export component ChartView inherits Rectangle {
     for tick in frame.y-ticks: Rectangle {
         visible: tick.show && tick.pixel-pos >= frame.plot-y && tick.pixel-pos <= frame.plot-y + frame.plot-h;
         x: frame.plot-x * root.scale-x;
-        y: tick.pixel-pos * root.scale-y - root.y-tick-length / 2;
-        width: root.y-tick-length;
+        y: tick.pixel-pos * root.scale-y - root.tick-length(tick.major) / 2;
+        width: root.tick-length(tick.major);
         height: 1px;
         background: frame.border-color;
     }
@@ -232,9 +236,9 @@ export component ChartView inherits Rectangle {
     // y2 tick marks extending left from the east datum into the plot
     for tick in frame.y2-ticks: Rectangle {
         visible: tick.show;
-        x: frame.y2-datum * root.scale-x - root.y-tick-length;
-        y: tick.pixel-pos * root.scale-y - root.y-tick-length / 2;
-        width: root.y-tick-length;
+        x: frame.y2-datum * root.scale-x - root.tick-length(tick.major);
+        y: tick.pixel-pos * root.scale-y - root.tick-length(tick.major) / 2;
+        width: root.tick-length(tick.major);
         height: 1px;
         background: frame.border-color;
     }
@@ -262,9 +266,9 @@ export component ChartView inherits Rectangle {
     // y3 tick marks extending left from the east datum into the plot
     for tick in frame.y3-ticks: Rectangle {
         visible: tick.show;
-        x: frame.y3-datum * root.scale-x - root.y-tick-length;
-        y: tick.pixel-pos * root.scale-y - root.y-tick-length / 2;
-        width: root.y-tick-length;
+        x: frame.y3-datum * root.scale-x - root.tick-length(tick.major);
+        y: tick.pixel-pos * root.scale-y - root.tick-length(tick.major) / 2;
+        width: root.tick-length(tick.major);
         height: 1px;
         background: frame.border-color;
     }

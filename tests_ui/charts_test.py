@@ -1,3 +1,4 @@
+import re
 import shutil
 import unittest
 from pathlib import Path
@@ -34,11 +35,11 @@ def _abscissa_tick_labels(labels: list[str]) -> list[str]:
 
 
 def _label_value(label: str) -> float:
-    # parse a chart tick label like "500 m" or "2.5 " into a float
-    parts = label.split()
-    multipliers = {"m": 1e-3, "u": 1e-6, "µ": 1e-6, "k": 1e3, "M": 1e6, "G": 1e9}
-    multiplier = multipliers.get(parts[1], 1.0) if len(parts) > 1 else 1.0
-    return float(parts[0]) * multiplier
+    # parse a chart tick label like "500 m", "2.5 " or "500 mV" into a float;
+    # the si prefix scales the number and any unit suffix is ignored
+    match = re.match(r"^(-?\d+(?:\.\d+)?)\s*([munµkMG]?)", label.strip())
+    multipliers = {"m": 1e-3, "u": 1e-6, "µ": 1e-6, "n": 1e-9, "k": 1e3, "M": 1e6, "G": 1e9}
+    return float(match.group(1)) * multipliers.get(match.group(2), 1.0)
 
 
 class ChartPanelChecks(unittest.TestCase):

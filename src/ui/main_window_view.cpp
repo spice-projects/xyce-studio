@@ -75,6 +75,7 @@ namespace
             entry.label = tick.label;
             entry.pixel_pos = tick.pixel_pos;
             entry.show = tick.show_label;
+            entry.major = tick.major;
             x_ticks->push_back(entry);
         }
         data.x_ticks = x_ticks;
@@ -93,6 +94,7 @@ namespace
                 entry.label = tick.label;
                 entry.pixel_pos = tick.pixel_pos;
                 entry.show = tick.show_label;
+                entry.major = tick.major;
                 tick_model->push_back(entry);
             }
             tick_models[i] = tick_model;

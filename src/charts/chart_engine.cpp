@@ -350,8 +350,12 @@ void ChartEngine::auto_range() {
             // next
             continue;
         }
-        // no plottable data on this axis (all steps deselected): keep the default range
+        // no plottable data on this axis (all steps deselected): keep a finite
+        // default range and reset the stored extrema so a later vertical
+        // autorange or zoom reset computes a finite window
         if (axis_info.min_value > axis_info.max_value) {
+            axis_info.min_value = 0.0;
+            axis_info.max_value = 1.0;
             axis_info.plot_min_value = 0.0;
             axis_info.plot_max_value = 1.0;
             // next
