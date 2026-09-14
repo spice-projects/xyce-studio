@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include "../app/app.h"
+#include "../charts/chart_palette.h"
 #include "../netlist/netlist_lexer.h"
 #include "../netlist/netlist_lexer_adapter.h"
 #include "clipboard.h"
@@ -19,6 +20,9 @@
 
 namespace
 {
+    // slint color from a chart color
+    slint::Color to_slint_color(const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); }
+
     // svg polyline commands in plot rect coordinates from a chart series run
     std::string series_commands(const ChartFrame& frame, const ChartSeriesFrame& run) {
         // commands under construction
@@ -33,9 +37,19 @@ namespace
     }
 
     // convert one chart frame snapshot into the generated slint frame struct
-    main_window::ChartFrameData native_frame_data(const ChartFrame& frame) {
+    main_window::ChartFrameData native_frame_data(const ChartFrame& frame, bool is_dark) {
         // frame data under construction
         main_window::ChartFrameData data;
+        // palette roles shared with the implot render path
+        const ChartPalette& palette = chart_palette(is_dark);
+        const auto slint_color = [](const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); };
+        data.text_color = slint_color(palette.text);
+        data.panel_color = slint_color(palette.panel);
+        data.border_color = slint_color(palette.border);
+        data.grid_color = slint_color(palette.grid);
+        // viewport the frame was laid out for (drives the provisional stretch)
+        data.frame_w = frame.frame_w;
+        data.frame_h = frame.frame_h;
         // frame and plot geometry in logical px
         data.plot_x = frame.plot_x;
         data.plot_y = frame.plot_y;
@@ -138,12 +152,17 @@ SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlis
     // seed the dark-mode flag from the initial Slint theme state so the first
     // highlight model is built with the correct colours even before charts are shown
     m_dark_mode = m_window->get_is_dark();
+    // push the chart palette canvas color so the charts panel background
+    // matches the offscreen implot canvas in both render paths
+    m_window->set_charts_background(to_slint_color(chart_palette(m_dark_mode).background));
     // wire the theme change handler early so theme switches are always tracked
     // (the charts renderer is updated only once it exists) and the visible
     // netlist highlight model is rebuilt with the new palette
     m_window->on_theme_changed([this](bool is_dark) {
         // keep the adapter colour palette in sync for the next highlight rebuild
         m_dark_mode = is_dark;
+        // keep the charts panel background in sync with the chart palette
+        m_window->set_charts_background(to_slint_color(chart_palette(is_dark).background));
         // rebuild the highlight model so the loaded netlist picks up the new colours
         rebuild_netlist_highlight_model();
         // update the renderer's dark mode state when the slint theme changes
@@ -678,7 +697,7 @@ void SlintMainWindowView::ensure_charts_renderer() {
         auto model = std::make_shared<slint::VectorModel<main_window::ChartFrameData>>();
         // convert each frame snapshot
         for (const auto& frame : frames)
-            model->push_back(native_frame_data(frame));
+            model->push_back(native_frame_data(frame, m_dark_mode));
         // expose the frames to the charts panel
         m_window->set_native_charts(model);
     });

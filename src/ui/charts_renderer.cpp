@@ -14,6 +14,7 @@
 #include <gpu/ganesh/GrDirectContext.h>
 #include <gpu/ganesh/SkSurfaceGanesh.h>
 
+#include "../charts/chart_palette.h"
 #include "chart_text_measurer.h"
 #include "charts_renderer.h"
 #include "font_data.h"
@@ -24,13 +25,16 @@ namespace
     // imgui/implot palette matching the slint cupertino widgets, ported from
     // the retired metal overlay so both render paths look identical
     void apply_slint_style(bool is_dark) {
-        // macOS Cupertino Theme Palette
-        const ImVec4 text = is_dark ? ImVec4(0.92f, 0.92f, 0.94f, 1.00f) : ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
-        const ImVec4 muted = is_dark ? ImVec4(0.60f, 0.60f, 0.64f, 1.00f) : ImVec4(0.55f, 0.55f, 0.58f, 1.00f);
-        const ImVec4 background = is_dark ? ImVec4(0.12f, 0.12f, 0.12f, 1.00f) : ImVec4(0.93f, 0.93f, 0.93f, 1.00f);
-        const ImVec4 panel = is_dark ? ImVec4(0.17f, 0.17f, 0.18f, 1.00f) : ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        const ImVec4 border = is_dark ? ImVec4(0.28f, 0.28f, 0.30f, 1.00f) : ImVec4(0.82f, 0.82f, 0.84f, 1.00f);
-        const ImVec4 grid = is_dark ? ImVec4(0.22f, 0.22f, 0.24f, 1.00f) : ImVec4(0.91f, 0.91f, 0.93f, 1.00f);
+        // palette shared with the slint native chart view (chart_palette.h)
+        const ChartPalette& theme = chart_palette(is_dark);
+        // imgui color conversion helper
+        const auto im_color = [](const ChartColor& color) { return ImVec4(color.r, color.g, color.b, color.a); };
+        const ImVec4 text = im_color(theme.text);
+        const ImVec4 muted = im_color(theme.muted);
+        const ImVec4 background = im_color(theme.background);
+        const ImVec4 panel = im_color(theme.panel);
+        const ImVec4 border = im_color(theme.border);
+        const ImVec4 grid = im_color(theme.grid);
         const ImVec4 transparent = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
         const ImVec4 accent = is_dark ? ImVec4(0.04f, 0.52f, 1.00f, 1.00f) : ImVec4(0.00f, 0.48f, 1.00f, 1.00f);
         // imgui style
@@ -322,6 +326,13 @@ void ChartsRenderer::render_panel() {
                 if (ImGui::BeginChild(name.c_str(), ImVec2(0, height), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration)) {
                     // render chart
                     dataset->charts[i]->render();
+                    // log the implot plot rect once (debug aid)
+                    static bool implot_geom_logged = false;
+                    if (!implot_geom_logged) {
+                        implot_geom_logged = true;
+                        const auto [rx_min, ry_min, rx_max, ry_max] = dataset->charts[i]->get_plot_rect();
+                        spdlog::debug("ImPlot geom: plot rect ({}, {} {} x {}), viewport {}x{}", rx_min, ry_min, rx_max - rx_min, ry_max - ry_min, m_viewport_width, m_viewport_height);
+                    }
                     // close
                     ImGui::EndChild();
                 }
@@ -338,6 +349,8 @@ void ChartsRenderer::render() {
     // nothing to publish without a sink, a viewport or a usable scale
     if (!m_publish || m_viewport_width <= 0.0f || m_viewport_height <= 0.0f || m_scale <= 0.0)
         return;
+    // log the render duration to expose resize-driven stalls (debug aid)
+    const auto render_started = std::chrono::steady_clock::now();
     // physical pixel size of the offscreen target
     const int width = static_cast<int>(std::lround(m_viewport_width * m_scale));
     const int height = static_cast<int>(std::lround(m_viewport_height * m_scale));
@@ -392,6 +405,11 @@ void ChartsRenderer::render() {
     // publish slint native chart frames when the native view is active
     if (m_native_view)
         publish_native_frames();
+    // log the render duration to expose resize-driven stalls (debug aid)
+    const auto render_ended = std::chrono::steady_clock::now();
+    const auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(render_ended - render_started).count();
+    if (render_ms > 16)
+        spdlog::debug("Charts render took {} ms ({}x{} device px)", render_ms, width, height);
 }
 
 void ChartsRenderer::on_idle() {
@@ -549,6 +567,9 @@ void ChartsRenderer::publish_native_frames() {
             const auto& axes = chart->engine().axes();
             spdlog::debug("Native frame axes: Y1 [{}, {}], Y2 [{}, {}], Y3 [{}, {}]", axes[0].plot_min_value, axes[0].plot_max_value, axes[1].plot_min_value, axes[1].plot_max_value, axes[2].plot_min_value, axes[2].plot_max_value);
             frames.push_back(m_layout.build(chart->engine(), m_viewport_width, chart_height));
+            // log the built frame geometry (debug aid)
+            const auto& built = frames.back();
+            spdlog::debug("Native frame geom: plot ({}, {} {} x {}), x-datum {}, y-datum {}, legend ({}, {}), viewport {}x{}", built.plot_x, built.plot_y, built.plot_w, built.plot_h, built.x_datum, built.y_axes[0].datum, built.legend_x, built.legend_y, m_viewport_width, m_viewport_height);
         }
     }
     // hand the frames to the slint layer

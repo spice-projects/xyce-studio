@@ -6,7 +6,11 @@
 import "./fonts/JetBrainsMono-Regular.ttf";
 import { Palette } from "std-widgets.slint";
 import { AddPlotPanel } from "../components/add_plot_panel.slint";
-import { ChartsPanel, PlotTabItem, ChartFrameData } from "../components/charts_panel.slint";
+import {
+    ChartsPanel,
+    PlotTabItem,
+    ChartFrameData,
+} from "../components/charts_panel.slint";
 import {
     BreadcrumbItem,
     ExpressionItem,
@@ -162,6 +166,10 @@ export component MainWindow inherits Window {
 
     // slint native chart frames, forwarded to the ChartsPanel component
     in property <[ChartFrameData]> native-charts;
+
+    // surrounding canvas color of the charts panel, pushed from the host
+    // renderer's chart palette so both render paths share it
+    in property <color> charts-background;
 
     // charts panel action availability, forwarded to the ChartsPanel component
     in property <bool> enable-fft: false;
@@ -593,6 +601,9 @@ export component MainWindow inherits Window {
                         charts-image: root.charts-image;
                         // forward the slint native chart frames from the host
                         native-charts: root.native-charts;
+                        // match the offscreen canvas background so both chart
+                        // render paths share the same surrounding color
+                        chart-background: root.charts-background;
                         // report layout changes to the renderer
                         viewport-changed(width, height) => { root.charts-viewport-changed(width, height); }
                     }

@@ -7,6 +7,12 @@
 // logical text line height of the charts font (inter regular, 14 px)
 inline constexpr float CHART_TEXT_HEIGHT = 14.0f;
 
+// glyph em size of the axis and legend labels: imgui loads inter at
+// CHART_TEXT_HEIGHT but stb scales glyph metrics by 1/(hhea ascent+descent)
+// (2048/2478 for inter), so the rendered em is smaller than the layout line
+// height; the slint labels use the same em to match the implot render path
+inline constexpr float CHART_LABEL_FONT_SIZE = 11.56f;
+
 // padding between the chart frame and the canvas area
 inline constexpr float CHART_PLOT_PADDING = 10.0f;
 

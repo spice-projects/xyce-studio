@@ -254,7 +254,9 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // legend entry with the assigned series color
         frame.legend.push_back({name, std::get<5>(ordinate_series)});
     }
-    // outside legend shrinks the canvas vertically when there are entries
+    // outside legend: the settled implot render reserves canvas space for it
+    // (CanvasRect.Max.y -= legend size + LegendPadding.y); the legend box is
+    // anchored to the canvas south edge and never overlaps the tick labels
     if (!frame.legend.empty()) {
         // horizontal legend: icons plus labels and spacing between entries
         float sum_label_width = 0.0f;
@@ -264,16 +266,14 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         const size_t count = frame.legend.size();
         frame.legend_w = 2.0f * CHART_LEGEND_INNER_PADDING_X + CHART_TEXT_HEIGHT * static_cast<float>(count) + sum_label_width + CHART_LEGEND_SPACING_X * static_cast<float>(count - 1);
         frame.legend_h = 2.0f * CHART_LEGEND_INNER_PADDING_Y + CHART_TEXT_HEIGHT;
-        // shrink the canvas below the legend block
-        const float canvas_h_after = std::max(0.0f, canvas_h - frame.legend_h - CHART_LEGEND_PADDING_Y);
-        // plot rect vertical span
+        // vertical span with the x axis strip and the reserved legend block
         frame.plot_y = canvas_y;
-        frame.plot_h = std::max(0.0f, canvas_h_after - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING));
+        frame.plot_h = std::max(0.0f, canvas_h - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING) - (frame.legend_h + CHART_LEGEND_PADDING_Y));
         // x axis datum line at the plot bottom edge
         frame.x_datum = frame.plot_y + frame.plot_h;
-        // legend centered horizontally, south of the canvas
+        // legend centered horizontally with its bottom on the canvas south edge
         frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
-        frame.legend_y = canvas_y + canvas_h - CHART_LEGEND_PADDING_Y - frame.legend_h;
+        frame.legend_y = canvas_y + canvas_h - frame.legend_h;
     }
     else {
         // no legend: plain vertical span with the x axis strip

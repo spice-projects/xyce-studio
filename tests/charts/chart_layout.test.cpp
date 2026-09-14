@@ -132,12 +132,15 @@ TEST(ChartLayoutGeometryTest, legend_shrinks_canvas_and_is_positioned_south) {
     // horizontal legend size: inner padding, icon per entry, labels and spacing
     ASSERT_NEAR(frame.legend_w, 2.0f * 8.0f + 14.0f + 6.0f * 7.0f, 1e-6);
     ASSERT_NEAR(frame.legend_h, 2.0f * 4.0f + 14.0f, 1e-6);
-    // the legend is centered horizontally and sits south with legend padding
+    // the legend is centered horizontally and sits below the abscissa tick
+    // label band, like the settled implot render (legend anchored to the
+    // canvas south edge, never overlapping the tick labels)
     ASSERT_NEAR(frame.legend_x, (800.0f - frame.legend_w) * 0.5f, 1e-6);
-    ASSERT_NEAR(frame.legend_y, 600.0f - 10.0f - 6.0f - frame.legend_h, 1e-6);
-    // the plot bottom now reserves the legend strip too
-    ASSERT_NEAR(frame.x_datum, 10.0f + (580.0f - frame.legend_h - 6.0f) - 20.0f, 1e-6);
-    ASSERT_NEAR(frame.plot_y + frame.plot_h, frame.x_datum, 1e-6);
+    ASSERT_NEAR(frame.legend_y, 10.0f + 580.0f - frame.legend_h, 1e-6);
+    // the canvas reserves the legend block (legend height plus legend padding)
+    // below the x axis strip before the plot rect is computed
+    ASSERT_NEAR(frame.plot_h, 580.0f - (14.0f + 6.0f) - (22.0f + 6.0f), 1e-6);
+    ASSERT_NEAR(frame.x_datum, 10.0f + frame.plot_h, 1e-6);
 }
 
 TEST(ChartLayoutGeometryTest, left_pad_reserves_y_tick_label_width) {

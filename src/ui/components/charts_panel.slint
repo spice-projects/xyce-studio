@@ -3,7 +3,6 @@ import { ChartView, ChartFrameData } from "chart_view.slint";
 
 // re-export the frame structs so root widgets can declare their properties
 export { ChartFrameData }
-
 export struct PlotTabItem {
     id: int,
     title: string,
@@ -126,6 +125,10 @@ export component ChartsPanel inherits Rectangle {
     // the rendered offscreen chart image published by the host renderer
     in property <image> charts-image;
 
+    // surrounding canvas color pushed from the host chart palette so the
+    // slint native view matches the offscreen implot canvas background
+    in property <color> chart-background: #ededed;
+
     // slint native chart frames published by the host chart layout engine
     in property <[ChartFrameData]> native-charts;
 
@@ -145,7 +148,7 @@ export component ChartsPanel inherits Rectangle {
     // store the Y position where the context menu was triggered
     private property <length> context-menu-y;
 
-    background: Palette.alternate-background;
+    background: root.chart-background;
 
     VerticalLayout {
         spacing: 0px;
@@ -190,7 +193,7 @@ export component ChartsPanel inherits Rectangle {
 
         canvas-rect := Rectangle {
             vertical-stretch: 1;
-            background: Palette.alternate-background;
+            background: root.chart-background;
 
             // fire the initial viewport notification when this component is first
             // instantiated; `changed` handlers do not fire on initial value assignment
@@ -267,7 +270,7 @@ export component ChartsPanel inherits Rectangle {
                 // forwards left-click drag interactions for chart zooming, and tracks hover
                 // pointer movement for status bar readouts.
                 Rectangle {
-                    background: Palette.alternate-background;
+                    background: root.chart-background;
 
                     // drag state for the slint-side zoom selection rectangle
                     private property <length> drag-start-x;
