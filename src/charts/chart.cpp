@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include "chart.h"
+#include "chart_layout.h"
 
 namespace
 {
@@ -144,21 +145,8 @@ void Chart::render() {
             // log2 abscissa axis
             ImPlot::SetupAxisScale(ImAxis_X1, log2_forward_transform, exp2_inverse_transform);
         }
-        // abscissa limits
-        double x_left_value = m_engine.abscissa_left_value();
-        double x_right_value = m_engine.abscissa_right_value();
-        // clamped above zero for logarithmic scales
-        if (m_engine.abscissa_scale() != AbscissaScale::LINEAR) {
-            // clamp non-positive left limit to a fraction of the right limit
-            if (x_left_value <= 0.0)
-                x_left_value = x_right_value > 0.0 ? x_right_value / 1e6 : 1.0;
-            // clamp non-positive right limit to a multiple of the left limit
-            if (x_right_value <= 0.0)
-                x_right_value = x_left_value > 0.0 ? x_left_value * 1e6 : 1.0;
-            // avoid a degenerate zero-width range
-            if (x_left_value == x_right_value)
-                x_right_value = x_left_value * 2.0;
-        }
+        // abscissa limits clamped above zero for logarithmic scales
+        const auto [x_left_value, x_right_value] = clamped_abscissa_limits(m_engine);
         // min and max values
         ImPlot::SetupAxisLimits(ImAxis_X1, x_left_value, x_right_value, ImPlotCond_Always);
         // log2 custom ticks for OCTAVE scale
