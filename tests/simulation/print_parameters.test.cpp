@@ -76,13 +76,23 @@ TEST(PrintParametersChecks, to_xyce_statement_does_not_quote_simple_file) {
     ASSERT_EQ(statement, ".PRINT TRAN FORMAT=RAW FILE=waves.raw V(OUT)");
 }
 
-TEST(PrintParametersChecks, to_xyce_statement_keeps_already_quoted_file) {
-    // arrange: a value the user typed with explicit quotes passes through as-is
+TEST(PrintParametersChecks, to_xyce_statement_normalizes_quoted_file) {
+    // arrange: a value carrying outer quotes is normalized — the model always
+    // holds the bare filename, so the emitted directive is unquoted here
     const PrintParameters params("TRAN", "RAW", R"("waves.raw")", {"V(OUT)"}, {});
     // act
     const std::string statement = params.to_xyce_statement();
     // assert
-    ASSERT_EQ(statement, R"(.PRINT TRAN FORMAT=RAW FILE="waves.raw" V(OUT))");
+    ASSERT_EQ(statement, ".PRINT TRAN FORMAT=RAW FILE=waves.raw V(OUT)");
+}
+
+TEST(PrintParametersChecks, to_xyce_statement_normalizes_quoted_file_with_spaces) {
+    // arrange: a quoted spaced value is stripped and re-quoted once
+    const PrintParameters params("TRAN", "RAW", R"("file with space.raw")", {"V(OUT)"}, {});
+    // act
+    const std::string statement = params.to_xyce_statement();
+    // assert
+    ASSERT_EQ(statement, R"(.PRINT TRAN FORMAT=RAW FILE="file with space.raw" V(OUT))");
 }
 
 TEST(PrintParametersChecks, quoted_file_round_trip_normalizes_quotes) {

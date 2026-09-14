@@ -251,6 +251,121 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_non_
     EXPECT_FALSE(destination.has_value());
 }
 
+TEST(SimulationConfigCopyDestinationChecks, copy_destination_strips_quoted_file) {
+    // arrange — the model always carries the bare filename; a quote-carrying
+    // value (direct construction) is normalized when composing the destination
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", R"("out raw.raw")", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.raw_output_copy_destination("/tmp/work");
+    // assert
+    ASSERT_TRUE(destination.has_value());
+    EXPECT_EQ(destination->generic_string(), "/tmp/work/out raw.raw");
+}
+
+// ========================================================================================
+// legacy OP print normalization
+// ========================================================================================
+
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_the_legacy_op_print) {
+    // arrange — an OP analysis built from the legacy print_dc_* fields with a
+    // duplicated variable; the normalized print must match the legacy emission
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)", "V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    // assert: variables are de-duplicated and the statement matches the legacy emission
+    ASSERT_TRUE(statement.has_value());
+    EXPECT_EQ(*statement, ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)");
+}
+
+TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_emitted_directive) {
+    // arrange — legacy OP print fields; the emitted directive must equal the
+    // analysis print statement so the presenter strips its FILE= option
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    const auto directives = std::get<OpSimulationParameters>(config.analysis).to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_TRUE(statement.has_value());
+    const auto emitted = std::find_if(directives.begin(), directives.end(), [](const std::string& d) { return d.find(".PRINT DC") == 0; });
+    ASSERT_NE(emitted, directives.end());
+    EXPECT_EQ(*emitted, *statement);
+}
+
+TEST(SimulationConfigOutputPathChecks, raw_path_resolves_the_legacy_op_print) {
+    // arrange — legacy OP print fields with a RAW format
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.raw_output_file_path("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.raw");
+}
+
+TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_legacy_op_print_with_non_raw_format) {
+    // arrange — legacy OP print fields with a CSV format produce no raw file
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.raw_output_file_path("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(path.has_value());
+}
+
+TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_the_legacy_op_print) {
+    // arrange — legacy OP print fields with an explicit output file
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.raw_output_copy_destination("/tmp/work");
+    // assert
+    ASSERT_TRUE(destination.has_value());
+    EXPECT_EQ(destination->generic_string(), "/tmp/work/dc.raw");
+}
+
+TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_without_file) {
+    // arrange — legacy OP print fields without an explicit output file
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.raw_output_copy_destination("/tmp/work");
+    // assert
+    EXPECT_FALSE(destination.has_value());
+}
+
+TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_with_non_raw_format) {
+    // arrange — legacy OP print fields with a CSV format produce no raw file
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.raw_output_copy_destination("/tmp/work");
+    // assert
+    EXPECT_FALSE(destination.has_value());
+}
+
+// ========================================================================================
+// unassociated print deduplication
+// ========================================================================================
+
+TEST(SimulationConfigUnassociatedPrintChecks, op_analysis_does_not_duplicate_its_dc_print) {
+    // arrange — a netlist with an .OP analysis and a .PRINT DC directive; the
+    // OP parser claims the print into its structured print parameters, so the
+    // directive must not be appended to the unassociated prints as well
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
+    // assert
+    ASSERT_EQ(config.analysis_type, "OP");
+    ASSERT_TRUE(config.unassociated_prints.empty());
+    const auto& print_parameters = std::get<OpSimulationParameters>(config.analysis).print_parameters;
+    ASSERT_TRUE(print_parameters.has_value());
+    EXPECT_EQ(print_parameters->print_file, "dc.raw");
+}
+
+TEST(SimulationConfigUnassociatedPrintChecks, dc_print_stays_unassociated_for_other_analyses) {
+    // arrange — a .PRINT DC under a transient analysis is not claimed by the
+    // analysis and must remain in the unassociated prints
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
+    // assert
+    ASSERT_EQ(config.analysis_type, "TRAN");
+    ASSERT_EQ(config.unassociated_prints.size(), 1);
+    EXPECT_EQ(config.unassociated_prints[0].print_type, "DC");
+    EXPECT_EQ(config.unassociated_prints[0].print_file, "dc.raw");
+}
+
 // ========================================================================================
 // analysis print statement serialization
 // ========================================================================================

@@ -171,6 +171,14 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
         else if (analysis_type == "NOISE") {
             handled_print_types.insert("NOISE");
         }
+        else if (analysis_type == "OP") {
+            // the OP parser claims .PRINT DC into its structured print
+            // parameters; without this the same directive would also be
+            // appended to the unassociated prints, duplicating it in the
+            // Xyce netlist and splitting its output between the produced RAW
+            // file (stripped FILE=) and the user file (unstripped)
+            handled_print_types.insert("DC");
+        }
     }
 
     // iterate all directives to find unassociated prints
@@ -276,67 +284,40 @@ bool SimulationConfig::operator==(const SimulationConfig& other) const {
 }
 
 std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& netlist_file_path) const {
-    // process simulation types
-    auto l = [&netlist_file_path]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
-        // actual parameter type
-        using TX = std::decay_t<T0>;
-        // std::monostate
-        if constexpr (std::is_same_v<TX, std::monostate>) {
-            // error, unexpected analysis type
-            return std::optional<std::filesystem::path>();
-        }
-        else {
-            // check print parameters is set
-            if (a.print_parameters.has_value()) {
-                // check if the print format is RAW
-                if (a.print_parameters->print_format.empty() || to_upper(a.print_parameters->print_format) == "RAW") {
-                    // the FILE= option is stripped for the Xyce run, so the RAW
-                    // file is always produced next to the netlist under Xyce's
-                    // default name regardless of the user's print file
-                    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
-                }
-                // no output file
-                return {};
-            }
-            // build raw output file path based on netlist file path
-            return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
-        }
-    };
-    return std::visit(l, analysis);
+    // no analysis, no raw output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // a print configured with a non-RAW format produces no raw output file
+    if (print_parameters.has_value() && !print_parameters->print_format.empty() && to_upper(print_parameters->print_format) != "RAW")
+        return std::nullopt;
+    // the FILE= option is stripped for the Xyce run, so the RAW file is always
+    // produced next to the netlist under Xyce's default name regardless of the
+    // user's print file
+    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
 }
 
 std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destination(const std::filesystem::path& working_directory) const {
-    // process simulation types
-    auto l = [&working_directory]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
-        // actual parameter type
-        using TX = std::decay_t<T0>;
-        // std::monostate
-        if constexpr (std::is_same_v<TX, std::monostate>) {
-            // error, unexpected analysis type
-            return std::optional<std::filesystem::path>();
-        }
-        else {
-            // check print parameters is set
-            if (a.print_parameters.has_value()) {
-                // check if the print format is RAW
-                if (a.print_parameters->print_format.empty() || to_upper(a.print_parameters->print_format) == "RAW") {
-                    // resolve the user's print file against the working directory
-                    if (!a.print_parameters->print_file.empty())
-                        return std::optional<std::filesystem::path>(working_directory / a.print_parameters->print_file);
-                    // no explicit file to copy to
-                    return {};
-                }
-            }
-            // no raw output file
-            return std::optional<std::filesystem::path>();
-        }
-    };
-    return std::visit(l, analysis);
+    // no analysis, no raw output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // no print configured or a non-RAW format produces no raw file to copy
+    if (!print_parameters.has_value() || (!print_parameters->print_format.empty() && to_upper(print_parameters->print_format) != "RAW"))
+        return std::nullopt;
+    // no explicit file to copy to
+    if (print_parameters->print_file.empty())
+        return std::nullopt;
+    // resolve the user's print file against the working directory (the model
+    // always carries the bare filename; strip any outer quotes for consistency)
+    return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
 }
 
-std::optional<std::string> SimulationConfig::analysis_print_statement() const {
+std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {
     // process simulation types
-    auto l = []<typename T0>(T0& a) -> std::optional<std::string> {
+    auto l = []<typename T0>(T0& a) -> std::optional<PrintParameters> {
         // actual parameter type
         using TX = std::decay_t<T0>;
         // std::monostate
@@ -345,15 +326,40 @@ std::optional<std::string> SimulationConfig::analysis_print_statement() const {
             return std::nullopt;
         }
         else {
-            // serialize the analysis print directive when configured
+            // structured print parameters when set
             if (a.print_parameters.has_value())
-                return a.print_parameters->to_xyce_statement();
+                return a.print_parameters;
+            // legacy OP representation: derive the structured print from the
+            // print_dc_* fields (de-duplicated variables, matching the
+            // legacy directive emission)
+            if constexpr (std::is_same_v<TX, OpSimulationParameters>) {
+                if (a.print_dc_enabled) {
+                    // de-duplicate the variables preserving order, matching the legacy emission
+                    std::vector<std::string> unique_vars;
+                    std::set<std::string> seen;
+                    for (const auto& var : a.print_dc_specific_variables) {
+                        if (seen.insert(var).second)
+                            unique_vars.push_back(var);
+                    }
+                    return PrintParameters("DC", a.print_dc_format, a.print_dc_file, std::move(unique_vars), {});
+                }
+            }
             // no analysis print directive
             return std::nullopt;
         }
     };
     // visit the analysis variant
     return std::visit(l, analysis);
+}
+
+std::optional<std::string> SimulationConfig::analysis_print_statement() const {
+    // serialize the analysis print parameters
+    const auto print_parameters = analysis_print_parameters();
+    // no print configured
+    if (!print_parameters.has_value())
+        return std::nullopt;
+    // return the serialized directive
+    return print_parameters->to_xyce_statement();
 }
 
 std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const {

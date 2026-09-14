@@ -114,6 +114,12 @@ private:
     // recompute and forward the action enablement to the view
     void refresh_action_states();
 
+    // copy the produced raw output file to the user-indicated location when the
+    // analysis print carries a file; the application maps the produced file
+    // (which is never rewritten by a later run) while the copy keeps the
+    // user-visible file up to date
+    void copy_raw_output_to_destination(const std::filesystem::path& raw_path);
+
     MainWindowViewDef& m_view;
 
     std::shared_ptr<KiCadSession> m_kicad_session;

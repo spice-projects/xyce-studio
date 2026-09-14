@@ -51,6 +51,13 @@ public:
     // is produced or the analysis print carries no explicit file
     [[nodiscard]] std::optional<std::filesystem::path> raw_output_copy_destination(const std::filesystem::path& working_directory) const;
 
+    // extract the analysis print parameters, normalizing the legacy OP
+    // representation (print_dc_* fields without structured print_parameters)
+    // into a PrintParameters instance; nullopt when no analysis is configured,
+    // the analysis print is disabled, or no print produces raw output; the
+    // single source for the analysis print so all helpers stay consistent
+    [[nodiscard]] std::optional<PrintParameters> analysis_print_parameters() const;
+
     // serialize the analysis print directive (the only .PRINT whose output the
     // application parses and maps); nullopt when no analysis is configured or
     // the analysis print is disabled; used to scope FILE= stripping so

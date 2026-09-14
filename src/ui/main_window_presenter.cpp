@@ -625,25 +625,12 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // exit
         return;
     }
+    // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
+    const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
     // check for success
     if (exit_code == 0) {
-        // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
-        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
         // try to load the raw file when a path was computed and exists
         if (raw_path.has_value() && std::filesystem::exists(*raw_path)) {
-            // copy the produced raw file to the user-indicated location when the
-            // analysis print carries a file; the application maps the produced
-            // file (which is never rewritten by a later run) while the copy
-            // keeps the user-visible file up to date
-            if (const auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory); destination.has_value() && *destination != *raw_path) {
-                // create the destination parent directory when missing
-                std::error_code ec;
-                std::filesystem::create_directories(destination->parent_path(), ec);
-                // copy the produced file, overwriting the previous run's copy
-                std::filesystem::copy_file(*raw_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
-                if (ec)
-                    spdlog::warn("Failed to copy RAW output file to '{}': {}", destination->string(), ec.message());
-            }
             // parse the raw file
             auto raw_file = xyce_raw_file_parser(raw_path->string());
             // check the raw file was parsed
@@ -692,8 +679,12 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
                 m_active_dataset_index = 0;
                 // synchronize plot tabs with view
                 sync_plot_tabs_with_view();
-                // activate primary dataset
+                // activate primary dataset; this re-points the renderer chart
+                // state at the new file, clearing the references that kept the
+                // previous file (and its mapping) alive
                 activate_plot_dataset(0);
+                // copy the produced raw file to the user-indicated location
+                copy_raw_output_to_destination(*raw_path);
                 // switch to the charts view
                 m_view.show_charts_view();
                 // hide the output panel — it is only shown on failure
@@ -717,6 +708,30 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     m_view.show_simulation_output_panel();
     // refresh toolbar/menu states
     refresh_action_states();
+    // attempt the copy even on failure paths so the user finds the produced
+    // file whenever it exists (a failed parse does not withhold the file); the
+    // dataset mapping of a matching destination may still be open here and the
+    // copy warns on failure
+    if (raw_path.has_value())
+        copy_raw_output_to_destination(*raw_path);
+}
+
+void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesystem::path& raw_path) {
+    // resolve the user-facing copy destination from the analysis print
+    const auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory);
+    // no destination configured, or it is the produced file itself
+    if (!destination.has_value() || *destination == raw_path)
+        return;
+    // the produced file must exist
+    std::error_code ec;
+    if (!std::filesystem::exists(raw_path))
+        return;
+    // create the destination parent directory when missing
+    std::filesystem::create_directories(destination->parent_path(), ec);
+    // copy the produced file, overwriting the previous run's copy
+    std::filesystem::copy_file(raw_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec)
+        spdlog::warn("Failed to copy RAW output file to '{}': {}", destination->string(), ec.message());
 }
 
 void SlintMainWindowPresenter::on_simulation_stdout(const std::string& line) {

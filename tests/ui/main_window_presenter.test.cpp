@@ -492,6 +492,57 @@ TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_
     std::filesystem::remove_all(working_directory, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_primary_dataset) {
+    // arrange — the user opened a raw file that is also the simulation print
+    // destination; the copy must run after the dataset swap released the
+    // reference holding its mapping open (a sharing violation on Windows)
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_open_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    // build an opened raw file dataset at the destination path
+    StepInformation step_info({"R1"}, {{1000.0}}, {{0.0, 10.0}});
+    std::vector<AnyExpression> expressions;
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
+    std::vector<std::pair<size_t, size_t>> slices = {{0, 3}};
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), slices, "s"));
+    auto opened_file = std::make_shared<XyceOutputFile>(working_directory / "user_out.raw", "Opened", false, std::move(step_info), PlotType::TRANSIENT, AbscissaScale::LINEAR, ExpressionManager(expressions, slices), nullptr);
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=user_out.raw V(1)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — open the file as the primary dataset, then launch the simulation
+    presenter.load_raw_file(std::move(opened_file));
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // simulate Xyce producing a parseable RAW file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the copy overwrote the destination even though it was open as
+    // the primary dataset when the simulation finished
+    const auto copied_path = working_directory / "user_out.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, payload + std::string(32, '\0'));
+    }
+    // the active dataset was re-pointed at the produced file, preserving the
+    // opened dataset's identity (the primary dataset id is kept on a re-run)
+    ASSERT_GE(view.m_updated_dataset_ids.size(), 2u);
+    EXPECT_EQ(view.m_updated_dataset_ids.front(), view.m_updated_dataset_ids.back());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, schematic_change_without_directives_preserves_saved_config) {
     // arrange — directive-less netlist, valid executable
     RecordingView view;

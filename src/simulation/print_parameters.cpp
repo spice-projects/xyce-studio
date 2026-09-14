@@ -263,18 +263,19 @@ std::string strip_outer_quotes(std::string value) {
     return value;
 }
 
-// format a FILE= option value: values containing whitespace are quoted so the
-// statement survives tokenization; already-quoted values pass through as-is
+// format a FILE= option value: the model always carries the bare filename, so
+// any outer quotes are stripped and the value is quoted again only when it
+// contains whitespace (so the statement survives tokenization)
 std::string format_print_file_value(const std::string& file) {
-    // check the value already carries matching outer quotes
-    const bool already_quoted = file.size() >= 2 && (file.front() == '"' || file.front() == '\'') && file.back() == file.front();
-    // quote the value when it contains whitespace and is not already quoted
-    if (!already_quoted && file.find_first_of(" \t") != std::string::npos) {
+    // normalize the value: the model must not carry outer quotes
+    const std::string value = strip_outer_quotes(file);
+    // quote the value when it contains whitespace
+    if (value.find_first_of(" \t") != std::string::npos) {
         // wrap the value in double quotes
-        return "\"" + file + "\"";
+        return "\"" + value + "\"";
     }
     // return the value unchanged
-    return file;
+    return value;
 }
 
 std::string strip_print_file_option(const std::string& print_statement) {
