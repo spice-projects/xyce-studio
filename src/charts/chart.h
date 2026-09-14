@@ -1,51 +1,15 @@
 #pragma once
 
-#include <array>
-#include <map>
 #include <set>
-#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <unordered_map>
-#include <utility>
+#include <vector>
 
-#include <implot.h>
+#include "chart_engine.h"
 
-#include "../core/step_information.h"
-#include "../expression/expression.h"
-#include "../expression/expression_manager.h"
-#include "../io/xyce_output_file.h"
-
-using OrdinateSeries = std::tuple<AnyExpression*, int, std::unordered_map<size_t, std::pair<View<double>, View<double>>>, double, double, ImVec4>;
-
-using Series = std::map<std::string, OrdinateSeries>;
-
-// default series color palette (Apple / Cupertino inspired)
-inline const std::vector<ImVec4> SERIES_COLOR_PALETTE = {
-    ImVec4(0.00f, 0.48f, 1.00f, 1.0f), // #007AFF Vibrant Blue
-    ImVec4(1.00f, 0.58f, 0.00f, 1.0f), // #FF9500 Vibrant Orange
-    ImVec4(0.20f, 0.78f, 0.35f, 1.0f), // #34C759 Vibrant Green
-    ImVec4(0.69f, 0.32f, 0.87f, 1.0f), // #AF52DE Vibrant Purple
-    ImVec4(1.00f, 0.18f, 0.33f, 1.0f), // #FF2D55 Vibrant Pink
-    ImVec4(0.19f, 0.69f, 0.78f, 1.0f), // #30B0C7 Vibrant Teal
-    ImVec4(0.35f, 0.34f, 0.84f, 1.0f), // #5856D6 Vibrant Indigo
-    ImVec4(1.00f, 0.80f, 0.00f, 1.0f), // #FFCC00 Vibrant Yellow
-    ImVec4(0.00f, 0.78f, 0.75f, 1.0f), // #00C7BE Vibrant Mint
-    ImVec4(1.00f, 0.23f, 0.19f, 1.0f), // #FF3B30 Vibrant Coral Red
-};
-
-struct AxisInformation
-{
-    int axis;
-    double plot_min_value;
-    double plot_max_value;
-    std::string unit;
-    int plots;
-    double min_value;
-    double max_value;
-};
-
+// cartesian xy line chart: owns the shared chart engine state and renders it
+// through the implot drawing stack; the public api is unchanged for all hosts
 class Chart
 {
 public:
@@ -55,11 +19,7 @@ public:
 
     Chart(const Chart&) = delete;
 
-    Chart(Chart&&) noexcept = default;
-
     Chart& operator=(const Chart&) = delete;
-
-    Chart& operator=(Chart&&) noexcept = default;
 
     const std::set<size_t>& selected_steps();
 
@@ -85,7 +45,7 @@ public:
 
     [[nodiscard]] const std::tuple<float, float, float, float>& get_plot_rect() const;
 
-    [[nodiscard]] const std::tuple<double, double, double, double>& zoom_window() const { return m_zoom_window; }
+    [[nodiscard]] const std::tuple<double, double, double, double>& zoom_window() const;
 
     [[nodiscard]] double ratio_to_abscissa_value(double x_ratio) const;
 
@@ -93,32 +53,14 @@ public:
 
     [[nodiscard]] std::string hovered_series_text(double abscissa_value) const;
 
+    // platform-neutral engine state; alternative render paths (e.g. the slint
+    // native view) consume the same state without touching implot
+    [[nodiscard]] const ChartEngine& engine() const;
+
     static std::string format_metric(double value, std::string_view unit);
 
 private:
-    ExpressionManager* m_expression_manager;
-    const StepInformation* m_step_information;
-    AbscissaScale m_abscissa_scale;
-    size_t m_decimate_target;
-    std::string m_abscissa_name;
-    std::string m_abscissa_unit;
+    ChartEngine m_engine;
+
     std::tuple<float, float, float, float> m_plot_rect = {-1.0f, -1.0f, -1.0f, -1.0f};
-
-    Series m_series;
-    std::set<size_t> m_selected_steps = {0};
-    double m_abscissa_left_value = 0.0;
-    double m_abscissa_right_value = 1.0;
-    size_t m_next_color_index = 0;
-    std::tuple<double, double, double, double> m_zoom_window = {-1, -1, -1, -1};
-    std::array<AxisInformation, 3> m_axes = {{{ImAxis_Y1, 0.0, 1.0, "", 0, 0.0, 1.0}, {ImAxis_Y2, 0.0, 1.0, "", 0, 0.0, 1.0}, {ImAxis_Y3, 0.0, 1.0, "", 0, 0.0, 1.0}}};
-
-    std::tuple<bool, View<double>, View<double>, double, double> plot_step(Expression<double>& ordinate_variant, size_t step, double min_value, double max_value, double x_right_ratio, double x_left_ratio) const;
-
-    int get_y_axis(const std::string& unit);
-
-    bool release_y_axis(int axis);
-
-    [[nodiscard]] std::pair<size_t, size_t> find_abscissa_indexes(const std::span<const double>& abscissa, double left_value, double right_value) const;
-
-    void redraw_all_series();
 };

@@ -98,9 +98,21 @@ namespace
         plot_colors[ImPlotCol_AxisBgActive] = is_dark ? ImVec4(0.04f, 0.52f, 1.00f, 0.25f) : ImVec4(0.00f, 0.48f, 1.00f, 0.16f);
         plot_colors[ImPlotCol_Crosshairs] = is_dark ? ImVec4(0.60f, 0.60f, 0.64f, 0.80f) : ImVec4(0.55f, 0.55f, 0.58f, 0.80f);
         plot_colors[ImPlotCol_Selection] = is_dark ? ImVec4(0.04f, 0.52f, 1.00f, 0.35f) : ImVec4(0.00f, 0.48f, 1.00f, 0.25f);
-        // add slint colormap if not already registered
-        if (ImPlot::GetColormapIndex("SlintCupertino") == -1)
-            ImPlot::AddColormap("SlintCupertino", SERIES_COLOR_PALETTE.data(), static_cast<int>(SERIES_COLOR_PALETTE.size()), false);
+        // add slint colormap if not already registered; the shared engine palette
+        // is converted to implot color values on first use
+        if (ImPlot::GetColormapIndex("SlintCupertino") == -1) {
+            // converted colormap entries in implot format
+            static const std::vector<ImVec4> colormap = [] {
+                // converted palette
+                std::vector<ImVec4> converted;
+                converted.reserve(SERIES_COLOR_PALETTE.size());
+                // convert each engine color
+                for (const auto& color : SERIES_COLOR_PALETTE)
+                    converted.push_back(ImVec4(color.r, color.g, color.b, color.a));
+                return converted;
+            }();
+            ImPlot::AddColormap("SlintCupertino", colormap.data(), static_cast<int>(colormap.size()), false);
+        }
     }
 } // namespace
 
