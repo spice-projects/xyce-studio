@@ -1,0 +1,126 @@
+import shutil
+import unittest
+from pathlib import Path
+
+from slint_automation import TestSession, expect, launch
+from slint_automation.mcp_client import McpClient
+from slint_automation.slint_client import SlintClient
+
+
+def _chart_axis_labels(app, chart_index: int) -> tuple[list[str], list[str]]:
+    # dump the text labels of one chart view grouped by axis: the abscissa
+    # labels sit in the band below the plot (overlapping the legend) and the
+    # ordinate labels sit at the sides of the plot rect
+    client: SlintClient = app.client()
+    tree = client._mcp.call_tool("get_element_tree", {"elementHandle": client.get_window_properties()["rootElementHandle"], "maxElements": 1000})
+    views = [element for element in tree.get("elements", []) if element.get("typeNamesAndIds", [{}])[0].get("typeName") == "ChartView"]
+    view = views[chart_index]
+    origin_y = view.get("absolutePosition", {}).get("y", 0)
+    height = view.get("size", {}).get("height", 0)
+    subtree = client._mcp.call_tool("get_element_tree", {"elementHandle": view["handle"], "maxElements": 1000})
+    abscissa_labels: list[str] = []
+    ordinate_labels: list[str] = []
+    for element in subtree.get("elements", []):
+        if element.get("typeNamesAndIds", [{}])[0].get("typeName") != "Text":
+            continue
+        props = client._mcp.call_tool("get_element_properties", {"elementHandle": element["handle"]})
+        label = props.get("accessibleLabel")
+        relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
+        if relative_y > height - 60:
+            abscissa_labels.append(label)
+        else:
+            ordinate_labels.append(label)
+    return abscissa_labels, ordinate_labels
+
+
+def _abscissa_tick_labels(labels: list[str]) -> list[str]:
+    # keep only the axis tick labels: they end with a time or frequency unit,
+    # unlike the legend entries and the ordinate origin label
+    return [label for label in labels if label.endswith(("Hz", "s")) or label.endswith(" ms")]
+
+
+class ChartPanelChecks(unittest.TestCase):
+
+    def _run_simulation(self, app) -> None:
+        # run the simulation from the toolbar and wait for the charts view
+        tools = app.get_by_type("ToolbarButton")
+        tools.nth(5).click()
+        app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
+        expect(app.get_by_id("MainWindow::charts")).to_exist()
+
+    def test_run_simulation_shows_the_charts_panel(self) -> None:
+        # arrange: resolve the xyce executable and the sample netlist
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        # arrange: launch the application with the netlist and the executable
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act
+            self._run_simulation(app)
+            # assert: the transient tab shows one chart
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            self.assertEqual(app.get_by_type("ChartView").count(), 1)
+
+    def test_transient_tab_shows_the_full_abscissa_range(self) -> None:
+        # arrange
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act
+            self._run_simulation(app)
+            # assert: the abscissa covers the full 0..20 ms simulation span
+            abscissa_labels, _ = _chart_axis_labels(app, 0)
+            ticks = _abscissa_tick_labels(abscissa_labels)
+            self.assertEqual(ticks, ["0s", "2 ms", "4 ms", "6 ms", "8 ms", "10 ms", "12 ms", "14 ms", "16 ms", "18 ms", "20 ms"])
+            # assert: the ordinate axis shows tick labels (default 0..1 axis)
+            _, ordinate_labels = _chart_axis_labels(app, 0)
+            self.assertTrue(any(label.endswith(("m", " ")) for label in ordinate_labels))
+
+    def test_fft_tab_shows_the_normalized_fft_ranges(self) -> None:
+        # arrange
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act: run the simulation and switch to the first generated fft tab
+            self._run_simulation(app)
+            tabs = app.get_by_type("PlotTabButton")
+            self.assertEqual(tabs.count(), 3)
+            tabs.nth(1).click()
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            # assert: two charts, magnitude and phase
+            self.assertEqual(app.get_by_type("ChartView").count(), 2)
+            # assert: the magnitude chart abscissa spans the 0..25.6 kHz span
+            abscissa_labels, ordinate_labels = _chart_axis_labels(app, 0)
+            ticks = _abscissa_tick_labels(abscissa_labels)
+            self.assertEqual(ticks, ["0Hz", "5 kHz", "10 kHz", "15 kHz", "20 kHz", "25 kHz"])
+            # assert: the ordinate shows current magnitudes
+            self.assertTrue(any(label.endswith("A") for label in ordinate_labels))
+            # assert: the phase chart ordinate shows degrees
+            _, phase_labels = _chart_axis_labels(app, 1)
+            self.assertTrue(any(label.endswith("°") for label in phase_labels))
+
+    def test_fft_tab_2_shows_the_pure_fft_range(self) -> None:
+        # arrange
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act: run the simulation and switch to the second generated fft tab
+            self._run_simulation(app)
+            tabs = app.get_by_type("PlotTabButton")
+            tabs.nth(2).click()
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            # assert: one chart spanning the 0..51.2 kHz span
+            self.assertEqual(app.get_by_type("ChartView").count(), 1)
+            abscissa_labels, _ = _chart_axis_labels(app, 0)
+            ticks = _abscissa_tick_labels(abscissa_labels)
+            self.assertEqual(ticks, ["0Hz", "10 kHz", "20 kHz", "30 kHz", "40 kHz", "50 kHz"])
+            # assert: the ordinate shows current magnitudes
+            _, ordinate_labels = _chart_axis_labels(app, 0)
+            self.assertTrue(any(label.endswith("A") for label in ordinate_labels))
