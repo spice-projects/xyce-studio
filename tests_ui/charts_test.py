@@ -3,23 +3,21 @@ import unittest
 from pathlib import Path
 
 from slint_automation import TestSession, expect, launch
-from slint_automation.slint_client import SlintClient
 
 
 def _chart_axis_labels(app, chart_index: int) -> tuple[list[str], list[str]]:
     # dump the text labels of one chart view grouped by axis: the abscissa
     # labels sit in the band below the plot (overlapping the legend) and the
     # ordinate labels sit at the sides of the plot rect
-    client: SlintClient = app.client()
-    views = client.find_by_type("ChartView")
-    view = views[chart_index]
-    view_props = client.get_element_properties(view)
+    view = app.get_by_type("ChartView").nth(chart_index)
+    view_props = view.properties()
     origin_y = view_props.get("absolutePosition", {}).get("y", 0)
     height = view_props.get("size", {}).get("height", 0)
+    texts = view.child("Text")
     abscissa_labels: list[str] = []
     ordinate_labels: list[str] = []
-    for text_handle in client.find_by_type_in(view, "Text"):
-        props = client.get_element_properties(text_handle)
+    for index in range(texts.count()):
+        props = texts.nth(index).properties()
         label = props.get("accessibleLabel")
         relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
         if relative_y > height - 60:
@@ -121,9 +119,7 @@ class ChartPanelChecks(unittest.TestCase):
             # act: drag a zoom selection inside the magnitude chart; the chart
             # view center sits inside its plot rect and the drag target stays
             # inside it too
-            client = app.client()
-            view_handle = client.find_by_type("ChartView")[0]
-            client.drag_element(view_handle, 660.0, 310.0)
+            app.get_by_type("ChartView").nth(0).drag(660.0, 310.0)
             expect(app.get_by_type("ChartView").nth(0)).to_exist()
             # assert: both charts share the zoomed abscissa range
             abscissa_0, ordinate_0 = _chart_axis_labels(app, 0)
