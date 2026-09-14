@@ -153,6 +153,13 @@ ChartEngine* ChartsRenderer::add_chart() {
     dataset->charts.push_back(std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
     // chart
     auto& chart = dataset->charts[dataset->charts.size() - 1];
+    // all charts share the abscissa range: a chart added after a zoom joins
+    // the shared horizontal zoom window of the panel (vertical zoom stays per
+    // chart); unset ratios pass through unchanged
+    if (dataset->charts.size() > 1) {
+        const auto& shared = dataset->charts.front()->zoom_window();
+        chart->update_zoom_window(std::get<0>(shared), std::get<2>(shared), -1, -1);
+    }
     // plot series (will do nothing, but will set the correct abscissa for the zoom window)
     chart->plot_series({});
     // exit

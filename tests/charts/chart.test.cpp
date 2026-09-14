@@ -516,3 +516,31 @@ TEST(ChartHoverTest, hovered_series_text_groups_multiple_steps) {
     // assert — both step values are grouped in a bracketed list
     EXPECT_NE(text.find("V(out)=[2.5 V, 3.5 V]"), std::string::npos);
 }
+
+TEST(ChartZoomTest, new_chart_joins_the_shared_abscissa_zoom_window) {
+    // arrange — a zoomed reference chart and a fresh chart added afterwards
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<double> voltage_data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 5.0}});
+    ChartEngine zoomed(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    zoomed.plot_series({expression_manager.expressions()[1]});
+    // zoom the reference chart horizontally to the [1, 3] quarter of the range
+    zoomed.update_zoom_window(0.25, 0.75, -1, -1);
+    // act — the new chart joins the shared horizontal zoom of the panel
+    ChartEngine joined(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    const auto& shared = zoomed.zoom_window();
+    joined.update_zoom_window(std::get<0>(shared), std::get<2>(shared), -1, -1);
+    joined.plot_series({});
+    // assert — identical abscissa range, vertical zoom stays unset in the new chart
+    EXPECT_EQ(joined.abscissa_left_value(), zoomed.abscissa_left_value());
+    EXPECT_EQ(joined.abscissa_right_value(), zoomed.abscissa_right_value());
+    EXPECT_EQ(std::get<0>(joined.zoom_window()), std::get<0>(shared));
+    EXPECT_EQ(std::get<2>(joined.zoom_window()), std::get<2>(shared));
+    EXPECT_EQ(std::get<1>(joined.zoom_window()), -1.0);
+    EXPECT_EQ(std::get<3>(joined.zoom_window()), -1.0);
+}
