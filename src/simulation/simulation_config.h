@@ -40,8 +40,29 @@ public:
     // serialize this instance to a list of Xyce directive strings
     [[nodiscard]] std::vector<std::string> to_xyce_directives(const NetlistTopology& topology) const;
 
-    // compute the expected raw output file path for the configured analysis
-    [[nodiscard]] std::optional<std::filesystem::path> raw_output_file_path(const std::filesystem::path& working_directory, const std::filesystem::path& netlist_file_path) const;
+    // compute the produced raw output file path for the configured analysis;
+    // the .PRINT FILE= option is stripped for the Xyce run, so Xyce always
+    // writes the RAW file next to the netlist under its own default name and
+    // the application never holds a mapped file that a re-run would rewrite
+    [[nodiscard]] std::optional<std::filesystem::path> raw_output_file_path(const std::filesystem::path& netlist_file_path) const;
+
+    // compute the user-facing raw output copy destination (the .PRINT FILE=
+    // value resolved against the working directory); nullopt when no raw file
+    // is produced or the analysis print carries no explicit file
+    [[nodiscard]] std::optional<std::filesystem::path> raw_output_copy_destination(const std::filesystem::path& working_directory) const;
+
+    // extract the analysis print parameters, normalizing the legacy OP
+    // representation (print_dc_* fields without structured print_parameters)
+    // into a PrintParameters instance; nullopt when no analysis is configured,
+    // the analysis print is disabled, or no print produces raw output; the
+    // single source for the analysis print so all helpers stay consistent
+    [[nodiscard]] std::optional<PrintParameters> analysis_print_parameters() const;
+
+    // serialize the analysis print directive (the only .PRINT whose output the
+    // application parses and maps); nullopt when no analysis is configured or
+    // the analysis print is disabled; used to scope FILE= stripping so
+    // unassociated and legacy print directives keep their output files
+    [[nodiscard]] std::optional<std::string> analysis_print_statement() const;
 
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
