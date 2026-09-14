@@ -270,12 +270,16 @@ export component ChartsPanel inherits Rectangle {
                     private property <bool> dragging;
 
                     // display the slint native chart views, one per frame,
-                    // stacked top to bottom
-                    VerticalLayout {
-                        for frame in root.charts: ChartView {
-                            frame: frame;
-                            vertical-stretch: 1;
-                        }
+                    // stacked top to bottom; the views are positioned
+                    // explicitly because a nested layout inside this plain
+                    // rectangle breaks the preferred-size stretch of the
+                    // surrounding panel (slint 1.17 layout quirk)
+                    for frame[index] in root.charts: ChartView {
+                        frame: frame;
+                        x: 0;
+                        width: 100%;
+                        y: parent.height * index / root.charts.length;
+                        height: parent.height / root.charts.length;
                     }
 
                     // zoom selection rectangle, drawn natively in slint so the offscreen
