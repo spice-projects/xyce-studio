@@ -104,6 +104,44 @@ class ChartPanelChecks(unittest.TestCase):
             _, phase_labels = _chart_axis_labels(app, 1)
             self.assertTrue(any(label.endswith("°") for label in phase_labels))
 
+    def test_fft_tab_zoom_applies_full_2d_on_dragged_chart_and_horizontal_only_on_the_other(self) -> None:
+        # arrange
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act: run the simulation, switch to the two chart fft tab
+            self._run_simulation(app)
+            tabs = app.get_by_type("PlotTabButton")
+            tabs.nth(1).click()
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            self.assertEqual(app.get_by_type("ChartView").count(), 2)
+            # capture the shared pre-zoom axis labels of both charts
+            pre_abscissa_0, pre_ordinate_0 = _chart_axis_labels(app, 0)
+            pre_abscissa_1, pre_ordinate_1 = _chart_axis_labels(app, 1)
+            pre_ticks_0 = _abscissa_tick_labels(pre_abscissa_0)
+            pre_ticks_1 = _abscissa_tick_labels(pre_abscissa_1)
+            # act: drag a zoom selection inside the magnitude chart; the chart
+            # view center sits inside its plot rect and the drag target stays
+            # inside it too
+            client = app.client()
+            view_handle = client.find_by_type("ChartView")[0]
+            client._mcp.call_tool("drag_element", {"elementHandle": view_handle, "target": {"x": 660.0, "y": 310.0}})
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            # assert: both charts share the zoomed abscissa range
+            abscissa_0, ordinate_0 = _chart_axis_labels(app, 0)
+            abscissa_1, ordinate_1 = _chart_axis_labels(app, 1)
+            ticks_0 = _abscissa_tick_labels(abscissa_0)
+            ticks_1 = _abscissa_tick_labels(abscissa_1)
+            self.assertEqual(ticks_0, ticks_1)
+            self.assertNotEqual(ticks_0, pre_ticks_0)
+            # assert: the dragged magnitude chart received the vertical zoom as
+            # well: its ordinate narrowed away from the pre-zoom range
+            self.assertNotEqual(ordinate_0, pre_ordinate_0)
+            # assert: the other chart keeps its full ordinate range
+            self.assertEqual(ordinate_1, pre_ordinate_1)
+
     def test_fft_tab_2_shows_the_pure_fft_range(self) -> None:
         # arrange
         xyce = shutil.which("Xyce")
