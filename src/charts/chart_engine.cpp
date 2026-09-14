@@ -546,9 +546,11 @@ void ChartEngine::update_zoom_window(double x_left_ratio, double x_right_ratio, 
             const double visual_y_max = axis_info.max_value + delta;
             // calculate visual axis range
             const double visual_y_range = visual_y_max - visual_y_min;
-            // update plot min & max
-            axis_info.plot_min_value = visual_y_max - y_top_ratio * visual_y_range;
-            axis_info.plot_max_value = visual_y_max - y_bottom_ratio * visual_y_range;
+            // y ratios measure downward from the top of the plot, so the band
+            // between them maps to an ascending value window (implot swaps
+            // inverted ranges on setup; the engine stores them ascending)
+            axis_info.plot_min_value = visual_y_max - y_bottom_ratio * visual_y_range;
+            axis_info.plot_max_value = visual_y_max - y_top_ratio * visual_y_range;
         }
     }
 }

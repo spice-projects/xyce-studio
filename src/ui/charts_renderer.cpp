@@ -544,8 +544,12 @@ void ChartsRenderer::publish_native_frames() {
         // per chart canvas size
         const float chart_height = m_viewport_height / static_cast<float>(dataset->charts.size());
         // build the frame snapshot from the chart engine state
-        for (const auto& chart : dataset->charts)
+        for (const auto& chart : dataset->charts) {
+            // log the y axis ranges the native frame will consume (debug aid)
+            const auto& axes = chart->engine().axes();
+            spdlog::debug("Native frame axes: Y1 [{}, {}], Y2 [{}, {}], Y3 [{}, {}]", axes[0].plot_min_value, axes[0].plot_max_value, axes[1].plot_min_value, axes[1].plot_max_value, axes[2].plot_min_value, axes[2].plot_max_value);
             frames.push_back(m_layout.build(chart->engine(), m_viewport_width, chart_height));
+        }
     }
     // hand the frames to the slint layer
     if (m_publish_frames)

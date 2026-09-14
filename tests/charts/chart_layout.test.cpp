@@ -12,6 +12,28 @@
 #include "expression/expression.h"
 #include "expression/expression_manager.h"
 
+TEST(ChartZoomLayoutTest, vertical_zoom_window_produces_ascending_axis_ranges) {
+    // arrange
+    std::vector<double> abscissa_data = {0.0, 10.0};
+    std::vector<double> voltage_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"time"}, {{}}, {{0.0, 10.0}});
+    ChartEngine engine(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    engine.plot_series({expression_manager.expressions()[1]});
+    // act — a band selected in the lower half of the plot (ratios from the top)
+    engine.update_zoom_window(0.2, 0.4, 0.55, 0.76);
+    // assert — the y axis stores an ascending value window between the band edges
+    const auto& axes = engine.axes();
+    ASSERT_LT(axes[0].plot_min_value, axes[0].plot_max_value);
+    // visual range is the series range padded by 3% on both ends
+    ASSERT_NEAR(axes[0].plot_min_value, 10.3 - 0.76 * 10.6, 1e-9);
+    ASSERT_NEAR(axes[0].plot_max_value, 10.3 - 0.55 * 10.6, 1e-9);
+}
+
 TEST(ChartLayoutLimitsTest, linear_limits_pass_through_unchanged) {
     // arrange
     std::vector<double> abscissa_data = {0.0, 2.0, 4.0, 6.0, 8.0, 10.0};
