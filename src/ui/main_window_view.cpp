@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -15,6 +16,120 @@
 #include "clipboard.h"
 #include "file_dialog.h"
 #include "main_window_view.h"
+
+namespace
+{
+    // svg polyline commands in plot rect coordinates from a chart series run
+    std::string series_commands(const ChartFrame& frame, const ChartSeriesFrame& run) {
+        // commands under construction
+        std::string commands;
+        // first point opens a subpath, the rest are line segments
+        for (size_t i = 0; i < run.points.size(); ++i) {
+            // sample in plot rect coordinates
+            const auto& point = run.points[i];
+            commands += std::format("{} {:.2f} {:.2f} ", i == 0 ? "M" : "L", point.x - frame.plot_x, point.y - frame.plot_y);
+        }
+        return commands;
+    }
+
+    // convert one chart frame snapshot into the generated slint frame struct
+    main_window::ChartFrameData native_frame_data(const ChartFrame& frame) {
+        // frame data under construction
+        main_window::ChartFrameData data;
+        // frame and plot geometry in logical px
+        data.plot_x = frame.plot_x;
+        data.plot_y = frame.plot_y;
+        data.plot_w = frame.plot_w;
+        data.plot_h = frame.plot_h;
+        data.x_datum = frame.x_datum;
+        data.y2_datum = frame.y_axes[1].datum;
+        data.y3_datum = frame.y_axes[2].datum;
+        data.legend_x = frame.legend_x;
+        data.legend_y = frame.legend_y;
+        data.legend_w = frame.legend_w;
+        data.legend_h = frame.legend_h;
+        // x tick labels
+        auto x_ticks = std::make_shared<slint::VectorModel<main_window::ChartTickData>>();
+        for (const auto& tick : frame.x_ticks) {
+            // slint tick entry
+            main_window::ChartTickData entry;
+            entry.label = tick.label;
+            entry.pixel_pos = tick.pixel_pos;
+            entry.show = tick.show_label;
+            x_ticks->push_back(entry);
+        }
+        data.x_ticks = x_ticks;
+        // y axis tick labels and grid lines per enabled axis
+        std::array<std::shared_ptr<slint::VectorModel<main_window::ChartTickData>>, 3> tick_models = {};
+        std::array<std::shared_ptr<slint::VectorModel<main_window::ChartGridData>>, 3> grid_models = {};
+        for (size_t i = 0; i < 3; ++i) {
+            // skip disabled axes
+            if (!frame.y_axes[i].enabled)
+                continue;
+            // tick model of this axis
+            auto tick_model = std::make_shared<slint::VectorModel<main_window::ChartTickData>>();
+            for (const auto& tick : frame.y_axes[i].ticks) {
+                // slint tick entry
+                main_window::ChartTickData entry;
+                entry.label = tick.label;
+                entry.pixel_pos = tick.pixel_pos;
+                entry.show = tick.show_label;
+                tick_model->push_back(entry);
+            }
+            tick_models[i] = tick_model;
+            // grid model of this axis
+            auto grid_model = std::make_shared<slint::VectorModel<main_window::ChartGridData>>();
+            for (const auto& line : frame.y_axes[i].grid_lines) {
+                // slint grid entry
+                main_window::ChartGridData entry;
+                entry.pixel_pos = line.pixel_pos;
+                entry.major = line.major;
+                entry.alpha = line.alpha;
+                grid_model->push_back(entry);
+            }
+            grid_models[i] = grid_model;
+        }
+        data.y_ticks = tick_models[0];
+        data.y2_ticks = tick_models[1];
+        data.y3_ticks = tick_models[2];
+        data.y_grid = grid_models[0];
+        data.y2_grid = grid_models[1];
+        data.y3_grid = grid_models[2];
+        // x grid lines
+        auto x_grid = std::make_shared<slint::VectorModel<main_window::ChartGridData>>();
+        for (const auto& line : frame.x_grid) {
+            // slint grid entry
+            main_window::ChartGridData entry;
+            entry.pixel_pos = line.pixel_pos;
+            entry.major = line.major;
+            entry.alpha = line.alpha;
+            x_grid->push_back(entry);
+        }
+        data.x_grid = x_grid;
+        // legend entries
+        auto legend = std::make_shared<slint::VectorModel<main_window::ChartLegendItemData>>();
+        for (const auto& item : frame.legend) {
+            // slint legend entry
+            main_window::ChartLegendItemData entry;
+            entry.name = item.name;
+            entry.color = slint::Color::from_argb_float(item.color.a, item.color.r, item.color.g, item.color.b);
+            legend->push_back(entry);
+        }
+        data.legend = legend;
+        // series polylines as svg commands relative to the plot origin
+        auto series = std::make_shared<slint::VectorModel<main_window::ChartSeriesData>>();
+        for (const auto& run : frame.series) {
+            // slint series entry
+            main_window::ChartSeriesData entry;
+            entry.name = run.name;
+            entry.color = slint::Color::from_argb_float(run.color.a, run.color.r, run.color.g, run.color.b);
+            entry.commands = series_commands(frame, run);
+            series->push_back(entry);
+        }
+        data.series = series;
+        return data;
+    }
+} // namespace
 
 SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlist_source*/, PluginConfig /*plugin_config*/) :
     m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<slint::SharedString>>()) {
@@ -550,6 +665,22 @@ void SlintMainWindowView::ensure_charts_renderer() {
             const auto scale = m_window->window().scale_factor();
             m_charts_renderer->set_viewport(width, height, scale);
         }
+    });
+    // bind the parity engine toggle from slint to the renderer's native view switch
+    const auto& chart_actions = m_window->global<main_window::ChartsPanelActions>();
+    chart_actions.on_engine_toggled([this](bool native) {
+        if (m_charts_renderer)
+            m_charts_renderer->set_native_view(native);
+    });
+    // publish slint native chart frames into the slint property
+    m_charts_renderer->set_publish_frames([this](const std::vector<ChartFrame>& frames) {
+        // frame model under construction
+        auto model = std::make_shared<slint::VectorModel<main_window::ChartFrameData>>();
+        // convert each frame snapshot
+        for (const auto& frame : frames)
+            model->push_back(native_frame_data(frame));
+        // expose the frames to the charts panel
+        m_window->set_native_charts(model);
     });
 }
 

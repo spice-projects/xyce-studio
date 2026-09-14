@@ -1,0 +1,296 @@
+import { Palette } from "std-widgets.slint";
+
+import "../fonts/Inter-Regular.ttf";
+
+// one legend entry of the chart view
+export struct ChartLegendItemData {
+    name: string,
+    color: color,
+}
+
+// one plotted series; the polyline is provided as svg commands in pixel
+// coordinates relative to the plot rect origin (see ChartLayout)
+export struct ChartSeriesData {
+    name: string,
+    color: color,
+    commands: string,
+}
+
+// one axis tick label positioned at a pixel offset along the axis
+export struct ChartTickData {
+    label: string,
+    pixel-pos: float,
+    show: bool,
+}
+
+// one grid line at a pixel offset with its opacity
+export struct ChartGridData {
+    pixel-pos: float,
+    major: bool,
+    alpha: float,
+}
+
+// pixel-space rendering data of one chart, produced by the chart layout
+// engine (ChartFrame) and rendered natively by the ChartView component
+export struct ChartFrameData {
+    plot-x: float,
+    plot-y: float,
+    plot-w: float,
+    plot-h: float,
+    x-datum: float,
+    x-ticks: [ChartTickData],
+    y-ticks: [ChartTickData],
+    y2-ticks: [ChartTickData],
+    y3-ticks: [ChartTickData],
+    y2-datum: float,
+    y3-datum: float,
+    x-grid: [ChartGridData],
+    y-grid: [ChartGridData],
+    y2-grid: [ChartGridData],
+    y3-grid: [ChartGridData],
+    legend-x: float,
+    legend-y: float,
+    legend-w: float,
+    legend-h: float,
+    legend: [ChartLegendItemData],
+    series: [ChartSeriesData],
+}
+
+// slint native chart view rendering one ChartFrame snapshot; geometry comes
+// in logical px from the chart layout and matches the implot render path
+export component ChartView inherits Rectangle {
+    in property <ChartFrameData> frame;
+
+    // outward tick mark lengths matching the implot axis tick geometry
+    property <length> x-tick-length: 4px;
+    property <length> y-tick-length: 4px;
+
+    // grid line color from the palette; minor lines carry their own opacity
+    function grid-color(major: bool, alpha: float) -> color {
+        if major { return Palette.border; }
+        return Palette.border.transparentize(1.0 - alpha);
+    }
+
+    // plot background matching the implot plot background
+    Rectangle {
+        x: frame.plot-x * 1px;
+        y: frame.plot-y * 1px;
+        width: frame.plot-w * 1px;
+        height: frame.plot-h * 1px;
+        background: Palette.background;
+    }
+
+    // grid lines and series inside the plot rect, clipped
+    Rectangle {
+        x: frame.plot-x * 1px;
+        y: frame.plot-y * 1px;
+        width: frame.plot-w * 1px;
+        height: frame.plot-h * 1px;
+        clip: true;
+
+        // major and minor grid lines from the abscissa axis
+        for line in frame.x-grid: Rectangle {
+            x: line.pixel-pos * 1px;
+            y: 0px;
+            width: line.major ? 1px : 0.5px;
+            height: 100%;
+            background: root.grid-color(line.major, line.alpha);
+        }
+
+        // major and minor grid lines from the west y axis
+        for line in frame.y-grid: Rectangle {
+            x: 0px;
+            y: line.pixel-pos * 1px;
+            width: 100%;
+            height: line.major ? 1px : 0.5px;
+            background: root.grid-color(line.major, line.alpha);
+        }
+
+        // major and minor grid lines from the first east y axis
+        for line in frame.y2-grid: Rectangle {
+            x: 0px;
+            y: line.pixel-pos * 1px;
+            width: 100%;
+            height: line.major ? 1px : 0.5px;
+            background: root.grid-color(line.major, line.alpha);
+        }
+
+        // major and minor grid lines from the second east y axis
+        for line in frame.y3-grid: Rectangle {
+            x: 0px;
+            y: line.pixel-pos * 1px;
+            width: 100%;
+            height: line.major ? 1px : 0.5px;
+            background: root.grid-color(line.major, line.alpha);
+        }
+
+        // plotted series as stroked polylines clipped to the plot area
+        for run in frame.series: Path {
+            commands: run.commands;
+            fill: transparent;
+            stroke: run.color;
+            stroke-width: 2px;
+            width: frame.plot-w * 1px;
+            height: frame.plot-h * 1px;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: frame.plot-w;
+            viewbox-height: frame.plot-h;
+        }
+    }
+
+    // plot border drawn around the plot rect
+    Rectangle {
+        x: frame.plot-x * 1px;
+        y: frame.plot-y * 1px;
+        width: frame.plot-w * 1px;
+        height: frame.plot-h * 1px;
+        background: transparent;
+        border-width: 1px;
+        border-color: Palette.border;
+    }
+
+    // x tick marks extending up from the datum line into the plot
+    for tick in frame.x-ticks: Rectangle {
+        visible: tick.show && tick.pixel-pos * 1px >= frame.plot-x * 1px && tick.pixel-pos * 1px <= (frame.plot-x + frame.plot-w) * 1px;
+        x: tick.pixel-pos * 1px;
+        y: frame.x-datum * 1px;
+        width: 1px;
+        height: root.x-tick-length;
+        background: Palette.border;
+    }
+
+    // x tick labels centered under the datum line
+    for tick in frame.x-ticks: Rectangle {
+        visible: tick.show && tick.pixel-pos * 1px >= (frame.plot-x - 1.0) * 1px && tick.pixel-pos * 1px <= (frame.plot-x + frame.plot-w + 1.0) * 1px;
+        x: tick.pixel-pos * 1px - 80px / 2;
+        y: frame.x-datum * 1px + 6px;
+        width: 80px;
+        height: 14px;
+
+        Text {
+            text: tick.label;
+            font-size: 14px;
+            color: Palette.foreground;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // y1 tick marks extending right from the west datum into the plot
+    for tick in frame.y-ticks: Rectangle {
+        visible: tick.show && tick.pixel-pos * 1px >= frame.plot-y * 1px && tick.pixel-pos * 1px <= (frame.plot-y + frame.plot-h) * 1px;
+        x: frame.plot-x * 1px;
+        y: tick.pixel-pos * 1px - root.y-tick-length / 2;
+        width: root.y-tick-length;
+        height: 1px;
+        background: Palette.border;
+    }
+
+    // y1 tick labels right aligned at the west datum
+    for tick in frame.y-ticks: Rectangle {
+        visible: tick.show && tick.pixel-pos * 1px >= (frame.plot-y - 1.0) * 1px && tick.pixel-pos * 1px <= (frame.plot-y + frame.plot-h + 1.0) * 1px;
+        x: frame.plot-x * 1px - 6px - 80px;
+        y: tick.pixel-pos * 1px - 14px / 2;
+        width: 80px;
+        height: 14px;
+
+        Text {
+            text: tick.label;
+            font-size: 14px;
+            color: Palette.foreground;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+    }
+
+    // y2 tick marks extending left from the east datum into the plot
+    for tick in frame.y2-ticks: Rectangle {
+        visible: tick.show;
+        x: frame.y2-datum * 1px - root.y-tick-length;
+        y: tick.pixel-pos * 1px - root.y-tick-length / 2;
+        width: root.y-tick-length;
+        height: 1px;
+        background: Palette.border;
+    }
+
+    // y2 tick labels left aligned at the east datum, clamped to the panel width
+    for tick in frame.y2-ticks: Rectangle {
+        visible: tick.show;
+        x: frame.y2-datum * 1px + 6px;
+        y: tick.pixel-pos * 1px - 14px / 2;
+        width: min(80px, parent.width - frame.y2-datum * 1px - 6px);
+        height: 14px;
+
+        Text {
+            text: tick.label;
+            font-size: 14px;
+            color: Palette.foreground;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+    }
+
+    // y3 tick marks extending left from the east datum into the plot
+    for tick in frame.y3-ticks: Rectangle {
+        visible: tick.show;
+        x: frame.y3-datum * 1px - root.y-tick-length;
+        y: tick.pixel-pos * 1px - root.y-tick-length / 2;
+        width: root.y-tick-length;
+        height: 1px;
+        background: Palette.border;
+    }
+
+    // y3 tick labels left aligned at the east datum, clamped to the panel width
+    for tick in frame.y3-ticks: Rectangle {
+        visible: tick.show;
+        x: frame.y3-datum * 1px + 6px;
+        y: tick.pixel-pos * 1px - 14px / 2;
+        width: min(80px, parent.width - frame.y3-datum * 1px - 6px);
+        height: 14px;
+
+        Text {
+            text: tick.label;
+            font-size: 14px;
+            color: Palette.foreground;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+    }
+
+    // legend block positioned south of the canvas
+    Rectangle {
+        visible: frame.legend.length > 0;
+        x: frame.legend-x * 1px;
+        y: frame.legend-y * 1px;
+        width: frame.legend-w * 1px;
+        height: frame.legend-h * 1px;
+
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            spacing: 12px;
+            alignment: center;
+
+            for item in frame.legend: HorizontalLayout {
+                spacing: 4px;
+                alignment: center;
+
+                Rectangle {
+                    width: 14px;
+                    height: 14px;
+                    background: item.color;
+                }
+
+                Text {
+                    text: item.name;
+                    font-size: 14px;
+                    color: Palette.foreground;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

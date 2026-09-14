@@ -14,6 +14,7 @@
 #include <gpu/ganesh/GrDirectContext.h>
 #include <gpu/ganesh/SkSurfaceGanesh.h>
 
+#include "chart_text_measurer.h"
 #include "charts_renderer.h"
 #include "font_data.h"
 #include "imgui_impl_skia.h"
@@ -132,7 +133,7 @@ ChartsContextScope::~ChartsContextScope() {
 }
 
 ChartsRenderer::ChartsRenderer(PublishFunction publish) :
-    m_publish(std::move(publish)) {
+    m_publish(std::move(publish)), m_layout(make_chart_text_measurer()) {
     // start the render timer immediately; idle ticks without pending frames are cheap
     m_render_timer.start(slint::TimerMode::Repeated, std::chrono::milliseconds(16), [this]() { on_idle(); });
 }
@@ -388,6 +389,9 @@ void ChartsRenderer::render() {
         return;
     // hand the finished frame to the slint layer
     m_publish(slint::Image(buffer));
+    // publish slint native chart frames when the native view is active
+    if (m_native_view)
+        publish_native_frames();
 }
 
 void ChartsRenderer::on_idle() {
@@ -517,6 +521,36 @@ void ChartsRenderer::release_all_datasets() {
 }
 
 void ChartsRenderer::refresh_charts(int frames) { m_render_chart_frames = frames; }
+
+void ChartsRenderer::set_native_view(const bool native_view) {
+    // ignore no-op toggles fired by re-wiring
+    if (m_native_view == native_view)
+        return;
+    // store the new view and schedule a frame so the next tick publishes frames
+    m_native_view = native_view;
+    refresh_charts(1);
+}
+
+void ChartsRenderer::set_publish_frames(PublishFramesFunction publish) { m_publish_frames = std::move(publish); }
+
+void ChartsRenderer::publish_native_frames() {
+    // active dataset state
+    auto* dataset = active_dataset();
+    // frames under construction
+    std::vector<ChartFrame> frames;
+    // build one frame per chart of the active dataset, stacked like the
+    // implot panel splits its charts
+    if (dataset != nullptr && !dataset->charts.empty()) {
+        // per chart canvas size
+        const float chart_height = m_viewport_height / static_cast<float>(dataset->charts.size());
+        // build the frame snapshot from the chart engine state
+        for (const auto& chart : dataset->charts)
+            frames.push_back(m_layout.build(chart->engine(), m_viewport_width, chart_height));
+    }
+    // hand the frames to the slint layer
+    if (m_publish_frames)
+        m_publish_frames(frames);
+}
 
 size_t ChartsRenderer::chart_count() const {
     // active dataset state

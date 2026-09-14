@@ -1,4 +1,8 @@
 import { Palette } from "std-widgets.slint";
+import { ChartView, ChartFrameData } from "chart_view.slint";
+
+// re-export the frame structs so root widgets can declare their properties
+export { ChartFrameData }
 
 export struct PlotTabItem {
     id: int,
@@ -100,6 +104,8 @@ export global ChartsPanelActions {
     callback zoom-drag-canceled();
     callback hover-moved(/*x*/ float, /*y*/ float);
     callback hover-ended();
+    // engine toggle from the parity switch; true selects the slint native view
+    callback engine-toggled(/*native*/ bool);
 }
 
 // open canvas panel for the charts view.
@@ -119,6 +125,12 @@ export component ChartsPanel inherits Rectangle {
 
     // the rendered offscreen chart image published by the host renderer
     in property <image> charts-image;
+
+    // slint native chart frames published by the host chart layout engine
+    in property <[ChartFrameData]> native-charts;
+
+    // whether the slint native view is shown instead of the implot image
+    in-out property <bool> native-engine: false;
 
     // fires with the panel size whenever the geometry changes, so the host
     // renderer can resize its offscreen surface and recompute limits
@@ -264,9 +276,19 @@ export component ChartsPanel inherits Rectangle {
 
                     // display the offscreen-rendered chart frame
                     Image {
+                        visible: !root.native-engine;
                         source: root.charts-image;
                         width: 100%;
                         height: 100%;
+                    }
+
+                    // display the slint native chart views, one per frame,
+                    // stacked like the implot panel splits its charts
+                    if root.native-engine: VerticalLayout {
+                        for frame in root.native-charts: ChartView {
+                            frame: frame;
+                            vertical-stretch: 1;
+                        }
                     }
 
                     // zoom selection rectangle, drawn natively in slint so the offscreen
@@ -354,6 +376,33 @@ export component ChartsPanel inherits Rectangle {
                             // clear hover readout when the cursor leaves the panel
                             if (!self.has-hover) {
                                 ChartsPanelActions.hover-ended();
+                            }
+                        }
+                    }
+
+                    // parity toggle in the top-right corner of the canvas; placed
+                    // after the canvas touch area so it wins the hit test there
+                    engine-toggle := Rectangle {
+                        x: parent.width - self.width - 10px;
+                        y: 10px;
+                        width: engine-text.preferred-width + 16px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: root.native-engine ? Palette.selection-background : Palette.foreground.transparentize(0.94);
+
+                        engine-text := Text {
+                            text: root.native-engine ? "Slint view" : "ImPlot view";
+                            font-size: 11px;
+                            color: root.native-engine ? Palette.selection-foreground : Palette.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.native-engine = !root.native-engine;
+                                ChartsPanelActions.engine-toggled(root.native-engine);
                             }
                         }
                     }

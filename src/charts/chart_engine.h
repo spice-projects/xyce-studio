@@ -46,7 +46,7 @@ inline const std::vector<ChartColor> SERIES_COLOR_PALETTE = {
     {0.35f, 0.34f, 0.84f, 1.0f}, // #5856D6 Vibrant Indigo
     {1.00f, 0.80f, 0.00f, 1.0f}, // #FFCC00 Vibrant Yellow
     {0.00f, 0.78f, 0.75f, 1.0f}, // #00C7BE Vibrant Mint
-    {1.00f, 0.23f, 0.19f, 1.0f}  // #FF3B30 Vibrant Coral Red
+    {1.00f, 0.23f, 0.19f, 1.0f} // #FF3B30 Vibrant Coral Red
 };
 
 // y axis state of one chart; axis is the engine index 0..2 (ImPlot-free)

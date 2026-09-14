@@ -14,6 +14,7 @@
 #include <slint.h>
 
 #include "../charts/chart.h"
+#include "../charts/chart_layout.h"
 
 class SkSurface;
 class ImGuiSkiaRenderer;
@@ -51,6 +52,10 @@ public:
     // sink for rendered frames; invoked from the render timer with a fresh image
     using PublishFunction = std::function<void(slint::Image)>;
 
+    // sink for slint native chart frames of the active dataset; invoked after
+    // every rendered frame while the native view is active
+    using PublishFramesFunction = std::function<void(const std::vector<ChartFrame>&)>;
+
     // construct with the publish sink for rendered frames
     explicit ChartsRenderer(PublishFunction publish);
 
@@ -85,6 +90,12 @@ public:
 
     // schedule the given number of frames on the render timer
     void refresh_charts(int frames = 3);
+
+    // switch between the implot image and the slint native chart view
+    void set_native_view(bool native_view);
+
+    // sink for slint native chart frames
+    void set_publish_frames(PublishFramesFunction publish);
 
     // number of charts of the active dataset
     [[nodiscard]] size_t chart_count() const;
@@ -184,6 +195,9 @@ private:
     // compose the charts panel window content inside an active imgui frame
     void render_panel();
 
+    // compose slint native chart frames for the active dataset and publish them
+    void publish_native_frames();
+
     void update_delta_time();
 
     void on_idle();
@@ -194,6 +208,15 @@ private:
 
     // publish sink for rendered frames
     PublishFunction m_publish;
+
+    // publish sink for slint native chart frames
+    PublishFramesFunction m_publish_frames;
+
+    // chart layout engine building implot-parity frame snapshots
+    ChartLayout m_layout;
+
+    // whether the slint native chart view is shown instead of the implot image
+    bool m_native_view = false;
 
     void* m_imgui_context = nullptr;
 
