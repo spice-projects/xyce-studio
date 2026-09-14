@@ -49,7 +49,7 @@ inline const std::vector<ChartColor> SERIES_COLOR_PALETTE = {
     {1.00f, 0.23f, 0.19f, 1.0f} // #FF3B30 Vibrant Coral Red
 };
 
-// y axis state of one chart; axis is the engine index 0..2 (ImPlot-free)
+// y axis state of one chart; axis is the engine index 0..2
 struct AxisInformation
 {
     int axis;

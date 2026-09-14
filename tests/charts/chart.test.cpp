@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include "charts/chart.h"
+#include "charts/chart_engine.h"
 #include "core/step_information.h"
 #include "expression/expression.h"
 #include "expression/expression_manager.h"
@@ -20,7 +20,7 @@ TEST(ChartRatioTest, linear_ratio_interpolates_linearly) {
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 10.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act
     const double value = chart.ratio_to_abscissa_value(0.5);
     // assert
@@ -35,7 +35,7 @@ TEST(ChartRatioTest, decade_ratio_interpolates_geometrically) {
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{1.0, 1000.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // act
     const double value = chart.ratio_to_abscissa_value(0.5);
     // assert
@@ -50,7 +50,7 @@ TEST(ChartRatioTest, decade_ratio_endpoints_match_range) {
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{1.0, 1000.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // act
     const double left_value = chart.ratio_to_abscissa_value(0.0);
     const double right_value = chart.ratio_to_abscissa_value(1.0);
@@ -67,7 +67,7 @@ TEST(ChartRatioTest, decade_equal_ratios_produce_equal_log_ratios) {
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{1.0, 1000.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // act
     const double first = chart.ratio_to_abscissa_value(0.25) / chart.ratio_to_abscissa_value(0.0);
     const double second = chart.ratio_to_abscissa_value(0.5) / chart.ratio_to_abscissa_value(0.25);
@@ -83,7 +83,7 @@ TEST(ChartRatioTest, octave_ratio_interpolates_geometrically) {
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{1.0, 256.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::OCTAVE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::OCTAVE, 1000);
     // act
     const double value = chart.ratio_to_abscissa_value(0.5);
     // assert
@@ -98,7 +98,7 @@ TEST(ChartRatioTest, logarithmic_ratio_with_non_positive_range_falls_back_to_lin
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{-1.0, 10.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // act
     const double value = chart.ratio_to_abscissa_value(0.5);
     // assert
@@ -114,7 +114,7 @@ TEST(ChartRatioTest, decade_plot_ratio_interpolates_geometrically_over_visible_r
     expressions.emplace_back(Expression<double>("sweep", std::move(abscissa_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"sweep"}, {{}}, {{1.0, 100000.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::DECADE, 1000);
     // set the visible abscissa range as when a chart is first created
     chart.plot_series({});
     // act
@@ -133,7 +133,7 @@ TEST(ChartRatioTest, linear_plot_ratio_interpolates_linearly_over_visible_range)
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 10.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // set the visible abscissa range as when a chart is first created
     chart.plot_series({});
     // act
@@ -153,7 +153,7 @@ TEST(ChartRatioTest, hovered_series_text_avoids_scientific_prefix_overflow) {
     expressions.emplace_back(Expression<double>("I(R1)", std::move(current_data), step_slices, "A"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // plot the current series
     chart.plot_series({expression_manager.expressions()[1]});
     // act
@@ -173,7 +173,7 @@ TEST(ChartRatioTest, hovered_series_text_after_zoom) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(current_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 5.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.plot_series({expression_manager.expressions()[1]});
     // act
     // zoom from 1.2s to 1.8s (ratios 0.24 to 0.36)
@@ -186,56 +186,56 @@ TEST(ChartRatioTest, hovered_series_text_after_zoom) {
 
 TEST(ChartFormatTest, metric_places_space_before_unit) {
     // si format: value + space + prefix + unit
-    EXPECT_EQ(Chart::format_metric(0.001, "A"), "1 mA");
-    EXPECT_EQ(Chart::format_metric(1.5, "A"), "1.5 A");
-    EXPECT_EQ(Chart::format_metric(12.345, "A"), "12.3 A");
-    EXPECT_EQ(Chart::format_metric(123.4, "A"), "123 A");
-    EXPECT_EQ(Chart::format_metric(1000.0, "A"), "1 kA");
+    EXPECT_EQ(ChartEngine::format_metric(0.001, "A"), "1 mA");
+    EXPECT_EQ(ChartEngine::format_metric(1.5, "A"), "1.5 A");
+    EXPECT_EQ(ChartEngine::format_metric(12.345, "A"), "12.3 A");
+    EXPECT_EQ(ChartEngine::format_metric(123.4, "A"), "123 A");
+    EXPECT_EQ(ChartEngine::format_metric(1000.0, "A"), "1 kA");
 }
 
 TEST(ChartFormatTest, metric_uses_three_significant_digits) {
-    EXPECT_EQ(Chart::format_metric(1.2333, "A"), "1.23 A");
-    EXPECT_EQ(Chart::format_metric(1.678, "A"), "1.68 A");
+    EXPECT_EQ(ChartEngine::format_metric(1.2333, "A"), "1.23 A");
+    EXPECT_EQ(ChartEngine::format_metric(1.678, "A"), "1.68 A");
 }
 
 TEST(ChartFormatTest, metric_bumps_mantissa_to_next_prefix) {
-    EXPECT_EQ(Chart::format_metric(0.0009995, "A"), "1 mA");
-    EXPECT_EQ(Chart::format_metric(0.0009999, "A"), "1 mA");
-    EXPECT_EQ(Chart::format_metric(0.9999999, "V"), "1 V");
+    EXPECT_EQ(ChartEngine::format_metric(0.0009995, "A"), "1 mA");
+    EXPECT_EQ(ChartEngine::format_metric(0.0009999, "A"), "1 mA");
+    EXPECT_EQ(ChartEngine::format_metric(0.9999999, "V"), "1 V");
     // no scientific notation overflow like 1e+03uA for a mA value
-    EXPECT_EQ(Chart::format_metric(0.0009999, "A").find("e+"), std::string::npos);
+    EXPECT_EQ(ChartEngine::format_metric(0.0009999, "A").find("e+"), std::string::npos);
 }
 
 TEST(ChartFormatTest, metric_zero_threshold_drops_prefix_and_separator) {
     // values below the 1e-12 threshold render as bare zero
-    EXPECT_EQ(Chart::format_metric(1e-13, "V"), "0V");
-    EXPECT_EQ(Chart::format_metric(1e-15, "V"), "0V");
+    EXPECT_EQ(ChartEngine::format_metric(1e-13, "V"), "0V");
+    EXPECT_EQ(ChartEngine::format_metric(1e-15, "V"), "0V");
     // the threshold itself still gets the pico prefix
-    EXPECT_EQ(Chart::format_metric(1e-12, "V"), "1 pV");
+    EXPECT_EQ(ChartEngine::format_metric(1e-12, "V"), "1 pV");
 }
 
 TEST(ChartFormatTest, metric_uses_micro_sign) {
-    EXPECT_EQ(Chart::format_metric(1e-6, "A"), "1 µA");
+    EXPECT_EQ(ChartEngine::format_metric(1e-6, "A"), "1 µA");
     // the former ASCII 'u' prefix is no longer emitted
-    EXPECT_EQ(Chart::format_metric(1e-6, "A").find("uA"), std::string::npos);
+    EXPECT_EQ(ChartEngine::format_metric(1e-6, "A").find("uA"), std::string::npos);
 }
 
 TEST(ChartFormatTest, metric_covers_all_si_scales) {
-    EXPECT_EQ(Chart::format_metric(1e9, "V"), "1 GV");
-    EXPECT_EQ(Chart::format_metric(2.5e6, "V"), "2.5 MV");
-    EXPECT_EQ(Chart::format_metric(1e-9, "V"), "1 nV");
-    EXPECT_EQ(Chart::format_metric(2.5e-12, "V"), "2.5 pV");
+    EXPECT_EQ(ChartEngine::format_metric(1e9, "V"), "1 GV");
+    EXPECT_EQ(ChartEngine::format_metric(2.5e6, "V"), "2.5 MV");
+    EXPECT_EQ(ChartEngine::format_metric(1e-9, "V"), "1 nV");
+    EXPECT_EQ(ChartEngine::format_metric(2.5e-12, "V"), "2.5 pV");
 }
 
 TEST(ChartFormatTest, metric_formats_negative_values) {
-    EXPECT_EQ(Chart::format_metric(-0.001, "A"), "-1 mA");
-    EXPECT_EQ(Chart::format_metric(-1500.0, "V"), "-1.5 kV");
+    EXPECT_EQ(ChartEngine::format_metric(-0.001, "A"), "-1 mA");
+    EXPECT_EQ(ChartEngine::format_metric(-1500.0, "V"), "-1.5 kV");
 }
 
 TEST(ChartFormatTest, metric_bumps_kilo_mantissa_to_mega) {
     // 999.5 kV rounds up to the next prefix instead of overflowing the mantissa
-    EXPECT_EQ(Chart::format_metric(999500.0, "V"), "1 MV");
-    EXPECT_EQ(Chart::format_metric(1e10, "V"), "10 GV");
+    EXPECT_EQ(ChartEngine::format_metric(999500.0, "V"), "1 MV");
+    EXPECT_EQ(ChartEngine::format_metric(1e10, "V"), "10 GV");
 }
 
 // ========================================================================================
@@ -250,7 +250,7 @@ TEST(ChartZoomTest, ratio_clamps_to_unit_interval) {
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 10.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act
     const double below = chart.ratio_to_abscissa_value(-0.5);
     const double above = chart.ratio_to_abscissa_value(1.5);
@@ -267,7 +267,7 @@ TEST(ChartZoomTest, update_zoom_window_stores_ratios) {
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act
     chart.update_zoom_window(0.2, 0.4, 0.3, 0.7);
     // assert
@@ -286,7 +286,7 @@ TEST(ChartZoomTest, update_zoom_window_without_ratios_keeps_window) {
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.update_zoom_window(0.2, 0.4, -1.0, -1.0);
     // act — a call without ratios leaves the stored window untouched
     chart.update_zoom_window(-1.0, -1.0, -1.0, -1.0);
@@ -306,7 +306,7 @@ TEST(ChartZoomTest, reset_zoom_window_restores_full_range) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 5.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.plot_series({expression_manager.expressions()[1]});
     chart.update_zoom_window(0.2, 0.4, -1.0, -1.0);
     // act
@@ -330,7 +330,7 @@ TEST(ChartSeriesTest, selected_expressions_returns_plotted_expressions) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act
     chart.plot_series({expression_manager.expressions()[1]});
     const auto selected = chart.selected_expressions();
@@ -349,7 +349,7 @@ TEST(ChartSeriesTest, plotting_empty_set_removes_existing_series) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.plot_series({expression_manager.expressions()[1]});
     // act
     chart.plot_series({});
@@ -367,7 +367,7 @@ TEST(ChartSeriesTest, clear_removes_all_series) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.plot_series({expression_manager.expressions()[1]});
     // act
     chart.clear();
@@ -385,7 +385,7 @@ TEST(ChartSeriesTest, selected_steps_default_to_all_steps) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"R1"}, {{1000.0, 2000.0}}, {{0.0, 3.0}, {0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act
     const auto& steps = chart.selected_steps();
     // assert — a fresh chart selects every available step
@@ -404,7 +404,7 @@ TEST(ChartSeriesTest, update_preserves_step_selection_and_replots_from_new_data)
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"R1"}, {{1000.0, 2000.0}}, {{0.0, 3.0}, {0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     std::set<size_t> first_step = {0};
     chart.set_selected_steps(first_step);
     chart.plot_series({expression_manager.expressions()[1]});
@@ -440,7 +440,7 @@ TEST(ChartSeriesTest, update_drops_series_missing_from_new_data) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     chart.plot_series({expression_manager.expressions()[1]});
     // act — the re-run produces data without the plotted signal
     std::vector<double> new_abscissa_data = {0.0, 1.0, 2.0, 3.0};
@@ -465,7 +465,7 @@ TEST(ChartSeriesTest, set_selected_steps_drops_unselected_step_data) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"R1"}, {{1000.0, 2000.0}}, {{0.0, 3.0}, {0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // plot both steps first
     std::set<size_t> both_steps = {0, 1};
     chart.set_selected_steps(both_steps);
@@ -492,7 +492,7 @@ TEST(ChartHoverTest, hovered_series_text_is_empty_without_series) {
     expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), step_slices, "s"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"time"}, {{}}, {{0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     // act / assert
     EXPECT_EQ(chart.hovered_series_text(1.5), "");
 }
@@ -507,7 +507,7 @@ TEST(ChartHoverTest, hovered_series_text_groups_multiple_steps) {
     expressions.emplace_back(Expression<double>("V(out)", std::move(voltage_data), step_slices, "V"));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"R1"}, {{1000.0, 2000.0}}, {{0.0, 3.0}, {0.0, 3.0}});
-    Chart chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
+    ChartEngine chart(&expression_manager, &step_information, AbscissaScale::LINEAR, 1000);
     std::set<size_t> both_steps = {0, 1};
     chart.set_selected_steps(both_steps);
     chart.plot_series({expression_manager.expressions()[1]});

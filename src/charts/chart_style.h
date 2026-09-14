@@ -1,16 +1,16 @@
 #pragma once
 
-// layout metrics shared by every chart render path; the values mirror the
-// implot style applied by apply_slint_style (src/ui/charts_renderer.cpp) and
-// the implot defaults, so the implot and slint views cannot drift apart
+// layout metrics of the chart layout engine; the values mirror the implot
+// style that defined the chart appearance before the implot engine was
+// retired, so the charts keep their established look
 
 // logical text line height of the charts font (inter regular, 14 px)
 inline constexpr float CHART_TEXT_HEIGHT = 14.0f;
 
-// glyph em size of the axis and legend labels: imgui loads inter at
-// CHART_TEXT_HEIGHT but stb scales glyph metrics by 1/(hhea ascent+descent)
-// (2048/2478 for inter), so the rendered em is smaller than the layout line
-// height; the slint labels use the same em to match the implot render path
+// glyph em size of the axis and legend labels: imgui loaded inter at
+// CHART_TEXT_HEIGHT but stb scaled glyph metrics by 1/(hhea ascent+descent)
+// (2048/2478 for inter), so the rendered em was smaller than the layout line
+// height; the slint labels use the same em to keep the established metrics
 inline constexpr float CHART_LABEL_FONT_SIZE = 11.56f;
 
 // padding between the chart frame and the canvas area

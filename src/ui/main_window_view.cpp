@@ -40,7 +40,7 @@ namespace
     main_window::ChartFrameData native_frame_data(const ChartFrame& frame, bool is_dark) {
         // frame data under construction
         main_window::ChartFrameData data;
-        // palette roles shared with the implot render path
+        // palette roles of the charts (chart_palette.h)
         const ChartPalette& palette = chart_palette(is_dark);
         const auto slint_color = [](const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); };
         data.text_color = slint_color(palette.text);
@@ -153,7 +153,7 @@ SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlis
     // highlight model is built with the correct colours even before charts are shown
     m_dark_mode = m_window->get_is_dark();
     // push the chart palette canvas color so the charts panel background
-    // matches the offscreen implot canvas in both render paths
+    // matches the charts canvas background
     m_window->set_charts_background(to_slint_color(chart_palette(m_dark_mode).background));
     // wire the theme change handler early so theme switches are always tracked
     // (the charts renderer is updated only once it exists) and the visible
@@ -221,8 +221,8 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     chart_actions.on_add_chart([this](float) {
         // add chart
         m_charts_renderer->add_chart();
-        // refresh charts to show the new chart
-        m_charts_renderer->refresh_charts();
+        // publish frames to show the new chart
+        m_charts_renderer->publish_frames();
     });
     chart_actions.on_delete_chart([this](float chart_position) { m_charts_renderer->delete_chart(chart_position); });
     // events that need presenter involvement: convert float to int via renderer
@@ -663,10 +663,16 @@ void SlintMainWindowView::ensure_charts_renderer() {
     // the renderer already exists
     if (m_charts_renderer)
         return;
-    // create the renderer on the first charts panel show
-    m_charts_renderer = std::make_unique<ChartsRenderer>([this](slint::Image image) {
-        // publish the rendered frame to the slint image property
-        m_window->set_charts_image(image);
+    // create the renderer on the first charts panel show; the publish sink
+    // converts frame snapshots into the slint frame model
+    m_charts_renderer = std::make_unique<ChartsRenderer>([this](const std::vector<ChartFrame>& frames) {
+        // frame model under construction
+        auto model = std::make_shared<slint::VectorModel<main_window::ChartFrameData>>();
+        // convert each frame snapshot
+        for (const auto& frame : frames)
+            model->push_back(native_frame_data(frame, m_dark_mode));
+        // expose the frames to the charts panel
+        m_window->set_charts(model);
     });
     // initialize theme state; the theme-changed callback itself is wired in the
     // constructor so theme switches are tracked before the renderer exists
@@ -680,26 +686,8 @@ void SlintMainWindowView::ensure_charts_renderer() {
     });
     // bind the viewport-changed callback from slint to the renderer's set_viewport
     m_window->on_charts_viewport_changed([this](float width, float height) {
-        if (m_charts_renderer) {
-            const auto scale = m_window->window().scale_factor();
-            m_charts_renderer->set_viewport(width, height, scale);
-        }
-    });
-    // bind the parity engine toggle from slint to the renderer's native view switch
-    const auto& chart_actions = m_window->global<main_window::ChartsPanelActions>();
-    chart_actions.on_engine_toggled([this](bool native) {
         if (m_charts_renderer)
-            m_charts_renderer->set_native_view(native);
-    });
-    // publish slint native chart frames into the slint property
-    m_charts_renderer->set_publish_frames([this](const std::vector<ChartFrame>& frames) {
-        // frame model under construction
-        auto model = std::make_shared<slint::VectorModel<main_window::ChartFrameData>>();
-        // convert each frame snapshot
-        for (const auto& frame : frames)
-            model->push_back(native_frame_data(frame, m_dark_mode));
-        // expose the frames to the charts panel
-        m_window->set_native_charts(model);
+            m_charts_renderer->set_viewport(width, height);
     });
 }
 

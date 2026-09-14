@@ -2,9 +2,8 @@
 
 #include "chart_engine.h"
 
-// implot palette matching the slint cupertino widgets, shared by the implot
-// style (apply_slint_style, src/ui/charts_renderer.cpp) and the slint native
-// chart view (ChartFrameData colors) so both render paths cannot drift apart
+// chart palette matching the slint cupertino widgets, consumed by the slint
+// native chart view through the ChartFrameData colors
 
 // palette roles consumed by the chart render paths
 struct ChartPalette
@@ -43,6 +42,4 @@ inline const ChartPalette CHART_PALETTE_DARK = {
 };
 
 // palette of the active theme
-inline const ChartPalette& chart_palette(bool is_dark) {
-    return is_dark ? CHART_PALETTE_DARK : CHART_PALETTE_LIGHT;
-}
+inline const ChartPalette& chart_palette(bool is_dark) { return is_dark ? CHART_PALETTE_DARK : CHART_PALETTE_LIGHT; }

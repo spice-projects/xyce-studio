@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <functional>
 #include <memory>
 #include <set>
@@ -9,67 +8,33 @@
 #include <unordered_map>
 #include <vector>
 
-#include <core/SkRefCnt.h>
-#include <imgui.h>
 #include <slint.h>
 
-#include "../charts/chart.h"
+#include "../charts/chart_engine.h"
 #include "../charts/chart_layout.h"
 
-class SkSurface;
-class ImGuiSkiaRenderer;
 class ExpressionManager;
 class StepInformation;
-class GrDirectContext;
 
-// scope guard that activates a ChartsRenderer's isolated ImGui/ImPlot
-// contexts for the duration of a scope
-class ChartsRenderer;
-
-class ChartsContextScope
-{
-public:
-    explicit ChartsContextScope(const ChartsRenderer& charts_renderer);
-
-    ~ChartsContextScope();
-
-    ChartsContextScope(const ChartsContextScope&) = delete;
-
-    ChartsContextScope& operator=(const ChartsContextScope&) = delete;
-
-private:
-    void* m_imgui_context = nullptr;
-
-    void* m_implot_context = nullptr;
-};
-
-// renders the charts panel offscreen through an isolated Dear ImGui/ImPlot
-// stack into a skia raster surface and publishes every finished frame as a
-// slint image; one implementation for every platform
+// composes slint native chart frames from the chart engine state and publishes
+// them into the slint ui; one implementation for every platform
 class ChartsRenderer
 {
 public:
-    // sink for rendered frames; invoked from the render timer with a fresh image
-    using PublishFunction = std::function<void(slint::Image)>;
-
-    // sink for slint native chart frames of the active dataset; invoked after
-    // every rendered frame while the native view is active
+    // sink for slint native chart frames of the active dataset
     using PublishFramesFunction = std::function<void(const std::vector<ChartFrame>&)>;
 
-    // construct with the publish sink for rendered frames
-    explicit ChartsRenderer(PublishFunction publish);
-
-    // tear down the backend and release the isolated contexts
-    ~ChartsRenderer();
+    // construct with the publish sink for slint native chart frames
+    explicit ChartsRenderer(PublishFramesFunction publish);
 
     ChartsRenderer(const ChartsRenderer&) = delete;
 
     ChartsRenderer& operator=(const ChartsRenderer&) = delete;
 
-    // logical panel size plus device scale; the surface follows physical pixels
-    void set_viewport(float width, float height, double scale);
+    // logical panel size; frames recompute for the new size
+    void set_viewport(float width, float height);
 
-    // adapt the color palette to light/dark theme changes
+    // adapt the frame palette to light/dark theme changes
     void set_dark_mode(bool dark_mode);
 
     // clear the viewport so no frames are published until a valid size arrives
@@ -80,7 +45,7 @@ public:
     // switching tabs restores the previous state instead of rebuilding
     void update(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots);
 
-    Chart* add_chart();
+    ChartEngine* add_chart();
 
     // drop the chart state of the dataset with the given tab id
     void release_dataset(int dataset_id);
@@ -88,20 +53,11 @@ public:
     // drop the chart state of every dataset
     void release_all_datasets();
 
-    // schedule the given number of frames on the render timer
-    void refresh_charts(int frames = 3);
-
-    // switch between the implot image and the slint native chart view
-    void set_native_view(bool native_view);
-
-    // sink for slint native chart frames
-    void set_publish_frames(PublishFramesFunction publish);
+    // compose slint native chart frames for the active dataset and publish them
+    void publish_frames();
 
     // number of charts of the active dataset
     [[nodiscard]] size_t chart_count() const;
-
-    // render one pending frame into the offscreen surface and publish it
-    void render();
 
     // all expressions known to the loaded file, from the expression manager
     [[nodiscard]] std::vector<AnyExpression*> all_expressions() const;
@@ -159,9 +115,10 @@ public:
 
     void hover_ended();
 
-private:
-    friend class ChartsContextScope;
+    // publish the debounced hover readout text
+    void publish_hover();
 
+private:
     // chart state owned by one plot tab; every dataset holds its own chart
     // list so zoom windows, plotted series and step selections survive tab
     // switches, and its own data references for the active rendering pass
@@ -175,7 +132,7 @@ private:
 
         std::vector<std::vector<std::string>> suggested_plots;
 
-        std::vector<std::unique_ptr<Chart>> charts;
+        std::vector<std::unique_ptr<ChartEngine>> charts;
     };
 
     // active dataset state, or nullptr when no dataset is active
@@ -183,77 +140,20 @@ private:
 
     [[nodiscard]] const DatasetCharts* active_dataset() const;
 
-    // one-time backend bring-up: isolated contexts, palette style, scaled fonts
-    void initialize_backend();
-
-    // shut the backend down and release the isolated contexts
-    void terminate_backend();
-
-    // allocate the raster surface whenever the physical pixel size changed
-    void ensure_surface(int width, int height);
-
-    // compose the charts panel window content inside an active imgui frame
-    void render_panel();
-
-    // compose slint native chart frames for the active dataset and publish them
-    void publish_native_frames();
-
-    void update_delta_time();
-
-    void on_idle();
-
-    void publish_hover();
-
-    sk_sp<GrDirectContext> create_gpu_context();
-
-    // publish sink for rendered frames
-    PublishFunction m_publish;
+    // panel-relative plot rect of the chart at the given index, from the last
+    // published frames; invalid rect when the index is out of range
+    [[nodiscard]] std::tuple<float, float, float, float> plot_rect(size_t chart_index) const;
 
     // publish sink for slint native chart frames
-    PublishFramesFunction m_publish_frames;
+    PublishFramesFunction m_publish;
 
-    // chart layout engine building implot-parity frame snapshots
+    // chart layout engine building frame snapshots
     ChartLayout m_layout;
 
-    // whether the slint native chart view is shown instead of the implot image
-    bool m_native_view = false;
-
-    void* m_imgui_context = nullptr;
-
-    void* m_implot_context = nullptr;
-
-    // skia replay backend for the attached imgui context
-    std::unique_ptr<ImGuiSkiaRenderer> m_skia_renderer;
-
-    // offscreen target surface in physical pixels
-    sk_sp<SkSurface> m_surface;
-
-    // platform-native gpu backend context, or nullptr for cpu raster
-    sk_sp<GrDirectContext> m_direct_context;
-
-    // surface dimensions the current allocation was built for
-    int m_surface_width = 0;
-
-    int m_surface_height = 0;
-
-    // logical viewport and device scale of the charts panel
+    // logical viewport of the charts panel
     float m_viewport_width = 0;
 
     float m_viewport_height = 0;
-
-    double m_scale = 1.0;
-
-    // device scale the font atlas was baked for
-    double m_font_scale = 0.0;
-
-    // whether contexts, fonts and backend are up
-    bool m_initialized = false;
-
-    std::chrono::steady_clock::time_point m_last_frame_time;
-
-    slint::Timer m_render_timer;
-
-    int m_render_chart_frames = 0;
 
     static constexpr size_t k_decimate_target = 4000;
 
@@ -263,12 +163,12 @@ private:
     // dataset id of the active tab, or -1 when no dataset is active
     int m_active_dataset_id = -1;
 
+    // panel-relative plot rects of the last published frames, per chart index
+    std::vector<std::tuple<float, float, float, float>> m_plot_rects;
+
     size_t m_selected_chart_index = 0;
 
     std::tuple<float, float, float, float> m_zoom_selection = {-1.0f, -1.0f, -1.0f, -1.0f};
-
-    // placeholder series shown while no simulation data is loaded
-    std::vector<float> m_demo_series;
 
     // hover readout state
     slint::Timer m_hover_timer;
@@ -282,8 +182,6 @@ private:
     std::string m_last_hover_text;
 
     HoverCallback m_hover_callback;
-
-    ImVec4 m_background_color;
 
     bool m_dark_mode = false;
 };

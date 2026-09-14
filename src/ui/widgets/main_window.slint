@@ -157,18 +157,15 @@ export component MainWindow inherits Window {
     changed is-dark => { root.theme-changed(root.is-dark); }
 
     // fires when the charts panel geometry changes, so the host renderer
-    // can resize its offscreen surface and recompute limits; forwarded
-    // from the ChartsPanel viewport-changed callback
+    // can recompute the chart frames; forwarded from the ChartsPanel
+    // viewport-changed callback
     callback charts-viewport-changed(width: float, height: float);
 
-    // the rendered chart frame published by the host renderer
-    in property <image> charts-image;
-
     // slint native chart frames, forwarded to the ChartsPanel component
-    in property <[ChartFrameData]> native-charts;
+    in property <[ChartFrameData]> charts;
 
     // surrounding canvas color of the charts panel, pushed from the host
-    // renderer's chart palette so both render paths share it
+    // renderer's chart palette
     in property <color> charts-background;
 
     // charts panel action availability, forwarded to the ChartsPanel component
@@ -597,12 +594,9 @@ export component MainWindow inherits Window {
                         plot-tab-closed(index) => { root.plot-tab-closed(index); }
                         enable-fft: root.enable-fft;
                         enable-step-tool: root.enable-step-tool;
-                        // forward the rendered chart image from the host renderer
-                        charts-image: root.charts-image;
                         // forward the slint native chart frames from the host
-                        native-charts: root.native-charts;
-                        // match the offscreen canvas background so both chart
-                        // render paths share the same surrounding color
+                        charts: root.charts;
+                        // match the canvas background of the charts panel
                         chart-background: root.charts-background;
                         // report layout changes to the renderer
                         viewport-changed(width, height) => { root.charts-viewport-changed(width, height); }

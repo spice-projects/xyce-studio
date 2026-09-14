@@ -3,14 +3,6 @@
   "version-string": "1.0.0",
   "dependencies": [
     {
-      "name": "imgui",
-      "version>=": "1.92.8#1"
-    },
-    {
-      "name": "implot",
-      "version>=": "1.0"
-    },
-    {
       "name": "skia",
       "version>=": "148",
       "platform": "osx",

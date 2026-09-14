@@ -88,7 +88,7 @@ struct ChartLegendItem
 };
 
 // pixel-space rendering data for one chart filling a canvas area, produced by
-// ChartLayout and consumed by render paths (currently the slint native view)
+// ChartLayout and consumed by the slint native chart view
 struct ChartFrame
 {
     // frame (full chart area) and plot rect in logical px, relative to the
@@ -132,13 +132,12 @@ struct ChartFrame
     std::vector<ChartSeriesFrame> series;
 };
 
-// abscissa axis limits clamped above zero for logarithmic scales, matching
-// the implot setup path of the cartesian xy view
+// abscissa axis limits clamped above zero for logarithmic scales
 std::pair<double, double> clamped_abscissa_limits(const ChartEngine& engine);
 
-// builds chart frames from engine state with implot-parity layout math: the
-// locator, padding and transform algorithms are ported from implot v1.0 so
-// both render paths compute identical geometry
+// builds chart frames from engine state: the locator, padding and transform
+// algorithms are ported from implot v1.0 so the layout keeps the established
+// geometry
 class ChartLayout
 {
 public:

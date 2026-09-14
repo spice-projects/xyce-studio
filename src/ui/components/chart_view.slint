@@ -31,7 +31,7 @@ export struct ChartGridData {
 // pixel-space rendering data of one chart, produced by the chart layout
 // engine (ChartFrame) and rendered natively by the ChartView component
 export struct ChartFrameData {
-    // palette roles shared with the implot render path (chart_palette.h)
+    // palette roles of the charts (chart_palette.h)
     text-color: color,
     panel-color: color,
     border-color: color,
@@ -65,7 +65,7 @@ export struct ChartFrameData {
 }
 
 // slint native chart view rendering one ChartFrame snapshot; geometry comes
-// in logical px from the chart layout and matches the implot render path
+// in logical px from the chart layout engine
 export component ChartView inherits Rectangle {
     in property <ChartFrameData> frame;
 
