@@ -337,6 +337,22 @@ TEST(ExpressionChecks, empty_view_steps_yield_zero_steps_and_empty_data) {
     ASSERT_TRUE(expr.data().empty());
 }
 
+TEST(ExpressionChecks, initialize_handles_empty_strided_view_step) {
+    // arrange: a strided step with zero elements must not sweep any tile window
+    // (the clamped span formula would underflow for count == 0 without a guard)
+    const std::vector<double> buffer = {1, 2};
+    std::vector<View<double>> steps;
+    steps.emplace_back(make_view(buffer, 0, 2));
+    Expression<double> expr("V1", std::move(steps), "V");
+    // act
+    const auto data = expr.data();
+    // assert: the step survives as a zero-length span contributing no data
+    ASSERT_EQ(expr.step_count(), 1);
+    ASSERT_TRUE(data.empty());
+    ASSERT_EQ(expr.step_indices(), (std::vector<std::pair<size_t, size_t>>{{0, 0}}));
+    ASSERT_TRUE(expr.step_data(0).empty());
+}
+
 TEST(ExpressionChecks, step_data_throws_when_expression_has_no_steps) {
     // arrange
     std::vector<View<double>> steps;
