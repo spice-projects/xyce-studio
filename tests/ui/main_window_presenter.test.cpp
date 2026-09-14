@@ -14,6 +14,7 @@
 #include "expression/expression.h"
 #include "expression/expression_manager.h"
 #include "io/xyce_output_file.h"
+#include "io/xyce_raw_file.h"
 #include "netlist/netlist_source.h"
 #include "simulation/simulation_config.h"
 #include "simulation/transient_simulation_parameters.h"
@@ -376,10 +377,11 @@ TEST(SlintMainWindowPresenterChecks, raw_print_file_is_stripped_for_xyce_and_cop
     EXPECT_NE(view.m_editor_content.find("FILE=copy_test_user_out.raw"), std::string::npos);
     // simulate Xyce producing the RAW file next to the temporary netlist
     const auto produced_path = view.m_started_netlist_path.string() + ".raw";
-    const std::string payload = "raw payload";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
     {
         std::ofstream produced(produced_path, std::ios::binary);
         produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
@@ -389,7 +391,7 @@ TEST(SlintMainWindowPresenterChecks, raw_print_file_is_stripped_for_xyce_and_cop
     {
         std::ifstream copied(copied_path);
         const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
-        EXPECT_EQ(copied_content, payload);
+        EXPECT_EQ(copied_content, payload + std::string(32, '\0'));
     }
     // cleanup
     std::error_code ec;
@@ -423,10 +425,11 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
     EXPECT_NE(view.m_editor_content.find(R"(FILE="file with space.raw")"), std::string::npos);
     // simulate Xyce producing the RAW file next to the temporary netlist
     const auto produced_path = view.m_started_netlist_path.string() + ".raw";
-    const std::string payload = "raw payload";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
     {
         std::ofstream produced(produced_path, std::ios::binary);
         produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
@@ -436,7 +439,7 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
     {
         std::ifstream copied(copied_path);
         const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
-        EXPECT_EQ(copied_content, payload);
+        EXPECT_EQ(copied_content, payload + std::string(32, '\0'));
     }
     // cleanup
     std::error_code ec;
@@ -470,10 +473,11 @@ TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_
     EXPECT_NE(view.m_editor_content.find("FILE=noise_out.raw"), std::string::npos);
     // simulate Xyce producing the RAW file next to the temporary netlist
     const auto produced_path = view.m_started_netlist_path.string() + ".raw";
-    const std::string payload = "noise payload";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
     {
         std::ofstream produced(produced_path, std::ios::binary);
         produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
@@ -483,7 +487,7 @@ TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_
     {
         std::ifstream copied(copied_path);
         const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
-        EXPECT_EQ(copied_content, payload);
+        EXPECT_EQ(copied_content, payload + std::string(32, '\0'));
     }
     // cleanup
     std::error_code ec;
@@ -500,25 +504,27 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_open_copy_test";
     std::filesystem::remove_all(working_directory);
     std::filesystem::create_directories(working_directory);
-    // build an opened raw file dataset at the destination path
-    StepInformation step_info({"R1"}, {{1000.0}}, {{0.0, 10.0}});
-    std::vector<AnyExpression> expressions;
-    std::vector<double> abscissa_data = {0.0, 1.0, 2.0};
-    std::vector<std::pair<size_t, size_t>> slices = {{0, 3}};
-    expressions.emplace_back(Expression<double>("time", std::move(abscissa_data), slices, "s"));
-    auto opened_file = std::make_shared<XyceOutputFile>(working_directory / "user_out.raw", "Opened", false, std::move(step_info), PlotType::TRANSIENT, AbscissaScale::LINEAR, ExpressionManager(expressions, slices), nullptr);
+    // write a parseable raw file at the destination path and open it through
+    // the real parser so the dataset holds a live memory mapping over it
+    const std::string opened_payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    {
+        std::ofstream opened(working_directory / "user_out.raw", std::ios::binary);
+        opened.write(opened_payload.data(), static_cast<std::streamsize>(opened_payload.size()));
+        opened.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+    }
     StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=user_out.raw V(1)\n.END\n", working_directory);
     SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    auto opened_file = xyce_raw_file_parser(working_directory / "user_out.raw");
+    ASSERT_TRUE(opened_file.has_value());
     // act — open the file as the primary dataset, then launch the simulation
-    presenter.load_raw_file(std::move(opened_file));
+    presenter.load_raw_file(std::move(opened_file.value()));
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
     // simulate Xyce producing a parseable RAW file next to the temporary netlist
     const auto produced_path = view.m_started_netlist_path.string() + ".raw";
-    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
     {
         std::ofstream produced(produced_path, std::ios::binary);
-        produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        produced.write(opened_payload.data(), static_cast<std::streamsize>(opened_payload.size()));
         produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
     }
     // act — finish the simulation successfully
@@ -530,12 +536,51 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
     {
         std::ifstream copied(copied_path);
         const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
-        EXPECT_EQ(copied_content, payload + std::string(32, '\0'));
+        EXPECT_EQ(copied_content, opened_payload + std::string(32, '\0'));
     }
     // the active dataset was re-pointed at the produced file, preserving the
     // opened dataset's identity (the primary dataset id is kept on a re-run)
     ASSERT_GE(view.m_updated_dataset_ids.size(), 2u);
     EXPECT_EQ(view.m_updated_dataset_ids.front(), view.m_updated_dataset_ids.back());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, failed_parse_does_not_overwrite_the_user_destination) {
+    // arrange — the produced raw file exists but is not parseable; the copy is
+    // confined to successful runs so the user's last valid copy is preserved
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_failed_parse_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    const std::string sentinel = "previous valid copy";
+    {
+        std::ofstream destination(working_directory / "user_out.raw", std::ios::binary);
+        destination.write(sentinel.data(), static_cast<std::streamsize>(sentinel.size()));
+    }
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=user_out.raw V(1)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // simulate Xyce leaving a partial (unparseable) raw file
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced.write("raw payload", 11);
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the unparseable produced file was NOT copied over the
+    // destination, which keeps the last valid copy
+    const auto copied_path = working_directory / "user_out.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, sentinel);
+    }
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);

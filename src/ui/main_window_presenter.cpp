@@ -625,10 +625,10 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // exit
         return;
     }
-    // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
-    const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
     // check for success
     if (exit_code == 0) {
+        // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
+        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
         // try to load the raw file when a path was computed and exists
         if (raw_path.has_value() && std::filesystem::exists(*raw_path)) {
             // parse the raw file
@@ -708,12 +708,6 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     m_view.show_simulation_output_panel();
     // refresh toolbar/menu states
     refresh_action_states();
-    // attempt the copy even on failure paths so the user finds the produced
-    // file whenever it exists (a failed parse does not withhold the file); the
-    // dataset mapping of a matching destination may still be open here and the
-    // copy warns on failure
-    if (raw_path.has_value())
-        copy_raw_output_to_destination(*raw_path);
 }
 
 void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesystem::path& raw_path) {
