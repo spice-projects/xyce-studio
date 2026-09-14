@@ -80,9 +80,6 @@ void ChartsRenderer::publish_frames() {
     }
     // remember the rects for the interaction hit tests
     m_plot_rects = std::move(plot_rects);
-    // log the built frame geometry (debug aid)
-    for (const auto& frame : frames)
-        spdlog::debug("Native frame geom: plot ({}, {} {} x {}), x-datum {}, y-datum {}, legend ({}, {}), viewport {}x{}", frame.plot_x, frame.plot_y, frame.plot_w, frame.plot_h, frame.x_datum, frame.y_axes[0].datum, frame.legend_x, frame.legend_y, m_viewport_width, m_viewport_height);
     // hand the frames to the slint layer
     m_publish(frames);
 }

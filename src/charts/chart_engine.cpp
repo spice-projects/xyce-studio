@@ -194,8 +194,6 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
         auto& plotted_expression = std::get<0>(it->second);
         // check ordinate variant should be removed
         if (!expressions.contains(plotted_expression)) {
-            // log information
-            spdlog::info("Removing expression [{}] from chart", it->first);
             // release axis
             release_y_axis(std::get<1>(it->second));
             // remove from map
@@ -226,8 +224,6 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
             for (auto it2 = rendered_series.begin(); it2 != rendered_series.end();) {
                 // check step in selected steps
                 if (!m_selected_steps.contains(it2->first)) {
-                    // log information
-                    spdlog::info("Removing step [{}] for expression [{}] from chart", it2->first, double_ordinate_variant.name());
                     // remove it
                     it2 = rendered_series.erase(it2);
                     // next
@@ -280,18 +276,6 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
             std::get<5>(it0->second) = color;
         }
     }
-    // dump series information in debug mode
-    if (spdlog::get_level() <= spdlog::level::debug) {
-        // loop series
-        for (const auto& [k, v] : m_series) {
-            // extract axis, steps and color
-            const int y_axis = std::get<1>(v);
-            const auto& steps = std::get<2>(v);
-            const auto& color = std::get<5>(v);
-            // log information
-            spdlog::debug("Series [{}] on Y{} axis with {} steps and color RGBA({:.3f}, {:.3f}, {:.3f}, {:.3f})", k, y_axis + 1, steps.size(), color.r, color.g, color.b, color.a);
-        }
-    }
     // auto range axes
     auto_range();
 }
@@ -341,8 +325,6 @@ void ChartEngine::auto_range() {
         // update min & max values
         axis_info.plot_min_value = axis_info.min_value - delta;
         axis_info.plot_max_value = axis_info.max_value + delta;
-        // log information
-        spdlog::debug("Auto range for Y{} axis (unit: '{}'): min = {}, max = {}", axis_info.axis + 1, axis_info.unit.empty() ? "<no unit>" : axis_info.unit, axis_info.plot_min_value, axis_info.plot_max_value);
     }
 }
 
@@ -368,7 +350,6 @@ std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_s
     auto [x_np, y_np] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
     // TODO: remove Inf values
     // log information
-    spdlog::info("Adding series for expression [{}], step: {}, original size: {}, decimated size: {}", ordinate_variant.name(), step, abscissa_values.size(), x_np.size());
     // check all values were non-finite after filtering
     if (x_np.empty() || y_np.empty())
         return {};
@@ -415,7 +396,6 @@ int ChartEngine::get_y_axis(const std::string& unit) {
     // check we have an available axis
     if (available) {
         // log information
-        spdlog::info("Creating Y{} axis for measurement type: {}", available->axis + 1, unit.empty() ? "<no unit>" : unit);
         // use it
         available->plots = 1;
         available->unit = unit;
@@ -439,7 +419,6 @@ bool ChartEngine::release_y_axis(const int axis) {
             // check axis is no longer in use
             if (axis_info.plots == 0) {
                 // log information
-                spdlog::info("Releasing Y{} axis", axis_info.axis + 1);
                 // reset plot range
                 axis_info.plot_min_value = 0.0;
                 axis_info.plot_max_value = 1.0;
@@ -632,7 +611,6 @@ void ChartEngine::redraw_all_series() {
     m_abscissa_left_value = x_left_ratio >= 0 ? ratio_to_abscissa_value(x_left_ratio) : m_step_information->abscissa_left_value();
     m_abscissa_right_value = x_right_ratio >= 0 ? ratio_to_abscissa_value(x_right_ratio) : m_step_information->abscissa_right_value();
     // log information
-    spdlog::debug("Redrawing all series for abscissa from {} to {}", m_abscissa_left_value, m_abscissa_right_value);
     // abscissa
     auto& abscissa = m_expression_manager->abscissa();
     // loop existing series
@@ -662,7 +640,6 @@ void ChartEngine::redraw_all_series() {
             auto [x, y] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
             // TODO: remove Inf values
             // log information
-            spdlog::debug("Updating series for expression [{}], step: {}, original size: {}, decimated size: {}", ordinate_variant.name(), step, abscissa_values.size(), x.size());
             // update min and max values
             min_value = std::min(min_value, *std::ranges::min_element(y));
             max_value = std::max(max_value, *std::ranges::max_element(y));
