@@ -221,15 +221,18 @@ void SlintMainWindowPresenter::launch_simulation() {
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END for the editor
     const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
-    // build the netlist handed to Xyce with the FILE= option stripped from RAW
-    // .PRINT statements; Xyce then writes the RAW file next to the temporary
-    // netlist under its own default name, so the file the application maps is
-    // never rewritten by a later run (on Windows the rewrite fails while the
-    // file is mapped, on macOS it invalidates the previous mapping)
+    // build the netlist handed to Xyce with the FILE= option stripped from the
+    // analysis RAW .PRINT statement only; Xyce then writes the RAW file next to
+    // the temporary netlist under its own default name, so the file the
+    // application maps is never rewritten by a later run (on Windows the
+    // rewrite fails while the file is mapped, on macOS it invalidates the
+    // previous mapping). Unassociated and legacy print directives are never
+    // mapped by the application, so they keep their output files.
+    const auto analysis_print = m_simulation_config.analysis_print_statement();
     std::vector<std::string> simulation_directives;
     simulation_directives.reserve(directives.size());
     for (const auto& directive : directives)
-        simulation_directives.push_back(strip_print_file_option(directive));
+        simulation_directives.push_back(analysis_print.has_value() && directive == *analysis_print ? strip_print_file_option(directive) : directive);
     const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist
     if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))

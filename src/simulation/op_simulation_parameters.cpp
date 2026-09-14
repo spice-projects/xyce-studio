@@ -6,6 +6,7 @@
 
 #include "../core/util.h"
 #include "op_simulation_parameters.h"
+#include "print_parameters.h"
 
 NodesetEntry::NodesetEntry(std::string node, std::string voltage) :
     node(std::move(node)), voltage(std::move(voltage)) {}
@@ -212,8 +213,8 @@ std::vector<std::string> OpSimulationParameters::to_xyce_directives(const Netlis
         }
         // check file
         if (!print_dc_file.empty()) {
-            // append file
-            tokens += " FILE=" + print_dc_file;
+            // append file (quoted when the filename contains whitespace)
+            tokens += " FILE=" + format_print_file_value(print_dc_file);
         }
         // start with custom vars
         std::vector<std::string> vars = print_dc_specific_variables;

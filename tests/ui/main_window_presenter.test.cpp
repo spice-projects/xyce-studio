@@ -398,6 +398,53 @@ TEST(SlintMainWindowPresenterChecks, raw_print_file_is_stripped_for_xyce_and_cop
     std::filesystem::remove_all(working_directory, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlist_and_copied_on_finish) {
+    // arrange — directive-less netlist so the run parks on the dialog
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_copy_test_spaces";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_FALSE(view.m_started);
+    // accept a transient configuration whose print file name carries spaces,
+    // entered in the dialog without quotes
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "RAW", "file with space.raw", {"V(1)"}, {}), {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    presenter.on_simulation_parameters_dialog_result(config);
+    ASSERT_TRUE(view.m_started);
+    // assert — the netlist handed to Xyce carries no FILE= option at all
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find("FILE="), std::string::npos);
+    }
+    // the editor netlist quotes the filename so it survives tokenization
+    EXPECT_NE(view.m_editor_content.find(R"(FILE="file with space.raw")"), std::string::npos);
+    // simulate Xyce producing the RAW file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    const std::string payload = "raw payload";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced file was copied to the user-indicated spaced filename
+    const auto copied_path = working_directory / "file with space.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, payload);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, schematic_change_without_directives_preserves_saved_config) {
     // arrange — directive-less netlist, valid executable
     RecordingView view;

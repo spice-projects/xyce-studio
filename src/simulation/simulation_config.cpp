@@ -276,7 +276,7 @@ bool SimulationConfig::operator==(const SimulationConfig& other) const {
 }
 
 std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& netlist_file_path) const {
-    // process simuation types
+    // process simulation types
     auto l = [&netlist_file_path]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
         // actual parameter type
         using TX = std::decay_t<T0>;
@@ -306,7 +306,7 @@ std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(cons
 }
 
 std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destination(const std::filesystem::path& working_directory) const {
-    // process simuation types
+    // process simulation types
     auto l = [&working_directory]<typename T0>(T0& a) -> std::optional<std::filesystem::path> {
         // actual parameter type
         using TX = std::decay_t<T0>;
@@ -331,6 +331,28 @@ std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destinati
             return std::optional<std::filesystem::path>();
         }
     };
+    return std::visit(l, analysis);
+}
+
+std::optional<std::string> SimulationConfig::analysis_print_statement() const {
+    // process simulation types
+    auto l = []<typename T0>(T0& a) -> std::optional<std::string> {
+        // actual parameter type
+        using TX = std::decay_t<T0>;
+        // std::monostate
+        if constexpr (std::is_same_v<TX, std::monostate>) {
+            // no analysis, no analysis print directive
+            return std::nullopt;
+        }
+        else {
+            // serialize the analysis print directive when configured
+            if (a.print_parameters.has_value())
+                return a.print_parameters->to_xyce_statement();
+            // no analysis print directive
+            return std::nullopt;
+        }
+    };
+    // visit the analysis variant
     return std::visit(l, analysis);
 }
 

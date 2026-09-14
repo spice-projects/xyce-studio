@@ -46,6 +46,57 @@ TEST(PrintParametersChecks, parses_format_file_and_variables) {
     ASSERT_EQ(result->output_variables[1], "I(V1)");
 }
 
+TEST(PrintParametersChecks, parses_quoted_file_without_quotes) {
+    // arrange: a quoted filename carrying spaces must surface unquoted
+    const std::string statement = R"(.PRINT TRAN FORMAT=RAW FILE="file with space.raw" V(OUT))";
+    // act
+    const auto result = PrintParameters::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->print_file, "file with space.raw");
+    ASSERT_EQ(result->output_variables.size(), 1);
+    ASSERT_EQ(result->output_variables[0], "V(OUT)");
+}
+
+TEST(PrintParametersChecks, to_xyce_statement_quotes_file_with_spaces) {
+    // arrange: a filename entered in the dialog without quotes
+    const PrintParameters params("TRAN", "RAW", "file with space.raw", {"V(OUT)"}, {});
+    // act
+    const std::string statement = params.to_xyce_statement();
+    // assert: the emitted directive quotes the filename so it survives tokenization
+    ASSERT_EQ(statement, R"(.PRINT TRAN FORMAT=RAW FILE="file with space.raw" V(OUT))");
+}
+
+TEST(PrintParametersChecks, to_xyce_statement_does_not_quote_simple_file) {
+    // arrange
+    const PrintParameters params("TRAN", "RAW", "waves.raw", {"V(OUT)"}, {});
+    // act
+    const std::string statement = params.to_xyce_statement();
+    // assert
+    ASSERT_EQ(statement, ".PRINT TRAN FORMAT=RAW FILE=waves.raw V(OUT)");
+}
+
+TEST(PrintParametersChecks, to_xyce_statement_keeps_already_quoted_file) {
+    // arrange: a value the user typed with explicit quotes passes through as-is
+    const PrintParameters params("TRAN", "RAW", R"("waves.raw")", {"V(OUT)"}, {});
+    // act
+    const std::string statement = params.to_xyce_statement();
+    // assert
+    ASSERT_EQ(statement, R"(.PRINT TRAN FORMAT=RAW FILE="waves.raw" V(OUT))");
+}
+
+TEST(PrintParametersChecks, quoted_file_round_trip_normalizes_quotes) {
+    // arrange: a netlist-authored quoted filename round-trips through parse and emit
+    const std::string statement = R"(.PRINT TRAN FORMAT=RAW FILE="file with space.raw" V(OUT))";
+    // act
+    const auto parsed = PrintParameters::from_xyce_statement(statement);
+    const std::string rebuilt = parsed->to_xyce_statement();
+    const auto reparsed = PrintParameters::from_xyce_statement(rebuilt);
+    // assert: the filename stays unquoted in the model and quoted in the netlist
+    ASSERT_EQ(reparsed->print_file, "file with space.raw");
+    ASSERT_EQ(rebuilt, statement);
+}
+
 TEST(PrintParametersChecks, parses_expression_with_spaces) {
     // arrange
     const std::string statement = ".PRINT TRAN FORMAT=RAW V(OUT) {V(OUT) * I(V1)}";
@@ -450,6 +501,15 @@ TEST(PrintParametersChecks, strip_print_file_keeps_braced_expressions_intact) {
     const std::string stripped = strip_print_file_option(statement);
     // assert
     ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT) {V(OUT) * I(V1)}");
+}
+
+TEST(PrintParametersChecks, strip_print_file_removes_quoted_file_option) {
+    // arrange: a quoted filename carrying spaces is a single token and is removed
+    const std::string statement = R"(.PRINT TRAN FORMAT=RAW FILE="file with space.raw" V(OUT))";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT)");
 }
 
 TEST(PrintParametersChecks, strip_print_file_result_reparses_without_file) {

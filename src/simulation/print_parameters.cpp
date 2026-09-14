@@ -226,8 +226,9 @@ std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::s
             }
             // map file option
             if (option_key == "FILE") {
-                // store file
-                print_file = option_value;
+                // store file (normalize a quoted value so the dialog and the
+                // copy destination see the actual filename without quotes)
+                print_file = strip_outer_quotes(option_value);
                 // next
                 continue;
             }
@@ -249,6 +250,31 @@ std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::s
     }
     // return model
     return PrintParameters(print_type, print_format, print_file, std::move(output_variables), std::move(extra_options));
+}
+
+// strip matching outer quote characters from an option value
+std::string strip_outer_quotes(std::string value) {
+    // check for a matching outer quote pair
+    if (value.size() >= 2 && (value.front() == '"' || value.front() == '\'') && value.back() == value.front()) {
+        // strip the outer quotes
+        return value.substr(1, value.size() - 2);
+    }
+    // return the value unchanged
+    return value;
+}
+
+// format a FILE= option value: values containing whitespace are quoted so the
+// statement survives tokenization; already-quoted values pass through as-is
+std::string format_print_file_value(const std::string& file) {
+    // check the value already carries matching outer quotes
+    const bool already_quoted = file.size() >= 2 && (file.front() == '"' || file.front() == '\'') && file.back() == file.front();
+    // quote the value when it contains whitespace and is not already quoted
+    if (!already_quoted && file.find_first_of(" \t") != std::string::npos) {
+        // wrap the value in double quotes
+        return "\"" + file + "\"";
+    }
+    // return the value unchanged
+    return file;
 }
 
 std::string strip_print_file_option(const std::string& print_statement) {
@@ -321,9 +347,9 @@ std::string PrintParameters::to_xyce_statement() const {
     // append format option
     if (!print_format.empty())
         tokens.push_back("FORMAT=" + print_format);
-    // append file option
+    // append file option (quoted when the filename contains whitespace)
     if (!print_file.empty())
-        tokens.push_back("FILE=" + print_file);
+        tokens.push_back("FILE=" + format_print_file_value(print_file));
     // append extra options
     for (const auto& opt : extra_options)
         tokens.push_back(opt);

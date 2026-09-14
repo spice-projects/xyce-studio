@@ -252,6 +252,38 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_non_
 }
 
 // ========================================================================================
+// analysis print statement serialization
+// ========================================================================================
+
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_for_missing_analysis) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    // assert
+    EXPECT_FALSE(statement.has_value());
+}
+
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_serializes_the_analysis_print) {
+    // arrange — a RAW print with an explicit output file
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    // assert
+    ASSERT_TRUE(statement.has_value());
+    EXPECT_EQ(*statement, ".PRINT OP FORMAT=RAW FILE=out.raw V(1)");
+}
+
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_without_print) {
+    // arrange — an OP analysis with the print disabled
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto statement = config.analysis_print_statement();
+    // assert
+    EXPECT_FALSE(statement.has_value());
+}
+
+// ========================================================================================
 // FFT output file path pattern computation
 // ========================================================================================
 

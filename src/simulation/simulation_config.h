@@ -51,6 +51,12 @@ public:
     // is produced or the analysis print carries no explicit file
     [[nodiscard]] std::optional<std::filesystem::path> raw_output_copy_destination(const std::filesystem::path& working_directory) const;
 
+    // serialize the analysis print directive (the only .PRINT whose output the
+    // application parses and maps); nullopt when no analysis is configured or
+    // the analysis print is disabled; used to scope FILE= stripping so
+    // unassociated and legacy print directives keep their output files
+    [[nodiscard]] std::optional<std::string> analysis_print_statement() const;
+
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 

@@ -264,7 +264,7 @@ namespace simulation_parameters_dialog_view
             const std::string print_type = has_type_combo ? type_model[static_cast<size_t>(std::clamp(g.type_index(), 0, static_cast<int>(N) - 1))] : std::string(default_type);
             // extra options as owning tokens (see note above)
             std::vector<std::string> extra_options = tokenize_owned(g.extra_options());
-            return PrintParameters(print_type, print_format, g.output_file(), std::move(output_vars), std::move(extra_options));
+            return PrintParameters(print_type, print_format, strip_outer_quotes(g.output_file()), std::move(output_vars), std::move(extra_options));
         }
 
         // --- shared multi-line directive helpers ---
