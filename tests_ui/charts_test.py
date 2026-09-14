@@ -33,6 +33,14 @@ def _abscissa_tick_labels(labels: list[str]) -> list[str]:
     return [label for label in labels if label.endswith(("Hz", "s")) or label.endswith(" ms")]
 
 
+def _label_value(label: str) -> float:
+    # parse a chart tick label like "500 m" or "2.5 " into a float
+    parts = label.split()
+    multipliers = {"m": 1e-3, "u": 1e-6, "µ": 1e-6, "k": 1e3, "M": 1e6, "G": 1e9}
+    multiplier = multipliers.get(parts[1], 1.0) if len(parts) > 1 else 1.0
+    return float(parts[0]) * multiplier
+
+
 class ChartPanelChecks(unittest.TestCase):
 
     def _run_simulation(self, app) -> None:
@@ -134,6 +142,60 @@ class ChartPanelChecks(unittest.TestCase):
             self.assertNotEqual(ordinate_0, pre_ordinate_0)
             # assert: the other chart keeps its full ordinate range
             self.assertEqual(ordinate_1, pre_ordinate_1)
+
+    def test_descending_dc_sweep_shows_the_reversed_abscissa_range(self) -> None:
+        # arrange: the netlist sweeps the source from 5 down to 0 in -0.5 steps
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "dc-sweep-descending-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            # act: run the simulation and wait for the charts view
+            self._run_simulation(app)
+            # assert: the transient tab shows one chart
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            self.assertEqual(app.get_by_type("ChartView").count(), 1)
+            # capture the abscissa labels of the bottom band with their x
+            # positions; labels left of the panel are ordinate origin text
+            view = app.get_by_type("ChartView").nth(0)
+            view_props = view.properties()
+            origin_y = view_props.get("absolutePosition", {}).get("y", 0)
+            height = view_props.get("size", {}).get("height", 0)
+            texts = view.child("Text")
+            pre_zoom: list[tuple[str, float]] = []
+            for index in range(texts.count()):
+                props = texts.nth(index).properties()
+                relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
+                x = props.get("absolutePosition", {}).get("x", 0)
+                if relative_y > height - 60 and x >= 0:
+                    pre_zoom.append((props.get("accessibleLabel"), x))
+            # assert: the full descending 5..0 sweep is shown on the abscissa
+            labels = [label for label, _ in pre_zoom]
+            values = [_label_value(label) for label in labels]
+            self.assertEqual(len(labels), 11)
+            self.assertEqual(min(values), 0.0)
+            self.assertEqual(max(values), 5.0)
+            # assert: larger sweep values map toward the panel west edge
+            west = next(x for label, x in pre_zoom if _label_value(label) == 5.0)
+            east = next(x for label, x in pre_zoom if _label_value(label) == 0.0)
+            self.assertLess(west, east)
+            # act: zoom on the chart without plotting any series
+            view.drag(660.0, 310.0)
+            expect(app.get_by_type("ChartView").nth(0)).to_exist()
+            post_texts = view.child("Text")
+            post_zoom: list[str] = []
+            for index in range(post_texts.count()):
+                props = post_texts.nth(index).properties()
+                relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
+                x = props.get("absolutePosition", {}).get("x", 0)
+                if relative_y > height - 60 and x >= 0:
+                    post_zoom.append(props.get("accessibleLabel"))
+            post_values = [_label_value(label) for label in post_zoom]
+            # assert: the zoomed abscissa covers only the interior of the sweep
+            # and both sweep boundaries are gone from the axis
+            self.assertTrue(post_zoom)
+            self.assertNotEqual(post_zoom, labels)
+            self.assertTrue(all(0.0 < value < 5.0 for value in post_values))
 
     def test_fft_tab_2_shows_the_pure_fft_range(self) -> None:
         # arrange
