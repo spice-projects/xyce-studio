@@ -41,6 +41,15 @@ class FakeArtifactClient:
 
 class SessionFinishChecks(unittest.TestCase):
 
+    def test_app_returns_the_owned_application(self) -> None:
+        # arrange
+        app = SlintApplication(FakeProcess(), FakeArtifactClient(), 1)
+        session = TestSession(app, "app-check", artifacts_root="unused")
+        # act
+        owned = session.app()
+        # assert
+        self.assertIs(owned, app)
+
     def test_clean_finish_closes_without_artifacts(self) -> None:
         # arrange
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,5 +1,7 @@
+import base64
 import unittest
 
+from slint_automation.errors import McpError
 from slint_automation.slint_client import SlintClient
 
 
@@ -141,6 +143,65 @@ class SlintClientFacadeChecks(unittest.TestCase):
         # assert
         self.assertEqual(mcp.calls()[0][1]["action"], "DoubleClick")
         self.assertEqual(mcp.calls()[0][1]["button"], "Middle")
+
+    def test_invoke_accessibility_action_passes_handle_and_action(self) -> None:
+        # arrange
+        mcp = FakeMcpClient({})
+        client = SlintClient(mcp)
+        # act
+        client.invoke_accessibility_action({"index": "5", "generation": "1"})
+        # assert: the default action is sent on the element handle
+        self.assertEqual(mcp.calls()[0], ("invoke_accessibility_action", {"elementHandle": {"index": "5", "generation": "1"}, "action": "Default_"}))
+
+    def test_drag_element_passes_handle_and_target(self) -> None:
+        # arrange
+        mcp = FakeMcpClient({})
+        client = SlintClient(mcp)
+        # act
+        client.drag_element({"index": "5", "generation": "1"}, 120.0, 80.0)
+        # assert
+        self.assertEqual(mcp.calls()[0], ("drag_element", {"elementHandle": {"index": "5", "generation": "1"}, "target": {"x": 120.0, "y": 80.0}}))
+
+    def test_get_element_properties_passes_handle(self) -> None:
+        # arrange
+        handle = {"index": "7", "generation": "1"}
+        mcp = FakeMcpClient({"get_element_properties": {"accessibleLabel": "Run"}})
+        client = SlintClient(mcp)
+        # act
+        properties = client.get_element_properties(handle)
+        # assert
+        self.assertEqual(properties["accessibleLabel"], "Run")
+        self.assertEqual(mcp.calls()[0], ("get_element_properties", {"elementHandle": handle}))
+
+    def test_get_window_properties_uses_first_window(self) -> None:
+        # arrange
+        handle = {"index": "1", "generation": "1"}
+        mcp = FakeMcpClient({"list_windows": {"windowHandles": [handle]}, "get_window_properties": {"title": "Xyce Studio"}})
+        client = SlintClient(mcp)
+        # act
+        properties = client.get_window_properties()
+        # assert
+        self.assertEqual(properties["title"], "Xyce Studio")
+        self.assertEqual(mcp.calls()[1], ("get_window_properties", {"windowHandle": handle}))
+
+    def test_take_screenshot_decodes_the_image_block(self) -> None:
+        # arrange
+        encoded = base64.b64encode(b"png-bytes").decode("utf-8")
+        mcp = FakeMcpClient({"list_windows": {"windowHandles": [{"index": "1", "generation": "1"}]}, "take_screenshot": [{"type": "image", "data": encoded}]})
+        client = SlintClient(mcp)
+        # act
+        png = client.take_screenshot()
+        # assert
+        self.assertEqual(png, b"png-bytes")
+
+    def test_take_screenshot_raises_without_image_block(self) -> None:
+        # arrange
+        mcp = FakeMcpClient({"list_windows": {"windowHandles": [{"index": "1", "generation": "1"}]}, "take_screenshot": [{"type": "text", "text": "no image"}]})
+        client = SlintClient(mcp)
+        # act / assert
+        with self.assertRaises(McpError) as context:
+            client.take_screenshot()
+        self.assertIn("no image block", str(context.exception))
 
     def test_set_element_value_passes_args(self) -> None:
         # arrange

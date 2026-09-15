@@ -71,6 +71,19 @@ class SlintApplication:
         # create a collection locator for the slint type name
         return LocatorCollection(self._client, type_name)
 
+    def invoke_chart_action(self, action: str, chart_position: float = 0.5) -> None:
+        # invoke a charts panel context menu action through the hidden debug
+        # triggers; the native context menu cannot be reached by the automation
+        # because the platform renders it, so debug builds expose invisible
+        # trigger elements calling exactly what the matching menu item calls.
+        # the action is the kebab-case trigger id (e.g. "add-chart") and the
+        # chart position is a float [0..1] locating the target chart in the
+        # vertical stack, translated to an index by the charts renderer
+        trigger = self.get_by_id(f"ChartsPanel::test-{action}")
+        # filling the trigger fires accessible-action-set-value, which invokes
+        # the wrapped action with the position argument
+        trigger.fill(str(chart_position))
+
     @reports_test_frames
     def wait_for_condition(self, condition: Callable[[], bool], *, timeout: float = DEFAULT_WAIT_TIMEOUT, poll_interval: float = DEFAULT_POLL_INTERVAL, message: str) -> None:
         # wait until the caller supplied condition holds
