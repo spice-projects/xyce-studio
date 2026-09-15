@@ -147,15 +147,24 @@ void ChartsRenderer::update(const int dataset_id, ExpressionManager& expression_
 }
 
 ChartEngine* ChartsRenderer::add_chart() {
+    // append at the end of the active dataset stack
+    const auto* dataset = active_dataset();
+    // no active dataset means the indexed overload inserts the first chart
+    return add_chart(dataset != nullptr ? dataset->charts.size() : 0);
+}
+
+ChartEngine* ChartsRenderer::add_chart(const size_t after_index) {
     // active dataset state
     auto* dataset = active_dataset();
     // no charts can be added without an active dataset
     if (dataset == nullptr)
         return nullptr;
-    // create chart and append it to the dataset vector
-    dataset->charts.push_back(std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
+    // insertion position: directly after the given chart, clamped to the end
+    const size_t index = std::min(after_index + 1, dataset->charts.size());
+    // create the chart and insert it into the dataset vector
+    const auto chart_it = dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(index), std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
     // chart
-    auto& chart = dataset->charts[dataset->charts.size() - 1];
+    auto& chart = *chart_it;
     // all charts share the abscissa range: a chart added after a zoom joins
     // the shared horizontal zoom window of the panel (vertical zoom stays per
     // chart); unset ratios pass through unchanged

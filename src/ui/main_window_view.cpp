@@ -225,18 +225,18 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     chart_actions.on_autorange([this](float chart_position) { m_charts_renderer->autorange(chart_position); });
     chart_actions.on_zoom_abscissa_extent([this](float chart_position) { m_charts_renderer->zoom_abscissa_extent(chart_position); });
     chart_actions.on_delete_all_plots([this](float chart_position) { m_charts_renderer->delete_all_plots(chart_position); });
-    chart_actions.on_add_chart([this](float) {
-        // add chart
-        m_charts_renderer->add_chart();
+    chart_actions.on_add_chart([this](float chart_position) {
+        // add a chart directly after the one the context menu was opened on
+        m_charts_renderer->add_chart(m_charts_renderer->position_to_index(chart_position));
         // publish frames to show the new chart
         m_charts_renderer->publish_frames();
     });
     chart_actions.on_delete_chart([this](float chart_position) { m_charts_renderer->delete_chart(chart_position); });
-    // events that need presenter involvement: convert float to int via renderer
+    // events that need presenter involvement: convert float to index via renderer
     chart_actions.on_add_remove_plots([this](float chart_position) { show_add_remove_plots_dialog(chart_position); });
-    chart_actions.on_calculate_fft([this](float chart_position) { m_event_handler->on_chart_calculate_fft(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
-    chart_actions.on_step_tool([this](float chart_position) { m_event_handler->on_chart_step_tool(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
-    chart_actions.on_new_window([this](float chart_position) { m_event_handler->on_chart_new_window(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
+    chart_actions.on_calculate_fft([this](float chart_position) { m_event_handler->on_chart_calculate_fft(m_charts_renderer->position_to_index(chart_position)); });
+    chart_actions.on_step_tool([this](float chart_position) { m_event_handler->on_chart_step_tool(m_charts_renderer->position_to_index(chart_position)); });
+    chart_actions.on_new_window([this](float chart_position) { m_event_handler->on_chart_new_window(m_charts_renderer->position_to_index(chart_position)); });
 
     // plot tab navigation
     m_window->on_plot_tab_selected([this](int index) { guard_modal([this, index] { m_event_handler->on_select_plot_tab(index); }); });
