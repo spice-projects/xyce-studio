@@ -178,6 +178,24 @@ ChartEngine* ChartsRenderer::add_chart(const size_t after_index) {
     return chart.get();
 }
 
+void ChartsRenderer::move_chart(const size_t from, const size_t to) {
+    // active dataset state
+    auto* dataset = active_dataset();
+    // log information
+    spdlog::debug("User requested moving chart {} to {}", from, to);
+    // a same index or an out of range index cannot reorder anything
+    if (dataset == nullptr || from == to || from >= dataset->charts.size() || to >= dataset->charts.size())
+        return;
+    // lift the chart state out of the stack and drop it at the target
+    // position; per chart state (zoom window, plotted series, step
+    // selection) lives in the engine and moves with the element
+    auto chart = std::move(dataset->charts[from]);
+    dataset->charts.erase(dataset->charts.begin() + static_cast<std::ptrdiff_t>(from));
+    dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(to), std::move(chart));
+    // republish the reordered frames
+    publish_frames();
+}
+
 void ChartsRenderer::release_dataset(const int dataset_id) {
     // clear the active hover readout when the released tab was active
     if (m_active_dataset_id == dataset_id) {

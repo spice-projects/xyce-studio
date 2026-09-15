@@ -62,6 +62,10 @@ public:
     void release_all_charts() override;
     void set_plot_tabs(const std::vector<PlotTabItem>& tabs, int active_index) override;
     void set_active_plot_tab(int active_index) override;
+
+    // move the chart at the given index to the given index in the vertical
+    // stack; the presenter mediates so a future change can persist the order
+    void move_chart(size_t from, size_t to) override;
     void show_fft_dialog(size_t chart_index) override;
     void show_step_tool_dialog(size_t chart_index) override;
     std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig& current) override;

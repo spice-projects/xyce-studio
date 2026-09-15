@@ -67,6 +67,10 @@ public:
     virtual void set_plot_tabs(const std::vector<PlotTabItem>& tabs, int active_index) = 0;
     virtual void set_active_plot_tab(int active_index) = 0;
 
+    // move the chart at the given index to the given index in the vertical
+    // stack; the presenter mediates so a future change can persist the order
+    virtual void move_chart(size_t from, size_t to) = 0;
+
     // show the FFT setup dialog for the chart at the given index; the accepted
     // result is delivered asynchronously through on_fft_dialog_result
     virtual void show_fft_dialog(size_t chart_index) = 0;
@@ -140,6 +144,10 @@ public:
     virtual void on_chart_calculate_fft(size_t chart_index) = 0;
     virtual void on_chart_step_tool(size_t chart_index) = 0;
     virtual void on_chart_new_window(size_t chart_index) = 0;
+
+    // chart reordering through the drag handle; the presenter mediates so a
+    // future change can persist the chart order
+    virtual void on_chart_moved(size_t from, size_t to) = 0;
 
     // simulation lifecycle events (forwarded by the view from the runner)
     virtual void on_simulation_finished(int exit_code, bool was_canceled) = 0;

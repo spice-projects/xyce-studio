@@ -51,6 +51,11 @@ public:
     // range index appends the chart at the end of the stack
     ChartEngine* add_chart(size_t after_index);
 
+    // move the chart at the given index to the given index in the stack,
+    // carrying its state (zoom window, plotted series, step selection) with
+    // it; a same index or an out of range index is a no-op
+    void move_chart(size_t from, size_t to);
+
     // drop the chart state of the dataset with the given tab id
     void release_dataset(int dataset_id);
 
