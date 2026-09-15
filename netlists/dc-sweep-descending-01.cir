@@ -1,0 +1,10 @@
+* Simple Descending DC Sweep Example for Xyce
+V1 1 0 DC 0V
+R1 1 2 1k
+R2 2 0 2k
+
+.PREPROCESS REPLACEGROUND TRUE
+.DC V1 5 0 -0.5
+.PRINT DC FORMAT=RAW FILE=dc-sweep-descending-01.raw V(*) I(*)
+
+.END

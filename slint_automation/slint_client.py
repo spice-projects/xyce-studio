@@ -65,6 +65,10 @@ class SlintClient:
         # simulate a mouse click on the element handle
         self._mcp.call_tool("click_element", {"elementHandle": element_handle, "action": action, "button": button})
 
+    def drag_element(self, element_handle: dict, target_x: float, target_y: float) -> None:
+        # drag from the element center to the logical target position
+        self._mcp.call_tool("drag_element", {"elementHandle": element_handle, "target": {"x": target_x, "y": target_y}})
+
     def set_element_value(self, element_handle: dict, value: str) -> None:
         # set the accessible value of the element handle
         self._mcp.call_tool("set_element_value", {"elementHandle": element_handle, "value": value})

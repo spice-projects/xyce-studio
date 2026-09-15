@@ -3,38 +3,16 @@
   "version-string": "1.0.0",
   "dependencies": [
     {
-      "name": "imgui",
-      "version>=": "1.92.8#1"
-    },
-    {
-      "name": "implot",
-      "version>=": "1.0"
-    },
-    {
       "name": "skia",
       "version>=": "148",
       "platform": "osx",
-      "default-features": false,
-      "features": [
-        "metal",
-        "png",
-        "jpeg",
-        "harfbuzz",
-        "icu"
-      ]
+      "default-features": false
     },
     {
       "name": "skia",
       "version>=": "148",
       "platform": "windows",
-      "default-features": false,
-      "features": [
-        "direct3d",
-        "png",
-        "jpeg",
-        "harfbuzz",
-        "icu"
-      ]
+      "default-features": false
     },
     {
       "name": "skia",
@@ -42,11 +20,6 @@
       "platform": "linux",
       "default-features": false,
       "features": [
-        "vulkan",
-        "png",
-        "jpeg",
-        "harfbuzz",
-        "icu",
         "freetype",
         "fontconfig"
       ]

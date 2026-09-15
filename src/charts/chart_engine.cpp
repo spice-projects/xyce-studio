@@ -10,55 +10,15 @@
 #include <variant>
 #include <vector>
 
-#include <imgui.h>
-#include <implot.h>
 #include <spdlog/spdlog.h>
 
-#include "chart.h"
+#include "chart_engine.h"
 #include "decimate.h"
 
 namespace
 {
-    constexpr ImPlotFlags PLOT_FLAGS = (ImPlotFlags_CanvasOnly ^ ImPlotFlags_NoLegend) | ImPlotFlags_NoInputs | ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect;
-
-    // ImPlot forward transform for base-2 logarithmic axes (mirrors ImPlot's Log10 transform clamping)
-    static double log2_forward_transform(const double value, void*) {
-        // clamp non-positive values to the smallest positive double
-        return std::log2(value <= 0.0 ? std::numeric_limits<double>::min() : value);
-    }
-
-    // ImPlot inverse transform for base-2 logarithmic axes
-    static double exp2_inverse_transform(const double value, void*) {
-        // convert plot space value to abscissa value
-        return std::exp2(value);
-    }
-
-    // compute power-of-two major tick values for a log2-scaled axis
-    static std::vector<double> compute_log2_major_ticks(const double x_left, const double x_right, const int max_ticks) {
-        // exit with empty vector if range is invalid
-        if (x_left <= 0.0 || x_right <= 0.0)
-            return {};
-        // compute exponent range covering the visible window
-        const double log_min = std::log2(x_left);
-        const double log_max = std::log2(x_right);
-        const int exp_min = static_cast<int>(std::floor(log_min));
-        const int exp_max = static_cast<int>(std::ceil(log_max));
-        const int num_octaves = exp_max - exp_min;
-        // step: number of octaves between major ticks, adapt to available pixel budget
-        int exp_step = 1;
-        if (num_octaves > max_ticks)
-            exp_step = static_cast<int>(std::ceil(static_cast<double>(num_octaves) / max_ticks));
-        // build major tick list
-        std::vector<double> result;
-        for (int e = exp_min; e <= exp_max; e += exp_step) {
-            const double tick_value = std::exp2(e);
-            if (tick_value >= x_left - 1e-15 && tick_value <= x_right + 1e-15)
-                result.push_back(tick_value);
-        }
-        return result;
-    }
-
-    static double interpolate_y(const View<double>& x_data, const View<double>& y_data, const double x, const bool ascending) {
+    // linear interpolation of the y value at x over contiguous (x, y) views
+    double interpolate_y(const View<double>& x_data, const View<double>& y_data, const double x, const bool ascending) {
         const size_t n = x_data.size();
         if (n == 0)
             return 0.0;
@@ -107,23 +67,32 @@ namespace
         return y0 + t * (y1 - y0);
     }
 
-    static double interpolate_abscissa(const double ratio, const double left_value, const double right_value, const AbscissaScale scale) {
-        // logarithmic scale: interpolate geometrically over the range
-        if (scale != AbscissaScale::LINEAR && left_value > 0.0 && right_value > 0.0 && left_value != right_value)
-            return left_value * std::pow(right_value / left_value, ratio);
+    // scale-aware interpolation of an abscissa value at a window ratio
+    double interpolate_abscissa(const double ratio, const double left_value, const double right_value, const AbscissaScale scale) {
+        // logarithmic scale: interpolate geometrically over the clamped range;
+        // non-positive bounds are clamped like the layout so the mapped
+        // interaction values match the drawn logarithmic plot
+        if (scale != AbscissaScale::LINEAR) {
+            // clamp non-positive bounds into the logarithmic domain
+            double lo = std::min(left_value, right_value);
+            double hi = std::max(left_value, right_value);
+            if (lo <= 0.0)
+                lo = hi > 0.0 ? hi / 1e6 : 1.0;
+            if (hi <= 0.0)
+                hi = lo > 0.0 ? lo * 1e6 : 1.0;
+            // avoid a degenerate zero-width range
+            if (lo == hi)
+                hi = lo * 2.0;
+            // a descending sweep maps larger values toward the west edge
+            const bool descending = left_value > right_value;
+            return lo * std::pow(hi / lo, descending ? 1.0 - ratio : ratio);
+        }
         // linear scale: interpolate linearly over the range
         return left_value + ratio * (right_value - left_value);
     }
 
-    static int metric_formatter(const double value, char* buff, const int size, const void* data) {
-        // unit
-        const auto unit = static_cast<const char*>(data);
-        // shared formatter renders value, space, prefix and unit (SI)
-        const std::string formatted = Chart::format_metric(value, unit);
-        return snprintf(buff, size, "%s", formatted.c_str());
-    }
-
-    static std::vector<AnyExpression*> get_expressions_to_plot(ExpressionManager* expression_manager, AnyExpression* expression) {
+    // resolve the expressions to plot for one ordinate; complex expressions expand to magnitude and phase
+    std::vector<AnyExpression*> get_expressions_to_plot(ExpressionManager* expression_manager, AnyExpression* expression) {
         // nothing to do on double expressions
         if (std::holds_alternative<Expression<double>>(*expression)) {
             // exit
@@ -144,7 +113,7 @@ namespace
     }
 } // namespace
 
-std::string Chart::format_metric(const double value, const std::string_view unit) {
+std::string ChartEngine::format_metric(const double value, const std::string_view unit) {
     // dividers
     static constexpr double v[] = {1e9, 1e6, 1e3, 1.0, 1e-3, 1e-6, 1e-9, 1e-12};
     // prefixes (SI, µ for micro)
@@ -169,7 +138,31 @@ std::string Chart::format_metric(const double value, const std::string_view unit
     return std::format("{:.3g} {}{}", value / v[7], p[7], unit);
 }
 
-Chart::Chart(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target) :
+std::vector<double> ChartEngine::log2_major_ticks(const double x_left, const double x_right, const int max_ticks) {
+    // exit with empty vector if range is invalid
+    if (x_left <= 0.0 || x_right <= 0.0)
+        return {};
+    // compute exponent range covering the visible window
+    const double log_min = std::log2(x_left);
+    const double log_max = std::log2(x_right);
+    const int exp_min = static_cast<int>(std::floor(log_min));
+    const int exp_max = static_cast<int>(std::ceil(log_max));
+    const int num_octaves = exp_max - exp_min;
+    // step: number of octaves between major ticks, adapt to available pixel budget
+    int exp_step = 1;
+    if (num_octaves > max_ticks)
+        exp_step = static_cast<int>(std::ceil(static_cast<double>(num_octaves) / max_ticks));
+    // build major tick list
+    std::vector<double> result;
+    for (int e = exp_min; e <= exp_max; e += exp_step) {
+        const double tick_value = std::exp2(e);
+        if (tick_value >= x_left - 1e-15 && tick_value <= x_right + 1e-15)
+            result.push_back(tick_value);
+    }
+    return result;
+}
+
+ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target) :
     m_expression_manager(expression_manager), m_step_information(step_information), m_abscissa_scale(abscissa_scale), m_decimate_target(decimate_target) {
     // abscissa
     auto& abscissa = expression_manager->abscissa();
@@ -181,12 +174,12 @@ Chart::Chart(ExpressionManager* expression_manager, const StepInformation* step_
         m_selected_steps.insert(step);
 }
 
-const std::set<size_t>& Chart::selected_steps() {
+const std::set<size_t>& ChartEngine::selected_steps() {
     // return selected steps
     return m_selected_steps;
 }
 
-void Chart::set_selected_steps(const std::set<size_t>& steps) {
+void ChartEngine::set_selected_steps(const std::set<size_t>& steps) {
     // store the new step selection
     m_selected_steps = steps;
     // re-plot the current expressions so only the selected steps remain
@@ -194,10 +187,10 @@ void Chart::set_selected_steps(const std::set<size_t>& steps) {
     plot_series(std::set<AnyExpression*>(current.begin(), current.end()));
 }
 
-std::vector<AnyExpression*> Chart::selected_expressions() {
+std::vector<AnyExpression*> ChartEngine::selected_expressions() {
     // result
     std::vector<AnyExpression*> result;
-    // allocate space for the result
+    // allocate space
     result.reserve(m_series.size());
     // loop series
     for (auto& name : m_series | std::views::keys) {
@@ -209,105 +202,13 @@ std::vector<AnyExpression*> Chart::selected_expressions() {
     return result;
 }
 
-void Chart::render() {
-    // push matching slint colormap
-    ImPlot::PushColormap("SlintCupertino");
-    // initialize plot, full area
-    if (ImPlot::BeginPlot("My First Plot", ImVec2(-1, -1), PLOT_FLAGS)) {
-        // x axis
-        ImPlot::SetupAxis(ImAxis_X1);
-        // format
-        ImPlot::SetupAxisFormat(ImAxis_X1, reinterpret_cast<ImPlotFormatter>(metric_formatter), (void*)m_abscissa_unit.c_str());
-        // abscissa scale
-        if (m_abscissa_scale == AbscissaScale::DECADE) {
-            // log10 abscissa axis
-            ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
-        }
-        else if (m_abscissa_scale == AbscissaScale::OCTAVE) {
-            // log2 abscissa axis
-            ImPlot::SetupAxisScale(ImAxis_X1, log2_forward_transform, exp2_inverse_transform);
-        }
-        // abscissa limits
-        double x_left_value = m_abscissa_left_value;
-        double x_right_value = m_abscissa_right_value;
-        // clamped above zero for logarithmic scales
-        if (m_abscissa_scale != AbscissaScale::LINEAR) {
-            // clamp non-positive left limit to a fraction of the right limit
-            if (x_left_value <= 0.0)
-                x_left_value = x_right_value > 0.0 ? x_right_value / 1e6 : 1.0;
-            // clamp non-positive right limit to a multiple of the left limit
-            if (x_right_value <= 0.0)
-                x_right_value = x_left_value > 0.0 ? x_left_value * 1e6 : 1.0;
-            // avoid a degenerate zero-width range
-            if (x_left_value == x_right_value)
-                x_right_value = x_left_value * 2.0;
-        }
-        // min and max values
-        ImPlot::SetupAxisLimits(ImAxis_X1, x_left_value, x_right_value, ImPlotCond_Always);
-        // log2 custom ticks for OCTAVE scale
-        if (m_abscissa_scale == AbscissaScale::OCTAVE) {
-            // estimate plot width from last frame (fallback to 800 pixels)
-            const float plot_width = std::get<2>(m_plot_rect) - std::get<0>(m_plot_rect);
-            const int max_ticks = std::max(2, static_cast<int>(std::lround((plot_width > 0.0f ? plot_width : 800.0f) * 0.01f)));
-            // compute log2 major ticks for the visible abscissa range
-            auto log2_ticks = compute_log2_major_ticks(x_left_value, x_right_value, max_ticks);
-            if (!log2_ticks.empty())
-                ImPlot::SetupAxisTicks(ImAxis_X1, log2_ticks.data(), static_cast<int>(log2_ticks.size()), nullptr, false);
-        }
-        // loop axis information
-        for (const auto& axis_info : m_axes) {
-            // axis info at i (Y1 is always enabled)
-            if (axis_info.axis == ImAxis_Y1 || axis_info.plots > 0) {
-                // setup axis
-                ImPlot::SetupAxis(axis_info.axis, nullptr, axis_info.axis != ImAxis_Y1 ? ImPlotAxisFlags_Opposite : ImPlotAxisFlags_None);
-                // format
-                ImPlot::SetupAxisFormat(axis_info.axis, reinterpret_cast<ImPlotFormatter>(metric_formatter), (void*)axis_info.unit.c_str());
-                // min and max values
-                ImPlot::SetupAxisLimits(axis_info.axis, axis_info.plot_min_value, axis_info.plot_max_value, ImPlotCond_Always);
-            }
-        }
-        ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside | ImPlotLegendFlags_Horizontal);
-        // finish setup
-        ImPlot::SetupFinish();
-        // loop series to render
-        for (const auto& [name, ordinate_series] : m_series) {
-            // extract axis, steps and color
-            const int y_axis = std::get<1>(ordinate_series);
-            const auto& steps = std::get<2>(ordinate_series);
-            const auto& color = std::get<5>(ordinate_series);
-            // set current y axis
-            ImPlot::SetAxis(y_axis);
-            // style
-            ImPlotSpec spec;
-            spec.LineColor = color;
-            spec.LineWeight = 2.0f;
-            // loop steps
-            for (const auto& [x, y] : steps | std::views::values) {
-                // draw the line chart, use data() directly since the data is contiguous in memory
-                ImPlot::PlotLine(name.c_str(), x.data(), y.data(), static_cast<int>(x.size()), spec);
-            }
-        }
-        // plot position and size
-        ImVec2 plot_position = ImPlot::GetPlotPos();
-        ImVec2 plot_size = ImPlot::GetPlotSize();
-        // update plot rect
-        m_plot_rect = {plot_position.x, plot_position.y, plot_position.x + plot_size.x, plot_position.y + plot_size.y};
-        // finalize the plot block
-        ImPlot::EndPlot();
-    }
-    // pop colormap
-    ImPlot::PopColormap();
-}
-
-void Chart::plot_series(const std::set<AnyExpression*>& expressions) {
+void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
     // loop existing series to find those that need to be removed (those whose ordinate expression is not in the new expressions list)
     for (auto it = m_series.begin(); it != m_series.end();) {
         // plotted expression
         auto& plotted_expression = std::get<0>(it->second);
         // check ordinate variant should be removed
         if (!expressions.contains(plotted_expression)) {
-            // log information
-            spdlog::info("Removing expression [{}] from chart", it->first);
             // release axis
             release_y_axis(std::get<1>(it->second));
             // remove from map
@@ -330,16 +231,15 @@ void Chart::plot_series(const std::set<AnyExpression*>& expressions) {
         for (AnyExpression* ordinate_variant : get_expressions_to_plot(m_expression_manager, ordinate)) {
             // ordinate expression is always an Expression<double> at this point
             Expression<double>& double_ordinate_variant = std::get<Expression<double>>(*ordinate_variant);
-            // lookup ordinate variant in series, create default if it does not exist
-            auto [it0, inserted0] = m_series.try_emplace(double_ordinate_variant.name(), OrdinateSeries(ordinate_variant, 0, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ImVec4(0, 0, 0, 0)));
+            // lookup ordinate variant in series, create default if it does not exist;
+            // the unassigned axis is the -1 sentinel because 0 is a valid axis index
+            auto [it0, inserted0] = m_series.try_emplace(double_ordinate_variant.name(), OrdinateSeries(ordinate_variant, -1, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
             // ordinate series data
             auto& [_, y_axis, rendered_series, min_value, max_value, color] = (it0->second);
             // loop rendered steps
             for (auto it2 = rendered_series.begin(); it2 != rendered_series.end();) {
                 // check step in selected steps
                 if (!m_selected_steps.contains(it2->first)) {
-                    // log information
-                    spdlog::info("Removing step [{}] for expression [{}] from chart", it2->first, double_ordinate_variant.name());
                     // remove it
                     it2 = rendered_series.erase(it2);
                     // next
@@ -348,8 +248,24 @@ void Chart::plot_series(const std::set<AnyExpression*>& expressions) {
                 // next
                 ++it2;
             }
+            // recompute the extrema from the retained steps so a deselected
+            // outlier step no longer stretches the axis range
+            min_value = std::numeric_limits<double>::max();
+            max_value = -std::numeric_limits<double>::max();
+            const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+            for (const auto& [step, views] : rendered_series) {
+                // retained decimated views of this step
+                const auto& [x_view, y_view] = views;
+                for (size_t i = 0; i < x_view.size(); ++i) {
+                    // only plottable samples contribute to the extrema
+                    if (!std::isfinite(x_view[i]) || !std::isfinite(y_view[i]) || (log_axis && x_view[i] <= 0.0))
+                        continue;
+                    min_value = std::min(min_value, y_view[i]);
+                    max_value = std::max(max_value, y_view[i]);
+                }
+            }
             // process axis as needed
-            if (y_axis == 0) {
+            if (y_axis < 0) {
                 // find an axis for this unit
                 y_axis = get_y_axis(double_ordinate_variant.unit());
                 // no axis is available
@@ -365,7 +281,7 @@ void Chart::plot_series(const std::set<AnyExpression*>& expressions) {
                 std::get<1>(it0->second) = y_axis;
             }
             // process color
-            if (color.x == 0 && color.y == 0 && color.z == 0 && color.w == 0) {
+            if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
                 // assign next color in palette
                 color = SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
                 // increment color index
@@ -392,23 +308,11 @@ void Chart::plot_series(const std::set<AnyExpression*>& expressions) {
             std::get<5>(it0->second) = color;
         }
     }
-    // dump series information in debug mode
-    if (spdlog::get_level() <= spdlog::level::debug) {
-        // loop series
-        for (const auto& [k, v] : m_series) {
-            // extract axis, steps and color
-            const int y_axis = std::get<1>(v);
-            const auto& steps = std::get<2>(v);
-            const auto& color = std::get<5>(v);
-            // log information
-            spdlog::debug("Series [{}] on Y{} axis with {} steps and color RGBA({:.3f}, {:.3f}, {:.3f}, {:.3f})", k, y_axis - ImAxis_Y1 + 1, steps.size(), color.x, color.y, color.z, color.w);
-        }
-    }
     // auto range axes
     auto_range();
 }
 
-void Chart::auto_range() {
+void ChartEngine::auto_range() {
     // skip if no series to render
     if (!m_series.empty()) {
         // loop axes
@@ -446,6 +350,17 @@ void Chart::auto_range() {
             // next
             continue;
         }
+        // no plottable data on this axis (all steps deselected): keep a finite
+        // default range and reset the stored extrema so a later vertical
+        // autorange or zoom reset computes a finite window
+        if (axis_info.min_value > axis_info.max_value) {
+            axis_info.min_value = 0.0;
+            axis_info.max_value = 1.0;
+            axis_info.plot_min_value = 0.0;
+            axis_info.plot_max_value = 1.0;
+            // next
+            continue;
+        }
         // range
         const double range = axis_info.max_value - axis_info.min_value;
         // delta
@@ -453,17 +368,18 @@ void Chart::auto_range() {
         // update min & max values
         axis_info.plot_min_value = axis_info.min_value - delta;
         axis_info.plot_max_value = axis_info.max_value + delta;
-        // log information
-        spdlog::debug("Auto range for Y{} axis (unit: '{}'): min = {}, max = {}", axis_info.axis - ImAxis_Y1 + 1, axis_info.unit.empty() ? "<no unit>" : axis_info.unit, axis_info.plot_min_value, axis_info.plot_max_value);
     }
 }
 
-std::tuple<bool, View<double>, View<double>, double, double> Chart::plot_step(Expression<double>& ordinate_variant, size_t step, const double min_value, const double max_value, const double x_right_ratio, const double x_left_ratio) const {
+std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_step(Expression<double>& ordinate_variant, size_t step, const double min_value, const double max_value, const double x_right_ratio, const double x_left_ratio) const {
     // abscissa
     auto& abscissa = m_expression_manager->abscissa();
     // step abscissa & ordinate values
     auto abscissa_values = abscissa.step_data(step);
     auto ordinate_values = ordinate_variant.step_data(step);
+    // empty spans carry no plottable data
+    if (abscissa_values.empty() || ordinate_values.empty())
+        return {};
     // check we have a zoom to apply
     if (x_left_ratio >= 0 && x_right_ratio >= 0) {
         // find indexes for the new zoom window
@@ -478,17 +394,32 @@ std::tuple<bool, View<double>, View<double>, double, double> Chart::plot_step(Ex
         return {};
     // decimate x and y values
     auto [x_np, y_np] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-    // TODO: remove Inf values
-    // log information
-    spdlog::info("Adding series for expression [{}], step: {}, original size: {}, decimated size: {}", ordinate_variant.name(), step, abscissa_values.size(), x_np.size());
-    // check all values were non-finite after filtering
-    if (x_np.empty() || y_np.empty())
+    // collect the extrema over the plottable samples: finite pairs with a
+    // positive abscissa on logarithmic scales; non-finite samples stay in the
+    // rendered views so the layout can break the polyline across the gap
+    const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+    double step_min_value = std::numeric_limits<double>::max();
+    double step_max_value = -std::numeric_limits<double>::max();
+    bool plottable = false;
+    for (size_t i = 0; i < x_np.size(); ++i) {
+        // sample pair
+        const double x_value = x_np[i];
+        const double y_value = y_np[i];
+        // only plottable samples contribute to the extrema
+        if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_axis && x_value <= 0.0))
+            continue;
+        plottable = true;
+        step_min_value = std::min(step_min_value, y_value);
+        step_max_value = std::max(step_max_value, y_value);
+    }
+    // check all samples were non-plottable
+    if (!plottable)
         return {};
     // exit
-    return {true, std::move(x_np), std::move(y_np), std::min(min_value, *std::ranges::min_element(y_np)), std::max(max_value, *std::ranges::max_element(y_np))};
+    return {true, std::move(x_np), std::move(y_np), std::min(min_value, step_min_value), std::max(max_value, step_max_value)};
 }
 
-void Chart::clear() {
+void ChartEngine::clear() {
     // clear internal structures
     m_series.clear();
     m_next_color_index = 0;
@@ -504,7 +435,7 @@ void Chart::clear() {
     }
 }
 
-int Chart::get_y_axis(const std::string& unit) {
+int ChartEngine::get_y_axis(const std::string& unit) {
     // use pointer
     AxisInformation* available = nullptr;
     // loop axis information
@@ -527,7 +458,6 @@ int Chart::get_y_axis(const std::string& unit) {
     // check we have an available axis
     if (available) {
         // log information
-        spdlog::info("Creating Y{} axis for measurement type: {}", available->axis - ImAxis_Y1 + 1, unit.empty() ? "<no unit>" : unit);
         // use it
         available->plots = 1;
         available->unit = unit;
@@ -541,7 +471,7 @@ int Chart::get_y_axis(const std::string& unit) {
     return -1;
 }
 
-bool Chart::release_y_axis(const int axis) {
+bool ChartEngine::release_y_axis(const int axis) {
     // loop axis information
     for (auto& axis_info : m_axes) {
         // check this is the axis to release
@@ -551,7 +481,6 @@ bool Chart::release_y_axis(const int axis) {
             // check axis is no longer in use
             if (axis_info.plots == 0) {
                 // log information
-                spdlog::info("Releasing Y{} axis", axis_info.axis - ImAxis_Y1 + 1);
                 // reset plot range
                 axis_info.plot_min_value = 0.0;
                 axis_info.plot_max_value = 1.0;
@@ -567,7 +496,7 @@ bool Chart::release_y_axis(const int axis) {
     return false;
 }
 
-double Chart::ratio_to_abscissa_value(const double x_ratio) const {
+double ChartEngine::ratio_to_abscissa_value(const double x_ratio) const {
     // make sure ratio is in the interval [0, 1]
     const double percentage = std::max(0.0, std::min(1.0, x_ratio));
     // abscissa range
@@ -577,14 +506,14 @@ double Chart::ratio_to_abscissa_value(const double x_ratio) const {
     return interpolate_abscissa(percentage, left_value, right_value, m_abscissa_scale);
 }
 
-double Chart::plot_ratio_to_abscissa_value(const double x_ratio) const {
+double ChartEngine::plot_ratio_to_abscissa_value(const double x_ratio) const {
     // make sure ratio is in the interval [0, 1]
     const double percentage = std::max(0.0, std::min(1.0, x_ratio));
     // scale-aware interpolation over the visible (zoomed) abscissa range
     return interpolate_abscissa(percentage, m_abscissa_left_value, m_abscissa_right_value, m_abscissa_scale);
 }
 
-void Chart::reset_zoom_window(const bool horizontal, const bool vertical) {
+void ChartEngine::reset_zoom_window(const bool horizontal, const bool vertical) {
     // check horizontal reset
     if (horizontal) {
         // update zoom window
@@ -611,7 +540,7 @@ void Chart::reset_zoom_window(const bool horizontal, const bool vertical) {
     }
 }
 
-void Chart::update_zoom_window(double x_left_ratio, double x_right_ratio, double y_top_ratio, double y_bottom_ratio) {
+void ChartEngine::update_zoom_window(double x_left_ratio, double x_right_ratio, double y_top_ratio, double y_bottom_ratio) {
     // check horizontal zoom ratios were provided
     if (x_left_ratio >= 0 && x_right_ratio >= 0) {
         // current zoom window
@@ -658,14 +587,16 @@ void Chart::update_zoom_window(double x_left_ratio, double x_right_ratio, double
             const double visual_y_max = axis_info.max_value + delta;
             // calculate visual axis range
             const double visual_y_range = visual_y_max - visual_y_min;
-            // update plot min & max
-            axis_info.plot_min_value = visual_y_max - y_top_ratio * visual_y_range;
-            axis_info.plot_max_value = visual_y_max - y_bottom_ratio * visual_y_range;
+            // y ratios measure downward from the top of the plot, so the band
+            // between them maps to an ascending value window (implot swaps
+            // inverted ranges on setup; the engine stores them ascending)
+            axis_info.plot_min_value = visual_y_max - y_bottom_ratio * visual_y_range;
+            axis_info.plot_max_value = visual_y_max - y_top_ratio * visual_y_range;
         }
     }
 }
 
-void Chart::update(ExpressionManager* expression_manager, const StepInformation* step_information, AbscissaScale abscissa_scale) {
+void ChartEngine::update(ExpressionManager* expression_manager, const StepInformation* step_information, AbscissaScale abscissa_scale) {
     // remember the plotted series names so the same plots can be restored
     // against the new data (e.g. after a simulation re-run)
     std::vector<std::string> plotted_names;
@@ -678,6 +609,10 @@ void Chart::update(ExpressionManager* expression_manager, const StepInformation*
     // update internal references
     m_expression_manager = expression_manager;
     m_step_information = step_information;
+    // prune step selections beyond the new step count so the replot never
+    // reaches a stale step index of the replaced dataset
+    while (!m_selected_steps.empty() && *std::prev(m_selected_steps.end()) >= step_information->length())
+        m_selected_steps.erase(std::prev(m_selected_steps.end()));
     // abscissa
     auto& abscissa = expression_manager->abscissa();
     // abscissa name & unit
@@ -698,12 +633,12 @@ void Chart::update(ExpressionManager* expression_manager, const StepInformation*
     }
 }
 
-void Chart::set_decimate_target(const size_t decimate_target) {
+void ChartEngine::set_decimate_target(const size_t decimate_target) {
     // store the new target; existing series are re-decimated lazily on the next redraw/zoom
     m_decimate_target = decimate_target;
 }
 
-std::pair<size_t, size_t> Chart::find_abscissa_indexes(const std::span<const double>& abscissa, double left_value, double right_value) const {
+std::pair<size_t, size_t> ChartEngine::find_abscissa_indexes(const std::span<const double>& abscissa, double left_value, double right_value) const {
     // ascending or descending abscissa
     if (m_step_information->is_abscissa_ascending()) {
         // check abscissa is not within the zoom window
@@ -735,14 +670,13 @@ std::pair<size_t, size_t> Chart::find_abscissa_indexes(const std::span<const dou
     return {left_index, right_index};
 }
 
-void Chart::redraw_all_series() {
+void ChartEngine::redraw_all_series() {
     // current zoom window
     auto& [x_left_ratio, y_top_ratio, x_right_ratio, current_y_bottom_ratio] = m_zoom_window;
     // x0 and x1
     m_abscissa_left_value = x_left_ratio >= 0 ? ratio_to_abscissa_value(x_left_ratio) : m_step_information->abscissa_left_value();
     m_abscissa_right_value = x_right_ratio >= 0 ? ratio_to_abscissa_value(x_right_ratio) : m_step_information->abscissa_right_value();
     // log information
-    spdlog::debug("Redrawing all series for abscissa from {} to {}", m_abscissa_left_value, m_abscissa_right_value);
     // abscissa
     auto& abscissa = m_expression_manager->abscissa();
     // loop existing series
@@ -759,6 +693,9 @@ void Chart::redraw_all_series() {
             // step abscissa & ordinate values — zero copy
             auto abscissa_values = abscissa.step_data(step);
             auto ordinate_values = ordinate_variant.step_data(step);
+            // empty spans carry no plottable data
+            if (abscissa_values.empty() || ordinate_values.empty())
+                continue;
             // check we have a zoom window to apply
             if (x_left_ratio >= 0 && x_right_ratio >= 0) {
                 // find indexes for the new zoom window
@@ -770,12 +707,28 @@ void Chart::redraw_all_series() {
             }
             // decimate x and y values
             auto [x, y] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-            // TODO: remove Inf values
-            // log information
-            spdlog::debug("Updating series for expression [{}], step: {}, original size: {}, decimated size: {}", ordinate_variant.name(), step, abscissa_values.size(), x.size());
+            // collect the extrema over the plottable samples: finite pairs
+            // with a positive abscissa on logarithmic scales
+            const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
+            bool plottable = false;
+            double step_min_value = std::numeric_limits<double>::max();
+            double step_max_value = -std::numeric_limits<double>::max();
+            for (size_t i = 0; i < x.size(); ++i) {
+                // sample pair
+                const double x_value = x[i];
+                const double y_value = y[i];
+                // only plottable samples contribute to the extrema
+                if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_axis && x_value <= 0.0))
+                    continue;
+                plottable = true;
+                step_min_value = std::min(step_min_value, y_value);
+                step_max_value = std::max(step_max_value, y_value);
+            }
             // update min and max values
-            min_value = std::min(min_value, *std::ranges::min_element(y));
-            max_value = std::max(max_value, *std::ranges::max_element(y));
+            if (plottable) {
+                min_value = std::min(min_value, step_min_value);
+                max_value = std::max(max_value, step_max_value);
+            }
             // update map value
             series = std::make_pair(std::move(x), std::move(y));
         }
@@ -785,9 +738,7 @@ void Chart::redraw_all_series() {
     }
 }
 
-const std::tuple<float, float, float, float>& Chart::get_plot_rect() const { return m_plot_rect; }
-
-std::string Chart::hovered_series_text(const double abscissa_value) const {
+std::string ChartEngine::hovered_series_text(const double abscissa_value) const {
     // abscissa prefix
     std::string result = m_abscissa_name + "=" + format_metric(abscissa_value, m_abscissa_unit);
     // do not evaluate if no series are present

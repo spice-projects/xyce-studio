@@ -1,5 +1,8 @@
 import { Palette } from "std-widgets.slint";
+import { ChartView, ChartFrameData } from "chart_view.slint";
 
+// re-export the frame structs so root widgets can declare their properties
+export { ChartFrameData }
 export struct PlotTabItem {
     id: int,
     title: string,
@@ -117,8 +120,12 @@ export component ChartsPanel inherits Rectangle {
     // the tools block only appears when at least one of its actions applies
     private property <bool> show-tools: root.enable-fft || root.enable-step-tool;
 
-    // the rendered offscreen chart image published by the host renderer
-    in property <image> charts-image;
+    // surrounding canvas color pushed from the host chart palette so the
+    // slint native view matches the canvas background of the charts
+    in property <color> chart-background: #ededed;
+
+    // slint native chart frames published by the host chart layout engine
+    in property <[ChartFrameData]> charts;
 
     // fires with the panel size whenever the geometry changes, so the host
     // renderer can resize its offscreen surface and recompute limits
@@ -133,7 +140,7 @@ export component ChartsPanel inherits Rectangle {
     // store the Y position where the context menu was triggered
     private property <length> context-menu-y;
 
-    background: Palette.alternate-background;
+    background: root.chart-background;
 
     VerticalLayout {
         spacing: 0px;
@@ -178,7 +185,7 @@ export component ChartsPanel inherits Rectangle {
 
         canvas-rect := Rectangle {
             vertical-stretch: 1;
-            background: Palette.alternate-background;
+            background: root.chart-background;
 
             // fire the initial viewport notification when this component is first
             // instantiated; `changed` handlers do not fire on initial value assignment
@@ -255,18 +262,24 @@ export component ChartsPanel inherits Rectangle {
                 // forwards left-click drag interactions for chart zooming, and tracks hover
                 // pointer movement for status bar readouts.
                 Rectangle {
-                    background: Palette.alternate-background;
+                    background: root.chart-background;
 
                     // drag state for the slint-side zoom selection rectangle
                     private property <length> drag-start-x;
                     private property <length> drag-start-y;
                     private property <bool> dragging;
 
-                    // display the offscreen-rendered chart frame
-                    Image {
-                        source: root.charts-image;
+                    // display the slint native chart views, one per frame,
+                    // stacked top to bottom; the views are positioned
+                    // explicitly because a nested layout inside this plain
+                    // rectangle breaks the preferred-size stretch of the
+                    // surrounding panel (slint 1.17 layout quirk)
+                    for frame[index] in root.charts: ChartView {
+                        frame: frame;
+                        x: 0;
                         width: 100%;
-                        height: 100%;
+                        y: parent.height * index / root.charts.length;
+                        height: parent.height / root.charts.length;
                     }
 
                     // zoom selection rectangle, drawn natively in slint so the offscreen

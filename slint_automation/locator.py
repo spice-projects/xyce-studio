@@ -68,6 +68,18 @@ class Locator:
         # click the freshly resolved element handle, retrying once on a stale handle
         self._perform(lambda handle: self._client.click_element(handle, action=action, button=button))
 
+    def drag(self, target_x: float, target_y: float) -> None:
+        # drag from the matched element center to the logical target position
+        self._perform(lambda handle: self._client.drag_element(handle, target_x, target_y))
+
+    def count(self) -> int:
+        # report the number of currently matched elements
+        return len(self._resolve())
+
+    def nth(self, index: int) -> "Locator":
+        # create a positional locator over the same selector
+        return Locator(self._client, type_name=self._type_name, ordinal=index, scope=self._scope)
+
     def fill(self, text: str) -> None:
         # set the value on the freshly resolved element handle, retrying once on a stale handle
         self._perform(lambda handle: self._client.set_element_value(handle, text))

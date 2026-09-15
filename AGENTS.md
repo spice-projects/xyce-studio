@@ -66,11 +66,12 @@ The UI is built with Slint and lives under `src/ui`:
 
 ### Charts renderer
 
-- `ChartsRenderer` is platform-neutral and owns isolated ImGui/ImPlot contexts; it renders offscreen through a Skia raster surface and publishes each frame as a `slint::Image` via an injected publish function. No per-platform backends exist.
-- Always use `ChartsContextScope` (RAII) around host ImGui/ImPlot calls — never assume a global context.
-- Drive the redraw loop with a `slint::Timer` (16 ms) via `on_idle()`; layout/resize events schedule frames through `refresh_charts(n)` + timer, never synchronous renders.
+- `ChartsRenderer` is platform-neutral; it composes `ChartFrame` snapshots from the `ChartEngine` state through `ChartLayout` and publishes them into the Slint frame model via an injected publish function. Slint renders the charts natively in its own renderer; no per-platform backends exist.
+- There is no render loop. Frames are published synchronously from `publish_frames()` at the state-change points: data update, tab switch, step/scale/series changes, resize-finished, and after every interactive zoom/hover-driven zoom window change.
+- Drag-resize must not republish frames: the single resize-finished event triggers the republish; `ChartView` stretches its content to its own element size in between.
+- Zoom and hover hit tests use the panel-relative plot rects of the last published frames (`ChartsRenderer::plot_rect(index)`), not the engine state.
 - Slint passes chart interaction positions as `float [0..1]`; translate to a chart index with `ChartsRenderer::position_to_index()` before acting.
-- Call `set_visible(bool)` when the charts panel is shown/hidden to pause/resume rendering.
+- Call `reset_viewport()` when the charts panel is hidden so no frames are published while the panel is hidden.
 
 ### Lifecycle
 

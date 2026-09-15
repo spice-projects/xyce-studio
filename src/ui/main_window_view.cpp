@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -10,11 +12,145 @@
 #include <spdlog/spdlog.h>
 
 #include "../app/app.h"
+#include "../charts/chart_palette.h"
 #include "../netlist/netlist_lexer.h"
 #include "../netlist/netlist_lexer_adapter.h"
 #include "clipboard.h"
 #include "file_dialog.h"
 #include "main_window_view.h"
+
+namespace
+{
+    // slint color from a chart color
+    slint::Color to_slint_color(const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); }
+
+    // svg polyline commands in plot rect coordinates from a chart series run
+    std::string series_commands(const ChartFrame& frame, const ChartSeriesFrame& run) {
+        // commands under construction
+        std::string commands;
+        // first point opens a subpath, the rest are line segments
+        for (size_t i = 0; i < run.points.size(); ++i) {
+            // sample in plot rect coordinates
+            const auto& point = run.points[i];
+            // non-finite coordinates would serialize as nan or inf, which is
+            // not a valid path number and would make the whole series vanish
+            if (!std::isfinite(point.x) || !std::isfinite(point.y))
+                continue;
+            commands += std::format("{} {:.2f} {:.2f} ", i == 0 ? "M" : "L", point.x - frame.plot_x, point.y - frame.plot_y);
+        }
+        return commands;
+    }
+
+    // convert one chart frame snapshot into the generated slint frame struct
+    main_window::ChartFrameData native_frame_data(const ChartFrame& frame, bool is_dark) {
+        // frame data under construction
+        main_window::ChartFrameData data;
+        // palette roles of the charts (chart_palette.h)
+        const ChartPalette& palette = chart_palette(is_dark);
+        const auto slint_color = [](const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); };
+        data.text_color = slint_color(palette.text);
+        data.panel_color = slint_color(palette.panel);
+        data.border_color = slint_color(palette.border);
+        data.grid_color = slint_color(palette.grid);
+        // viewport the frame was laid out for (drives the provisional stretch)
+        data.frame_w = frame.frame_w;
+        data.frame_h = frame.frame_h;
+        // frame and plot geometry in logical px
+        data.plot_x = frame.plot_x;
+        data.plot_y = frame.plot_y;
+        data.plot_w = frame.plot_w;
+        data.plot_h = frame.plot_h;
+        data.x_datum = frame.x_datum;
+        data.y2_datum = frame.y_axes[1].datum;
+        data.y3_datum = frame.y_axes[2].datum;
+        data.legend_x = frame.legend_x;
+        data.legend_y = frame.legend_y;
+        data.legend_w = frame.legend_w;
+        data.legend_h = frame.legend_h;
+        // x tick labels
+        auto x_ticks = std::make_shared<slint::VectorModel<main_window::ChartTickData>>();
+        for (const auto& tick : frame.x_ticks) {
+            // slint tick entry
+            main_window::ChartTickData entry;
+            entry.label = tick.label;
+            entry.pixel_pos = tick.pixel_pos;
+            entry.show = tick.show_label;
+            entry.major = tick.major;
+            x_ticks->push_back(entry);
+        }
+        data.x_ticks = x_ticks;
+        // y axis tick labels and grid lines per enabled axis
+        std::array<std::shared_ptr<slint::VectorModel<main_window::ChartTickData>>, 3> tick_models = {};
+        std::array<std::shared_ptr<slint::VectorModel<main_window::ChartGridData>>, 3> grid_models = {};
+        for (size_t i = 0; i < 3; ++i) {
+            // skip disabled axes
+            if (!frame.y_axes[i].enabled)
+                continue;
+            // tick model of this axis
+            auto tick_model = std::make_shared<slint::VectorModel<main_window::ChartTickData>>();
+            for (const auto& tick : frame.y_axes[i].ticks) {
+                // slint tick entry
+                main_window::ChartTickData entry;
+                entry.label = tick.label;
+                entry.pixel_pos = tick.pixel_pos;
+                entry.show = tick.show_label;
+                entry.major = tick.major;
+                tick_model->push_back(entry);
+            }
+            tick_models[i] = tick_model;
+            // grid model of this axis
+            auto grid_model = std::make_shared<slint::VectorModel<main_window::ChartGridData>>();
+            for (const auto& line : frame.y_axes[i].grid_lines) {
+                // slint grid entry
+                main_window::ChartGridData entry;
+                entry.pixel_pos = line.pixel_pos;
+                entry.major = line.major;
+                entry.alpha = line.alpha;
+                grid_model->push_back(entry);
+            }
+            grid_models[i] = grid_model;
+        }
+        data.y_ticks = tick_models[0];
+        data.y2_ticks = tick_models[1];
+        data.y3_ticks = tick_models[2];
+        data.y_grid = grid_models[0];
+        data.y2_grid = grid_models[1];
+        data.y3_grid = grid_models[2];
+        // x grid lines
+        auto x_grid = std::make_shared<slint::VectorModel<main_window::ChartGridData>>();
+        for (const auto& line : frame.x_grid) {
+            // slint grid entry
+            main_window::ChartGridData entry;
+            entry.pixel_pos = line.pixel_pos;
+            entry.major = line.major;
+            entry.alpha = line.alpha;
+            x_grid->push_back(entry);
+        }
+        data.x_grid = x_grid;
+        // legend entries
+        auto legend = std::make_shared<slint::VectorModel<main_window::ChartLegendItemData>>();
+        for (const auto& item : frame.legend) {
+            // slint legend entry
+            main_window::ChartLegendItemData entry;
+            entry.name = item.name;
+            entry.color = slint::Color::from_argb_float(item.color.a, item.color.r, item.color.g, item.color.b);
+            legend->push_back(entry);
+        }
+        data.legend = legend;
+        // series polylines as svg commands relative to the plot origin
+        auto series = std::make_shared<slint::VectorModel<main_window::ChartSeriesData>>();
+        for (const auto& run : frame.series) {
+            // slint series entry
+            main_window::ChartSeriesData entry;
+            entry.name = run.name;
+            entry.color = slint::Color::from_argb_float(run.color.a, run.color.r, run.color.g, run.color.b);
+            entry.commands = series_commands(frame, run);
+            series->push_back(entry);
+        }
+        data.series = series;
+        return data;
+    }
+} // namespace
 
 SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlist_source*/, PluginConfig /*plugin_config*/) :
     m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<slint::SharedString>>()) {
@@ -23,12 +159,17 @@ SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlis
     // seed the dark-mode flag from the initial Slint theme state so the first
     // highlight model is built with the correct colours even before charts are shown
     m_dark_mode = m_window->get_is_dark();
+    // push the chart palette canvas color so the charts panel background
+    // matches the charts canvas background
+    m_window->set_charts_background(to_slint_color(chart_palette(m_dark_mode).background));
     // wire the theme change handler early so theme switches are always tracked
     // (the charts renderer is updated only once it exists) and the visible
     // netlist highlight model is rebuilt with the new palette
     m_window->on_theme_changed([this](bool is_dark) {
         // keep the adapter colour palette in sync for the next highlight rebuild
         m_dark_mode = is_dark;
+        // keep the charts panel background in sync with the chart palette
+        m_window->set_charts_background(to_slint_color(chart_palette(is_dark).background));
         // rebuild the highlight model so the loaded netlist picks up the new colours
         rebuild_netlist_highlight_model();
         // update the renderer's dark mode state when the slint theme changes
@@ -87,8 +228,8 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     chart_actions.on_add_chart([this](float) {
         // add chart
         m_charts_renderer->add_chart();
-        // refresh charts to show the new chart
-        m_charts_renderer->refresh_charts();
+        // publish frames to show the new chart
+        m_charts_renderer->publish_frames();
     });
     chart_actions.on_delete_chart([this](float chart_position) { m_charts_renderer->delete_chart(chart_position); });
     // events that need presenter involvement: convert float to int via renderer
@@ -529,10 +670,16 @@ void SlintMainWindowView::ensure_charts_renderer() {
     // the renderer already exists
     if (m_charts_renderer)
         return;
-    // create the renderer on the first charts panel show
-    m_charts_renderer = std::make_unique<ChartsRenderer>([this](slint::Image image) {
-        // publish the rendered frame to the slint image property
-        m_window->set_charts_image(image);
+    // create the renderer on the first charts panel show; the publish sink
+    // converts frame snapshots into the slint frame model
+    m_charts_renderer = std::make_unique<ChartsRenderer>([this](const std::vector<ChartFrame>& frames) {
+        // frame model under construction
+        auto model = std::make_shared<slint::VectorModel<main_window::ChartFrameData>>();
+        // convert each frame snapshot
+        for (const auto& frame : frames)
+            model->push_back(native_frame_data(frame, m_dark_mode));
+        // expose the frames to the charts panel
+        m_window->set_charts(model);
     });
     // initialize theme state; the theme-changed callback itself is wired in the
     // constructor so theme switches are tracked before the renderer exists
@@ -546,10 +693,8 @@ void SlintMainWindowView::ensure_charts_renderer() {
     });
     // bind the viewport-changed callback from slint to the renderer's set_viewport
     m_window->on_charts_viewport_changed([this](float width, float height) {
-        if (m_charts_renderer) {
-            const auto scale = m_window->window().scale_factor();
-            m_charts_renderer->set_viewport(width, height, scale);
-        }
+        if (m_charts_renderer)
+            m_charts_renderer->set_viewport(width, height);
     });
 }
 

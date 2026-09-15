@@ -20,7 +20,7 @@ add_executable(xyce-studio-tests ${TEST_FILES})
 # depend on the generated proto sources before building
 add_dependencies(xyce-studio-tests kicad-proto)
 
-# link the core library (which brings the app headers, defines, and the slint/imgui/implot/spdlog/nng/protobuf/platform dependencies), plus gtest
+# link the core library (which brings the app headers, defines, and the slint/spdlog/nng/protobuf/platform dependencies), plus gtest
 target_link_libraries(xyce-studio-tests PRIVATE xyce-studio-core GTest::gtest GTest::gtest_main)
 
 if(WIN32)

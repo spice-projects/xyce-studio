@@ -47,8 +47,6 @@ endif()
 
 option(BUILD_TESTS "Build tests" ON)
 
-find_package(imgui CONFIG REQUIRED)
-find_package(implot CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nng CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
@@ -186,7 +184,7 @@ else()
 endif()
 
 # third-party dependencies, PUBLIC so both the executable and the tests transitively link the same set of libraries
-target_link_libraries(xyce-studio-core PUBLIC Slint::Slint imgui::imgui implot::implot spdlog::spdlog nng::nng kicad-proto unofficial::skia::skia nfd::nfd)
+target_link_libraries(xyce-studio-core PUBLIC Slint::Slint spdlog::spdlog nng::nng kicad-proto unofficial::skia::skia nfd::nfd)
 
 if(WIN32)
     # prevent Windows headers from defining min/max macros that conflict with std::numeric_limits
