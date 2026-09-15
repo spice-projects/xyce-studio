@@ -35,6 +35,14 @@ After editing:
 5. Summarize changed files
 6. Do not execute unit tests unless explicitly asked
 
+## UI Integration Tests
+
+- All UI work requires UI integration tests in `tests_ui/`; a UI change without a scenario exercising it is incomplete
+- The integration test documentation lives at `tests_ui/AUTOMATION.md` — read it before writing scenarios; every recipe there is reverse engineered from a passing test
+- The scenarios run the real debug build through the `slint_automation` framework (session/launch, locators, `expect` polling); run them with the repository virtual environment: `.venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"`
+- Platform native widgets (e.g. the macOS context menu) are not reachable by the automation; debug builds expose hidden trigger elements instead (see the context-menu recipe in `tests_ui/AUTOMATION.md`) — wire any new native-rendered action to such a trigger when it needs integration coverage
+- Test methods must be self-contained: no helper functions, no shared utilities between tests; test doubles are the only shared objects (same rule as the unit tests above)
+
 ## UI (Slint)
 
 The UI is built with Slint and lives under `src/ui`:
