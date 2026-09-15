@@ -81,6 +81,24 @@ component PlotTabButton inherits Rectangle {
     }
 }
 
+// hidden automation trigger exposed to the test mcp server on debug builds;
+// the native context menu is not reachable by the automation because it is
+// rendered by the platform, so each trigger calls the same action the
+// matching menu item activates. the test sends the relative chart position
+// through set_element_value, which fires accessible-action-set-value with the
+// value as a string argument; zero size keeps the trigger out of the layout
+// while staying in the element tree.
+component ChartsTestTrigger inherits TouchArea {
+    in property <string> action;
+    // invoke the wrapped action with the relative chart position [0..1]
+    callback invoke(/*chart-position*/ float);
+    width: 0px;
+    height: 0px;
+    accessible-role: button;
+    accessible-label: root.action;
+    accessible-action-set-value(x) => { root.invoke(x.to-float()); }
+}
+
 // context menu actions for the charts view; the view adapter forwards them to
 // the presenter, keeping the slint ui decoupled from the chart implementation.
 // The chart-position parameter is a float [0..1] representing the relative Y
@@ -116,6 +134,10 @@ export component ChartsPanel inherits Rectangle {
     // action availability flags for the context-menu tools
     in property <bool> enable-fft: false;
     in property <bool> enable-step-tool: false;
+
+    // debug builds expose the hidden automation triggers to the test mcp
+    // server; release builds keep them out of the element tree entirely
+    in property <bool> debug-tools: false;
 
     // the tools block only appears when at least one of its actions applies
     private property <bool> show-tools: root.enable-fft || root.enable-step-tool;
@@ -370,6 +392,62 @@ export component ChartsPanel inherits Rectangle {
                             }
                         }
                     }
+                }
+            }
+
+            // debug only: automation triggers calling the context menu actions;
+            // each trigger maps to the context menu item with the same label
+            // and carries the relative chart position through its value
+            if root.debug-tools: Rectangle {
+
+                test-zoom-to-fit := ChartsTestTrigger {
+                    action: "zoom to fit";
+                    invoke(position) => { ChartsPanelActions.zoom-to-fit(position); }
+                }
+
+                test-autorange := ChartsTestTrigger {
+                    action: "autorange";
+                    invoke(position) => { ChartsPanelActions.autorange(position); }
+                }
+
+                test-zoom-abscissa-extent := ChartsTestTrigger {
+                    action: "zoom abscissa extent";
+                    invoke(position) => { ChartsPanelActions.zoom-abscissa-extent(position); }
+                }
+
+                test-add-remove-plots := ChartsTestTrigger {
+                    action: "add/remove plots";
+                    invoke(position) => { ChartsPanelActions.add-remove-plots(position); }
+                }
+
+                test-delete-all-plots := ChartsTestTrigger {
+                    action: "delete all plots";
+                    invoke(position) => { ChartsPanelActions.delete-all-plots(position); }
+                }
+
+                test-calculate-fft := ChartsTestTrigger {
+                    action: "calculate fft";
+                    invoke(position) => { ChartsPanelActions.calculate-fft(position); }
+                }
+
+                test-step-tool := ChartsTestTrigger {
+                    action: "step tool";
+                    invoke(position) => { ChartsPanelActions.step-tool(position); }
+                }
+
+                test-add-chart := ChartsTestTrigger {
+                    action: "add chart";
+                    invoke(position) => { ChartsPanelActions.add-chart(position); }
+                }
+
+                test-delete-chart := ChartsTestTrigger {
+                    action: "delete chart";
+                    invoke(position) => { ChartsPanelActions.delete-chart(position); }
+                }
+
+                test-new-window := ChartsTestTrigger {
+                    action: "new window";
+                    invoke(position) => { ChartsPanelActions.new-window(position); }
                 }
             }
         }

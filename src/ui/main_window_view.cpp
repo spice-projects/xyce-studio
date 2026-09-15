@@ -156,6 +156,13 @@ SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlis
     m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<slint::SharedString>>()) {
     // expose the log model to the output panel
     m_window->set_simulation_output_log(m_simulation_log);
+#ifdef NDEBUG
+    // release builds keep the automation triggers out of the element tree
+    m_window->set_debug_tools_enabled(false);
+#else
+    // debug builds expose the hidden automation triggers to the test mcp server
+    m_window->set_debug_tools_enabled(true);
+#endif
     // seed the dark-mode flag from the initial Slint theme state so the first
     // highlight model is built with the correct colours even before charts are shown
     m_dark_mode = m_window->get_is_dark();

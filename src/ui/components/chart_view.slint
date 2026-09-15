@@ -70,6 +70,13 @@ export struct ChartFrameData {
 export component ChartView inherits Rectangle {
     in property <ChartFrameData> frame;
 
+    // accessible identity naming the plotted series so screen readers and the
+    // test automation can tell charts apart; empty charts report no name
+    accessible-role: groupbox;
+    private property <string> first-series-name:
+        frame.series.length > 0 ? frame.series[0].name : "";
+    accessible-label: root.first-series-name;
+
     // provisional stretch from the frame's laid-out viewport to the current
     // element size, so a resizing window shows the chart filling the area
     // until the layout publishes exact geometry (mirrors the image scaling)
