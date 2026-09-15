@@ -242,6 +242,37 @@ class ChartsContextActionChecks(unittest.TestCase):
             other_ticks = [label for label in other_abscissa if label.endswith(("Hz", "s")) or label.endswith(" ms")]
             self.assertEqual(ranged_ticks, other_ticks)
 
+    def test_drag_handle_moves_the_chart_to_the_target_slot(self) -> None:
+        # arrange: resolve the xyce executable and the sample netlist
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        # arrange: launch the application, run the simulation and switch to the
+        # first generated fft tab showing two plotted charts
+        with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+            app.get_by_type("ToolbarButton").nth(5).click()
+            app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            tabs = app.get_by_type("PlotTabButton")
+            self.assertEqual(tabs.count(), 3)
+            tabs.nth(1).click()
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=10.0, message="expected the two fft charts")
+            app.wait_for_condition(lambda: [app.client().get_element_properties(handle).get("accessibleLabel") for handle in app.client().find_by_type("ChartView")] == ["FFT(I(C1))", "FFT(I(L1))"], timeout=10.0, message="expected the fft charts to carry their series names")
+            # assert: one drag grip renders per chart
+            self.assertEqual(app.get_by_type("ChartDragHandle").count(), 2)
+            # act: drag the grip of the second chart onto the first chart slot
+            first_view = app.get_by_type("ChartView").nth(0)
+            first_view_props = first_view.properties()
+            first_position = first_view_props.get("absolutePosition", {})
+            first_size = first_view_props.get("size", {})
+            target_x = first_position.get("x", 0) + first_size.get("width", 0) / 2
+            target_y = first_position.get("y", 0) + first_size.get("height", 0) / 2
+            app.get_by_type("ChartDragHandle").nth(1).drag(target_x, target_y)
+            # assert: the dragged chart moved up to the first slot and the
+            # other chart shifted down to the second slot
+            app.wait_for_condition(lambda: [app.client().get_element_properties(handle).get("accessibleLabel") for handle in app.client().find_by_type("ChartView")] == ["FFT(I(L1))", "FFT(I(C1))"], timeout=5.0, message="expected the second fft chart to move to the first slot")
+
     def test_zoom_to_fit_restores_the_full_abscissa_range(self) -> None:
         # arrange: resolve the xyce executable and the sample netlist
         xyce = shutil.which("Xyce")
