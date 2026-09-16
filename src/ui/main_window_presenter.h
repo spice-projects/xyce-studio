@@ -64,6 +64,10 @@ public:
     void on_chart_step_tool(size_t chart_index) override;
     void on_chart_new_window(size_t chart_index) override;
 
+    // chart reordering through the drag handle; the presenter mediates so a
+    // future change can persist the chart order
+    void on_chart_moved(size_t from, size_t to) override;
+
     // load an already-parsed raw file into this window and switch to the charts
     // view; used to seed windows spawned through App::new_window
     void load_raw_file(std::shared_ptr<XyceOutputFile> raw_file);

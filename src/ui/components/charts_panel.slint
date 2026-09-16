@@ -81,6 +81,75 @@ component PlotTabButton inherits Rectangle {
     }
 }
 
+// hidden automation trigger exposed to the test mcp server on debug builds;
+// the native context menu is not reachable by the automation because it is
+// rendered by the platform, so each trigger calls the same action the
+// matching menu item activates. the test sends the relative chart position
+// through set_element_value, which fires accessible-action-set-value with the
+// value as a string argument; zero size keeps the trigger out of the layout
+// while staying in the element tree.
+component ChartsTestTrigger inherits TouchArea {
+    in property <string> action;
+    // invoke the wrapped action with the relative chart position [0..1]
+    callback invoke(/*chart-position*/ float);
+    width: 0px;
+    height: 0px;
+    accessible-role: button;
+    accessible-label: root.action;
+    accessible-action-set-value(x) => { root.invoke(x.to-float()); }
+}
+
+// drag handle visual in the top right corner of one chart slot; the grip is
+// visible while the pointer hovers the slot corner or while its chart is
+// dragged. the grip is purely visual: the canvas touch area performs the
+// corner hit test on press and drives the reorder drag, because a touch area
+// inside the handle would delay the synthetic press past the interpolated
+// drag release and drop the gesture.
+component ChartDragHandle inherits Rectangle {
+    in property <int> chart-index;
+    in property <int> charts-count;
+    in property <bool> hovered;
+    in property <bool> dragging;
+
+    width: 28px;
+    height: 18px;
+    border-radius: 4px;
+    // always visible once the panel shows more than one chart so the drag
+    // affordance is discoverable; the grip brightens while the pointer
+    // hovers it or while its chart is dragged
+    opacity: root.charts-count > 1 ? (root.hovered || root.dragging ? 1.0 : 0.4) : 0.0;
+    animate opacity {
+        duration: 120ms;
+        easing: ease-out;
+    }
+    background: root.dragging ? Palette.selection-background : Palette.foreground.transparentize(0.85);
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        padding-left: 10px;
+        padding-right: 10px;
+
+        Rectangle {
+            height: 2px;
+            border-radius: 1px;
+            background: Palette.foreground.transparentize(0.45);
+        }
+
+        Rectangle {
+            height: 2px;
+            border-radius: 1px;
+            background: Palette.foreground.transparentize(0.45);
+        }
+
+        Rectangle {
+            height: 2px;
+            border-radius: 1px;
+            background: Palette.foreground.transparentize(0.45);
+        }
+    }
+}
+
 // context menu actions for the charts view; the view adapter forwards them to
 // the presenter, keeping the slint ui decoupled from the chart implementation.
 // The chart-position parameter is a float [0..1] representing the relative Y
@@ -97,6 +166,7 @@ export global ChartsPanelActions {
     callback add-chart(/*chart-position*/ float);
     callback delete-chart(/*chart-position*/ float);
     callback new-window(/*chart-position*/ float);
+    callback move-chart(/*from*/ int, /*to*/ int);
     callback zoom-drag-started(/*x*/ float, /*y*/ float);
     callback zoom-drag-moved(/*x*/ float, /*y*/ float);
     callback zoom-drag-ended();
@@ -116,6 +186,10 @@ export component ChartsPanel inherits Rectangle {
     // action availability flags for the context-menu tools
     in property <bool> enable-fft: false;
     in property <bool> enable-step-tool: false;
+
+    // debug builds expose the hidden automation triggers to the test mcp
+    // server; release builds keep them out of the element tree entirely
+    in property <bool> debug-tools: false;
 
     // the tools block only appears when at least one of its actions applies
     private property <bool> show-tools: root.enable-fft || root.enable-step-tool;
@@ -273,13 +347,16 @@ export component ChartsPanel inherits Rectangle {
                     // stacked top to bottom; the views are positioned
                     // explicitly because a nested layout inside this plain
                     // rectangle breaks the preferred-size stretch of the
-                    // surrounding panel (slint 1.17 layout quirk)
+                    // surrounding panel (slint 1.17 layout quirk). the
+                    // dragged chart hides while a reorder drag runs and is
+                    // rendered by the ghost above so it always draws on top
                     for frame[index] in root.charts: ChartView {
                         frame: frame;
                         x: 0;
                         width: 100%;
-                        y: parent.height * index / root.charts.length;
-                        height: parent.height / root.charts.length;
+                        y: chart-slot-y(index);
+                        height: slot-height;
+                        visible: !(reordering && reorder-from-index == index);
                     }
 
                     // zoom selection rectangle, drawn natively in slint so the offscreen
@@ -296,7 +373,9 @@ export component ChartsPanel inherits Rectangle {
                     }
 
                     ta := TouchArea {
-                        mouse-cursor: crosshair;
+                        // crosshair for the zoom selection, move cursor while
+                        // hovering a chart drag grip
+                        mouse-cursor: pointer-on-grip ? move : crosshair;
 
                         // workaround for the native context menu leaving a stale mouse
                         // grab on this touch area (slint 1.17.1, winit/muda on macOS):
@@ -331,27 +410,55 @@ export component ChartsPanel inherits Rectangle {
                                     // programmatically show the context menu at the click position
                                     ctx.show({ x: self.mouse-x, y: self.mouse-y });
                                 } else if (event.button == PointerEventButton.left) {
-                                    // store drag start position for the slint zoom rectangle
-                                    drag-start-x = self.mouse-x;
-                                    drag-start-y = self.mouse-y;
-                                    dragging = true;
-                                    // start zoom selection drag on left mouse down
-                                    ChartsPanelActions.zoom-drag-started(self.mouse-x / 1px, self.mouse-y / 1px);
+                                    // a press on a chart drag handle starts a reorder drag
+                                    if (pointer-on-grip) {
+                                        reorder-from-index = hovered-slot;
+                                        reordering = true;
+                                        reorder-pointer-y = self.mouse-y;
+                                        // remember where inside the slot the grab
+                                        // happened so the dragged chart tracks the
+                                        // grab point
+                                        reorder-grab-offset = self.mouse-y - hovered-slot * slot-height;
+                                    } else {
+                                        // store drag start position for the slint zoom rectangle
+                                        drag-start-x = self.mouse-x;
+                                        drag-start-y = self.mouse-y;
+                                        dragging = true;
+                                        // start zoom selection drag on left mouse down
+                                        ChartsPanelActions.zoom-drag-started(self.mouse-x / 1px, self.mouse-y / 1px);
+                                    }
                                 }
                             } else if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
-                                // finish zoom selection drag
-                                dragging = false;
-                                ChartsPanelActions.zoom-drag-ended();
+                                if (reordering) {
+                                    // finish the chart reorder drag: request the move
+                                    // through the panel actions and reset the drag state
+                                    ChartsPanelActions.move-chart(reorder-from-index, reorder-to-index);
+                                    reordering = false;
+                                    reorder-from-index = -1;
+                                } else {
+                                    // finish zoom selection drag
+                                    dragging = false;
+                                    ChartsPanelActions.zoom-drag-ended();
+                                }
                             } else if (event.kind == PointerEventKind.cancel) {
-                                // cancel zoom selection drag
-                                dragging = false;
-                                ChartsPanelActions.zoom-drag-canceled();
-                                // the grab was cleared within this dispatch (the disabled
-                                // input filter sent this cancel); re-enable afterwards,
-                                // when the timer fires outside the event dispatch
-                                rearm.running = true;
+                                if (reordering) {
+                                    // cancel the chart reorder drag
+                                    reordering = false;
+                                    reorder-from-index = -1;
+                                } else {
+                                    // cancel zoom selection drag
+                                    dragging = false;
+                                    ChartsPanelActions.zoom-drag-canceled();
+                                    // the grab was cleared within this dispatch (the disabled
+                                    // input filter sent this cancel); re-enable afterwards,
+                                    // when the timer fires outside the event dispatch
+                                    rearm.running = true;
+                                }
                             } else if (event.kind == PointerEventKind.move) {
-                                if (self.pressed) {
+                                if (reordering) {
+                                    // track the pointer while the chart reorder drag runs
+                                    reorder-pointer-y = self.mouse-y;
+                                } else if (self.pressed) {
                                     ChartsPanelActions.zoom-drag-moved(
                                         self.mouse-x / 1px,
                                         self.mouse-y / 1px);
@@ -370,6 +477,166 @@ export component ChartsPanel inherits Rectangle {
                             }
                         }
                     }
+
+                    // chart reorder drag state; the dragged chart and the
+                    // surrounding slots are repositioned natively in slint and
+                    // the drop indicator is drawn natively too, so the
+                    // offscreen renderer is never touched during the gesture
+                    private property <int> reorder-from-index: -1;
+                    private property <bool> reordering;
+                    private property <length> reorder-pointer-y;
+                    // pointer offset inside the grabbed chart slot, so the
+                    // dragged chart tracks the grab point instead of snapping
+                    private property <length> reorder-grab-offset: 0px;
+
+                    // height of one chart slot in the vertical stack
+                    private property <length> slot-height: root.charts.length > 0 ? self.height / root.charts.length : 0px;
+                    // chart slot under the canvas pointer; the mouse position is
+                    // only meaningful while the pointer is over the canvas
+                    private property <int> hovered-slot: root.charts.length > 0 ? floor(ta.mouse-y / slot-height) : -1;
+                    // the pointer sits on the grip of the hovered chart slot:
+                    // the top right corner inside the plot area where the
+                    // drag handle renders
+                    private property <bool> pointer-on-grip: root.charts.length > 1
+                        && ta.has-hover
+                        && hovered-slot >= 0
+                        && hovered-slot < root.charts.length
+                        && ta.mouse-x >= self.width - 92px
+                        && ta.mouse-x <= self.width - 64px
+                        && ta.mouse-y >= chart-slot-y(hovered-slot) + root.charts[hovered-slot].plot-y * 1px + 6px
+                        && ta.mouse-y <= chart-slot-y(hovered-slot) + root.charts[hovered-slot].plot-y * 1px + 24px;
+                    // projected top position of the grabbed chart while the
+                    // drag runs, clamped to the stack
+                    private property <length> reorder-drag-y: min(max(0px, reorder-pointer-y - reorder-grab-offset), self.height - slot-height);
+                    // index the grabbed chart lands at after the move: the slot
+                    // holding the projected center of the dragged chart, so the
+                    // surrounding charts part around it while it is dragged
+                    private property <int> reorder-to-index: root.charts.length < 2 || !reordering ? reorder-from-index
+                        : min(max(0, floor((reorder-drag-y + slot-height / 2) / slot-height)), root.charts.length - 1);
+                    // displayed y of one chart slot: at rest the stack order,
+                    // while a reorder drag runs the grabbed chart tracks the
+                    // pointer and the surrounding charts shift to the
+                    // projected positions around it
+                    function chart-slot-y(index: int) -> length {
+                        if (!reordering) { return index * slot-height; }
+                        if (index == reorder-from-index) { return reorder-drag-y; }
+                        if (index >= reorder-to-index && index < reorder-from-index) { return (index + 1) * slot-height; }
+                        if (index <= reorder-to-index && index > reorder-from-index) { return (index - 1) * slot-height; }
+                        return index * slot-height;
+                    }
+                    // gap between slots where the indicator line is drawn, in
+                    // original stack coordinates
+                    private property <length> reorder-indicator-y: reorder-to-index < reorder-from-index
+                        ? reorder-to-index * slot-height
+                        : (reorder-to-index + 1) * slot-height;
+
+                    // drop indicator line between the chart slots
+                    reorder-indicator := Rectangle {
+                        visible: reordering && reorder-to-index != reorder-from-index;
+                        x: 0;
+                        width: 100%;
+                        y: reorder-indicator-y - self.height / 2;
+                        height: 2px;
+                        border-radius: 1px;
+                        background: Palette.selection-background;
+                    }
+
+                    // per chart drag handle in the top right corner of the
+                    // plot area; the grip is purely visual and always visible
+                    // once the panel shows more than one chart, the canvas
+                    // touch area performs the corner hit test and drives the
+                    // reorder drag. the dragged grip hides while a reorder
+                    // drag runs and is rendered by the instance below the
+                    // ghost so it stays visible on top of the dragged chart
+                    for frame[handle-index] in root.charts: ChartDragHandle {
+                        chart-index: handle-index;
+                        charts-count: root.charts.length;
+                        hovered: pointer-on-grip && hovered-slot == handle-index;
+                        dragging: reordering && reorder-from-index == handle-index;
+                        x: parent.width - self.width - 64px;
+                        // anchored just inside the top right corner of the
+                        // white plot area, clear of the axis tick labels
+                        y: chart-slot-y(handle-index) + frame.plot-y * 1px + 6px;
+                        visible: !(reordering && reorder-from-index == handle-index);
+                    }
+
+                    // dragged chart ghost rendered above the stack so the
+                    // dragged chart draws on top of the shifted charts
+                    // regardless of the move direction
+                    if reordering && reorder-from-index >= 0: drag-ghost := ChartView {
+                        frame: root.charts[reorder-from-index];
+                        x: 0;
+                        width: 100%;
+                        y: reorder-drag-y;
+                        height: slot-height;
+                    }
+
+                    // grip of the dragged chart rendered above the ghost so
+                    // the grab point stays visible while the drag runs
+                    if reordering && reorder-from-index >= 0: drag-grip := ChartDragHandle {
+                        chart-index: reorder-from-index;
+                        charts-count: root.charts.length;
+                        hovered: false;
+                        dragging: true;
+                        x: parent.width - self.width - 64px;
+                        y: reorder-drag-y + root.charts[reorder-from-index].plot-y * 1px + 6px;
+                    }
+                }
+            }
+
+            // debug only: automation triggers calling the context menu actions;
+            // each trigger maps to the context menu item with the same label
+            // and carries the relative chart position through its value
+            if root.debug-tools: Rectangle {
+
+                test-zoom-to-fit := ChartsTestTrigger {
+                    action: "zoom to fit";
+                    invoke(position) => { ChartsPanelActions.zoom-to-fit(position); }
+                }
+
+                test-autorange := ChartsTestTrigger {
+                    action: "autorange";
+                    invoke(position) => { ChartsPanelActions.autorange(position); }
+                }
+
+                test-zoom-abscissa-extent := ChartsTestTrigger {
+                    action: "zoom abscissa extent";
+                    invoke(position) => { ChartsPanelActions.zoom-abscissa-extent(position); }
+                }
+
+                test-add-remove-plots := ChartsTestTrigger {
+                    action: "add/remove plots";
+                    invoke(position) => { ChartsPanelActions.add-remove-plots(position); }
+                }
+
+                test-delete-all-plots := ChartsTestTrigger {
+                    action: "delete all plots";
+                    invoke(position) => { ChartsPanelActions.delete-all-plots(position); }
+                }
+
+                test-calculate-fft := ChartsTestTrigger {
+                    action: "calculate fft";
+                    invoke(position) => { ChartsPanelActions.calculate-fft(position); }
+                }
+
+                test-step-tool := ChartsTestTrigger {
+                    action: "step tool";
+                    invoke(position) => { ChartsPanelActions.step-tool(position); }
+                }
+
+                test-add-chart := ChartsTestTrigger {
+                    action: "add chart";
+                    invoke(position) => { ChartsPanelActions.add-chart(position); }
+                }
+
+                test-delete-chart := ChartsTestTrigger {
+                    action: "delete chart";
+                    invoke(position) => { ChartsPanelActions.delete-chart(position); }
+                }
+
+                test-new-window := ChartsTestTrigger {
+                    action: "new window";
+                    invoke(position) => { ChartsPanelActions.new-window(position); }
                 }
             }
         }

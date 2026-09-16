@@ -9,7 +9,6 @@
 #include <vector>
 
 #include <slint.h>
-#include <spdlog/spdlog.h>
 
 #include "../app/app.h"
 #include "../charts/chart_palette.h"
@@ -156,6 +155,13 @@ SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlis
     m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<slint::SharedString>>()) {
     // expose the log model to the output panel
     m_window->set_simulation_output_log(m_simulation_log);
+#ifdef NDEBUG
+    // release builds keep the automation triggers out of the element tree
+    m_window->set_debug_tools_enabled(false);
+#else
+    // debug builds expose the hidden automation triggers to the test mcp server
+    m_window->set_debug_tools_enabled(true);
+#endif
     // seed the dark-mode flag from the initial Slint theme state so the first
     // highlight model is built with the correct colours even before charts are shown
     m_dark_mode = m_window->get_is_dark();
@@ -225,18 +231,26 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     chart_actions.on_autorange([this](float chart_position) { m_charts_renderer->autorange(chart_position); });
     chart_actions.on_zoom_abscissa_extent([this](float chart_position) { m_charts_renderer->zoom_abscissa_extent(chart_position); });
     chart_actions.on_delete_all_plots([this](float chart_position) { m_charts_renderer->delete_all_plots(chart_position); });
-    chart_actions.on_add_chart([this](float) {
-        // add chart
-        m_charts_renderer->add_chart();
+    chart_actions.on_add_chart([this](float chart_position) {
+        // add a chart directly after the one the context menu was opened on
+        m_charts_renderer->add_chart(m_charts_renderer->position_to_index(chart_position));
         // publish frames to show the new chart
         m_charts_renderer->publish_frames();
     });
     chart_actions.on_delete_chart([this](float chart_position) { m_charts_renderer->delete_chart(chart_position); });
-    // events that need presenter involvement: convert float to int via renderer
+    // events that need presenter involvement: convert float to index via renderer
     chart_actions.on_add_remove_plots([this](float chart_position) { show_add_remove_plots_dialog(chart_position); });
-    chart_actions.on_calculate_fft([this](float chart_position) { m_event_handler->on_chart_calculate_fft(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
-    chart_actions.on_step_tool([this](float chart_position) { m_event_handler->on_chart_step_tool(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
-    chart_actions.on_new_window([this](float chart_position) { m_event_handler->on_chart_new_window(m_charts_renderer->chart_count() > 0 ? static_cast<size_t>(chart_position * static_cast<float>(m_charts_renderer->chart_count())) : 0); });
+    chart_actions.on_calculate_fft([this](float chart_position) { m_event_handler->on_chart_calculate_fft(m_charts_renderer->position_to_index(chart_position)); });
+    chart_actions.on_step_tool([this](float chart_position) { m_event_handler->on_chart_step_tool(m_charts_renderer->position_to_index(chart_position)); });
+    chart_actions.on_new_window([this](float chart_position) { m_event_handler->on_chart_new_window(m_charts_renderer->position_to_index(chart_position)); });
+    // chart reordering through the drag handle; reject negative indexes and
+    // route the move through the presenter so a future change can persist the
+    // chart order
+    chart_actions.on_move_chart([this](int from, int to) {
+        if (from < 0 || to < 0)
+            return;
+        m_event_handler->on_chart_moved(static_cast<size_t>(from), static_cast<size_t>(to));
+    });
 
     // plot tab navigation
     m_window->on_plot_tab_selected([this](int index) { guard_modal([this, index] { m_event_handler->on_select_plot_tab(index); }); });
@@ -536,6 +550,12 @@ void SlintMainWindowView::set_plot_tabs(const std::vector<PlotTabItem>& tabs, in
 void SlintMainWindowView::set_active_plot_tab(int active_index) {
     // update the active tab index in the slint window
     m_window->set_active_plot_tab(active_index);
+}
+
+void SlintMainWindowView::move_chart(const size_t from, const size_t to) {
+    // reorder the charts of the active dataset in the renderer; the renderer
+    // validates the indexes and republishes the frames
+    m_charts_renderer->move_chart(from, to);
 }
 
 std::optional<SimulationConfig> SlintMainWindowView::show_simulation_parameters_dialog(const SimulationConfig& current) {

@@ -15,12 +15,16 @@ class StaleHandleClient:
         self._click_attempts = 0
         # _fill_attempts counts the fill invocations including stale ones
         self._fill_attempts = 0
+        # _drag_attempts counts the drag invocations including stale ones
+        self._drag_attempts = 0
         # _resolve_count counts the element resolutions
         self._resolve_count = 0
         # _clicked records the handle of the successful click
         self._clicked: dict | None = None
         # _filled records the value of the successful fill
         self._filled: str | None = None
+        # _dragged records the target of the successful drag
+        self._dragged: tuple[float, float] | None = None
 
     def find_elements_by_id(self, elements_id: str) -> list[dict]:
         # count the resolution
@@ -46,6 +50,15 @@ class StaleHandleClient:
         # record the value that the retried fill used
         self._filled = value
 
+    def drag_element(self, element_handle: dict, target_x: float, target_y: float) -> None:
+        # count the attempt
+        self._drag_attempts += 1
+        # fail the first attempt with a stale handle like the live server does
+        if self._drag_attempts == 1:
+            raise McpError("Error: Invalid handle")
+        # record the target that the retried drag used
+        self._dragged = (target_x, target_y)
+
     def resolve_count(self) -> int:
         # report how often elements were resolved
         return self._resolve_count
@@ -65,6 +78,14 @@ class StaleHandleClient:
     def filled(self) -> str | None:
         # report the value of the successful fill
         return self._filled
+
+    def drag_attempts(self) -> int:
+        # report how many drags were attempted
+        return self._drag_attempts
+
+    def dragged(self) -> tuple[float, float] | None:
+        # report the target of the successful drag
+        return self._dragged
 
 
 class UnrelatedErrorClient:
@@ -93,6 +114,8 @@ class FakeClient:
         self._clicks: list[tuple[dict, str, str]] = []
         # _fills records every fill invocation
         self._fills: list[tuple[dict, str]] = []
+        # _drags records every drag invocation
+        self._drags: list[tuple[dict, float, float]] = []
         # _keys records every key dispatch invocation
         self._keys: list[tuple[str, str]] = []
 
@@ -132,6 +155,10 @@ class FakeClient:
         # record the fill invocation for later assertions
         self._fills.append((element_handle, value))
 
+    def drag_element(self, element_handle: dict, target_x: float, target_y: float) -> None:
+        # record the drag invocation for later assertions
+        self._drags.append((element_handle, target_x, target_y))
+
     def dispatch_key_event(self, text: str, event_type: str = "PressAndRelease") -> None:
         # record the key dispatch invocation for later assertions
         self._keys.append((text, event_type))
@@ -147,6 +174,10 @@ class FakeClient:
     def fills(self) -> list[tuple[dict, str]]:
         # return the recorded fill invocations
         return self._fills
+
+    def drags(self) -> list[tuple[dict, float, float]]:
+        # return the recorded drag invocations
+        return self._drags
 
     def keys(self) -> list[tuple[str, str]]:
         # return the recorded key dispatch invocations
@@ -332,6 +363,43 @@ class LocatorResolutionChecks(unittest.TestCase):
         locator.press("Control", event_type="Press")
         # assert
         self.assertEqual(client.keys(), [("Control", "Press")])
+
+    def test_drag_passes_resolved_handle_and_target(self) -> None:
+        # arrange
+        client = FakeClient({"App::chart": [{"index": "6", "generation": "1"}]}, {})
+        locator = Locator(client, "App::chart")
+        # act
+        locator.drag(150.0, 90.0)
+        # assert
+        self.assertEqual(client.drags(), [({"index": "6", "generation": "1"}, 150.0, 90.0)])
+
+    def test_drag_missing_element_raises(self) -> None:
+        # arrange
+        client = FakeClient({}, {})
+        locator = Locator(client, "App::missing")
+        # act / assert
+        with self.assertRaises(LocatorError) as context:
+            locator.drag(10.0, 10.0)
+        self.assertIn("element not found", str(context.exception))
+        self.assertEqual(client.drags(), [])
+
+    def test_count_returns_number_of_current_matches(self) -> None:
+        # arrange
+        client = FakeClient({"App::items": [{"index": "1", "generation": "1"}, {"index": "2", "generation": "1"}]}, {})
+        locator = Locator(client, "App::items")
+        # act
+        count = locator.count()
+        # assert
+        self.assertEqual(count, 2)
+
+    def test_id_locator_describes_by_id(self) -> None:
+        # arrange
+        client = FakeClient({}, {})
+        locator = Locator(client, "App::status")
+        # act
+        description = locator.describe()
+        # assert
+        self.assertEqual(description, "App::status")
 
     def test_role_locator_exists_when_matches_found(self) -> None:
         # arrange
@@ -521,6 +589,16 @@ class StaleHandleChecks(unittest.TestCase):
         # assert: the fill was retried once with a fresh resolution
         self.assertEqual(client.fill_attempts(), 2)
         self.assertEqual(client.filled(), "value")
+
+    def test_drag_retries_once_on_stale_handle(self) -> None:
+        # arrange
+        client = StaleHandleClient([{"index": "6", "generation": "1"}])
+        locator = Locator(client, "App::chart")
+        # act
+        locator.drag(120.0, 60.0)
+        # assert: the drag was retried once with a fresh resolution
+        self.assertEqual(client.drag_attempts(), 2)
+        self.assertEqual(client.dragged(), (120.0, 60.0))
 
     def test_click_does_not_retry_on_unrelated_errors(self) -> None:
         # arrange

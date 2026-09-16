@@ -86,6 +86,12 @@ namespace
 
         void set_active_plot_tab(int active_index) override { m_active_plot_tab = active_index; }
 
+        // move the chart at the given index to the given index in the stack
+        void move_chart(size_t from, size_t to) override {
+            m_moved_from.push_back(from);
+            m_moved_to.push_back(to);
+        }
+
         // show the FFT setup dialog for the chart at the given index
         void show_fft_dialog(size_t chart_index) override { m_fft_dialog_index = chart_index; }
 
@@ -137,6 +143,8 @@ namespace
         int m_active_plot_tab = -1;
         std::optional<size_t> m_fft_dialog_index;
         std::optional<size_t> m_step_tool_dialog_index;
+        std::vector<size_t> m_moved_from;
+        std::vector<size_t> m_moved_to;
         std::optional<SimulationConfig> m_simulation_config_result;
         int m_simulation_dialog_requests = 0;
         std::optional<SimulationConfig> m_last_simulation_config_seed;
@@ -1184,6 +1192,31 @@ TEST(SlintMainWindowPresenterChecks, chart_actions_delegate_with_loaded_raw_file
     EXPECT_EQ(view.m_fft_dialog_index, 2u);
     EXPECT_EQ(view.m_step_tool_dialog_index, 1u);
     ASSERT_EQ(view.m_spawned_files.size(), 1);
+}
+
+TEST(SlintMainWindowPresenterChecks, chart_move_routes_to_the_view_with_a_loaded_raw_file) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    presenter.load_raw_file(make_raw_file());
+    // act
+    presenter.on_chart_moved(2, 0);
+    // assert — the move reached the view with the requested indexes
+    ASSERT_EQ(view.m_moved_from.size(), 1u);
+    EXPECT_EQ(view.m_moved_from[0], 2u);
+    ASSERT_EQ(view.m_moved_to.size(), 1u);
+    EXPECT_EQ(view.m_moved_to[0], 0u);
+}
+
+TEST(SlintMainWindowPresenterChecks, chart_move_is_ignored_without_raw_file) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_chart_moved(1, 0);
+    // assert — nothing reached the view
+    EXPECT_TRUE(view.m_moved_from.empty());
+    EXPECT_TRUE(view.m_moved_to.empty());
 }
 
 TEST(SlintMainWindowPresenterChecks, load_raw_file_populates_plot_tabs) {

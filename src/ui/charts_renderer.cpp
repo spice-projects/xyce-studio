@@ -147,15 +147,24 @@ void ChartsRenderer::update(const int dataset_id, ExpressionManager& expression_
 }
 
 ChartEngine* ChartsRenderer::add_chart() {
+    // append at the end of the active dataset stack
+    const auto* dataset = active_dataset();
+    // no active dataset means the indexed overload inserts the first chart
+    return add_chart(dataset != nullptr ? dataset->charts.size() : 0);
+}
+
+ChartEngine* ChartsRenderer::add_chart(const size_t after_index) {
     // active dataset state
     auto* dataset = active_dataset();
     // no charts can be added without an active dataset
     if (dataset == nullptr)
         return nullptr;
-    // create chart and append it to the dataset vector
-    dataset->charts.push_back(std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
+    // insertion position: directly after the given chart, clamped to the end
+    const size_t index = std::min(after_index + 1, dataset->charts.size());
+    // create the chart and insert it into the dataset vector
+    const auto chart_it = dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(index), std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
     // chart
-    auto& chart = dataset->charts[dataset->charts.size() - 1];
+    auto& chart = *chart_it;
     // all charts share the abscissa range: a chart added after a zoom joins
     // the shared horizontal zoom window of the panel (vertical zoom stays per
     // chart); unset ratios pass through unchanged
@@ -167,6 +176,24 @@ ChartEngine* ChartsRenderer::add_chart() {
     chart->plot_series({});
     // exit
     return chart.get();
+}
+
+void ChartsRenderer::move_chart(const size_t from, const size_t to) {
+    // active dataset state
+    auto* dataset = active_dataset();
+    // log information
+    spdlog::debug("User requested moving chart {} to {}", from, to);
+    // a same index or an out of range index cannot reorder anything
+    if (dataset == nullptr || from == to || from >= dataset->charts.size() || to >= dataset->charts.size())
+        return;
+    // lift the chart state out of the stack and drop it at the target
+    // position; per chart state (zoom window, plotted series, step
+    // selection) lives in the engine and moves with the element
+    auto chart = std::move(dataset->charts[from]);
+    dataset->charts.erase(dataset->charts.begin() + static_cast<std::ptrdiff_t>(from));
+    dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(to), std::move(chart));
+    // republish the reordered frames
+    publish_frames();
 }
 
 void ChartsRenderer::release_dataset(const int dataset_id) {

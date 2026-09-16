@@ -199,6 +199,10 @@ export component MainWindow inherits Window {
     // is shown (controlled from the view adapter)
     in property <bool> charts-visible: false;
 
+    // debug builds expose the hidden automation triggers to the test mcp
+    // server; release builds keep them out of the element tree entirely
+    in property <bool> debug-tools-enabled: false;
+
     // netlist editor state, driven from the view adapter; the netlist text is
     // read back from the widget, so the property is also the source of truth
     // for the presenter when tracking user edits
@@ -594,6 +598,8 @@ export component MainWindow inherits Window {
                         plot-tab-closed(index) => { root.plot-tab-closed(index); }
                         enable-fft: root.enable-fft;
                         enable-step-tool: root.enable-step-tool;
+                        // forward the debug automation trigger flag
+                        debug-tools: root.debug-tools-enabled;
                         // forward the slint native chart frames from the host
                         charts: root.charts;
                         // match the canvas background of the charts panel

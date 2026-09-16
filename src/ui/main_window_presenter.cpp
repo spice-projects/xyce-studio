@@ -588,6 +588,14 @@ void SlintMainWindowPresenter::on_chart_new_window(size_t) {
         m_view.spawn_raw_file_window(m_xyce_raw_file.value());
 }
 
+void SlintMainWindowPresenter::on_chart_moved(const size_t from, const size_t to) {
+    // nothing to reorder without a loaded dataset
+    if (!m_xyce_raw_file.has_value())
+        return;
+    // mediate the reorder so a future change can persist the chart order
+    m_view.move_chart(from, to);
+}
+
 void SlintMainWindowPresenter::load_raw_file(std::shared_ptr<XyceOutputFile> raw_file) {
     // guard against a missing file
     if (raw_file == nullptr)

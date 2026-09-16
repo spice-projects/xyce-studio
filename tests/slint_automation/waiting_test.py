@@ -48,6 +48,13 @@ class WaitHelperChecks(unittest.TestCase):
         # assert
         self.assertIn("last observed: state ready", str(context.exception))
 
+    def test_wait_for_reports_unknown_when_the_observer_fails(self) -> None:
+        # act: an observer that raises must never mask the timeout failure
+        with self.assertRaises(SlintAssertionError) as context:
+            wait_for(lambda: False, timeout=0.2, poll_interval=0.05, timeout_message="waiting for charts", observe=lambda: 1 / 0)
+        # assert
+        self.assertIn("last observed: unknown", str(context.exception))
+
 
 class LocatorWaitChecks(unittest.TestCase):
 

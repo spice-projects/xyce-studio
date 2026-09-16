@@ -65,6 +65,10 @@ class SlintClient:
         # simulate a mouse click on the element handle
         self._mcp.call_tool("click_element", {"elementHandle": element_handle, "action": action, "button": button})
 
+    def invoke_accessibility_action(self, element_handle: dict, action: str = "Default_") -> None:
+        # invoke a semantic accessibility action on the element handle
+        self._mcp.call_tool("invoke_accessibility_action", {"elementHandle": element_handle, "action": action})
+
     def drag_element(self, element_handle: dict, target_x: float, target_y: float) -> None:
         # drag from the element center to the logical target position
         self._mcp.call_tool("drag_element", {"elementHandle": element_handle, "target": {"x": target_x, "y": target_y}})

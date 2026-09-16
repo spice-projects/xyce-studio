@@ -1,60 +1,54 @@
-import http.server
-import json
 import os
 import subprocess
 import sys
-import threading
 import unittest
+from pathlib import Path
 from unittest import mock
 
+import slint_automation.slint_application
 from slint_automation import launch
-from slint_automation.errors import ApplicationStartupError
+from slint_automation.errors import ApplicationStartupError, McpError
+from slint_automation.locator import Locator, LocatorCollection
 from slint_automation.mcp_client import McpClient
-from slint_automation.slint_application import SlintApplication
+from slint_automation.slint_application import SlintApplication, default_executable
 from slint_automation.slint_client import SlintClient
 
 
-class MockMcpHandler(http.server.BaseHTTPRequestHandler):
+class FakeReadyMcp:
+    # in-process replacement for the mcp transport so the launch handshake
+    # succeeds without any socket, loopback server or thread
 
-    def do_POST(self) -> None:
-        # read the full request body and parse it as json
-        length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(length))
-        # record the request for later assertions
-        self.server.requests.append(body)
-        # respond with a non-json body when the server is in malformed mode
-        if getattr(self.server, "malformed", False):
-            data = b"not json"
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-            return
-        # dispatch on the json-rpc method
-        method = body.get("method")
-        if method == "initialize":
-            result = {"serverInfo": {"name": "mock-mcp"}}
-            response = {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
-        elif method == "tools/call" and body.get("params", {}).get("name") == "list_windows":
-            # serve the canned window list for window discovery
-            text = json.dumps({"windowHandles": [{"index": "1", "generation": "1"}]})
-            result = {"content": [{"type": "text", "text": text}]}
-            response = {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
-        else:
-            # every other method returns a json-rpc error
-            response = {"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32601, "message": f"method not found: {method}"}}
-        # write the json response body
-        data = json.dumps(response).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+    def __init__(self, port: int) -> None:
+        # port is the localhost port passed by the launcher
+        self._port = port
+        # connect_calls counts the readiness handshake attempts
+        self.connect_calls = 0
 
-    def log_message(self, format: str, *args: str) -> None:
-        # silence the per-request console logging
-        pass
+    def connect(self) -> None:
+        # the handshake doubles as the readiness probe and succeeds
+        self.connect_calls += 1
+
+    def server_info(self) -> dict:
+        # serve the canned server info
+        return {"serverInfo": {"name": "fake-mcp"}}
+
+    def list_tools(self) -> list[dict]:
+        # serve the canned tool definitions
+        return [{"name": "list_windows"}]
+
+    def call_tool(self, name: str, arguments: dict | None = None) -> dict:
+        # serve the canned window list for window discovery
+        return {"windowHandles": [{"index": "1", "generation": "1"}]}
+
+
+class FakeNeverReadyMcp(FakeReadyMcp):
+    # replacement transport whose handshake always fails like an unreachable
+    # or malformed server would
+
+    def connect(self) -> None:
+        # fail every handshake attempt until the startup deadline expires
+        self.connect_calls += 1
+        raise McpError(f"connection to 127.0.0.1:{self._port} failed")
 
 
 class FakeProcess:
@@ -114,26 +108,21 @@ class FakeProcess:
 class ApplicationLaunchChecks(unittest.TestCase):
 
     def setUp(self) -> None:
-        # arrange: start the mock mcp server for the readiness handshake
-        self._server = http.server.HTTPServer(("127.0.0.1", 0), MockMcpHandler)
-        self._server.requests = []
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-        # arrange: fake the application process
+        # arrange: patch the port allocation, the spawned process and the mcp
+        # transport so no socket, loopback server or thread is involved
+        self._allocated_port = 47500
         self._process = FakeProcess()
-        # arrange: point the port allocation at the mock server port
-        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._server.server_address[1])
+        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._allocated_port)
         port_patcher.start()
         self.addCleanup(port_patcher.stop)
-        # arrange: launch the application through the patched popen
+        mcp_patcher = mock.patch("slint_automation.slint_application.McpClient", FakeReadyMcp)
+        mcp_patcher.start()
+        self.addCleanup(mcp_patcher.stop)
         patcher = mock.patch("slint_automation.slint_application.subprocess.Popen", return_value=self._process)
         self._popen = patcher.start()
         self.addCleanup(patcher.stop)
-        # arrange: launch the application for testing
+        # arrange: launch the application through the patched launch path
         self._app = launch("/fake/xyce-studio", startup_timeout=5.0)
-        # cleanup: shut the mock server down after the test
-        self.addCleanup(self._server.shutdown)
-        self.addCleanup(self._server.server_close)
 
     def tearDown(self) -> None:
         # cleanup: terminate the application after each test
@@ -164,14 +153,14 @@ class ApplicationLaunchChecks(unittest.TestCase):
         self.assertEqual(window, {"index": "1", "generation": "1"})
 
     def test_application_uses_dynamic_mcp_port(self) -> None:
-        # assert: verify the app talks to the mock server port
-        self.assertEqual(self._app.port(), self._server.server_address[1])
+        # assert: verify the app talks to the allocated port
+        self.assertEqual(self._app.port(), self._allocated_port)
 
     def test_application_passes_mcp_port_env(self) -> None:
         # act: inspect the environment passed to the spawned process
         _, kwargs = self._popen.call_args
-        # assert: verify the child received the mock server port
-        self.assertEqual(kwargs["env"]["SLINT_MCP_PORT"], str(self._server.server_address[1]))
+        # assert: verify the child received the allocated port
+        self.assertEqual(kwargs["env"]["SLINT_MCP_PORT"], str(self._allocated_port))
 
     def test_application_passes_command_line_arguments(self) -> None:
         # arrange: relaunch with command line arguments for the application
@@ -209,17 +198,29 @@ class ApplicationLaunchChecks(unittest.TestCase):
         # assert: verify the launch left the test process environment untouched
         self.assertEqual(os.environ, before)
 
+    def test_get_by_id_creates_a_locator_scoped_to_the_client(self) -> None:
+        # act: build a locator by qualified element id
+        locator = self._app.get_by_id("App::status")
+        # assert: the locator lazily describes the requested selector
+        self.assertIsInstance(locator, Locator)
+        self.assertEqual(locator.describe(), "App::status")
+
+    def test_get_by_role_creates_a_locator_scoped_to_the_client(self) -> None:
+        # act: build a locator by accessible role
+        locator = self._app.get_by_role("Button")
+        # assert: the locator lazily describes the requested role
+        self.assertIsInstance(locator, Locator)
+        self.assertEqual(locator.describe(), "role Button")
+
+    def test_get_by_type_creates_a_collection_scoped_to_the_client(self) -> None:
+        # act: build a collection locator by slint type name
+        collection = self._app.get_by_type("ToolbarButton")
+        # assert: the collection targets the requested type
+        self.assertIsInstance(collection, LocatorCollection)
+        self.assertEqual(collection.nth(0).describe(), "type ToolbarButton[0]")
+
 
 class ApplicationLifecycleChecks(unittest.TestCase):
-
-    def setUp(self) -> None:
-        # arrange: start the mock mcp server for the readiness handshake
-        self._server = http.server.HTTPServer(("127.0.0.1", 0), MockMcpHandler)
-        self._server.requests = []
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-        self.addCleanup(self._server.shutdown)
-        self.addCleanup(self._server.server_close)
 
     def test_close_terminates_process(self) -> None:
         # arrange
@@ -249,10 +250,34 @@ class ApplicationLifecycleChecks(unittest.TestCase):
         # assert
         self.assertTrue(process.was_killed())
 
+    def test_context_manager_closes_on_exit(self) -> None:
+        # arrange
+        process = FakeProcess()
+        app = SlintApplication(process, SlintClient(McpClient(1)), 1)
+        # act
+        with app as entered:
+            # assert: the context manager yields the application itself
+            self.assertIs(entered, app)
+            self.assertTrue(app.is_running())
+        # assert: the application was closed by the context exit
+        self.assertTrue(process.was_terminated())
+        self.assertFalse(app.is_running())
+
+    def test_context_manager_closes_on_error_and_propagates(self) -> None:
+        # arrange
+        process = FakeProcess()
+        app = SlintApplication(process, SlintClient(McpClient(1)), 1)
+        # act / assert
+        with self.assertRaises(RuntimeError):
+            with app:
+                raise RuntimeError("test body failed")
+        # assert: the application was closed despite the raised exception
+        self.assertTrue(process.was_terminated())
+
     def test_launch_raises_after_retries_when_process_exits(self) -> None:
         # arrange
         process = FakeProcess(exit_code=3)
-        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._server.server_address[1])
+        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=47500)
         port_patcher.start()
         self.addCleanup(port_patcher.stop)
         patcher = mock.patch("slint_automation.slint_application.subprocess.Popen", return_value=process)
@@ -266,12 +291,14 @@ class ApplicationLifecycleChecks(unittest.TestCase):
         self.assertEqual(popen.call_count, 3)
 
     def test_launch_closes_process_when_server_never_ready(self) -> None:
-        # arrange: make the server return malformed responses
-        self._server.malformed = True
+        # arrange: make the handshake fail like an unreachable server would
         process = FakeProcess()
-        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._server.server_address[1])
+        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=47500)
         port_patcher.start()
         self.addCleanup(port_patcher.stop)
+        mcp_patcher = mock.patch("slint_automation.slint_application.McpClient", FakeNeverReadyMcp)
+        mcp_patcher.start()
+        self.addCleanup(mcp_patcher.stop)
         patcher = mock.patch("slint_automation.slint_application.subprocess.Popen", return_value=process)
         popen = patcher.start()
         self.addCleanup(patcher.stop)
@@ -286,48 +313,41 @@ class ApplicationLifecycleChecks(unittest.TestCase):
 class ConfigurationIsolationChecks(unittest.TestCase):
 
     def setUp(self) -> None:
-        # arrange: start the mock mcp server for the readiness handshake
-        self._server = http.server.HTTPServer(("127.0.0.1", 0), MockMcpHandler)
-        self._server.requests = []
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-        # arrange: fake the application process
+        # arrange: patch the port allocation, the spawned process and the mcp
+        # transport so no socket, loopback server or thread is involved
+        self._allocated_port = 47500
         self._process = FakeProcess()
-        # arrange: point the port allocation at the mock server port
-        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._server.server_address[1])
+        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._allocated_port)
         port_patcher.start()
         self.addCleanup(port_patcher.stop)
-        # arrange: launch the application through the patched popen
+        mcp_patcher = mock.patch("slint_automation.slint_application.McpClient", FakeReadyMcp)
+        mcp_patcher.start()
+        self.addCleanup(mcp_patcher.stop)
         patcher = mock.patch("slint_automation.slint_application.subprocess.Popen", return_value=self._process)
         self._popen = patcher.start()
         self.addCleanup(patcher.stop)
-        # cleanup: shut the mock server down after the test
-        self.addCleanup(self._server.shutdown)
-        self.addCleanup(self._server.server_close)
-
-    def _configuration_variable(self) -> str:
-        # report the environment variable carrying the application configuration root
-        return "APPDATA" if sys.platform == "win32" else "XDG_CONFIG_HOME"
 
     def test_application_isolates_persistent_configuration(self) -> None:
         # arrange: poison the test process configuration root like an external tool would
-        os.environ[self._configuration_variable()] = "/external/config"
-        self.addCleanup(os.environ.pop, self._configuration_variable(), None)
+        configuration_variable = "APPDATA" if sys.platform == "win32" else "XDG_CONFIG_HOME"
+        os.environ[configuration_variable] = "/external/config"
+        self.addCleanup(os.environ.pop, configuration_variable, None)
         # act: launch the application
         launch("/fake/xyce-studio", startup_timeout=5.0)
         # act: inspect the environment passed to the spawned process
         _, kwargs = self._popen.call_args
         # assert: the external configuration root never reaches the application
-        self.assertNotEqual(kwargs["env"][self._configuration_variable()], "/external/config")
+        self.assertNotEqual(kwargs["env"][configuration_variable], "/external/config")
         # assert: the child configuration root is an isolated temporary directory
-        self.assertTrue(os.path.basename(kwargs["env"][self._configuration_variable()]).startswith("xyce-studio-config-"))
+        self.assertTrue(os.path.basename(kwargs["env"][configuration_variable]).startswith("xyce-studio-config-"))
 
     def test_application_removes_isolated_configuration_on_close(self) -> None:
         # arrange: launch the application
         app = launch("/fake/xyce-studio", startup_timeout=5.0)
         # arrange: read the isolated configuration root passed to the application
         _, kwargs = self._popen.call_args
-        config_dir = kwargs["env"][self._configuration_variable()]
+        configuration_variable = "APPDATA" if sys.platform == "win32" else "XDG_CONFIG_HOME"
+        config_dir = kwargs["env"][configuration_variable]
         # assert: the isolated directory exists while the application runs
         self.assertTrue(os.path.isdir(config_dir))
         # act: close the application
@@ -339,33 +359,88 @@ class ConfigurationIsolationChecks(unittest.TestCase):
 class CallerConfigurationChecks(unittest.TestCase):
 
     def setUp(self) -> None:
-        # arrange: start the mock mcp server for the readiness handshake
-        self._server = http.server.HTTPServer(("127.0.0.1", 0), MockMcpHandler)
-        self._server.requests = []
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-        # arrange: fake the application process
+        # arrange: patch the port allocation, the spawned process and the mcp
+        # transport so no socket, loopback server or thread is involved
+        self._allocated_port = 47500
         self._process = FakeProcess()
-        # arrange: point the port allocation at the mock server port
-        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._server.server_address[1])
+        port_patcher = mock.patch("slint_automation.slint_application._allocate_port", return_value=self._allocated_port)
         port_patcher.start()
         self.addCleanup(port_patcher.stop)
-        # arrange: launch the application through the patched popen
+        mcp_patcher = mock.patch("slint_automation.slint_application.McpClient", FakeReadyMcp)
+        mcp_patcher.start()
+        self.addCleanup(mcp_patcher.stop)
         patcher = mock.patch("slint_automation.slint_application.subprocess.Popen", return_value=self._process)
         self._popen = patcher.start()
         self.addCleanup(patcher.stop)
-        # cleanup: shut the mock server down after the test
-        self.addCleanup(self._server.shutdown)
-        self.addCleanup(self._server.server_close)
-
-    def _configuration_variable(self) -> str:
-        # report the environment variable carrying the application configuration root
-        return "APPDATA" if sys.platform == "win32" else "XDG_CONFIG_HOME"
 
     def test_caller_provided_configuration_root_wins(self) -> None:
         # arrange: launch the application with an explicit configuration root
-        launch("/fake/xyce-studio", startup_timeout=5.0, env={self._configuration_variable(): "/shared/config"})
+        configuration_variable = "APPDATA" if sys.platform == "win32" else "XDG_CONFIG_HOME"
+        launch("/fake/xyce-studio", startup_timeout=5.0, env={configuration_variable: "/shared/config"})
         # act: inspect the environment passed to the spawned process
         _, kwargs = self._popen.call_args
         # assert: the caller configuration root reaches the application untouched
-        self.assertEqual(kwargs["env"][self._configuration_variable()], "/shared/config")
+        self.assertEqual(kwargs["env"][configuration_variable], "/shared/config")
+
+
+class DefaultExecutableChecks(unittest.TestCase):
+
+    def tearDown(self) -> None:
+        # cleanup: drop the executable override after each check
+        os.environ.pop("SLINT_TEST_APPLICATION", None)
+
+    def test_default_executable_prefers_the_environment_override(self) -> None:
+        # arrange
+        os.environ["SLINT_TEST_APPLICATION"] = "/custom/xyce-studio"
+        # act
+        executable = default_executable()
+        # assert
+        self.assertEqual(executable, "/custom/xyce-studio")
+
+    def test_default_executable_falls_back_to_the_debug_build(self) -> None:
+        # arrange: drop the override so the default kicks in
+        os.environ.pop("SLINT_TEST_APPLICATION", None)
+        # act
+        executable = default_executable()
+        # assert: the debug build next to the framework package is used
+        expected = str(Path(slint_automation.slint_application.__file__).resolve().parents[1] / ".build-debug" / "xyce-studio")
+        self.assertEqual(executable, expected)
+
+
+class RecordingTriggerClient:
+
+    def __init__(self) -> None:
+        # _values records every set_element_value invocation
+        self._values: list[tuple[str, str]] = []
+
+    def find_elements_by_id(self, elements_id: str) -> list[dict]:
+        # serve the canned handle of the hidden chart action trigger
+        return [{"index": "3", "generation": "1"}]
+
+    def set_element_value(self, element_handle: dict, value: str) -> None:
+        # record the value sent to the trigger
+        self._values.append((str(element_handle.get("index")), value))
+
+    def values(self) -> list[tuple[str, str]]:
+        # return the recorded trigger invocations
+        return self._values
+
+
+class ChartActionTriggerChecks(unittest.TestCase):
+
+    def test_invoke_chart_action_fills_the_trigger_with_the_position(self) -> None:
+        # arrange: an application backed by a recording client
+        app = SlintApplication(FakeProcess(), RecordingTriggerClient(), 1)
+        # act: invoke the add chart trigger after the first chart
+        app.invoke_chart_action("add-chart", chart_position=0.25)
+        # assert: the trigger was located by its qualified id and received the
+        # position as its value, which fires accessible-action-set-value
+        self.assertEqual(app.client().values(), [("3", "0.25")])
+
+    def test_invoke_chart_action_defaults_to_the_first_chart(self) -> None:
+        # arrange: an application backed by a recording client
+        app = SlintApplication(FakeProcess(), RecordingTriggerClient(), 1)
+        # act
+        app.invoke_chart_action("delete-chart")
+        # assert
+        self.assertEqual(app.client().values(), [("3", "0.5")])
