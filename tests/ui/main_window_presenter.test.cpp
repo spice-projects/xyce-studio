@@ -908,6 +908,145 @@ TEST(SlintMainWindowPresenterChecks, simulation_finished_raw_file_not_found_show
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, lin_run_appends_touchstone_tab_and_keeps_primary_active) {
+    // arrange — launch a LIN simulation first so the run paths are known
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.AC DEC 10 1 100k\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-presenter-test.s2p\n.PRINT AC FORMAT=RAW V(*) I(*)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write an ascii raw file at the expected output location
+    const auto raw_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream raw_file(raw_path, std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Test Circuit\n";
+        raw_file << "Plotname: AC Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 2\n";
+        raw_file << "No. Points: 3\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\tfrequency\tfrequency\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0\n";
+        raw_file << " 1  0.001  2.0\n";
+        raw_file << " 2  0.002  3.0\n";
+    }
+    // arrange — write the touchstone output the LIN run produces (FILE= resolves
+    // against the working directory)
+    const auto s2p_path = view.m_started_working_directory / "lin-presenter-test.s2p";
+    {
+        std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
+        s2p_file << "# Hz S RI R 50\n";
+        s2p_file << "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+        s2p_file << "2.0  0.4  0.2  0.7  0.3  0.2  0.5  0.6  0.1\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the raw file stays the primary dataset and the touchstone file
+    // opens as a second non-closable tab behind it; the primary tab is active
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    ASSERT_TRUE(presenter.raw_file().has_value());
+    ASSERT_TRUE(presenter.touchstone_file().has_value());
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_EQ(view.m_plot_tabs[1].title, "LIN Analysis");
+    EXPECT_FALSE(view.m_plot_tabs[1].closable);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // the activated dataset is the primary one
+    EXPECT_EQ(view.m_updated_dataset_ids.back(), view.m_plot_tabs[0].id);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(raw_path, ec);
+    std::filesystem::remove(s2p_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, lin_run_without_raw_file_loads_touchstone_as_primary) {
+    // arrange — launch a LIN simulation whose netlist carries no .PRINT AC,
+    // so the run produces no raw output at all
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.AC DEC 10 1 100k\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-presenter-test.s2p\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write only the touchstone output the LIN run produces
+    const auto s2p_path = view.m_started_working_directory / "lin-presenter-test.s2p";
+    {
+        std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
+        s2p_file << "# Hz S RI R 50\n";
+        s2p_file << "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+        s2p_file << "2.0  0.4  0.2  0.7  0.3  0.2  0.5  0.6  0.1\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the touchstone file alone becomes the primary (non-closable)
+    // dataset and the run reports success
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_TRUE(view.m_output_panel_hidden);
+    ASSERT_TRUE(presenter.touchstone_file().has_value());
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "LIN Analysis");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(s2p_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, lin_rerun_replaces_the_touchstone_dataset) {
+    // arrange — launch a LIN simulation first so the run paths are known
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.AC DEC 10 1 100k\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-presenter-test.s2p\n.PRINT AC FORMAT=RAW V(*) I(*)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write an ascii raw file and the touchstone output
+    const auto raw_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream raw_file(raw_path, std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Test Circuit\n";
+        raw_file << "Plotname: AC Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 2\n";
+        raw_file << "No. Points: 3\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\tfrequency\tfrequency\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0\n";
+        raw_file << " 1  0.001  2.0\n";
+        raw_file << " 2  0.002  3.0\n";
+    }
+    const auto s2p_path = view.m_started_working_directory / "lin-presenter-test.s2p";
+    {
+        std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
+        s2p_file << "# Hz S RI R 50\n";
+        s2p_file << "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+        s2p_file << "2.0  0.4  0.2  0.7  0.3  0.2  0.5  0.6  0.1\n";
+    }
+    // act — finish the first run
+    presenter.on_simulation_finished(0, false);
+    const int touchstone_id = view.m_plot_tabs[1].id;
+    // act — finish a second run of the same netlist (files still in place)
+    presenter.on_simulation_finished(0, false);
+    // assert — the touchstone dataset of the first run was released and a fresh
+    // one appended, while the primary dataset kept its identity
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
+    EXPECT_EQ(view.m_plot_tabs[1].title, "LIN Analysis");
+    EXPECT_NE(view.m_plot_tabs[1].id, touchstone_id);
+    ASSERT_EQ(view.m_released_dataset_ids.size(), 1u);
+    EXPECT_EQ(view.m_released_dataset_ids[0], touchstone_id);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(raw_path, ec);
+    std::filesystem::remove(s2p_path, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, simulation_rerun_keeps_primary_dataset_identity) {
     // arrange — launch a transient simulation first so the run paths are known
     RecordingView view;

@@ -713,8 +713,28 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     ExpressionManager expression_manager(expressions, step_slices);
     // build file-level metadata
     std::unordered_map<std::string, std::string> file_metadata;
-    // no suggested plots for touchstone data
+    // suggest two default plots, one chart per group: the dB magnitudes of the
+    // reflection entries (diagonal, the return-loss view) and of the
+    // transmission entries (off-diagonal, the insertion-loss view)
     std::vector<std::vector<std::string>> suggested_plots;
+    {
+        // names of the dB magnitude expressions per group
+        std::vector<std::string> reflection_names;
+        std::vector<std::string> transmission_names;
+        // loop matrix entries in row-major order, e.g. S11, S12, ...
+        for (int r = 0; r < n; ++r) {
+            for (int c = 0; c < n; ++c) {
+                // build parameter name, e.g. S11
+                const std::string name = param_str + std::to_string(r + 1) + std::to_string(c + 1);
+                // sort the entry into its group
+                (r == c ? reflection_names : transmission_names).push_back("db(" + name + ")");
+            }
+        }
+        // append the groups; a 1-port network has no transmission entries
+        suggested_plots.push_back(std::move(reflection_names));
+        if (!transmission_names.empty())
+            suggested_plots.push_back(std::move(transmission_names));
+    }
     // store parameter type
     file_metadata["parameter_type"] = param_str;
     // store data format
@@ -725,8 +745,8 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     file_metadata["reference_impedance"] = header.reference_impedances.empty() ? std::to_string(header.default_r) : std::to_string(header.reference_impedances[0]);
     // create the output file
     auto xyce_file = std::make_shared<XyceOutputFile>(filename, "LIN Analysis", true, std::move(final_step_info), PlotType::AC, abscissa_scale, std::move(expression_manager), nullptr, std::move(suggested_plots), std::move(file_metadata));
-
+    // log information
     spdlog::info("Successfully parsed Touchstone file: {}, ports: {}, points: {}, elapsed time: {}ms", filename.string(), n, n_points, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count());
-
+    // use file
     return xyce_file;
 }

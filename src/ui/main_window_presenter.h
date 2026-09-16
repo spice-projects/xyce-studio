@@ -86,6 +86,7 @@ public:
     // accessors
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& raw_file() const;
     [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_files() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& touchstone_file() const;
     [[nodiscard]] size_t active_dataset_index() const { return m_active_dataset_index; }
 
 private:
@@ -138,6 +139,9 @@ private:
 
     std::optional<std::shared_ptr<XyceOutputFile>> m_xyce_raw_file;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_files;
+    // touchstone output file produced by a .LIN run; a single run produces at
+    // most one file (a .STEP run concatenates all steps into the same file)
+    std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_file;
 
     SimulationConfig m_simulation_config;
     PluginConfig m_plugin_config;
