@@ -24,9 +24,7 @@ namespace
         std::unique_ptr<ChartEngine> engine;
 
         explicit SmithFixture(std::vector<std::complex<double>> s11) :
-            s11_data(std::move(s11)),
-            step_slices{{0, s11_data.size()}},
-            step_information({"frequency"}, {{}}, {{1.0, 2.0}}) {
+            s11_data(std::move(s11)), step_slices{{0, s11_data.size()}}, step_information({"frequency"}, {{}}, {{1.0, 2.0}}) {
             // abscissa frequencies
             std::vector<double> abscissa_data(s11_data.size());
             for (size_t i = 0; i < abscissa_data.size(); ++i)
