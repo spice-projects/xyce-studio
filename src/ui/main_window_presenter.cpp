@@ -62,6 +62,27 @@ namespace
             return file.title();
         }
     }
+
+    // suggested smith chart plots: one smith chart with the diagonal matrix
+    // entries (s11, s22, ...) which plot as reflection coefficients on the
+    // gamma plane; the equivalent entries of y/z parameter files map through
+    // the smith conversions
+    std::vector<std::vector<std::string>> smith_suggested_plots(const XyceOutputFile& file) {
+        // parameter type prefix (s/y/z) from the file metadata
+        std::string parameter_type = "S";
+        if (const auto entry = file.metadata().find("parameter_type"); entry != file.metadata().end())
+            parameter_type = entry->second;
+        // port count from the file metadata
+        int num_ports = 2;
+        if (const auto entry = file.metadata().find("num_ports"); entry != file.metadata().end())
+            num_ports = std::stoi(entry->second);
+        // diagonal entry names, s11, s22, ...
+        std::vector<std::string> names;
+        for (int p = 0; p < num_ports; ++p)
+            names.push_back(parameter_type + std::to_string(p + 1) + std::to_string(p + 1));
+        // one smith chart carrying the diagonal entries
+        return {std::move(names)};
+    }
 } // namespace
 
 SlintMainWindowPresenter::SlintMainWindowPresenter(MainWindowViewDef& view, std::unique_ptr<NetlistSource> netlist_source, PluginConfig plugin_config, std::shared_ptr<KiCadSession> kicad_session) :
@@ -700,13 +721,23 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
                     m_plot_datasets[0].file = std::move(*raw_file);
             }
             // store the parsed touchstone file and append it as a non-closable
-            // plot dataset
+            // plot dataset, followed by the smith chart tab plotting the same
+            // file on the gamma plane with the diagonal entries by default
             if (touchstone_file.has_value()) {
                 m_touchstone_file = *touchstone_file;
+                // LIN Analysis tab with the suggested rectangular plots
+                m_plot_datasets.push_back(PlotDataset{
+                    .id = m_next_dataset_id++,
+                    .file = *touchstone_file,
+                    .closable = false,
+                    .smith = false,
+                });
+                // Smith Chart tab with the diagonal entries (s11, s22, ...)
                 m_plot_datasets.push_back(PlotDataset{
                     .id = m_next_dataset_id++,
                     .file = std::move(*touchstone_file),
                     .closable = false,
+                    .smith = true,
                 });
             }
             // parse the FFT calculation output files produced by this run, derived from the analysis config
@@ -850,6 +881,8 @@ void SlintMainWindowPresenter::refresh_action_states() {
     // chart context tools are tied to the loaded raw output
     input.abscissa_is_time = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->expression_manager().abscissa().unit() == "s";
     input.has_steps = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->step_information().length() > 1;
+    // the smith chart tab drives the panel's cartesian-tool visibility
+    input.charts_smith = !m_plot_datasets.empty() && m_plot_datasets[m_active_dataset_index].smith;
     // compute the action enablement for the current state
     ActionStateEnablement enablement = compute_action_enablement(input);
     // file actions are only available in standalone mode; KiCad provides the
@@ -870,10 +903,10 @@ void SlintMainWindowPresenter::sync_plot_tabs_with_view() {
     tabs.reserve(m_plot_datasets.size());
     // convert each dataset to a tab item
     for (const auto& dataset : m_plot_datasets) {
-        // append tab item
+        // tab label; smith datasets always show the Smith Chart label
         tabs.push_back(PlotTabItem{
             .id = dataset.id,
-            .title = dataset.file ? plot_type_to_label(*dataset.file) : "",
+            .title = dataset.smith ? "Smith Chart" : (dataset.file ? plot_type_to_label(*dataset.file) : ""),
             .closable = dataset.closable,
         });
     }
@@ -896,8 +929,9 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
         // file instance
         auto& file = m_xyce_raw_file.value();
         // activate the dataset in the renderer; switching back to a dataset
-        // restores its charts with zoom windows, plots and step selections intact
-        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), file->suggested_plots());
+        // restores its charts with zoom windows, plots and step selections intact;
+        // smith datasets suggest the diagonal entries instead of the rectangular plots
+        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
         // update the active tab in the view
         m_view.set_active_plot_tab(static_cast<int>(index));
         // update the base title from the dataset title

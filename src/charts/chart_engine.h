@@ -67,6 +67,16 @@ struct AxisInformation
     double max_value;
 };
 
+// chart kind of an engine; XY charts plot abscissa/ordinate pairs on
+// rectangular axes with zoom windows, smith charts plot reflection
+// coefficients on the fixed +-1 gamma plane without axes or zooming
+enum class ChartKind
+{
+    XY,
+
+    SMITH
+};
+
 // platform-neutral chart state machine; render paths consume this state and
 // translate it into their own drawing calls.
 // the state is organized so future chart types (e.g. smith charts) can reuse
@@ -78,7 +88,7 @@ class ChartEngine
 public:
     ChartEngine() = delete;
 
-    ChartEngine(ExpressionManager* expression_manager, StepInformation const* step_information, AbscissaScale abscissa_scale, size_t decimate_target);
+    ChartEngine(ExpressionManager* expression_manager, StepInformation const* step_information, AbscissaScale abscissa_scale, size_t decimate_target, ChartKind kind = ChartKind::XY);
 
     ChartEngine(const ChartEngine&) = delete;
 
@@ -112,11 +122,19 @@ public:
 
     [[nodiscard]] std::string hovered_series_text(double abscissa_value) const;
 
+    // smith hover readout at the given gamma-plane position; reports the
+    // frequency, reflection coefficient, normalized impedance, ohmic
+    // impedance, vswr and return loss of the trace point nearest the cursor
+    [[nodiscard]] std::string hovered_smith_text(double gamma_r, double gamma_i) const;
+
     [[nodiscard]] const Series& series() const { return m_series; }
 
     [[nodiscard]] const std::array<AxisInformation, 3>& axes() const { return m_axes; }
 
     [[nodiscard]] AbscissaScale abscissa_scale() const { return m_abscissa_scale; }
+
+    // chart kind of this engine; render paths branch on it
+    [[nodiscard]] ChartKind kind() const { return m_kind; }
 
     [[nodiscard]] const std::string& abscissa_unit() const { return m_abscissa_unit; }
 
@@ -131,6 +149,10 @@ public:
 
 private:
     std::tuple<bool, View<double>, View<double>, double, double> plot_step(Expression<double>& ordinate_variant, size_t step, double min_value, double max_value, double x_right_ratio, double x_left_ratio) const;
+
+    // render one smith chart step of the given complex ordinate; the rendered
+    // views carry the gamma-plane coordinates (gamma_r, gamma_i) of every sample
+    std::tuple<bool, View<double>, View<double>> plot_smith_step(Expression<std::complex<double>>& ordinate_variant, size_t step) const;
 
     int get_y_axis(const std::string& unit);
 
@@ -151,6 +173,10 @@ private:
     std::set<size_t> m_selected_steps = {0};
 
     size_t m_next_color_index = 0;
+
+    // kind of this chart; smith charts reuse the series state above with
+    // fixed +-1 gamma-plane semantics while xy charts use the cartesian state
+    ChartKind m_kind = ChartKind::XY;
 
     // cartesian xy specific state: rectangular zoom windows and per-unit y
     // axis assignment; future chart types replace these semantics (e.g. fixed

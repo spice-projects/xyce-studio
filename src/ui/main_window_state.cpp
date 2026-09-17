@@ -41,6 +41,8 @@ ActionStateEnablement compute_action_enablement(const ActionStateInput& input) {
     // chart context tools: FFT for time-domain abscissa, step tool for stepped runs
     enablement.fft = input.abscissa_is_time;
     enablement.step_tool = input.has_steps;
+    // smith chart tabs drive the panel's cartesian-tool visibility
+    enablement.charts_smith = input.charts_smith;
     // return the enablement result
     return enablement;
 }

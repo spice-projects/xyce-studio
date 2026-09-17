@@ -106,8 +106,6 @@ export component SimulationParametersPanel inherits ModalPanel {
     in-out property <int> ac-print-type-index: 0;
     in-out property <bool> ac-print-all-nodes: false;
     in-out property <bool> ac-print-all-currents: false;
-    in-out property <bool> ac-print-bjt-leads: false;
-    in-out property <bool> ac-print-fet-leads: false;
     in-out property <string> ac-print-specific-variables: "";
     in-out property <int> ac-print-format-index: 0;
     in-out property <string> ac-print-output-file: "";
@@ -181,8 +179,6 @@ export component SimulationParametersPanel inherits ModalPanel {
     in-out property <int> noise-print-type-index: 0;
     in-out property <bool> noise-print-all-nodes: false;
     in-out property <bool> noise-print-all-currents: false;
-    in-out property <bool> noise-print-bjt-leads: false;
-    in-out property <bool> noise-print-fet-leads: false;
     in-out property <string> noise-print-specific-variables: "";
     in-out property <int> noise-print-format-index: 0;
     in-out property <string> noise-print-output-file: "";
@@ -228,9 +224,6 @@ export component SimulationParametersPanel inherits ModalPanel {
     in-out property <int> lin-print-type-index: 0;
     in-out property <bool> lin-print-all-nodes: false;
     in-out property <bool> lin-print-all-currents: false;
-    in-out property <bool> lin-print-power: false;
-    in-out property <bool> lin-print-bjt-leads: false;
-    in-out property <bool> lin-print-fet-leads: false;
     in-out property <string> lin-print-specific-variables: "";
     in-out property <int> lin-print-format-index: 0;
     in-out property <string> lin-print-output-file: "";
@@ -412,8 +405,6 @@ export component SimulationParametersPanel inherits ModalPanel {
                     print-type-index <=> root.ac-print-type-index;
                     print-all-nodes <=> root.ac-print-all-nodes;
                     print-all-currents <=> root.ac-print-all-currents;
-                    print-bjt-leads <=> root.ac-print-bjt-leads;
-                    print-fet-leads <=> root.ac-print-fet-leads;
                     print-specific-variables <=> root.ac-print-specific-variables;
                     print-format-index <=> root.ac-print-format-index;
                     print-output-file <=> root.ac-print-output-file;
@@ -440,8 +431,6 @@ export component SimulationParametersPanel inherits ModalPanel {
                     print-type-index <=> root.noise-print-type-index;
                     print-all-nodes <=> root.noise-print-all-nodes;
                     print-all-currents <=> root.noise-print-all-currents;
-                    print-bjt-leads <=> root.noise-print-bjt-leads;
-                    print-fet-leads <=> root.noise-print-fet-leads;
                     print-specific-variables <=> root.noise-print-specific-variables;
                     print-format-index <=> root.noise-print-format-index;
                     print-output-file <=> root.noise-print-output-file;
@@ -495,9 +484,6 @@ export component SimulationParametersPanel inherits ModalPanel {
                     print-type-index <=> root.lin-print-type-index;
                     print-all-nodes <=> root.lin-print-all-nodes;
                     print-all-currents <=> root.lin-print-all-currents;
-                    print-power <=> root.lin-print-power;
-                    print-bjt-leads <=> root.lin-print-bjt-leads;
-                    print-fet-leads <=> root.lin-print-fet-leads;
                     print-specific-variables <=> root.lin-print-specific-variables;
                     print-format-index <=> root.lin-print-format-index;
                     print-output-file <=> root.lin-print-output-file;

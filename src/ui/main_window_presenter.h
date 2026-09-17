@@ -96,6 +96,8 @@ private:
         int id = 0;
         std::shared_ptr<XyceOutputFile> file;
         bool closable = false;
+        // smith datasets build smith-kind charts plotting the gamma plane
+        bool smith = false;
     };
 
     // synchronize plot tab list and active index with the view

@@ -28,6 +28,9 @@ struct ActionStateInput
     bool abscissa_is_time = false;
     // the raw output spans multiple steps, making the step tool available
     bool has_steps = false;
+    // the active plot dataset builds smith-kind charts, hiding the
+    // cartesian-only tools (zooming, chart management, new window)
+    bool charts_smith = false;
 };
 
 // enablement of each main window action
@@ -43,6 +46,8 @@ struct ActionStateEnablement
     // chart context tools (FFT for time-domain data, step tool for stepped runs)
     bool fft = false;
     bool step_tool = false;
+    // the active plot dataset builds smith-kind charts
+    bool charts_smith = false;
 };
 
 // derive the application state from the input flags

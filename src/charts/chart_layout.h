@@ -76,6 +76,10 @@ struct ChartSeriesFrame
 
     size_t step = 0;
 
+    // smith grid runs flagged as the unit circle boundary render in the
+    // border color instead of the grid color
+    bool boundary = false;
+
     std::vector<ChartPoint> points;
 };
 
@@ -129,6 +133,13 @@ struct ChartFrame
 
     float legend_h = 0.0f;
 
+    // smith charts draw the fixed +-1 gamma plane; the grid polylines (unit
+    // circle boundary, constant resistance circles and constant reactance
+    // arcs) are pixel-space runs like the series
+    bool smith = false;
+
+    std::vector<ChartSeriesFrame> smith_grid;
+
     std::vector<ChartSeriesFrame> series;
 };
 
@@ -148,6 +159,11 @@ public:
 
     // frame for one chart filling the given logical canvas size
     ChartFrame build(const ChartEngine& engine, float width, float height) const;
+
+    // frame for one smith chart filling the given logical canvas size; the
+    // plot rect is square (equal aspect) and the grid polylines map the fixed
+    // +-1 gamma plane
+    [[nodiscard]] ChartFrame build_smith(const ChartEngine& engine, float width, float height) const;
 
 private:
     TextMeasurer m_measure;

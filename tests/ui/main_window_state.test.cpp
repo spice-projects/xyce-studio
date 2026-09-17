@@ -282,3 +282,16 @@ TEST(MainWindowStateChecks, state_name_maps_every_state) {
     EXPECT_EQ(app_state_name(AppState::NetlistWithResults), "netlist-with-results");
     EXPECT_EQ(app_state_name(AppState::ChartOnly), "charts-only");
 }
+
+TEST(MainWindowStateChecks, smith_flag_passes_through_to_the_enablement) {
+    // arrange — input flags with the smith dataset active
+    ActionStateInput input;
+    input.has_netlist = true;
+    input.has_raw = true;
+    input.charts_shown = true;
+    input.charts_smith = true;
+    // act
+    const auto enablement = compute_action_enablement(input);
+    // assert
+    EXPECT_TRUE(enablement.charts_smith);
+}

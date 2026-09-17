@@ -534,3 +534,87 @@ TEST(PrintParametersChecks, strip_print_file_result_reparses_without_file) {
     ASSERT_EQ(reparsed->print_format, "RAW");
     ASSERT_EQ(reparsed->output_variables.size(), 1);
 }
+
+TEST(PrintParametersChecks, ac_print_strips_power_and_lead_wildcards) {
+    // arrange — an AC print carrying the power and device lead wildcards the
+    // AC analysis cannot produce per the Xyce reference guide
+    // act
+    const auto result = PrintParameters::from_xyce_statement(".PRINT AC V(*) I(*) P(*) W(*) IB(*) IC(*) IE(*) IS(*) ID(*) IG(*)");
+    // assert — only the supported wildcards survive
+    ASSERT_TRUE(result.has_value());
+    const std::vector<std::string> expected = {"V(*)", "I(*)"};
+    ASSERT_EQ(result->output_variables, expected);
+}
+
+TEST(PrintParametersChecks, noise_print_strips_power_and_lead_wildcards) {
+    // arrange — a NOISE print with the unsupported wildcards
+    // act
+    const auto result = PrintParameters::from_xyce_statement(".PRINT NOISE V(*) P(*) IC(*) IG(*)");
+    // assert
+    ASSERT_TRUE(result.has_value());
+    const std::vector<std::string> expected = {"V(*)"};
+    ASSERT_EQ(result->output_variables, expected);
+}
+
+TEST(PrintParametersChecks, hb_print_strips_power_and_lead_wildcards) {
+    // arrange — HB prints (including the FD/TD variants) share the AC restriction
+    // act
+    const auto hb = PrintParameters::from_xyce_statement(".PRINT HB V(*) P(*) IE(*)");
+    const auto hb_fd = PrintParameters::from_xyce_statement(".PRINT HB_FD V(*) W(*) ID(*)");
+    const auto hb_td = PrintParameters::from_xyce_statement(".PRINT HB_TD V(*) IC(*)");
+    // assert
+    ASSERT_TRUE(hb.has_value());
+    ASSERT_EQ(hb->output_variables, std::vector<std::string>{"V(*)"});
+    ASSERT_TRUE(hb_fd.has_value());
+    ASSERT_EQ(hb_fd->output_variables, std::vector<std::string>{"V(*)"});
+    ASSERT_TRUE(hb_td.has_value());
+    ASSERT_EQ(hb_td->output_variables, std::vector<std::string>{"V(*)"});
+}
+
+TEST(PrintParametersChecks, lowercase_linear_print_type_is_sanitized) {
+    // arrange — a lower case print type statement
+    // act
+    const auto result = PrintParameters::from_xyce_statement(".print ac V(*) P(*)");
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->output_variables, std::vector<std::string>{"V(*)"});
+}
+
+TEST(PrintParametersChecks, ac_print_constructs_are_sanitized_in_place) {
+    // arrange — a directly constructed AC print with the unsupported wildcards
+    const PrintParameters print("AC", "", "", {"V(*)", "P(*)", "IC(*)", "VDB(V(out))"}, {});
+    // assert — the wildcards are stripped, other tokens are preserved in order
+    const std::vector<std::string> expected = {"V(*)", "VDB(V(out))"};
+    ASSERT_EQ(print.output_variables, expected);
+}
+
+TEST(PrintParametersChecks, transient_print_keeps_power_and_lead_wildcards) {
+    // arrange — a TRAN print carries the full wildcard set
+    // act
+    const auto result = PrintParameters::from_xyce_statement(".PRINT TRAN V(*) I(*) P(*) IB(*) ID(*)");
+    // assert — transient prints support power and lead currents
+    ASSERT_TRUE(result.has_value());
+    const std::vector<std::string> expected = {"V(*)", "I(*)", "P(*)", "IB(*)", "ID(*)"};
+    ASSERT_EQ(result->output_variables, expected);
+}
+
+TEST(PrintParametersChecks, dc_print_keeps_power_and_lead_wildcards) {
+    // arrange — a DC print with the full wildcard set
+    // act
+    const auto result = PrintParameters::from_xyce_statement(".PRINT DC V(*) P(*) W(*) IC(*)");
+    // assert — DC prints support power and lead currents; W(*) is a power
+    // synonym and parses as P(*)
+    ASSERT_TRUE(result.has_value());
+    const std::vector<std::string> expected = {"V(*)", "P(*)", "P(*)", "IC(*)"};
+    ASSERT_EQ(result->output_variables, expected);
+}
+
+TEST(PrintParametersChecks, ac_print_round_trip_drops_unsupported_wildcards) {
+    // arrange — a directly constructed AC print with the unsupported wildcards
+    const PrintParameters print("AC", "RAW", "", {"V(*)", "P(*)", "IC(*)"}, {});
+    // act
+    const auto reparsed = PrintParameters::from_xyce_statement(print.to_xyce_statement());
+    // assert — the serialized statement never carries the unsupported tokens
+    ASSERT_TRUE(reparsed.has_value());
+    ASSERT_EQ(reparsed->output_variables, std::vector<std::string>{"V(*)"});
+}

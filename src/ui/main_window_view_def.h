@@ -55,7 +55,7 @@ public:
     // charts; datasets are identified by the plot tab id so the renderer keeps
     // an independent chart state per tab (zoom, plots, step selection) and a
     // tab switch restores the previous state instead of rebuilding
-    virtual void update_charts(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots) = 0;
+    virtual void update_charts(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots, bool smith) = 0;
 
     // drop the chart state of the dataset with the given tab id
     virtual void release_charts(int dataset_id) = 0;

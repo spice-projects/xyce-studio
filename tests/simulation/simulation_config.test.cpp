@@ -607,3 +607,36 @@ TEST(SimulationConfigValidationChecks, validate_passes_with_enabled_step_and_ana
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
+
+TEST(SimulationConfigPrintSanitizeChecks, ac_analysis_print_drops_unsupported_wildcards) {
+    // arrange — a netlist directive set with an AC analysis and a print
+    // carrying the power and device lead wildcards the AC analysis cannot
+    // produce
+    // act
+    const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".PRINT AC FORMAT=RAW V(*) I(*) P(*) IC(*) ID(*)"});
+    // assert — the analysis print keeps only the supported wildcards
+    const auto print_parameters = config.analysis_print_parameters();
+    ASSERT_TRUE(print_parameters.has_value());
+    ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "I(*)"}));
+}
+
+TEST(SimulationConfigPrintSanitizeChecks, lin_analysis_print_keeps_the_ac_restriction) {
+    // arrange — a LIN directive set whose associated AC print carries the
+    // power and lead wildcards
+    // act
+    const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin.s2p", ".PRINT AC FORMAT=RAW V(*) P(*) IC(*)"});
+    // assert — the LIN analysis print is an AC print, sanitized the same way
+    const auto print_parameters = config.analysis_print_parameters();
+    ASSERT_TRUE(print_parameters.has_value());
+    ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)"}));
+}
+
+TEST(SimulationConfigPrintSanitizeChecks, transient_analysis_print_keeps_power_and_leads) {
+    // arrange — a transient netlist carrying the full wildcard set
+    // act
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN FORMAT=RAW V(*) P(*) IC(*)"});
+    // assert — transient prints keep the power and lead current wildcards
+    const auto print_parameters = config.analysis_print_parameters();
+    ASSERT_TRUE(print_parameters.has_value());
+    ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "P(*)", "IC(*)"}));
+}

@@ -53,6 +53,13 @@ public:
 // resolves to the actual file when composing the output copy destination
 [[nodiscard]] std::string strip_outer_quotes(std::string value);
 
+// remove the output variable tokens the given print type cannot produce per
+// the Xyce reference guide: power (P(*)/W(*)) and device lead currents
+// (IB/IC/IE/IS/ID/IG) are unsupported for AC, NOISE and HB prints, which only
+// carry voltages and branch currents (V, E, H, L devices, voltage-form B);
+// any other print type returns the variables unchanged
+[[nodiscard]] std::vector<std::string> sanitize_print_output_variables(const std::string& print_type, const std::vector<std::string>& output_variables);
+
 // format a FILE= option value: values containing whitespace are quoted so the
 // statement survives tokenization; already-quoted values pass through as-is
 [[nodiscard]] std::string format_print_file_value(const std::string& file);

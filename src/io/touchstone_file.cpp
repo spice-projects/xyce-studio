@@ -737,6 +737,8 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     }
     // store parameter type
     file_metadata["parameter_type"] = param_str;
+    // store port count
+    file_metadata["num_ports"] = std::to_string(n);
     // store data format
     file_metadata["data_format"] = fmt_str;
     // store frequency unit name

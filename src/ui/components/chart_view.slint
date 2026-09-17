@@ -61,6 +61,10 @@ export struct ChartFrameData {
     legend-y: float,
     legend-w: float,
     legend-h: float,
+    // smith charts draw the fixed +-1 gamma plane with a grid of constant
+    // resistance circles and constant reactance arcs instead of axis ticks
+    smith: bool,
+    smith-grid: [ChartSeriesData],
     legend: [ChartLegendItemData],
     series: [ChartSeriesData],
 }
@@ -149,6 +153,21 @@ export component ChartView inherits Rectangle {
             width: 100%;
             height: 1px;
             background: root.axis-grid-color(line.major, line.alpha);
+        }
+
+        // smith grid: the unit circle boundary and the constant resistance
+        // and reactance grid polylines, drawn under the series
+        for run in frame.smith-grid: Path {
+            commands: run.commands;
+            fill: transparent;
+            stroke: run.color;
+            stroke-width: 1px;
+            width: frame.plot-w * root.scale-x;
+            height: frame.plot-h * root.scale-y;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: frame.plot-w;
+            viewbox-height: frame.plot-h;
         }
 
         // plotted series as stroked polylines clipped to the plot area

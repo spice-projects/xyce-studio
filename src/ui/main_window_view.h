@@ -57,7 +57,7 @@ public:
     void append_simulation_output_line(const std::string& line) override;
     bool simulation_output_panel_hidden() const override;
     bool simulation_output_has_content() const override;
-    void update_charts(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots) override;
+    void update_charts(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots, bool smith) override;
     void release_charts(int dataset_id) override;
     void release_all_charts() override;
     void set_plot_tabs(const std::vector<PlotTabItem>& tabs, int active_index) override;

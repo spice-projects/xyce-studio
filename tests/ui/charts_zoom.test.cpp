@@ -25,7 +25,7 @@ TEST(ChartsZoomTest, zoom_on_one_chart_applies_full_2d_there_and_horizontal_only
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}}, false);
     renderer.add_chart();
     renderer.plot_chart_expressions(1, {expression_manager.expressions()[1]});
     renderer.publish_frames();
@@ -73,7 +73,7 @@ TEST(ChartsZoomTest, chart_added_after_a_zoom_joins_the_shared_abscissa_range) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}}, false);
     renderer.add_chart();
     renderer.plot_chart_expressions(1, {expression_manager.expressions()[1]});
     renderer.publish_frames();

@@ -35,9 +35,6 @@ export component LinParametersPanel inherits Rectangle {
     in-out property <int> print-type-index: 0;
     in-out property <bool> print-all-nodes: false;
     in-out property <bool> print-all-currents: false;
-    in-out property <bool> print-power: false;
-    in-out property <bool> print-bjt-leads: false;
-    in-out property <bool> print-fet-leads: false;
     in-out property <string> print-specific-variables: "";
     in-out property <int> print-format-index: 0;
     in-out property <string> print-output-file: "";
@@ -111,7 +108,10 @@ export component LinParametersPanel inherits Rectangle {
                         }
                     }
 
-                    // wildcard voltage/current/power and lead rows
+                    // wildcard voltage/current rows; power and device lead
+                    // currents are not available for a linear analysis (the
+                    // print is an AC print, only branch currents of V, E, H
+                    // and L devices are supported)
                     HorizontalLayout {
                         spacing: 16px;
                         // min-widths pin each checkbox so toggling cannot reflow the row
@@ -126,24 +126,6 @@ export component LinParametersPanel inherits Rectangle {
                             text: "All currents I(*)";
                             min-width: 136px;
                             checked <=> root.print-all-currents;
-                        }
-
-                        CheckBox {
-                            text: "Power P(*)";
-                            min-width: 115px;
-                            checked <=> root.print-power;
-                        }
-
-                        CheckBox {
-                            text: "BJT leads";
-                            min-width: 110px;
-                            checked <=> root.print-bjt-leads;
-                        }
-
-                        CheckBox {
-                            text: "FET leads";
-                            min-width: 111px;
-                            checked <=> root.print-fet-leads;
                         }
                     }
 

@@ -173,7 +173,32 @@ static std::string join_tokens(const std::vector<std::string>& tokens) {
 }
 
 PrintParameters::PrintParameters(std::string print_type, std::string print_format, std::string print_file, std::vector<std::string> output_variables, std::vector<std::string> extra_options) :
-    print_type(std::move(print_type)), print_format(std::move(print_format)), print_file(std::move(print_file)), output_variables(std::move(output_variables)), extra_options(std::move(extra_options)) {}
+    print_type(std::move(print_type)), print_format(std::move(print_format)), print_file(std::move(print_file)), output_variables(sanitize_print_output_variables(this->print_type, output_variables)), extra_options(std::move(extra_options)) {}
+
+std::vector<std::string> sanitize_print_output_variables(const std::string& print_type, const std::vector<std::string>& output_variables) {
+    // wildcard tokens unsupported by the linear frequency-domain analyses per
+    // the Xyce reference guide: power (P(*)/W(*)) and device lead currents
+    // (IB/IC/IE/IS/ID/IG) are unsupported for AC, NOISE and HB prints, which
+    // only carry voltages and branch currents (V, E, H, L devices, voltage
+    // form B device)
+    static const std::set<std::string> UNSUPPORTED_WILDCARDS = {"P(*)", "W(*)", "IB(*)", "IC(*)", "IE(*)", "IS(*)", "ID(*)", "IG(*)"};
+    // print types restricted by the reference guide statements
+    static const std::set<std::string> LINEAR_PRINT_TYPES = {"AC", "NOISE", "HB", "HB_FD", "HB_TD"};
+    // any other print type keeps the variables unchanged
+    if (UNSUPPORTED_WILDCARDS.empty() || LINEAR_PRINT_TYPES.count(to_upper(print_type)) == 0)
+        return output_variables;
+    // filtered variable list under construction
+    std::vector<std::string> sanitized;
+    // reserve space
+    sanitized.reserve(output_variables.size());
+    // keep the tokens the print type supports
+    for (const auto& variable : output_variables) {
+        if (UNSUPPORTED_WILDCARDS.count(variable) == 0)
+            sanitized.push_back(variable);
+    }
+    // exit
+    return sanitized;
+}
 
 std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::string& print_statement) {
     // parse tokens
