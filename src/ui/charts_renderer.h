@@ -42,8 +42,9 @@ public:
 
     // data path, wired on dataset activation; datasets are identified by the
     // owning plot tab id so each tab keeps its own charts and zoom state and
-    // switching tabs restores the previous state instead of rebuilding
-    void update(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots);
+    // switching tabs restores the previous state instead of rebuilding;
+    // smith datasets create smith-kind charts instead of cartesian ones
+    void update(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots, bool smith);
 
     ChartEngine* add_chart();
 
@@ -70,6 +71,10 @@ public:
 
     // all expressions known to the loaded file, from the expression manager
     [[nodiscard]] std::vector<AnyExpression*> all_expressions() const;
+
+    // whether the active dataset builds smith-kind charts; smith plots only
+    // offer the diagonal parameter entries
+    [[nodiscard]] bool active_dataset_is_smith() const;
 
     // current abscissa value range [min, max] from the loaded step information
     [[nodiscard]] std::pair<double, double> abscissa_range() const;
@@ -141,6 +146,9 @@ private:
 
         std::vector<std::vector<std::string>> suggested_plots;
 
+        // smith datasets build smith-kind charts plotting the gamma plane
+        bool smith = false;
+
         std::vector<std::unique_ptr<ChartEngine>> charts;
     };
 
@@ -183,6 +191,11 @@ private:
     slint::Timer m_hover_timer;
 
     double m_hover_abscissa_value = 0.0;
+
+    // gamma-plane position of the cursor for smith chart hover readouts
+    double m_hover_gamma_r = 0.0;
+
+    double m_hover_gamma_i = 0.0;
 
     size_t m_hover_chart_index = 0;
 

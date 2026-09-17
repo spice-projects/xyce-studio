@@ -23,7 +23,7 @@ TEST(ChartsViewportTest, set_viewport_ignores_degenerate_sizes_and_noop_updates)
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // the initial viewport and the dataset activation each publish once
     ASSERT_EQ(published.size(), 2u);
     EXPECT_EQ(published.back().size(), 1u);
@@ -52,7 +52,7 @@ TEST(ChartsViewportTest, frames_are_not_published_without_a_valid_viewport) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     // act — load a dataset before any viewport is known
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // assert — the charts exist but nothing was published to the hidden panel
     EXPECT_EQ(renderer.chart_count(), 1u);
     EXPECT_TRUE(published.empty());
@@ -99,7 +99,7 @@ TEST(ChartsViewportTest, set_dark_mode_republishes_the_frames_only_on_change) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     ASSERT_EQ(published.size(), 2u);
     // act — switch to dark mode, repeat it, then switch back
     renderer.set_dark_mode(true);

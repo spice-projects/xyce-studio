@@ -26,7 +26,7 @@ TEST(ChartsAddChartTest, add_chart_after_index_inserts_directly_after_the_refere
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     renderer.add_chart();
     renderer.plot_chart_expressions(1, {expression_manager.expressions()[2]});
     ASSERT_EQ(renderer.chart_count(), 2u);
@@ -62,7 +62,7 @@ TEST(ChartsAddChartTest, add_chart_with_out_of_range_index_appends_at_the_end) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     ASSERT_EQ(renderer.chart_count(), 1u);
     // act — add a chart referencing an index beyond the stack
     renderer.add_chart(50);

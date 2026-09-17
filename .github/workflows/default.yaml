@@ -128,7 +128,6 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          validate: false
 
       - name: Configure CMake
         if: ${{ matrix.build_enabled && hashFiles('.build-release/CMakeCache.txt') == '' }}

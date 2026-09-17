@@ -27,7 +27,7 @@ TEST(ChartsMoveChartTest, move_chart_reorders_the_stack_and_carries_the_plotted_
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}, {"V(c)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}, {"V(c)"}}, false);
     ASSERT_EQ(renderer.chart_count(), 3u);
     // act — move the last chart to the top of the stack
     renderer.move_chart(2, 0);
@@ -63,7 +63,7 @@ TEST(ChartsMoveChartTest, move_chart_downward_lands_at_the_target_index) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}, {"V(c)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}, {"V(c)"}}, false);
     // act — move the first chart to the last position
     renderer.move_chart(0, 2);
     // assert — the moved chart sits between the other two charts
@@ -94,7 +94,7 @@ TEST(ChartsMoveChartTest, move_chart_carries_the_zoom_window_with_the_chart) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     const ChartFrame pre_first = published.back()[0];
     renderer.zoom_drag_started(pre_first.plot_x + pre_first.plot_w * 0.1f, pre_first.plot_y + pre_first.plot_h * 0.1f);
     renderer.zoom_drag_moved(pre_first.plot_x + pre_first.plot_w * 0.8f, pre_first.plot_y + pre_first.plot_h * 0.8f);
@@ -134,7 +134,7 @@ TEST(ChartsMoveChartTest, move_chart_to_the_same_index_is_a_noop) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     const size_t publish_count = published.size();
     // act — move the first chart onto itself
     renderer.move_chart(0, 0);
@@ -158,7 +158,7 @@ TEST(ChartsMoveChartTest, move_chart_with_out_of_range_indexes_is_a_noop) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     const size_t publish_count = published.size();
     // act — move with indexes beyond the stack
     renderer.move_chart(0, 5);

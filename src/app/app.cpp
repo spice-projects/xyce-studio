@@ -62,20 +62,20 @@ void App::initialize(int argc, char** argv) {
         else if (std::string(argv[i]).starts_with("--log-level="))
             m_log_level = std::string(argv[i]).substr(12);
         // --netlist VALUE or --netlist=VALUE opens a netlist file at startup
-        else if (auto value = option_value(argc, argv, i, "--netlist")) {
+        else if (auto netlist_value = option_value(argc, argv, i, "--netlist")) {
             // only netlist files are accepted through this option
-            if (has_extension(*value, ".cir"))
-                m_netlist_path = std::filesystem::path(*value);
+            if (has_extension(*netlist_value, ".cir"))
+                m_netlist_path = std::filesystem::path(*netlist_value);
         }
         // --raw VALUE or --raw=VALUE opens a simulation output file at startup
-        else if (auto value = option_value(argc, argv, i, "--raw")) {
+        else if (auto raw_value = option_value(argc, argv, i, "--raw")) {
             // only raw output files are accepted through this option
-            if (has_extension(*value, ".raw"))
-                m_raw_path = std::filesystem::path(*value);
+            if (has_extension(*raw_value, ".raw"))
+                m_raw_path = std::filesystem::path(*raw_value);
         }
         // --xyce VALUE or --xyce=VALUE overrides the Xyce executable for this session
-        else if (auto value = option_value(argc, argv, i, "--xyce"))
-            m_xyce_path = *value;
+        else if (auto xyce_value = option_value(argc, argv, i, "--xyce"))
+            m_xyce_path = *xyce_value;
     }
     // normalize to lowercase
     m_log_level = to_lower(m_log_level);

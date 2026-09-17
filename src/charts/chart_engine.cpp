@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <format>
 #include <limits>
+#include <numbers>
 #include <ranges>
 #include <set>
 #include <span>
@@ -11,9 +13,10 @@
 #include <vector>
 
 #include <spdlog/spdlog.h>
-
 #include "chart_engine.h"
+
 #include "decimate.h"
+#include "smith_chart.h"
 
 namespace
 {
@@ -92,7 +95,20 @@ namespace
     }
 
     // resolve the expressions to plot for one ordinate; complex expressions expand to magnitude and phase
-    std::vector<AnyExpression*> get_expressions_to_plot(ExpressionManager* expression_manager, AnyExpression* expression) {
+    std::vector<AnyExpression*> get_expressions_to_plot(ExpressionManager* expression_manager, AnyExpression* expression, const ChartKind kind) {
+        // complex expression on a smith chart plots directly as a reflection
+        // coefficient, one gamma trace per expression
+        if (kind == ChartKind::SMITH) {
+            // only complex expressions carry a gamma-plane position
+            if (!std::holds_alternative<Expression<std::complex<double>>>(*expression)) {
+                // log information
+                spdlog::warn("Cannot plot real expression '{}' on a smith chart", std::get<Expression<double>>(*expression).name());
+                // skip the expression
+                return {};
+            }
+            // exit
+            return {expression};
+        }
         // nothing to do on double expressions
         if (std::holds_alternative<Expression<double>>(*expression)) {
             // exit
@@ -162,8 +178,8 @@ std::vector<double> ChartEngine::log2_major_ticks(const double x_left, const dou
     return result;
 }
 
-ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target) :
-    m_expression_manager(expression_manager), m_step_information(step_information), m_abscissa_scale(abscissa_scale), m_decimate_target(decimate_target) {
+ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target, const ChartKind kind) :
+    m_expression_manager(expression_manager), m_step_information(step_information), m_kind(kind), m_abscissa_scale(abscissa_scale), m_decimate_target(decimate_target) {
     // abscissa
     auto& abscissa = expression_manager->abscissa();
     // abscissa name & unit
@@ -228,7 +244,51 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
     // loop expressions that need to be rendered
     for (AnyExpression* ordinate : expressions) {
         // process ordinate and find expressions to plot
-        for (AnyExpression* ordinate_variant : get_expressions_to_plot(m_expression_manager, ordinate)) {
+        for (AnyExpression* ordinate_variant : get_expressions_to_plot(m_expression_manager, ordinate, m_kind)) {
+            // smith charts plot the complex expression directly as a reflection coefficient trace
+            if (m_kind == ChartKind::SMITH) {
+                // complex ordinate expression
+                auto& complex_ordinate_variant = std::get<Expression<std::complex<double>>>(*ordinate_variant);
+                // lookup ordinate variant in series, create default if it does not exist;
+                // the unassigned axis is the -1 sentinel because smith charts have no y axes
+                auto [it0, inserted0] = m_series.try_emplace(complex_ordinate_variant.name(), OrdinateSeries(ordinate_variant, -1, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
+                // ordinate series data
+                auto& [_, y_axis, rendered_series, min_value, max_value, color] = (it0->second);
+                // loop rendered steps
+                for (auto it2 = rendered_series.begin(); it2 != rendered_series.end();) {
+                    // check step in selected steps
+                    if (!m_selected_steps.contains(it2->first)) {
+                        // remove it
+                        it2 = rendered_series.erase(it2);
+                        // next
+                        continue;
+                    }
+                    // next
+                    ++it2;
+                }
+                // process color
+                if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
+                    // assign next color in palette
+                    color = SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
+                    // increment color index
+                    m_next_color_index++;
+                }
+                // loop steps to render
+                for (size_t step : m_selected_steps) {
+                    // skip step if already rendered
+                    if (rendered_series.contains(step))
+                        continue;
+                    // plot step as a gamma-plane trace
+                    if (auto [ok, gamma_r, gamma_i] = plot_smith_step(complex_ordinate_variant, step); ok) {
+                        // append to rendered series
+                        rendered_series.emplace(step, std::pair(std::move(gamma_r), std::move(gamma_i)));
+                    }
+                }
+                // update color
+                std::get<5>(it0->second) = color;
+                // next ordinate
+                continue;
+            }
             // ordinate expression is always an Expression<double> at this point
             Expression<double>& double_ordinate_variant = std::get<Expression<double>>(*ordinate_variant);
             // lookup ordinate variant in series, create default if it does not exist;
@@ -419,6 +479,54 @@ std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_s
     return {true, std::move(x_np), std::move(y_np), std::min(min_value, step_min_value), std::max(max_value, step_max_value)};
 }
 
+std::tuple<bool, View<double>, View<double>> ChartEngine::plot_smith_step(Expression<std::complex<double>>& ordinate_variant, const size_t step) const {
+    // ordinate values of the step (complex parameter values)
+    auto ordinate_values = ordinate_variant.step_data(step);
+    // empty steps carry no plottable data
+    if (ordinate_values.empty())
+        return {};
+    // parameter type from the expression name prefix (s/y/z); smith charts
+    // default to s-parameters for names that carry no recognizable prefix
+    const std::string parameter_type(1, ordinate_variant.name()[0]);
+    const std::string resolved_parameter_type = (parameter_type == "S" || parameter_type == "Y" || parameter_type == "Z") ? parameter_type : "S";
+    // reference impedance for the conversion, from the expression metadata
+    double reference_impedance = 50.0;
+    if (!ordinate_variant.metadata().empty()) {
+        // metadata of the first step
+        const auto& expression_metadata = ordinate_variant.metadata().front();
+        // reference impedance entry when present
+        if (const auto entry = expression_metadata.find("reference_impedance"); entry != expression_metadata.end())
+            reference_impedance = std::stod(entry->second);
+    }
+    // gamma-plane views under construction
+    std::vector<double> gamma_r_values;
+    std::vector<double> gamma_i_values;
+    // reserve one slot per sample
+    gamma_r_values.reserve(ordinate_values.size());
+    gamma_i_values.reserve(ordinate_values.size());
+    // decimation is bypassed for smith traces: the curve geometry (issue
+    // requirement) survives only when every original sample is rendered, and
+    // s-parameter sweeps are small enough to plot in full
+    bool plottable = false;
+    // loop samples of the step
+    for (const auto& value : ordinate_values) {
+        // reflection coefficient of the parameter value
+        const auto gamma = smith::reflection_coefficient(resolved_parameter_type, value, reference_impedance);
+        // non-finite reflections break the polyline in the layout but stay in
+        // the views so sample indexes remain aligned with the abscissa
+        gamma_r_values.push_back(gamma.real());
+        gamma_i_values.push_back(gamma.imag());
+        // finite samples make the step plottable
+        if (std::isfinite(gamma.real()) && std::isfinite(gamma.imag()))
+            plottable = true;
+    }
+    // check all samples were non-plottable
+    if (!plottable)
+        return {};
+    // exit
+    return {true, View<double>(std::move(gamma_r_values)), View<double>(std::move(gamma_i_values))};
+}
+
 void ChartEngine::clear() {
     // clear internal structures
     m_series.clear();
@@ -514,6 +622,9 @@ double ChartEngine::plot_ratio_to_abscissa_value(const double x_ratio) const {
 }
 
 void ChartEngine::reset_zoom_window(const bool horizontal, const bool vertical) {
+    // smith charts plot the fixed +-1 gamma plane without zooming
+    if (m_kind == ChartKind::SMITH)
+        return;
     // check horizontal reset
     if (horizontal) {
         // update zoom window
@@ -541,6 +652,9 @@ void ChartEngine::reset_zoom_window(const bool horizontal, const bool vertical) 
 }
 
 void ChartEngine::update_zoom_window(double x_left_ratio, double x_right_ratio, double y_top_ratio, double y_bottom_ratio) {
+    // smith charts plot the fixed +-1 gamma plane without zooming
+    if (m_kind == ChartKind::SMITH)
+        return;
     // check horizontal zoom ratios were provided
     if (x_left_ratio >= 0 && x_right_ratio >= 0) {
         // current zoom window
@@ -671,6 +785,10 @@ std::pair<size_t, size_t> ChartEngine::find_abscissa_indexes(const std::span<con
 }
 
 void ChartEngine::redraw_all_series() {
+    // smith charts plot the fixed +-1 gamma plane; the rendered traces never
+    // depend on a zoom window
+    if (m_kind == ChartKind::SMITH)
+        return;
     // current zoom window
     auto& [x_left_ratio, y_top_ratio, x_right_ratio, current_y_bottom_ratio] = m_zoom_window;
     // x0 and x1
@@ -795,5 +913,100 @@ std::string ChartEngine::hovered_series_text(const double abscissa_value) const 
         else
             result += " " + ordinate_variant.name() + "=" + values;
     }
+    return result;
+}
+
+std::string ChartEngine::hovered_smith_text(const double gamma_r, const double gamma_i) const {
+    // smith charts report the trace point nearest the cursor
+    if (m_kind != ChartKind::SMITH)
+        return {};
+    // nearest trace point search state: squared distance, series name, step
+    // index and sample index inside the rendered views
+    double best_distance = std::numeric_limits<double>::max();
+    const std::string* best_name = nullptr;
+    size_t best_step = 0;
+    size_t best_index = 0;
+    // cursor position in the gamma plane
+    const std::complex<double> cursor(gamma_r, gamma_i);
+    // loop series in name order, deterministic nearest-point resolution
+    for (const auto& [name, ordinate_series] : m_series) {
+        // rendered steps of this series
+        const auto& rendered_series = std::get<2>(ordinate_series);
+        // loop rendered steps
+        for (const auto& [step, views] : rendered_series) {
+            // gamma-plane views of this step
+            const auto& [gamma_r_view, gamma_i_view] = views;
+            // loop samples
+            for (size_t i = 0; i < gamma_r_view.size(); ++i) {
+                // gamma-plane coordinates of the sample
+                const std::complex<double> point(gamma_r_view[i], gamma_i_view[i]);
+                // skip non-finite samples
+                if (!std::isfinite(point.real()) || !std::isfinite(point.imag()))
+                    continue;
+                // squared distance to the cursor
+                const double distance = std::norm(point - cursor);
+                // keep the nearest point
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    best_name = &name;
+                    best_step = step;
+                    best_index = i;
+                }
+            }
+        }
+    }
+    // no plotted trace point
+    if (best_name == nullptr)
+        return {};
+    // series data of the nearest point
+    const auto& ordinate_series = m_series.at(*best_name);
+    // ordinate variant is a complex expression for smith charts
+    auto& ordinate_variant = std::get<Expression<std::complex<double>>>(*std::get<0>(ordinate_series));
+    // frequency of the nearest sample from the abscissa; smith traces render
+    // every original sample without decimation, so sample indexes stay
+    // aligned with the abscissa of the step
+    auto abscissa_values = m_expression_manager->abscissa().step_data(best_step);
+    // guard against a shorter abscissa view
+    const double frequency = best_index < abscissa_values.size() ? abscissa_values[best_index] : 0.0;
+    // reflection coefficient of the nearest sample from the rendered views
+    const auto& rendered_views = std::get<2>(ordinate_series);
+    // gamma-plane views of the nearest step
+    const auto& [gamma_r_view, gamma_i_view] = rendered_views.at(best_step);
+    // reflection coefficient at the nearest sample
+    const std::complex<double> gamma(gamma_r_view[best_index], gamma_i_view[best_index]);
+    // normalized impedance at the reflection coefficient
+    const auto z = smith::impedance_from_gamma(gamma);
+    // ohmic impedance against the expression reference impedance
+    double reference_impedance = 50.0;
+    if (!ordinate_variant.metadata().empty()) {
+        // metadata of the first step
+        const auto& expression_metadata = ordinate_variant.metadata().front();
+        // reference impedance entry when present
+        if (const auto entry = expression_metadata.find("reference_impedance"); entry != expression_metadata.end())
+            reference_impedance = std::stod(entry->second);
+    }
+    // readout text: frequency, reflection coefficient (real, imaginary, magnitude,
+    // angle in degrees), normalized impedance, ohmic impedance, vswr and return
+    // loss at the nearest trace point
+    std::string result = m_abscissa_name + "=" + format_metric(frequency, m_abscissa_unit);
+    // series name
+    result += " " + *best_name;
+    // reflection coefficient components
+    result += " Γ=(" + format_metric(gamma.real(), "") + ", " + format_metric(gamma.imag(), "") + ")";
+    // magnitude and angle in degrees
+    result += " |Γ|=" + format_metric(std::abs(gamma), "") + "∠" + format_metric(std::arg(gamma) * 180.0 / std::numbers::pi, "°");
+    // normalized impedance components
+    result += " z=(" + format_metric(z.real(), "") + ", " + format_metric(z.imag(), "") + ")";
+    // ohmic impedance components
+    result += " Z=(" + format_metric(z.real() * reference_impedance, "Ω") + ", " + format_metric(z.imag() * reference_impedance, "Ω") + ")";
+    // vswr when inside the unit circle
+    const double vswr_value = smith::vswr(gamma);
+    if (std::isfinite(vswr_value))
+        result += " VSWR=" + format_metric(vswr_value, "");
+    // return loss in dB when defined
+    const double return_loss = smith::return_loss_db(gamma);
+    if (std::isfinite(return_loss))
+        result += " RL=" + format_metric(return_loss, "dB");
+    // exit
     return result;
 }

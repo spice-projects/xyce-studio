@@ -87,7 +87,7 @@ void ChartsRenderer::publish_frames() {
     m_publish(frames);
 }
 
-void ChartsRenderer::update(const int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, const AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots) {
+void ChartsRenderer::update(const int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, const AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots, const bool smith) {
     // fetch or create the state of this tab
     auto& dataset = m_datasets[dataset_id];
     // remember whether the charts must be re-pointed to a replaced file
@@ -97,6 +97,7 @@ void ChartsRenderer::update(const int dataset_id, ExpressionManager& expression_
     dataset.step_information = &step_information;
     dataset.abscissa_scale = abscissa_scale;
     dataset.suggested_plots = suggested_plots;
+    dataset.smith = smith;
     // activation or new data, clear any hover readout from the previous tab
     hover_ended();
     // make this dataset the active tab
@@ -162,7 +163,7 @@ ChartEngine* ChartsRenderer::add_chart(const size_t after_index) {
     // insertion position: directly after the given chart, clamped to the end
     const size_t index = std::min(after_index + 1, dataset->charts.size());
     // create the chart and insert it into the dataset vector
-    const auto chart_it = dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(index), std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target));
+    const auto chart_it = dataset->charts.insert(dataset->charts.begin() + static_cast<std::ptrdiff_t>(index), std::make_unique<ChartEngine>(dataset->expression_manager, dataset->step_information, dataset->abscissa_scale, k_decimate_target, dataset->smith ? ChartKind::SMITH : ChartKind::XY));
     // chart
     auto& chart = *chart_it;
     // all charts share the abscissa range: a chart added after a zoom joins
@@ -236,6 +237,13 @@ std::vector<AnyExpression*> ChartsRenderer::all_expressions() const {
         return {};
     // delegate to the expression manager
     return dataset->expression_manager->expressions();
+}
+
+bool ChartsRenderer::active_dataset_is_smith() const {
+    // active dataset state
+    const auto* dataset = active_dataset();
+    // only smith datasets build smith-kind charts
+    return dataset != nullptr && dataset->smith;
 }
 
 std::vector<AnyExpression*> ChartsRenderer::chart_selected_expressions(const size_t chart_index) const {
@@ -538,10 +546,28 @@ void ChartsRenderer::hover_moved(const float x, const float y) {
             m_hover_chart_index = i;
             // set plot flag
             m_hover_in_plot = true;
-            // ratio of the cursor within the plot area
-            const double ratio = static_cast<double>(x - px_min) / static_cast<double>(px_max - px_min);
-            // scale-aware abscissa value at the ratio
-            m_hover_abscissa_value = dataset->charts[i]->plot_ratio_to_abscissa_value(ratio);
+            // chart under the cursor
+            const auto& chart = dataset->charts[i];
+            // smith charts read out the gamma-plane position of the cursor
+            if (chart->kind() == ChartKind::SMITH) {
+                // fractions of the cursor inside the square plot rect
+                const double fr = static_cast<double>(x - px_min) / static_cast<double>(px_max - px_min);
+                const double fv = static_cast<double>(y - py_min) / static_cast<double>(py_max - py_min);
+                // gamma-plane position of the cursor over the fixed +-1 plane
+                m_hover_gamma_r = fr * 2.0 - 1.0;
+                m_hover_gamma_i = 1.0 - fv * 2.0;
+                // abscissa readout is unused on smith charts
+                m_hover_abscissa_value = 0.0;
+            }
+            else {
+                // ratio of the cursor within the plot area
+                const double ratio = static_cast<double>(x - px_min) / static_cast<double>(px_max - px_min);
+                // scale-aware abscissa value at the ratio
+                m_hover_abscissa_value = chart->plot_ratio_to_abscissa_value(ratio);
+                // gamma readout is unused on xy charts
+                m_hover_gamma_r = 0.0;
+                m_hover_gamma_i = 0.0;
+            }
             // only the first matching chart is considered
             break;
         }
@@ -579,8 +605,12 @@ void ChartsRenderer::publish_hover() {
     auto* dataset = active_dataset();
     // cursor is inside the plot area of a valid chart
     if (dataset != nullptr && m_hover_in_plot && m_hover_chart_index < dataset->charts.size()) {
-        // series values as a single string for the current abscissa value
-        text = dataset->charts[m_hover_chart_index]->hovered_series_text(m_hover_abscissa_value);
+        // chart under the cursor
+        const auto& chart = dataset->charts[m_hover_chart_index];
+        // series values as a single string for the current cursor position;
+        // smith charts read out the nearest trace point around the gamma-plane
+        // cursor position, xy charts interpolate at the hovered abscissa value
+        text = chart->kind() == ChartKind::SMITH ? chart->hovered_smith_text(m_hover_gamma_r, m_hover_gamma_i) : chart->hovered_series_text(m_hover_abscissa_value);
     }
     // publish when the hover text has changed
     if (text != m_last_hover_text) {

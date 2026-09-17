@@ -35,7 +35,7 @@ namespace
         void append_simulation_output_line(const std::string&) override {}
         bool simulation_output_panel_hidden() const override { return true; }
         bool simulation_output_has_content() const override { return false; }
-        void update_charts(int, ExpressionManager&, const StepInformation&, AbscissaScale, const std::vector<std::vector<std::string>>&) override {}
+        void update_charts(int, ExpressionManager&, const StepInformation&, AbscissaScale, const std::vector<std::vector<std::string>>&, bool) override {}
         void release_charts(int) override {}
         void release_all_charts() override {}
         void show_fft_dialog(size_t) override {}

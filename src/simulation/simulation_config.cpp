@@ -384,3 +384,38 @@ std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_patt
 
     return std::visit(FftPathVisitor{netlist_file_path}, analysis);
 }
+
+std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const {
+    struct TouchstonePathVisitor
+    {
+        const std::filesystem::path& netlist_file_path;
+        const std::filesystem::path& working_directory;
+
+        std::optional<std::filesystem::path> operator()(const std::monostate&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const AcSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const DCSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const HbSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const NoiseSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const OpSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const TransientSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const LinSimulationParameters& params) const {
+            // only touchstone output formats produce a touchstone file
+            if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE") {
+                return std::nullopt;
+            }
+            // no FILE=/FILENAME= given: Xyce writes <netlist>.s2p next to the netlist
+            if (params.file.empty()) {
+                return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s2p");
+            }
+            // FILE= takes precedence over FILENAME= (already enforced at parse
+            // time); strip outer quotes and resolve relative values against the
+            // working directory, which is Xyce's process cwd for the run
+            const auto file = strip_outer_quotes(params.file);
+            if (std::filesystem::path(file).is_absolute())
+                return std::optional<std::filesystem::path>(file);
+            return std::optional<std::filesystem::path>(working_directory / file);
+        }
+    };
+
+    return std::visit(TouchstonePathVisitor{netlist_file_path, working_directory}, analysis);
+}

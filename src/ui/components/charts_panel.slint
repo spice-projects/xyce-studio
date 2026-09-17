@@ -186,6 +186,9 @@ export component ChartsPanel inherits Rectangle {
     // action availability flags for the context-menu tools
     in property <bool> enable-fft: false;
     in property <bool> enable-step-tool: false;
+    // smith chart tabs hide the cartesian-only tools: zooming, chart
+    // management and new window; the plane is fixed at +-1
+    in property <bool> smith-charts: false;
 
     // debug builds expose the hidden automation triggers to the test mcp
     // server; release builds keep them out of the element tree entirely
@@ -276,22 +279,22 @@ export component ChartsPanel inherits Rectangle {
 
             ctx := ContextMenuArea {
                 Menu {
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "Zoom to Fit";
                         activated => { ChartsPanelActions.zoom-to-fit(root.compute_chart_position(root.context-menu-y)); }
                     }
 
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "Autorange";
                         activated => { ChartsPanelActions.autorange(root.compute_chart_position(root.context-menu-y)); }
                     }
 
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "Zoom Abscissa Extent";
                         activated => { ChartsPanelActions.zoom-abscissa-extent(root.compute_chart_position(root.context-menu-y)); }
                     }
 
-                    MenuSeparator { }
+                    if !root.smith-charts: MenuSeparator { }
 
                     MenuItem {
                         title: "Add/Remove Plots";
@@ -312,21 +315,21 @@ export component ChartsPanel inherits Rectangle {
                         title: "Step Tool...";
                         activated => { ChartsPanelActions.step-tool(root.compute_chart_position(root.context-menu-y)); }
                     }
-                    MenuSeparator { }
+                    if !root.smith-charts: MenuSeparator { }
 
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "Add Chart";
                         activated => { ChartsPanelActions.add-chart(root.compute_chart_position(root.context-menu-y)); }
                     }
 
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "Delete Chart";
                         activated => { ChartsPanelActions.delete-chart(root.compute_chart_position(root.context-menu-y)); }
                     }
 
-                    MenuSeparator { }
+                    if !root.smith-charts: MenuSeparator { }
 
-                    MenuItem {
+                    if !root.smith-charts: MenuItem {
                         title: "New Window";
                         activated => { ChartsPanelActions.new-window(root.compute_chart_position(root.context-menu-y)); }
                     }
@@ -419,8 +422,9 @@ export component ChartsPanel inherits Rectangle {
                                         // happened so the dragged chart tracks the
                                         // grab point
                                         reorder-grab-offset = self.mouse-y - hovered-slot * slot-height;
-                                    } else {
-                                        // store drag start position for the slint zoom rectangle
+                                    } else if (!root.smith-charts) {
+                                        // store drag start position for the slint zoom rectangle;
+                                        // smith charts never zoom, the plane is fixed at +-1
                                         drag-start-x = self.mouse-x;
                                         drag-start-y = self.mouse-y;
                                         dragging = true;
@@ -589,17 +593,19 @@ export component ChartsPanel inherits Rectangle {
             // and carries the relative chart position through its value
             if root.debug-tools: Rectangle {
 
-                test-zoom-to-fit := ChartsTestTrigger {
+                // the cartesian-only triggers disappear on smith chart tabs,
+                // mirroring the visible context menu
+                if !root.smith-charts: test-zoom-to-fit := ChartsTestTrigger {
                     action: "zoom to fit";
                     invoke(position) => { ChartsPanelActions.zoom-to-fit(position); }
                 }
 
-                test-autorange := ChartsTestTrigger {
+                if !root.smith-charts: test-autorange := ChartsTestTrigger {
                     action: "autorange";
                     invoke(position) => { ChartsPanelActions.autorange(position); }
                 }
 
-                test-zoom-abscissa-extent := ChartsTestTrigger {
+                if !root.smith-charts: test-zoom-abscissa-extent := ChartsTestTrigger {
                     action: "zoom abscissa extent";
                     invoke(position) => { ChartsPanelActions.zoom-abscissa-extent(position); }
                 }
@@ -624,17 +630,17 @@ export component ChartsPanel inherits Rectangle {
                     invoke(position) => { ChartsPanelActions.step-tool(position); }
                 }
 
-                test-add-chart := ChartsTestTrigger {
+                if !root.smith-charts: test-add-chart := ChartsTestTrigger {
                     action: "add chart";
                     invoke(position) => { ChartsPanelActions.add-chart(position); }
                 }
 
-                test-delete-chart := ChartsTestTrigger {
+                if !root.smith-charts: test-delete-chart := ChartsTestTrigger {
                     action: "delete chart";
                     invoke(position) => { ChartsPanelActions.delete-chart(position); }
                 }
 
-                test-new-window := ChartsTestTrigger {
+                if !root.smith-charts: test-new-window := ChartsTestTrigger {
                     action: "new window";
                     invoke(position) => { ChartsPanelActions.new-window(position); }
                 }

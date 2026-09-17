@@ -1,15 +1,28 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <format>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "chart_layout.h"
 #include "chart_style.h"
+#include "smith_chart.h"
 
 namespace
 {
+    // sample count of each smith grid path; high enough to render smooth
+    // circles and arcs at any chart size
+    constexpr int k_smith_grid_samples = 256;
+    // padding kept between the smith gamma-plane square and the white plot
+    // rect around it; the reactance tick labels sit inside this padding
+    constexpr float k_smith_plot_padding = 26.0f;
+    // offset of the smith tick labels from their anchor: resistance labels
+    // sit just below the real axis, reactance labels just outside the unit
+    // circle boundary
+    constexpr float k_resistance_label_offset = 10.0f;
+    constexpr float k_reactance_label_offset = 12.0f;
     // implot NiceNum: round x to a nice 1/2/5 x 10^n number
     double nice_num(const double x, const bool round) {
         // exponent and fraction of x in scientific form
@@ -257,6 +270,9 @@ ChartLayout::ChartLayout(TextMeasurer measure) :
     m_measure(std::move(measure)) {}
 
 ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, const float height) const {
+    // smith charts have their own layout: square plot rect, no axes, gamma-plane mapping
+    if (engine.kind() == ChartKind::SMITH)
+        return build_smith(engine, width, height);
     // frame snapshot under construction
     ChartFrame frame;
     frame.frame_w = width;
@@ -503,6 +519,160 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 const double ty = y_hi[axis] > y_lo[axis] ? (y_value - y_lo[axis]) / (y_hi[axis] - y_lo[axis]) : 0.0;
                 // append the mapped point
                 run.points.push_back({static_cast<float>(frame.plot_x + tx * frame.plot_w), static_cast<float>(frame.plot_y + frame.plot_h - ty * frame.plot_h)});
+            }
+            // append the trailing run when it carries points
+            if (!run.points.empty())
+                frame.series.push_back(std::move(run));
+        }
+    }
+    return frame;
+}
+
+ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width, const float height) const {
+    // frame snapshot under construction
+    ChartFrame frame;
+    frame.smith = true;
+    frame.frame_w = width;
+    frame.frame_h = height;
+    // canvas area inset by the plot padding
+    const float canvas_y = CHART_PLOT_PADDING;
+    const float canvas_w = std::max(0.0f, width - 2.0f * CHART_PLOT_PADDING);
+    const float canvas_h = std::max(0.0f, height - 2.0f * CHART_PLOT_PADDING);
+    // legend entries in series order (the engine series map is name ordered)
+    for (const auto& [name, ordinate_series] : engine.series()) {
+        // legend entry with the assigned series color
+        frame.legend.push_back({name, std::get<5>(ordinate_series)});
+    }
+    // vertical span reserved for the legend block; smith charts draw no axis
+    // tick strip below the plot
+    float available_h = canvas_h;
+    if (!frame.legend.empty()) {
+        // horizontal legend: icons plus labels and spacing between entries
+        float sum_label_width = 0.0f;
+        for (const auto& item : frame.legend)
+            sum_label_width += m_measure(item.name);
+        // legend block size
+        const size_t count = frame.legend.size();
+        frame.legend_w = 2.0f * CHART_LEGEND_INNER_PADDING_X + CHART_TEXT_HEIGHT * static_cast<float>(count) + sum_label_width + CHART_LEGEND_SPACING_X * static_cast<float>(count - 1);
+        frame.legend_h = 2.0f * CHART_LEGEND_INNER_PADDING_Y + CHART_TEXT_HEIGHT;
+        // reduce the vertical span by the reserved legend block
+        available_h = std::max(0.0f, canvas_h - (frame.legend_h + CHART_LEGEND_PADDING_Y));
+        // legend centered horizontally with its bottom on the canvas south edge
+        frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
+        frame.legend_y = canvas_y + canvas_h - frame.legend_h;
+    }
+    // white plot rect sized from the available span (equal aspect), then the
+    // gamma-plane square inside it with the label padding on every side
+    const float side = std::min(canvas_w, available_h);
+    frame.smith_padding = k_smith_plot_padding;
+    frame.plot_x = std::max(0.0f, (width - side) * 0.5f) + frame.smith_padding;
+    frame.plot_y = canvas_y + (available_h - side) * 0.5f + frame.smith_padding;
+    frame.plot_w = std::max(0.0f, side - 2.0f * frame.smith_padding);
+    frame.plot_h = frame.plot_w;
+    // plot rect center for the axis mapping
+    const float center_x = frame.plot_x + frame.plot_w * 0.5f;
+    const float center_y = frame.plot_y + frame.plot_h * 0.5f;
+    // smith grid polylines mapped into the plot rect; the unit circle boundary
+    // (the first path) renders in the border color, the rest in the grid color
+    const auto grid_paths = smith::grid_paths(k_smith_grid_samples);
+    // loop grid paths
+    for (size_t g = 0; g < grid_paths.size(); ++g) {
+        // grid path of this run
+        const auto& path = grid_paths[g];
+        // grid run; the layout carries no theme palette, the slint sink
+        // substitutes the theme colors for the transparent placeholder
+        ChartSeriesFrame run;
+        run.boundary = g == 0;
+        run.points.reserve(path.size());
+        // map each gamma-plane sample to pixel coordinates
+        for (const auto& gamma : path) {
+            // skip non-finite samples
+            if (!std::isfinite(gamma.real()) || !std::isfinite(gamma.imag()))
+                continue;
+            // gamma fractions over the fixed +-1 plane; the vertical fraction
+            // places +gamma_i at the top edge
+            const float tx = static_cast<float>((gamma.real() + 1.0) * 0.5);
+            const float ty = static_cast<float>((1.0 - gamma.imag()) * 0.5);
+            // pixel position inside the plot rect
+            run.points.push_back({frame.plot_x + tx * frame.plot_w, frame.plot_y + ty * frame.plot_h});
+        }
+        // append the run when it carries points
+        if (!run.points.empty())
+            frame.smith_grid.push_back(std::move(run));
+    }
+    // real and imaginary axis diameters through the plane, drawn in the
+    // border color like the unit circle boundary
+    {
+        // horizontal real axis
+        ChartSeriesFrame real_axis;
+        real_axis.boundary = true;
+        real_axis.points = {{frame.plot_x, center_y}, {frame.plot_x + frame.plot_w, center_y}};
+        frame.smith_grid.push_back(std::move(real_axis));
+        // vertical imaginary axis
+        ChartSeriesFrame imaginary_axis;
+        imaginary_axis.boundary = true;
+        imaginary_axis.points = {{center_x, frame.plot_y}, {center_x, frame.plot_y + frame.plot_h}};
+        frame.smith_grid.push_back(std::move(imaginary_axis));
+    }
+    // tick labels: resistance values where the constant resistance circles
+    // cross the real axis, reactance values outside the unit circle at the
+    // arc ends
+    const std::vector<double> levels = {0.2, 0.5, 1.0, 2.0, 5.0};
+    // resistance labels along the horizontal axis
+    for (const double r : levels) {
+        // real axis crossing of this resistance circle
+        const double gamma_r = (r - 1.0) / (r + 1.0);
+        frame.smith_labels.push_back({std::format("{:.1g}", r), static_cast<float>(frame.plot_x + (gamma_r + 1.0) * 0.5 * frame.plot_w), center_y + k_resistance_label_offset});
+    }
+    // reactance labels at the outer end of each arc, mirrored below the axis
+    for (const double x : levels) {
+        for (const double sign : {1.0, -1.0}) {
+            // boundary point of this reactance arc, a unit magnitude gamma
+            const std::complex<double> boundary = smith::gamma_from_impedance(std::complex<double>(0.0, sign * x));
+            // push the label outside the circle along the boundary direction
+            const float offset = frame.plot_w * 0.5f + k_reactance_label_offset;
+            frame.smith_labels.push_back({std::format("{:.1g}", sign * x), center_x + static_cast<float>(boundary.real()) * offset, center_y - static_cast<float>(boundary.imag()) * offset});
+        }
+    }
+    // series polylines in gamma-plane pixel coordinates
+    for (const auto& [name, ordinate_series] : engine.series()) {
+        // extract color
+        const auto& color = std::get<5>(ordinate_series);
+        // rendered steps of the series
+        const auto& steps = std::get<2>(ordinate_series);
+        // loop rendered steps
+        for (const auto& [step, data] : steps) {
+            // gamma-plane views of this step
+            const auto& [gamma_r_view, gamma_i_view] = data;
+            // polyline run under construction
+            ChartSeriesFrame run;
+            run.name = name;
+            run.color = color;
+            run.step = step;
+            run.points.reserve(gamma_r_view.size());
+            // map each sample to pixel coordinates; non-finite samples break
+            // the polyline the same way the xy layout breaks across gaps
+            for (size_t p = 0; p < gamma_r_view.size(); ++p) {
+                // gamma-plane coordinates of the sample
+                const double gamma_r = gamma_r_view[p];
+                const double gamma_i = gamma_i_view[p];
+                // flush the contiguous finite segment and start a new one
+                if (!std::isfinite(gamma_r) || !std::isfinite(gamma_i)) {
+                    if (!run.points.empty()) {
+                        frame.series.push_back(std::move(run));
+                        run = ChartSeriesFrame{};
+                        run.name = name;
+                        run.color = color;
+                        run.step = step;
+                    }
+                    continue;
+                }
+                // gamma fractions over the fixed +-1 plane; the vertical
+                // fraction places +gamma_i at the top edge
+                const float tx = static_cast<float>((gamma_r + 1.0) * 0.5);
+                const float ty = static_cast<float>((1.0 - gamma_i) * 0.5);
+                // pixel position inside the plot rect
+                run.points.push_back({frame.plot_x + tx * frame.plot_w, frame.plot_y + ty * frame.plot_h});
             }
             // append the trailing run when it carries points
             if (!run.points.empty())

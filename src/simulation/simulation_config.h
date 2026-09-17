@@ -67,6 +67,13 @@ public:
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 
+    // compute the touchstone output file path for the configured analysis; LIN
+    // runs with a touchstone FORMAT produce a .s2p file — with FILE=/FILENAME=
+    // the value is resolved against the working directory (Xyce's process cwd),
+    // otherwise Xyce writes <netlist>.s2p next to the netlist; nullopt when the
+    // analysis produces no touchstone output
+    [[nodiscard]] std::optional<std::filesystem::path> touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const;
+
     // get the first step for backward compatibility
     [[nodiscard]] StepParameters step() const;
 

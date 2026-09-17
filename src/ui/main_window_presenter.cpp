@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 
 #include "../dsp/fft.h"
+#include "../io/touchstone_file.h"
 #include "../io/xyce_fft_file.h"
 #include "../io/xyce_raw_file.h"
 #include "../kicad/kicad_session.h"
@@ -39,11 +40,11 @@ namespace
     // map a PlotType to a human-readable tab label; falls back to the raw
     // file's title for UNKNOWN plot types (e.g. parsed headers we don't
     // classify). Touchstone files (detected via the data_format metadata
-    // key) always show their filename instead of the AC Analysis label.
+    // key) show the analysis title instead of the AC Analysis label.
     std::string plot_type_to_label(const XyceOutputFile& file) {
         // touchstone files carry a data_format metadata entry
         if (file.metadata().count("data_format") > 0)
-            return file.filename().string();
+            return file.title();
         switch (file.plot_type()) {
         case PlotType::TRANSIENT:
             return "Transient";
@@ -60,6 +61,27 @@ namespace
         default:
             return file.title();
         }
+    }
+
+    // suggested smith chart plots: one smith chart with the diagonal matrix
+    // entries (s11, s22, ...) which plot as reflection coefficients on the
+    // gamma plane; the equivalent entries of y/z parameter files map through
+    // the smith conversions
+    std::vector<std::vector<std::string>> smith_suggested_plots(const XyceOutputFile& file) {
+        // parameter type prefix (s/y/z) from the file metadata
+        std::string parameter_type = "S";
+        if (const auto entry = file.metadata().find("parameter_type"); entry != file.metadata().end())
+            parameter_type = entry->second;
+        // port count from the file metadata
+        int num_ports = 2;
+        if (const auto entry = file.metadata().find("num_ports"); entry != file.metadata().end())
+            num_ports = std::stoi(entry->second);
+        // diagonal entry names, s11, s22, ...
+        std::vector<std::string> names;
+        for (int p = 0; p < num_ports; ++p)
+            names.push_back(parameter_type + std::to_string(p + 1) + std::to_string(p + 1));
+        // one smith chart carrying the diagonal entries
+        return {std::move(names)};
     }
 } // namespace
 
@@ -97,6 +119,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_xyce_raw_file = std::nullopt;
         // remove the parsed FFT calculation files, they belong to a previous run
         m_fft_files.clear();
+        // remove the parsed touchstone file, it belongs to a previous file
+        m_touchstone_file = std::nullopt;
         // drop every dataset chart state, they belong to a previous file
         m_view.release_all_charts();
         // clear plot datasets
@@ -258,6 +282,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     }
     // clear the parsed FFT calculation files, they belong to the previous run
     m_fft_files.clear();
+    // clear the parsed touchstone file, it belongs to the previous run
+    m_touchstone_file = std::nullopt;
     // remember the run paths for the finished handler; the view owns the runner
     m_simulation_working_directory = working_directory;
     m_simulation_netlist_path = temp_path;
@@ -602,6 +628,7 @@ void SlintMainWindowPresenter::load_raw_file(std::shared_ptr<XyceOutputFile> raw
         return;
     // drop existing datasets and chart state before loading a new raw file
     m_fft_files.clear();
+    m_touchstone_file = std::nullopt;
     m_xyce_raw_file = std::nullopt;
     m_view.release_all_charts();
     m_plot_datasets.clear();
@@ -637,75 +664,128 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     if (exit_code == 0) {
         // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
         const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
-        // try to load the raw file when a path was computed and exists
-        if (raw_path.has_value() && std::filesystem::exists(*raw_path)) {
-            // parse the raw file
-            auto raw_file = xyce_raw_file_parser(raw_path->string());
-            // check the raw file was parsed
+        // parse the raw file when a path was computed and the file exists
+        std::optional<std::shared_ptr<XyceOutputFile>> raw_file;
+        if (raw_path.has_value() && std::filesystem::exists(*raw_path))
+            raw_file = xyce_raw_file_parser(raw_path->string());
+        // resolve the touchstone output file produced by .LIN runs and parse
+        // it; the raw file is often empty for .LIN netlists, so the touchstone
+        // data is the primary plottable result of the run and is loaded
+        // independently of the raw file
+        std::optional<std::filesystem::path> touchstone_path;
+        if (const auto resolved = m_simulation_config.touchstone_output_file_path(m_simulation_netlist_path, m_simulation_working_directory)) {
+            // Xyce normally writes the FILE= value verbatim, but appends .s2p
+            // when the value names the netlist itself, so probe both candidates
+            if (std::filesystem::exists(*resolved)) {
+                touchstone_path = resolved;
+            }
+            else {
+                std::filesystem::path suffixed = *resolved;
+                suffixed += ".s2p";
+                if (std::filesystem::exists(suffixed))
+                    touchstone_path = suffixed;
+            }
+        }
+        // parse the touchstone file, carrying the raw file's step information
+        // when present so .STEP runs map into per-step slices
+        std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file;
+        if (touchstone_path.has_value()) {
+            touchstone_file = touchstone_file_parser(touchstone_path->string(), raw_file.has_value() ? &(*raw_file)->step_information() : nullptr);
+            if (!touchstone_file.has_value())
+                spdlog::warn("Failed to parse touchstone output file '{}'", touchstone_path->string());
+        }
+        // the run is loadable when either the raw file or the touchstone file parsed
+        if (raw_file.has_value() || touchstone_file.has_value()) {
+            // drop the chart states of the previous run except the primary
+            // dataset, whose identity is kept so the renderer re-points its
+            // charts and zoom windows, plots and step selections survive the
+            // re-run of the same netlist
+            for (size_t i = 1; i < m_plot_datasets.size(); ++i)
+                m_view.release_charts(m_plot_datasets[i].id);
+            m_plot_datasets.resize(std::min<size_t>(m_plot_datasets.size(), 1));
+            // remove the parsed FFT calculation files from the previous run
+            m_fft_files.clear();
+            // remove the parsed touchstone file from the previous run
+            m_touchstone_file = std::nullopt;
+            // install the raw file as the primary dataset; a re-run replaces
+            // the primary file in place, a first run appends it as a
+            // non-closable dataset
             if (raw_file.has_value()) {
-                // drop the chart states of the previous run except the primary
-                // dataset, whose identity is kept so the renderer re-points its
-                // charts and zoom windows, plots and step selections survive the
-                // re-run of the same netlist
-                for (size_t i = 1; i < m_plot_datasets.size(); ++i)
-                    m_view.release_charts(m_plot_datasets[i].id);
-                m_plot_datasets.resize(std::min<size_t>(m_plot_datasets.size(), 1));
-                // remove the parsed FFT calculation files from the previous run
-                m_fft_files.clear();
-                // extract primary raw file
-                auto primary_raw = std::move(raw_file.value());
-                // a re-run replaces the primary file in place, a first run
-                // appends it as a non-closable dataset
                 if (m_plot_datasets.empty())
                     m_plot_datasets.push_back(PlotDataset{
                         .id = m_next_dataset_id++,
-                        .file = primary_raw,
+                        .file = std::move(*raw_file),
                         .closable = false,
                     });
                 else
-                    m_plot_datasets[0].file = std::move(primary_raw);
-                // parse the FFT calculation output files produced by this run, derived from the analysis config
-                if (const auto fft_pattern = m_simulation_config.fft_output_file_path_pattern(m_simulation_netlist_path); fft_pattern.has_value()) {
-                    // parse the matching FFT output files
-                    if (auto parsed_files = xyce_fft_file_parser(*fft_pattern, m_plot_datasets[0].file->step_information(), &m_plot_datasets[0].file->expression_manager())) {
-                        // store the parsed FFT files
-                        m_fft_files = std::move(*parsed_files);
-                        // append each FFT output file as a non-closable plot dataset
-                        for (auto& fft_file : m_fft_files) {
-                            // append dataset
-                            m_plot_datasets.push_back(PlotDataset{
-                                .id = m_next_dataset_id++,
-                                .file = fft_file,
-                                .closable = false,
-                            });
-                        }
-                    }
-                    // log the number of loaded FFT files
-                    spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_files.size());
-                }
-                // set active dataset index to primary dataset
-                m_active_dataset_index = 0;
-                // synchronize plot tabs with view
-                sync_plot_tabs_with_view();
-                // activate primary dataset; this re-points the renderer chart
-                // state at the new file, clearing the references that kept the
-                // previous file (and its mapping) alive
-                activate_plot_dataset(0);
-                // copy the produced raw file to the user-indicated location
-                copy_raw_output_to_destination(*raw_path);
-                // switch to the charts view
-                m_view.show_charts_view();
-                // hide the output panel — it is only shown on failure
-                m_view.hide_simulation_output_panel();
-                // update the statusbar
-                m_view.set_status_text("Simulation finished successfully");
-                // refresh toolbar/menu states
-                refresh_action_states();
-                // exit
-                return;
+                    m_plot_datasets[0].file = std::move(*raw_file);
             }
+            // store the parsed touchstone file and append it as a non-closable
+            // plot dataset, followed by the smith chart tab plotting the same
+            // file on the gamma plane with the diagonal entries by default
+            if (touchstone_file.has_value()) {
+                m_touchstone_file = *touchstone_file;
+                // LIN Analysis tab with the suggested rectangular plots
+                m_plot_datasets.push_back(PlotDataset{
+                    .id = m_next_dataset_id++,
+                    .file = *touchstone_file,
+                    .closable = false,
+                    .smith = false,
+                });
+                // Smith Chart tab with the diagonal entries (s11, s22, ...)
+                m_plot_datasets.push_back(PlotDataset{
+                    .id = m_next_dataset_id++,
+                    .file = std::move(*touchstone_file),
+                    .closable = false,
+                    .smith = true,
+                });
+            }
+            // parse the FFT calculation output files produced by this run, derived from the analysis config
+            if (const auto fft_pattern = m_simulation_config.fft_output_file_path_pattern(m_simulation_netlist_path); fft_pattern.has_value()) {
+                // parse the matching FFT output files
+                if (auto parsed_files = xyce_fft_file_parser(*fft_pattern, m_plot_datasets[0].file->step_information(), &m_plot_datasets[0].file->expression_manager())) {
+                    // store the parsed FFT files
+                    m_fft_files = std::move(*parsed_files);
+                    // append each FFT output file as a non-closable plot dataset
+                    for (auto& fft_file : m_fft_files) {
+                        // append dataset
+                        m_plot_datasets.push_back(PlotDataset{
+                            .id = m_next_dataset_id++,
+                            .file = fft_file,
+                            .closable = false,
+                        });
+                    }
+                }
+                // log the number of loaded FFT files
+                spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_files.size());
+            }
+            // log the parsed touchstone file
+            if (m_touchstone_file.has_value())
+                spdlog::info("Loaded touchstone output file '{}'", m_touchstone_file.value()->filename().string());
+            // activate the primary dataset, the touchstone tab stays selected
+            // behind it like any secondary result tab; activation re-points the
+            // renderer chart state at the new file, clearing the references
+            // that kept the previous file (and its mapping) alive
+            m_active_dataset_index = 0;
+            // synchronize plot tabs with view
+            sync_plot_tabs_with_view();
+            // activate the primary dataset
+            activate_plot_dataset(0);
+            // copy the produced raw file to the user-indicated location
+            if (raw_path.has_value())
+                copy_raw_output_to_destination(*raw_path);
+            // switch to the charts view
+            m_view.show_charts_view();
+            // hide the output panel — it is only shown on failure
+            m_view.hide_simulation_output_panel();
+            // update the statusbar
+            m_view.set_status_text("Simulation finished successfully");
+            // refresh toolbar/menu states
+            refresh_action_states();
+            // exit
+            return;
         }
-        // raw file not found or failed to parse
+        // raw file not found or failed to parse and no touchstone output
         m_view.set_status_text("Simulation finished but output raw file could not be found");
     }
     else {
@@ -782,6 +862,11 @@ const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::ff
     return m_fft_files;
 }
 
+const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::touchstone_file() const {
+    // return the parsed touchstone output file
+    return m_touchstone_file;
+}
+
 void SlintMainWindowPresenter::refresh_action_states() {
     // gather the input flags describing the current window state
     ActionStateInput input;
@@ -796,6 +881,8 @@ void SlintMainWindowPresenter::refresh_action_states() {
     // chart context tools are tied to the loaded raw output
     input.abscissa_is_time = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->expression_manager().abscissa().unit() == "s";
     input.has_steps = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->step_information().length() > 1;
+    // the smith chart tab drives the panel's cartesian-tool visibility
+    input.charts_smith = !m_plot_datasets.empty() && m_plot_datasets[m_active_dataset_index].smith;
     // compute the action enablement for the current state
     ActionStateEnablement enablement = compute_action_enablement(input);
     // file actions are only available in standalone mode; KiCad provides the
@@ -816,10 +903,10 @@ void SlintMainWindowPresenter::sync_plot_tabs_with_view() {
     tabs.reserve(m_plot_datasets.size());
     // convert each dataset to a tab item
     for (const auto& dataset : m_plot_datasets) {
-        // append tab item
+        // tab label; smith datasets always show the Smith Chart label
         tabs.push_back(PlotTabItem{
             .id = dataset.id,
-            .title = dataset.file ? plot_type_to_label(*dataset.file) : "",
+            .title = dataset.smith ? "Smith Chart" : (dataset.file ? plot_type_to_label(*dataset.file) : ""),
             .closable = dataset.closable,
         });
     }
@@ -842,8 +929,9 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
         // file instance
         auto& file = m_xyce_raw_file.value();
         // activate the dataset in the renderer; switching back to a dataset
-        // restores its charts with zoom windows, plots and step selections intact
-        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), file->suggested_plots());
+        // restores its charts with zoom windows, plots and step selections intact;
+        // smith datasets suggest the diagonal entries instead of the rectangular plots
+        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
         // update the active tab in the view
         m_view.set_active_plot_tab(static_cast<int>(index));
         // update the base title from the dataset title

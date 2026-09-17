@@ -23,7 +23,7 @@ TEST(ChartsLifecycleTest, reset_viewport_clears_the_active_hover_readout) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}}, false);
     ASSERT_EQ(published.back().size(), 1u);
     // arrange — capture the hover readout text
     std::string hover_text;

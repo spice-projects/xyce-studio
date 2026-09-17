@@ -12,6 +12,7 @@
 #include "../core/util.h"
 #include "add_plot_dialog_view.h"
 #include "expression_tree.h"
+#include "smith_plot_filter.h"
 
 namespace add_plot_dialog_view
 {
@@ -81,11 +82,19 @@ namespace add_plot_dialog_view
         }
 
         void populate() {
-            // build the (name, type) pairs from the expression manager
+            // build the (name, type) pairs from the expression manager; smith
+            // charts only offer the diagonal parameter entries (sii)
+            const bool smith = renderer.active_dataset_is_smith();
             std::vector<std::pair<std::string, std::string>> items;
             for (AnyExpression* expression : renderer.all_expressions()) {
+                // smith charts filter out every non-diagonal expression
+                if (smith && !is_smith_plot_expression(*expression))
+                    continue;
                 items.emplace_back(expression_name(*expression), expression_type(*expression));
             }
+            // smith charts reject arbitrary custom expressions, only the
+            // diagonal parameter entries can map to the gamma plane
+            window->set_add_plot_allow_custom_expressions(!smith);
             // rebuild the scope tree and return to the root scope
             tree.rebuild(items);
             // mark the currently plotted expressions as selected

@@ -25,7 +25,7 @@ TEST(ChartsActionsTest, zoom_to_fit_resets_the_zoom_window_on_every_chart) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     const ChartFrame pre_first = published.back()[0];
     const ChartFrame pre_second = published.back()[1];
     renderer.zoom_drag_started(pre_first.plot_x + pre_first.plot_w * 0.1f, pre_first.plot_y + pre_first.plot_h * 0.1f);
@@ -65,7 +65,7 @@ TEST(ChartsActionsTest, autorange_resets_only_the_vertical_zoom_of_the_target_ch
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     const ChartFrame pre_first = published.back()[0];
     renderer.zoom_drag_started(pre_first.plot_x + pre_first.plot_w * 0.1f, pre_first.plot_y + pre_first.plot_h * 0.1f);
     renderer.zoom_drag_moved(pre_first.plot_x + pre_first.plot_w * 0.8f, pre_first.plot_y + pre_first.plot_h * 0.8f);
@@ -101,7 +101,7 @@ TEST(ChartsActionsTest, zoom_abscissa_extent_resets_the_horizontal_zoom_on_every
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     const ChartFrame pre_first = published.back()[0];
     const ChartFrame pre_second = published.back()[1];
     renderer.zoom_drag_started(pre_first.plot_x + pre_first.plot_w * 0.1f, pre_first.plot_y + pre_first.plot_h * 0.1f);
@@ -137,7 +137,7 @@ TEST(ChartsActionsTest, a_drag_selection_smaller_than_the_threshold_does_not_zoo
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     const ChartFrame pre = published.back()[0];
     // act — drag a 5px selection inside the plot area, below the 10px threshold
     renderer.zoom_drag_started(pre.plot_x + pre.plot_w * 0.5f, pre.plot_y + pre.plot_h * 0.5f);
@@ -162,7 +162,7 @@ TEST(ChartsActionsTest, a_drag_that_never_moves_applies_no_zoom) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     const ChartFrame pre = published.back()[0];
     // act — press inside the plot area and release without moving
     renderer.zoom_drag_started(pre.plot_x + pre.plot_w * 0.5f, pre.plot_y + pre.plot_h * 0.5f);
@@ -186,7 +186,7 @@ TEST(ChartsActionsTest, a_drag_cancelation_discards_the_selection) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     const ChartFrame pre = published.back()[0];
     // act — start a valid selection and cancel it before releasing
     renderer.zoom_drag_started(pre.plot_x + pre.plot_w * 0.1f, pre.plot_y + pre.plot_h * 0.1f);
@@ -211,7 +211,7 @@ TEST(ChartsActionsTest, a_drag_started_outside_the_plot_area_does_not_zoom) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     const ChartFrame pre = published.back()[0];
     // act — start the drag one pixel left of the plot area and release inside
     renderer.zoom_drag_started(pre.plot_x - 1.0f, pre.plot_y + pre.plot_h * 0.5f);

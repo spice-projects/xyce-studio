@@ -171,6 +171,8 @@ export component MainWindow inherits Window {
     // charts panel action availability, forwarded to the ChartsPanel component
     in property <bool> enable-fft: false;
     in property <bool> enable-step-tool: false;
+    // smith chart tabs hide the cartesian-only tools
+    in property <bool> smith-charts: false;
 
     // plot tabs, forwarded to the ChartsPanel component
     in property <[PlotTabItem]> plot-tabs: [];
@@ -339,8 +341,6 @@ export component MainWindow inherits Window {
     in-out property <int> ac-print-type-index: 0;
     in-out property <bool> ac-print-all-nodes: false;
     in-out property <bool> ac-print-all-currents: false;
-    in-out property <bool> ac-print-bjt-leads: false;
-    in-out property <bool> ac-print-fet-leads: false;
     in-out property <string> ac-print-specific-variables: "";
     in-out property <int> ac-print-format-index: 0;
     in-out property <string> ac-print-output-file: "";
@@ -404,8 +404,6 @@ export component MainWindow inherits Window {
     in-out property <int> noise-print-type-index: 0;
     in-out property <bool> noise-print-all-nodes: false;
     in-out property <bool> noise-print-all-currents: false;
-    in-out property <bool> noise-print-bjt-leads: false;
-    in-out property <bool> noise-print-fet-leads: false;
     in-out property <string> noise-print-specific-variables: "";
     in-out property <int> noise-print-format-index: 0;
     in-out property <string> noise-print-output-file: "";
@@ -445,9 +443,6 @@ export component MainWindow inherits Window {
     in-out property <int> lin-print-type-index: 0;
     in-out property <bool> lin-print-all-nodes: false;
     in-out property <bool> lin-print-all-currents: false;
-    in-out property <bool> lin-print-power: false;
-    in-out property <bool> lin-print-bjt-leads: false;
-    in-out property <bool> lin-print-fet-leads: false;
     in-out property <string> lin-print-specific-variables: "";
     in-out property <int> lin-print-format-index: 0;
     in-out property <string> lin-print-output-file: "";
@@ -598,6 +593,7 @@ export component MainWindow inherits Window {
                         plot-tab-closed(index) => { root.plot-tab-closed(index); }
                         enable-fft: root.enable-fft;
                         enable-step-tool: root.enable-step-tool;
+                        smith-charts: root.smith-charts;
                         // forward the debug automation trigger flag
                         debug-tools: root.debug-tools-enabled;
                         // forward the slint native chart frames from the host
@@ -734,8 +730,6 @@ export component MainWindow inherits Window {
             ac-print-type-index <=> root.ac-print-type-index;
             ac-print-all-nodes <=> root.ac-print-all-nodes;
             ac-print-all-currents <=> root.ac-print-all-currents;
-            ac-print-bjt-leads <=> root.ac-print-bjt-leads;
-            ac-print-fet-leads <=> root.ac-print-fet-leads;
             ac-print-specific-variables <=> root.ac-print-specific-variables;
             ac-print-format-index <=> root.ac-print-format-index;
             ac-print-output-file <=> root.ac-print-output-file;
@@ -794,8 +788,6 @@ export component MainWindow inherits Window {
             noise-print-type-index <=> root.noise-print-type-index;
             noise-print-all-nodes <=> root.noise-print-all-nodes;
             noise-print-all-currents <=> root.noise-print-all-currents;
-            noise-print-bjt-leads <=> root.noise-print-bjt-leads;
-            noise-print-fet-leads <=> root.noise-print-fet-leads;
             noise-print-specific-variables <=> root.noise-print-specific-variables;
             noise-print-format-index <=> root.noise-print-format-index;
             noise-print-output-file <=> root.noise-print-output-file;
@@ -833,9 +825,6 @@ export component MainWindow inherits Window {
             lin-print-type-index <=> root.lin-print-type-index;
             lin-print-all-nodes <=> root.lin-print-all-nodes;
             lin-print-all-currents <=> root.lin-print-all-currents;
-            lin-print-power <=> root.lin-print-power;
-            lin-print-bjt-leads <=> root.lin-print-bjt-leads;
-            lin-print-fet-leads <=> root.lin-print-fet-leads;
             lin-print-specific-variables <=> root.lin-print-specific-variables;
             lin-print-format-index <=> root.lin-print-format-index;
             lin-print-output-file <=> root.lin-print-output-file;

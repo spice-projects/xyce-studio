@@ -29,6 +29,13 @@ export struct ChartGridData {
     alpha: float,
 }
 
+// one smith chart tick label positioned at a pixel center in the frame
+export struct ChartSmithLabelData {
+    label: string,
+    x: float,
+    y: float,
+}
+
 // pixel-space rendering data of one chart, produced by the chart layout
 // engine (ChartFrame) and rendered natively by the ChartView component
 export struct ChartFrameData {
@@ -61,6 +68,12 @@ export struct ChartFrameData {
     legend-y: float,
     legend-w: float,
     legend-h: float,
+    // smith charts draw the fixed +-1 gamma plane with a grid of constant
+    // resistance circles and constant reactance arcs instead of axis ticks
+    smith: bool,
+    smith-padding: float,
+    smith-grid: [ChartSeriesData],
+    smith-labels: [ChartSmithLabelData],
     legend: [ChartLegendItemData],
     series: [ChartSeriesData],
 }
@@ -97,12 +110,14 @@ export component ChartView inherits Rectangle {
         return frame.grid-color.transparentize(1.0 - alpha);
     }
 
-    // plot background matching the implot plot background (panel role)
+    // plot background matching the implot plot background (panel role); smith
+    // charts pad the gamma plane inside the white rect, the padding grows it
+    property <float> smith-pad: frame.smith-padding;
     Rectangle {
-        x: frame.plot-x * root.scale-x;
-        y: frame.plot-y * root.scale-y;
-        width: frame.plot-w * root.scale-x;
-        height: frame.plot-h * root.scale-y;
+        x: (frame.plot-x - root.smith-pad) * root.scale-x;
+        y: (frame.plot-y - root.smith-pad) * root.scale-y;
+        width: (frame.plot-w + 2.0 * root.smith-pad) * root.scale-x;
+        height: (frame.plot-h + 2.0 * root.smith-pad) * root.scale-y;
         background: frame.panel-color;
     }
 
@@ -151,6 +166,21 @@ export component ChartView inherits Rectangle {
             background: root.axis-grid-color(line.major, line.alpha);
         }
 
+        // smith grid: the unit circle boundary and the constant resistance
+        // and reactance grid polylines, drawn under the series
+        for run in frame.smith-grid: Path {
+            commands: run.commands;
+            fill: transparent;
+            stroke: run.color;
+            stroke-width: 1px;
+            width: frame.plot-w * root.scale-x;
+            height: frame.plot-h * root.scale-y;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: frame.plot-w;
+            viewbox-height: frame.plot-h;
+        }
+
         // plotted series as stroked polylines clipped to the plot area
         for run in frame.series: Path {
             commands: run.commands;
@@ -169,8 +199,10 @@ export component ChartView inherits Rectangle {
         }
     }
 
-    // plot border drawn around the plot rect
+    // plot border drawn around the plot rect; smith charts are framed by
+    // the unit circle boundary alone, no square border
     Rectangle {
+        visible: !frame.smith;
         x: frame.plot-x * root.scale-x;
         y: frame.plot-y * root.scale-y;
         width: frame.plot-w * root.scale-x;
@@ -178,6 +210,27 @@ export component ChartView inherits Rectangle {
         background: transparent;
         border-width: 1px;
         border-color: frame.border-color;
+    }
+
+    // smith tick labels: resistance values along the real axis, reactance
+    // values outside the unit circle at the arc ends; positioned in the frame
+    // margins around the plot rect, so they render outside the clipped plot
+    for smith-label in frame.smith-labels: Rectangle {
+        x: smith-label.x * root.scale-x - 40px;
+        y: smith-label.y * root.scale-y - 8px;
+        width: 80px;
+        height: 16px;
+
+        Text {
+            width: 100%;
+            height: 100%;
+            text: smith-label.label;
+            font-family: "Inter";
+            font-size: 10px;
+            color: frame.text-color;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 
     // x tick marks extending up from the datum line into the plot

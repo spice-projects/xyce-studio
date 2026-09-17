@@ -27,7 +27,7 @@ TEST(ChartsDatasetsTest, update_creates_one_chart_per_suggested_plot_group) {
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
     // act — activate a dataset suggesting two plot groups
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     // assert — one chart per group, each chart holding only its own series
     ASSERT_EQ(renderer.chart_count(), 2u);
     ASSERT_EQ(published.back().size(), 2u);
@@ -53,7 +53,7 @@ TEST(ChartsDatasetsTest, update_without_suggested_plots_creates_a_single_empty_c
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
     // act — activate a dataset without suggested plots
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
     // assert — a single empty chart is created
     ASSERT_EQ(renderer.chart_count(), 1u);
     ASSERT_EQ(published.back().size(), 1u);
@@ -74,7 +74,7 @@ TEST(ChartsDatasetsTest, update_skips_suggested_plot_names_missing_from_the_expr
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
     // act — activate with a suggested group whose name does not resolve
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(missing)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(missing)"}}, false);
     // assert — the chart is still created but stays empty instead of crashing
     ASSERT_EQ(renderer.chart_count(), 1u);
     ASSERT_EQ(published.back().size(), 1u);
@@ -94,7 +94,7 @@ TEST(ChartsDatasetsTest, switching_plot_tabs_preserves_series_and_zoom_per_tab) 
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     renderer.add_chart();
     renderer.publish_frames();
     ASSERT_EQ(published.back().size(), 2u);
@@ -105,8 +105,8 @@ TEST(ChartsDatasetsTest, switching_plot_tabs_preserves_series_and_zoom_per_tab) 
     renderer.zoom_drag_ended();
     const ChartFrame zoomed = published.back()[0];
     // act — switch to a second tab, then back to the first one
-    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {});
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {});
+    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
     // assert — the second tab got its own single empty chart while the first
     // tab restored its two charts, their series and the zoomed abscissa range
     ASSERT_EQ(renderer.chart_count(), 2u);
@@ -133,7 +133,7 @@ TEST(ChartsDatasetsTest, re_running_a_simulation_repoints_the_charts_to_the_new_
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, first_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}});
+    renderer.update(1, first_manager, step_information, AbscissaScale::LINEAR, {{"V(out)"}}, false);
     ASSERT_EQ(renderer.chart_count(), 1u);
     // arrange — a second file with the same signal names but different data
     std::vector<double> second_abscissa_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
@@ -144,7 +144,7 @@ TEST(ChartsDatasetsTest, re_running_a_simulation_repoints_the_charts_to_the_new_
     second_expressions.emplace_back(Expression<double>("V(out)", std::move(second_data), second_slices, "V"));
     ExpressionManager second_manager(second_expressions, second_slices);
     // act — activate the same tab with the replaced file
-    renderer.update(1, second_manager, step_information, AbscissaScale::LINEAR, {});
+    renderer.update(1, second_manager, step_information, AbscissaScale::LINEAR, {}, false);
     // assert — the chart is reused (not recreated) and re-pointed to the new
     // expression: the series keeps its name and now references the new file
     ASSERT_EQ(renderer.chart_count(), 1u);
@@ -169,8 +169,8 @@ TEST(ChartsDatasetsTest, releasing_an_inactive_dataset_keeps_the_active_one) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
-    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
+    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
     // act — release the inactive first tab
     renderer.release_dataset(1);
     // assert — the active second tab is untouched
@@ -196,8 +196,8 @@ TEST(ChartsDatasetsTest, release_all_datasets_clears_every_dataset) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
-    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
+    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
     // act — release every dataset at once
     renderer.release_all_datasets();
     // assert — no dataset is active anymore and no frames are shown
@@ -220,7 +220,7 @@ TEST(ChartsDatasetsTest, delete_chart_removes_the_chart_at_the_position) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     // act — delete the first chart via its context menu position
     renderer.delete_chart(0.25f);
     // assert — the second chart moves up to the first slot
@@ -244,7 +244,7 @@ TEST(ChartsDatasetsTest, delete_chart_keeps_a_blank_chart_when_the_last_one_is_r
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // act — delete the only chart
     renderer.delete_chart(0.5f);
     // assert — a blank chart replaces it so the panel is never empty
@@ -280,7 +280,7 @@ TEST(ChartsDatasetsTest, delete_all_plots_clears_only_the_target_chart) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}, {"V(b)"}}, false);
     // act — delete all plots on the second chart via its context menu position
     renderer.delete_all_plots(0.75f);
     // assert — only the second chart was cleared
@@ -309,7 +309,7 @@ TEST(ChartsDatasetsTest, position_to_index_translates_relative_positions_to_char
     EXPECT_EQ(renderer.position_to_index(1.0f), 0u);
     // act — activate a panel with two charts and translate boundary positions
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     renderer.add_chart();
     // assert — positions map to the upper slot from 0.5 on and clamp at both ends
     EXPECT_EQ(renderer.position_to_index(0.0f), 0u);
@@ -339,7 +339,7 @@ TEST(ChartsDatasetsTest, chart_selected_steps_roundtrips_through_the_renderer) {
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // act — replace the step selection of the first chart; the loaded file has
     // a single step (slice 0) so the selection is limited to that step
     renderer.set_chart_selected_steps(0, {0});
@@ -372,7 +372,7 @@ TEST(ChartsDatasetsTest, abscissa_range_reports_the_loaded_step_information) {
     EXPECT_EQ(fallback.second, 1.0);
     // act — load a dataset whose abscissa spans [0, 5]
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // assert — the loaded step information abscissa range is reported
     const auto range = renderer.abscissa_range();
     EXPECT_EQ(range.first, 0.0);
@@ -392,7 +392,7 @@ TEST(ChartsDatasetsTest, evaluate_expression_evaluates_through_the_expression_ma
     std::vector<std::vector<ChartFrame>> published;
     ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
     renderer.set_viewport(800.0f, 600.0f);
-    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}});
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"V(a)"}}, false);
     // act — evaluate the known name through the renderer
     AnyExpression* resolved = renderer.evaluate_expression("V(a)");
     // assert — it resolves to the same expression pointer the manager holds
@@ -402,4 +402,57 @@ TEST(ChartsDatasetsTest, evaluate_expression_evaluates_through_the_expression_ma
     EXPECT_EQ(renderer.evaluate_expression("V(a)"), resolved);
     // every expression known to the manager is listed
     EXPECT_EQ(renderer.all_expressions().size(), expression_manager.expressions().size());
+}
+
+TEST(ChartsDatasetsTest, smith_dataset_flag_follows_the_active_dataset) {
+    // arrange — one renderer with an XY dataset and a complex expression manager
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<std::complex<double>> s11_data(6, std::complex<double>(0.5, 0.1));
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_data), step_slices, "Hz"));
+    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", "parameter"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"frequency"}, {{}}, {{0.0, 5.0}});
+    std::vector<std::vector<ChartFrame>> published;
+    ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
+    renderer.set_viewport(800.0f, 600.0f);
+    // act — activate an xy dataset and a smith dataset
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {}, false);
+    const bool xy_smith = renderer.active_dataset_is_smith();
+    renderer.update(2, expression_manager, step_information, AbscissaScale::LINEAR, {}, true);
+    const bool smith_smith = renderer.active_dataset_is_smith();
+    // assert — the flag reflects the active dataset; releasing the active
+    // smith dataset reports the default (non-smith) state
+    EXPECT_FALSE(xy_smith);
+    EXPECT_TRUE(smith_smith);
+    renderer.release_dataset(2);
+    EXPECT_FALSE(renderer.active_dataset_is_smith());
+}
+
+TEST(ChartsDatasetsTest, smith_dataset_creates_smith_kind_charts) {
+    // arrange — one renderer activated as a smith dataset
+    std::vector<double> abscissa_data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<std::complex<double>> s11_data(6, std::complex<double>(0.5, 0.1));
+    std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_data), step_slices, "Hz"));
+    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", "parameter"));
+    ExpressionManager expression_manager(expressions, step_slices);
+    StepInformation step_information({"frequency"}, {{}}, {{0.0, 5.0}});
+    std::vector<std::vector<ChartFrame>> published;
+    ChartsRenderer renderer([&published](const std::vector<ChartFrame>& frames) { published.push_back(frames); });
+    renderer.set_viewport(800.0f, 600.0f);
+    // act
+    renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"S11"}}, true);
+    // assert — the published frames carry the smith flag, the grid paths and
+    // the two axis diameters
+    ASSERT_EQ(published.back().size(), 1u);
+    EXPECT_TRUE(published.back().front().smith);
+    EXPECT_EQ(published.back().front().smith_grid.size(), 18u);
+    // the frame carries the smith tick labels
+    EXPECT_EQ(published.back().front().smith_labels.size(), 15u);
+    // the series carries the plotted gamma trace
+    ASSERT_EQ(published.back().front().series.size(), 1u);
+    EXPECT_EQ(published.back().front().series.front().name, "S11");
 }

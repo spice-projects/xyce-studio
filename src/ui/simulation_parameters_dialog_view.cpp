@@ -525,15 +525,16 @@ namespace simulation_parameters_dialog_view
             dialog->set_ac_data_table(slint::SharedString(params.data_table_name));
             // measure directives (one per line)
             dialog->set_ac_measure(slint::SharedString(format_measure_lines(params.measure_parameters)));
-            // print section (power is not available for an AC analysis)
-            apply_print_section(params.print_parameters, false, true, true, true, AC_PRINT_TYPES,
+            // print section (power and device lead currents are not available
+            // for an AC analysis per the Xyce reference guide)
+            apply_print_section(params.print_parameters, false, false, false, true, AC_PRINT_TYPES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_ac_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_ac_print_all_nodes(v); },
                                     .all_currents = [&dialog](bool v) { dialog->set_ac_print_all_currents(v); },
                                     .power = [](bool) {},
-                                    .bjt_leads = [&dialog](bool v) { dialog->set_ac_print_bjt_leads(v); },
-                                    .fet_leads = [&dialog](bool v) { dialog->set_ac_print_fet_leads(v); },
+                                    .bjt_leads = [](bool) {},
+                                    .fet_leads = [](bool) {},
                                     .specific_variables = [&dialog](slint::SharedString v) { dialog->set_ac_print_specific_variables(v); },
                                     .format_index = [&dialog](int v) { dialog->set_ac_print_format_index(v); },
                                     .output_file = [&dialog](slint::SharedString v) { dialog->set_ac_print_output_file(v); },
@@ -555,15 +556,16 @@ namespace simulation_parameters_dialog_view
             const std::string data_table = is_data_sweep ? std::string(dialog->get_ac_data_table()) : "";
             // parse .MEASURE directives (one per line)
             auto measures = parse_measure_lines(std::string(dialog->get_ac_measure()));
-            // print parameters (power is not available for an AC analysis)
-            auto print_params = build_print_section(false, true, true, true, "AC", AC_PRINT_TYPES,
+            // print parameters (power and device lead currents are not
+            // available for an AC analysis per the Xyce reference guide)
+            auto print_params = build_print_section(false, false, false, true, "AC", AC_PRINT_TYPES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_ac_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_ac_print_all_nodes(); },
                                                         .all_currents = [&dialog] { return dialog->get_ac_print_all_currents(); },
                                                         .power = [] { return false; },
-                                                        .bjt_leads = [&dialog] { return dialog->get_ac_print_bjt_leads(); },
-                                                        .fet_leads = [&dialog] { return dialog->get_ac_print_fet_leads(); },
+                                                        .bjt_leads = [] { return false; },
+                                                        .fet_leads = [] { return false; },
                                                         .specific_variables = [&dialog] { return std::string(dialog->get_ac_print_specific_variables()); },
                                                         .format_index = [&dialog] { return dialog->get_ac_print_format_index(); },
                                                         .output_file = [&dialog] { return std::string(dialog->get_ac_print_output_file()); },
@@ -728,15 +730,16 @@ namespace simulation_parameters_dialog_view
             dialog->set_noise_sweep_type_index(sweep_mode_index_for(params.sweep_type));
             dialog->set_noise_data_table(slint::SharedString(params.data_table_name));
             dialog->set_noise_device_noise(slint::SharedString(format_device_noise_text(params.device_noise_operators)));
-            // print section (no power for a noise analysis)
-            apply_print_section(params.print_parameters, false, true, true, true, NOISE_PRINT_TYPES,
+            // print section (power and device lead currents are not available
+            // for a noise analysis per the Xyce reference guide)
+            apply_print_section(params.print_parameters, false, false, false, true, NOISE_PRINT_TYPES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_noise_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_noise_print_all_nodes(v); },
                                     .all_currents = [&dialog](bool v) { dialog->set_noise_print_all_currents(v); },
                                     .power = [](bool) {},
-                                    .bjt_leads = [&dialog](bool v) { dialog->set_noise_print_bjt_leads(v); },
-                                    .fet_leads = [&dialog](bool v) { dialog->set_noise_print_fet_leads(v); },
+                                    .bjt_leads = [](bool) {},
+                                    .fet_leads = [](bool) {},
                                     .specific_variables = [&dialog](slint::SharedString v) { dialog->set_noise_print_specific_variables(v); },
                                     .format_index = [&dialog](int v) { dialog->set_noise_print_format_index(v); },
                                     .output_file = [&dialog](slint::SharedString v) { dialog->set_noise_print_output_file(v); },
@@ -757,15 +760,16 @@ namespace simulation_parameters_dialog_view
             const std::string data_table = is_data_sweep ? std::string(dialog->get_noise_data_table()) : "";
             // parse device noise operators (type node source per line)
             auto device_noise = parse_device_noise_text(std::string(dialog->get_noise_device_noise()));
-            // print parameters (no power for a noise analysis)
-            auto print_params = build_print_section(false, true, true, true, "NOISE", NOISE_PRINT_TYPES,
+            // print parameters (power and device lead currents are not
+            // available for a noise analysis per the Xyce reference guide)
+            auto print_params = build_print_section(false, false, false, true, "NOISE", NOISE_PRINT_TYPES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_noise_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_noise_print_all_nodes(); },
                                                         .all_currents = [&dialog] { return dialog->get_noise_print_all_currents(); },
                                                         .power = [] { return false; },
-                                                        .bjt_leads = [&dialog] { return dialog->get_noise_print_bjt_leads(); },
-                                                        .fet_leads = [&dialog] { return dialog->get_noise_print_fet_leads(); },
+                                                        .bjt_leads = [] { return false; },
+                                                        .fet_leads = [] { return false; },
                                                         .specific_variables = [&dialog] { return std::string(dialog->get_noise_print_specific_variables()); },
                                                         .format_index = [&dialog] { return dialog->get_noise_print_format_index(); },
                                                         .output_file = [&dialog] { return std::string(dialog->get_noise_print_output_file()); },
@@ -878,15 +882,16 @@ namespace simulation_parameters_dialog_view
             dialog->set_lin_start(slint::SharedString(params.start));
             dialog->set_lin_end(slint::SharedString(params.end));
             dialog->set_lin_data_table(slint::SharedString(params.data_table_name));
-            // print section (single AC print type)
-            apply_print_section(params.print_parameters, true, true, true, true, LIN_PRINT_TYPES,
+            // print section (power and device lead currents are not available
+            // for a linear analysis; the print is an AC print)
+            apply_print_section(params.print_parameters, false, false, false, true, LIN_PRINT_TYPES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_lin_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_lin_print_all_nodes(v); },
                                     .all_currents = [&dialog](bool v) { dialog->set_lin_print_all_currents(v); },
-                                    .power = [&dialog](bool v) { dialog->set_lin_print_power(v); },
-                                    .bjt_leads = [&dialog](bool v) { dialog->set_lin_print_bjt_leads(v); },
-                                    .fet_leads = [&dialog](bool v) { dialog->set_lin_print_fet_leads(v); },
+                                    .power = [](bool) {},
+                                    .bjt_leads = [](bool) {},
+                                    .fet_leads = [](bool) {},
                                     .specific_variables = [&dialog](slint::SharedString v) { dialog->set_lin_print_specific_variables(v); },
                                     .format_index = [&dialog](int v) { dialog->set_lin_print_format_index(v); },
                                     .output_file = [&dialog](slint::SharedString v) { dialog->set_lin_print_output_file(v); },
@@ -908,15 +913,16 @@ namespace simulation_parameters_dialog_view
             const std::string start = is_data_sweep ? "" : std::string(dialog->get_lin_start());
             const std::string end = is_data_sweep ? "" : std::string(dialog->get_lin_end());
             const std::string data_table = is_data_sweep ? std::string(dialog->get_lin_data_table()) : "";
-            // print parameters (single AC print type)
-            auto print_params = build_print_section(true, true, true, true, "AC", LIN_PRINT_TYPES,
+            // print parameters (power and device lead currents are not
+            // available for a linear analysis; the print is an AC print)
+            auto print_params = build_print_section(false, false, false, true, "AC", LIN_PRINT_TYPES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_lin_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_lin_print_all_nodes(); },
                                                         .all_currents = [&dialog] { return dialog->get_lin_print_all_currents(); },
-                                                        .power = [&dialog] { return dialog->get_lin_print_power(); },
-                                                        .bjt_leads = [&dialog] { return dialog->get_lin_print_bjt_leads(); },
-                                                        .fet_leads = [&dialog] { return dialog->get_lin_print_fet_leads(); },
+                                                        .power = [] { return false; },
+                                                        .bjt_leads = [] { return false; },
+                                                        .fet_leads = [] { return false; },
                                                         .specific_variables = [&dialog] { return std::string(dialog->get_lin_print_specific_variables()); },
                                                         .format_index = [&dialog] { return dialog->get_lin_print_format_index(); },
                                                         .output_file = [&dialog] { return std::string(dialog->get_lin_print_output_file()); },

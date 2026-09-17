@@ -573,3 +573,62 @@ TEST(TouchstoneFileParserChecks, parses_v2_file_with_declared_frequency_count) {
     // check abscissa scale is decade (log-spaced frequencies)
     ASSERT_EQ(result.value()->abscissa_scale(), AbscissaScale::DECADE);
 }
+
+TEST(TouchstoneFileParserChecks, suggested_plots_split_reflection_and_transmission_for_2port) {
+    // arrange
+    const std::string content = "# Hz S RI R 50\n"
+                                "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+    TempFileRAII temp_file(content, ".s2p");
+    // act
+    const auto result = touchstone_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    // two charts: reflection (diagonal, return loss) and transmission
+    // (off-diagonal, insertion loss)
+    const auto& suggested = result.value()->suggested_plots();
+    ASSERT_EQ(suggested.size(), 2);
+    const std::vector<std::vector<std::string>> expected = {{"db(S11)", "db(S22)"}, {"db(S12)", "db(S21)"}};
+    ASSERT_EQ(suggested, expected);
+}
+
+TEST(TouchstoneFileParserChecks, suggested_plots_split_reflection_and_transmission_for_3port) {
+    // arrange
+    const std::string content = "[Version] 2.0\n"
+                                "# Hz S RI R 50\n"
+                                "[Number of Ports] 3\n"
+                                "[Number of Frequencies] 1\n"
+                                "[Reference] 50 50 50\n"
+                                "[Network Data]\n"
+                                "1.0 0.5 0.1 0.2 0.0 0.3 0.0 0.8 0.2 0.7 0.05 0.2 0.0 0.1 0.0 0.4 0.0 0.6 0.05\n"
+                                "[End]\n";
+    TempFileRAII temp_file(content, ".s3p");
+    // act
+    const auto result = touchstone_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    // diagonal entries form the reflection chart, the row-major off-diagonal
+    // entries the transmission chart
+    const auto& suggested = result.value()->suggested_plots();
+    ASSERT_EQ(suggested.size(), 2);
+    const std::vector<std::vector<std::string>> expected = {
+        {"db(S11)", "db(S22)", "db(S33)"},
+        {"db(S12)", "db(S13)", "db(S21)", "db(S23)", "db(S31)", "db(S32)"},
+    };
+    ASSERT_EQ(suggested, expected);
+}
+
+TEST(TouchstoneFileParserChecks, suggested_plots_follow_the_parameter_prefix) {
+    // arrange
+    const std::string content = "# Hz Y RI R 50\n"
+                                "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+    TempFileRAII temp_file(content, ".s2p");
+    // act
+    const auto result = touchstone_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    // the Y-parameter file produces the equivalent groups with the Y prefix
+    const auto& suggested = result.value()->suggested_plots();
+    ASSERT_EQ(suggested.size(), 2);
+    const std::vector<std::vector<std::string>> expected = {{"db(Y11)", "db(Y22)"}, {"db(Y12)", "db(Y21)"}};
+    ASSERT_EQ(suggested, expected);
+}

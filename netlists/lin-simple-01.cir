@@ -1,12 +1,11 @@
-* Simple 2-Port RLC Network - Linear S-Parameter (.LIN) Analysis Test
-P1 IN 0 port=1 z0=50 AC 1
-P2 OUT 0 port=2 z0=50 AC 1
-R1 IN N1 100
-L1 N1 N2 10mH
-C1 N2 OUT 1uF
+* Matches a 100 Ohm load to a 50 Ohm system
+P1 port1 0 port=1 z0=50 AC 1
+L1 port1 port2 25nH
+C1 port2 0     10pF
+P2 port2 0 port=2 z0=100
 
 .PREPROCESS REPLACEGROUND FALSE
-.AC DEC 20 1 100k
+.AC DEC 200 100meg 1.5g
 .LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-simple-01.s2p WIDTH=16 PRECISION=8
 .PRINT AC FORMAT=RAW FILE=lin-simple-01.raw V(*) I(*)
 
