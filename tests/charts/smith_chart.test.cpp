@@ -217,12 +217,31 @@ TEST(SmithChartMathChecks, reactance_arcs_run_from_the_unit_circle_to_the_open_c
     EXPECT_NEAR(std::abs(arc.front()), 1.0, 1e-8);
     EXPECT_NEAR(arc.back().real(), 1.0, 1e-8);
     EXPECT_NEAR(arc.back().imag(), 0.0, 1e-12);
-    // every sample satisfies the constant reactance relation x = (2 gamma_i) / (1 - r^2 - gamma_i^2 ...)
-    // verify through the inverse mapping instead
+    // every sample satisfies the constant reactance relation; samples at the
+    // shared open circuit point (gamma = 1) are singular, skip them
     for (const auto& gamma : arc) {
+        if (std::abs(gamma) > 0.99)
+            continue;
         const auto z = smith::impedance_from_gamma(gamma);
         EXPECT_NEAR(z.imag(), 1.0, 1e-6 * std::max(1.0, std::abs(z)));
         EXPECT_GE(z.real(), 0.0);
+    }
+}
+
+TEST(SmithChartMathChecks, reactance_arcs_sample_uniformly_along_the_arc) {
+    // arrange — one arc at x = 1 with a dense sampling
+    // act
+    const auto paths = smith::reactance_grid_paths({1.0}, 128);
+    const auto& arc = paths[0];
+    // assert — uniform angle sampling makes every chord the same length, so
+    // the polyline renders smooth without visible segments
+    double first_chord = 0.0;
+    for (size_t i = 1; i < arc.size(); ++i) {
+        const double chord = std::abs(arc[i] - arc[i - 1]);
+        if (i == 1)
+            first_chord = chord;
+        else
+            EXPECT_NEAR(chord, first_chord, first_chord * 0.05);
     }
 }
 

@@ -928,11 +928,6 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
     size_t best_index = 0;
     // cursor position in the gamma plane
     const std::complex<double> cursor(gamma_r, gamma_i);
-    // search radius around the cursor in gamma-plane units; a readout only
-    // appears when a trace point is near enough to be unambiguous
-    constexpr double k_hover_radius = 0.25;
-    // squared search radius
-    const double best_distance_limit = k_hover_radius * k_hover_radius;
     // loop series in name order, deterministic nearest-point resolution
     for (const auto& [name, ordinate_series] : m_series) {
         // rendered steps of this series
@@ -950,8 +945,8 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
                     continue;
                 // squared distance to the cursor
                 const double distance = std::norm(point - cursor);
-                // keep the nearest point inside the search radius
-                if (distance <= best_distance_limit && distance < best_distance) {
+                // keep the nearest point
+                if (distance < best_distance) {
                     best_distance = distance;
                     best_name = &name;
                     best_step = step;
@@ -960,7 +955,7 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
             }
         }
     }
-    // no trace point near the cursor
+    // no plotted trace point
     if (best_name == nullptr)
         return {};
     // series data of the nearest point

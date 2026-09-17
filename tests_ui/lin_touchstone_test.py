@@ -121,6 +121,66 @@ class LinTouchstoneStepChecks(unittest.TestCase):
                 self.assertTrue(app.get_by_id("ChartsPanel::test-add-chart").exists())
 
 
+class LinSmithChartChecks(unittest.TestCase):
+
+    def test_smith_chart_shows_axes_tick_labels_and_hover_readout(self) -> None:
+        # arrange: resolve the xyce executable and the sample netlist from the repository
+        xyce = shutil.which("Xyce")
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "lin-simple-01.cir"
+        # arrange: skip the scenario when the xyce executable is not available
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        # arrange: copy the netlist to a scratch directory so the run never
+        # touches the repository fixtures
+        with tempfile.TemporaryDirectory() as scratch:
+            netlist_path = Path(scratch) / "lin-simple-01.cir"
+            netlist_path.write_text(netlist.read_text())
+            # arrange: launch the application with the netlist and the xyce executable
+            with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
+                # arrange: locate the status bar text
+                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                # step 1: run the simulation and wait for the charts view
+                app.get_by_type("ToolbarButton").nth(5).click()
+                expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=15.0)
+                app.get_by_id("MainWindow::charts").wait_for_exists(timeout=10.0)
+                # step 2: switch to the Smith Chart tab
+                tabs = app.get_by_type("PlotTabButton")
+                tabs.nth(2).click()
+                app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=5.0, message="expected the Smith Chart")
+                # assert: the chart carries the resistance tick labels along the
+                # real axis and the reactance tick labels at the arc ends; the
+                # labels sit in the frame margins, not on the plotted series
+                view = app.get_by_type("ChartView").nth(0)
+                view_props = view.properties()
+                origin_y = view_props.get("absolutePosition", {}).get("y", 0)
+                height = view_props.get("size", {}).get("height", 0)
+                texts = view.child("Text")
+                expected = {"0.2", "0.5", "1", "2", "5"}
+                resistance_labels: set[str] = set()
+                reactance_labels: set[str] = set()
+                for index in range(texts.count()):
+                    props = texts.nth(index).properties()
+                    label = props.get("accessibleLabel")
+                    relative_y = props.get("absolutePosition", {}).get("y", 0) - origin_y
+                    if label in expected:
+                        if height * 0.4 < relative_y < height * 0.6:
+                            resistance_labels.add(label)
+                        else:
+                            reactance_labels.add(label)
+                self.assertEqual(resistance_labels, expected)
+                self.assertEqual(reactance_labels, expected)
+                # step 3: hover the chart center through the unpressed move of
+                # a drag gesture; the status bar reports the nearest trace
+                # point readout like the line chart reports its values
+                center_x = view_props.get("size", {}).get("width", 0) / 2
+                center_y = height / 2
+                view.drag(center_x, center_y)
+                app.wait_for_condition(lambda: "frequency=" in (status.text() or ""), timeout=5.0, message="expected the hover readout in the status bar")
+                readout = status.text()
+                self.assertIn("S11", readout)
+                self.assertIn("VSWR=", readout)
+
+
 class LinSmithStepToolChecks(unittest.TestCase):
 
     def test_step_tool_opens_from_the_smith_chart_context_menu(self) -> None:

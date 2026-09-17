@@ -138,7 +138,24 @@ struct ChartFrame
     // arcs) are pixel-space runs like the series
     bool smith = false;
 
+    // padding kept between the smith gamma-plane square and the white plot
+    // rect around it; the reactance tick labels live inside this padding
+    float smith_padding = 0.0f;
+
     std::vector<ChartSeriesFrame> smith_grid;
+
+    // smith tick labels: resistance values along the real axis, reactance
+    // values outside the unit circle at the arc ends; pixel-space centers
+    struct SmithLabel
+    {
+        std::string label;
+
+        float x = 0.0f;
+
+        float y = 0.0f;
+    };
+
+    std::vector<SmithLabel> smith_labels;
 
     std::vector<ChartSeriesFrame> series;
 };

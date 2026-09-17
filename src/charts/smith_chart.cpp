@@ -97,23 +97,40 @@ namespace smith
         paths.reserve(x_values.size());
         // loop requested reactances
         for (const double x : x_values) {
-            // constant reactance arc: gamma(r) = (z - 1) / (z + 1) with
-            // z = r + jx as r sweeps 0..inf; every point stays inside the unit
-            // circle for r >= 0, so the arc is clipped by construction
+            // constant reactance arc: a circle through the open circuit point
+            // (1, 0) centered at (1, 1/x) with radius |1/x|; the visible arc
+            // runs from the unit circle boundary (z = jx at r = 0) to the open
+            // circuit point (r -> inf), clipped by construction
             GridPath path;
             // reserve the sample count
             path.reserve(static_cast<size_t>(samples_per_path));
-            // sampling bounds: r from a tiny value (unit circle boundary) to a
-            // huge one (open circuit at gamma = 1), geometrically spaced
-            const double r_min = 1e-9;
-            const double r_max = 1e12;
-            // loop samples along the arc
+            // circle center and radius
+            const std::complex<double> center(1.0, 1.0 / x);
+            const double radius = std::abs(1.0 / x);
+            // start angle: the boundary point z = jx sits on the unit circle
+            const std::complex<double> boundary = gamma_from_impedance(std::complex<double>(0.0, x));
+            const double start_angle = std::atan2(boundary.imag() - center.imag(), boundary.real() - center.real());
+            // end angle: the open circuit point (1, 0) relative to the center
+            const double end_angle = std::atan2(0.0 - center.imag(), 1.0 - center.real());
+            // the visible arc sweeps toward the open circuit through the
+            // inside of the unit circle: counterclockwise for positive
+            // reactance, clockwise for negative reactance
+            double sweep_end = end_angle;
+            if (x > 0.0) {
+                while (sweep_end < start_angle)
+                    sweep_end += 2.0 * std::numbers::pi;
+            }
+            else {
+                while (sweep_end > start_angle)
+                    sweep_end -= 2.0 * std::numbers::pi;
+            }
+            // loop samples along the arc, uniform in angle so the curve
+            // renders smooth at any chart size
             for (int i = 0; i < samples_per_path; ++i) {
-                // geometric r sampling keeps the arc ends and the curvature
-                const double ratio = std::pow(r_max / r_min, static_cast<double>(i) / static_cast<double>(samples_per_path - 1));
-                const double r = r_min * ratio;
+                // angle of this sample
+                const double angle = start_angle + (sweep_end - start_angle) * static_cast<double>(i) / static_cast<double>(samples_per_path - 1);
                 // sample on the arc
-                path.push_back(gamma_from_impedance(std::complex<double>(r, x)));
+                path.push_back(center + std::complex<double>(std::cos(angle) * radius, std::sin(angle) * radius));
             }
             // append the path
             paths.push_back(std::move(path));

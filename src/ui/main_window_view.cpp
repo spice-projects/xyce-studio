@@ -70,19 +70,35 @@ namespace
         // layout's transparent placeholder grid colors to the theme roles: the
         // unit circle boundary to the border color, the rest to the grid color
         data.smith = frame.smith;
+        data.smith_padding = frame.smith_padding;
         // smith grid polylines as svg commands relative to the plot origin
         auto smith_grid = std::make_shared<slint::VectorModel<main_window::ChartSeriesData>>();
         for (const auto& run : frame.smith_grid) {
             // slint grid entry
             main_window::ChartSeriesData entry;
             entry.name = run.name;
-            // boundary runs render in the border color, the rest in the grid color
-            const ChartColor& theme_color = run.boundary ? palette.border : palette.grid;
+            // boundary runs and the axis diameters render in the border
+            // color, the resistance and reactance grid in a mid tint of it so
+            // the grid reads clearly against the plot background
+            ChartColor theme_color = palette.border;
+            if (!run.boundary)
+                theme_color.a *= 0.45f;
             entry.color = slint::Color::from_argb_float(theme_color.a, theme_color.r, theme_color.g, theme_color.b);
             entry.commands = series_commands(frame, run);
             smith_grid->push_back(entry);
         }
         data.smith_grid = smith_grid;
+        // smith tick labels
+        auto smith_labels = std::make_shared<slint::VectorModel<main_window::ChartSmithLabelData>>();
+        for (const auto& label : frame.smith_labels) {
+            // slint label entry
+            main_window::ChartSmithLabelData entry;
+            entry.label = label.label;
+            entry.x = label.x;
+            entry.y = label.y;
+            smith_labels->push_back(entry);
+        }
+        data.smith_labels = smith_labels;
         // x tick labels
         auto x_ticks = std::make_shared<slint::VectorModel<main_window::ChartTickData>>();
         for (const auto& tick : frame.x_ticks) {

@@ -94,14 +94,17 @@ TEST(SmithChartEngineChecks, hover_reports_the_nearest_trace_point) {
     EXPECT_NE(text.find("RL="), std::string::npos);
 }
 
-TEST(SmithChartEngineChecks, hover_away_from_any_trace_returns_empty) {
+TEST(SmithChartEngineChecks, hover_far_from_the_trace_reports_the_nearest_point) {
     // arrange — a smith chart with one plotted series at gamma (0.2, 0)
     SmithFixture fixture({std::complex<double>(0.2, 0.0)});
     fixture.engine->plot_series({fixture.expression_manager->expressions()[1]});
     // act — hover far away from the trace inside the plane
     const std::string text = fixture.engine->hovered_smith_text(-0.8, -0.8);
-    // assert — no trace point near the cursor, empty readout
-    EXPECT_TRUE(text.empty());
+    // assert — the readout reports the nearest trace point like the line
+    // chart reports the interpolated values at any cursor position
+    EXPECT_NE(text.find("frequency=1"), std::string::npos);
+    EXPECT_NE(text.find("S11"), std::string::npos);
+    EXPECT_NE(text.find("Z="), std::string::npos);
 }
 
 TEST(SmithChartLayoutChecks, smith_frames_use_a_square_plot_rect) {
@@ -127,11 +130,25 @@ TEST(SmithChartLayoutChecks, smith_frames_carry_the_grid_paths) {
     // act
     const ChartFrame frame = layout.build(*fixture.engine, 800.0f, 600.0f);
     // assert — the standard grid: the unit circle boundary plus the resistance
-    // and reactance paths, all flagged for theme color substitution
-    ASSERT_EQ(frame.smith_grid.size(), 16u);
+    // and reactance paths, all flagged for theme color substitution, followed
+    // by the two axis diameters in the border color
+    ASSERT_EQ(frame.smith_grid.size(), 18u);
     EXPECT_TRUE(frame.smith_grid[0].boundary);
-    for (size_t g = 1; g < frame.smith_grid.size(); ++g)
+    for (size_t g = 1; g < frame.smith_grid.size() - 2; ++g)
         EXPECT_FALSE(frame.smith_grid[g].boundary);
+    EXPECT_TRUE(frame.smith_grid[frame.smith_grid.size() - 2].boundary);
+    EXPECT_TRUE(frame.smith_grid[frame.smith_grid.size() - 1].boundary);
+    // the last two runs are the real and imaginary axis diameters
+    const auto& real_axis = frame.smith_grid[frame.smith_grid.size() - 2].points;
+    const auto& imaginary_axis = frame.smith_grid[frame.smith_grid.size() - 1].points;
+    ASSERT_EQ(real_axis.size(), 2u);
+    EXPECT_NEAR(real_axis.front().y, real_axis.back().y, 1e-6);
+    EXPECT_NEAR(real_axis.front().x, frame.plot_x, 1e-6);
+    EXPECT_NEAR(real_axis.back().x, frame.plot_x + frame.plot_w, 1e-6);
+    ASSERT_EQ(imaginary_axis.size(), 2u);
+    EXPECT_NEAR(imaginary_axis.front().x, imaginary_axis.back().x, 1e-6);
+    EXPECT_NEAR(imaginary_axis.front().y, frame.plot_y, 1e-6);
+    EXPECT_NEAR(imaginary_axis.back().y, frame.plot_y + frame.plot_h, 1e-6);
     // every grid sample maps inside the square plot rect
     for (const auto& run : frame.smith_grid) {
         for (const auto& point : run.points) {
@@ -146,6 +163,56 @@ TEST(SmithChartLayoutChecks, smith_frames_carry_the_grid_paths) {
     ASSERT_GE(unit_circle.size(), 64u);
     const auto right = std::max_element(unit_circle.begin(), unit_circle.end(), [](const ChartPoint& a, const ChartPoint& b) { return a.x < b.x; });
     EXPECT_NEAR(right->x, frame.plot_x + frame.plot_w, 1e-3);
+}
+
+TEST(SmithChartLayoutChecks, smith_frames_keep_a_margin_around_the_plot) {
+    // arrange
+    SmithFixture fixture({std::complex<double>(0.5, 0.1)});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act — a frame much wider than tall
+    const ChartFrame frame = layout.build(*fixture.engine, 800.0f, 600.0f);
+    // assert — the plot rect keeps a margin to the canvas on every side so
+    // the tick labels outside the unit circle stay inside the frame
+    EXPECT_GE(frame.plot_x, 26.0f);
+    EXPECT_GE(frame.plot_y, 26.0f);
+    EXPECT_LE(frame.plot_x + frame.plot_w, 800.0f - 26.0f);
+    EXPECT_LE(frame.plot_y + frame.plot_h, 600.0f - 26.0f);
+}
+
+TEST(SmithChartLayoutChecks, smith_frames_carry_the_resistance_and_reactance_tick_labels) {
+    // arrange
+    SmithFixture fixture({std::complex<double>(0.5, 0.1)});
+    ChartLayout layout([](const std::string& text) { return static_cast<float>(text.size()) * 7.0f; });
+    // act
+    const ChartFrame frame = layout.build(*fixture.engine, 800.0f, 600.0f);
+    // assert — five resistance labels on the real axis plus ten reactance
+    // labels at the arc ends, mirrored below the axis
+    ASSERT_EQ(frame.smith_labels.size(), 15u);
+    // the resistance labels sit slightly below the horizontal axis, the
+    // reactance labels clearly away from it outside the unit circle
+    const float center_x = frame.plot_x + frame.plot_w * 0.5f;
+    const float axis_y = frame.plot_y + frame.plot_h * 0.5f;
+    size_t resistance_labels = 0;
+    size_t reactance_labels = 0;
+    for (const auto& label : frame.smith_labels) {
+        // offset from the horizontal axis
+        const float dy = label.y - axis_y;
+        if (std::abs(dy) <= 15.0f) {
+            // resistance label: between the plot edges on the real axis
+            EXPECT_GT(label.x, frame.plot_x);
+            EXPECT_LT(label.x, frame.plot_x + frame.plot_w);
+            EXPECT_GT(dy, 0.0f);
+            resistance_labels++;
+        }
+        else {
+            // reactance label: outside the unit circle boundary
+            const float dx = label.x - center_x;
+            EXPECT_GT(std::sqrt(dx * dx + dy * dy), frame.plot_w * 0.5f);
+            reactance_labels++;
+        }
+    }
+    EXPECT_EQ(resistance_labels, 5u);
+    EXPECT_EQ(reactance_labels, 10u);
 }
 
 TEST(SmithChartLayoutChecks, smith_series_map_the_gamma_plane) {

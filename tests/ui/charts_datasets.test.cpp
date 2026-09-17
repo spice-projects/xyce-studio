@@ -445,10 +445,13 @@ TEST(ChartsDatasetsTest, smith_dataset_creates_smith_kind_charts) {
     renderer.set_viewport(800.0f, 600.0f);
     // act
     renderer.update(1, expression_manager, step_information, AbscissaScale::LINEAR, {{"S11"}}, true);
-    // assert — the published frames carry the smith flag and the grid paths
+    // assert — the published frames carry the smith flag, the grid paths and
+    // the two axis diameters
     ASSERT_EQ(published.back().size(), 1u);
     EXPECT_TRUE(published.back().front().smith);
-    EXPECT_EQ(published.back().front().smith_grid.size(), 16u);
+    EXPECT_EQ(published.back().front().smith_grid.size(), 18u);
+    // the frame carries the smith tick labels
+    EXPECT_EQ(published.back().front().smith_labels.size(), 15u);
     // the series carries the plotted gamma trace
     ASSERT_EQ(published.back().front().series.size(), 1u);
     EXPECT_EQ(published.back().front().series.front().name, "S11");

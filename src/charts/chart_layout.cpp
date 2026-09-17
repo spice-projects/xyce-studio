@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,7 +14,15 @@ namespace
 {
     // sample count of each smith grid path; high enough to render smooth
     // circles and arcs at any chart size
-    constexpr int k_smith_grid_samples = 96;
+    constexpr int k_smith_grid_samples = 256;
+    // padding kept between the smith gamma-plane square and the white plot
+    // rect around it; the reactance tick labels sit inside this padding
+    constexpr float k_smith_plot_padding = 26.0f;
+    // offset of the smith tick labels from their anchor: resistance labels
+    // sit just below the real axis, reactance labels just outside the unit
+    // circle boundary
+    constexpr float k_resistance_label_offset = 10.0f;
+    constexpr float k_reactance_label_offset = 12.0f;
     // implot NiceNum: round x to a nice 1/2/5 x 10^n number
     double nice_num(const double x, const bool round) {
         // exponent and fraction of x in scientific form
@@ -552,13 +561,17 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
         frame.legend_y = canvas_y + canvas_h - frame.legend_h;
     }
-    // square plot rect (equal aspect) sized from the available span, centered
-    // horizontally in the frame
+    // white plot rect sized from the available span (equal aspect), then the
+    // gamma-plane square inside it with the label padding on every side
     const float side = std::min(canvas_w, available_h);
-    frame.plot_x = std::max(0.0f, (width - side) * 0.5f);
-    frame.plot_y = canvas_y;
-    frame.plot_w = side;
-    frame.plot_h = side;
+    frame.smith_padding = k_smith_plot_padding;
+    frame.plot_x = std::max(0.0f, (width - side) * 0.5f) + frame.smith_padding;
+    frame.plot_y = canvas_y + (available_h - side) * 0.5f + frame.smith_padding;
+    frame.plot_w = std::max(0.0f, side - 2.0f * frame.smith_padding);
+    frame.plot_h = frame.plot_w;
+    // plot rect center for the axis mapping
+    const float center_x = frame.plot_x + frame.plot_w * 0.5f;
+    const float center_y = frame.plot_y + frame.plot_h * 0.5f;
     // smith grid polylines mapped into the plot rect; the unit circle boundary
     // (the first path) renders in the border color, the rest in the grid color
     const auto grid_paths = smith::grid_paths(k_smith_grid_samples);
@@ -586,6 +599,40 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         // append the run when it carries points
         if (!run.points.empty())
             frame.smith_grid.push_back(std::move(run));
+    }
+    // real and imaginary axis diameters through the plane, drawn in the
+    // border color like the unit circle boundary
+    {
+        // horizontal real axis
+        ChartSeriesFrame real_axis;
+        real_axis.boundary = true;
+        real_axis.points = {{frame.plot_x, center_y}, {frame.plot_x + frame.plot_w, center_y}};
+        frame.smith_grid.push_back(std::move(real_axis));
+        // vertical imaginary axis
+        ChartSeriesFrame imaginary_axis;
+        imaginary_axis.boundary = true;
+        imaginary_axis.points = {{center_x, frame.plot_y}, {center_x, frame.plot_y + frame.plot_h}};
+        frame.smith_grid.push_back(std::move(imaginary_axis));
+    }
+    // tick labels: resistance values where the constant resistance circles
+    // cross the real axis, reactance values outside the unit circle at the
+    // arc ends
+    const std::vector<double> levels = {0.2, 0.5, 1.0, 2.0, 5.0};
+    // resistance labels along the horizontal axis
+    for (const double r : levels) {
+        // real axis crossing of this resistance circle
+        const double gamma_r = (r - 1.0) / (r + 1.0);
+        frame.smith_labels.push_back({std::format("{:.1g}", r), static_cast<float>(frame.plot_x + (gamma_r + 1.0) * 0.5 * frame.plot_w), center_y + k_resistance_label_offset});
+    }
+    // reactance labels at the outer end of each arc, mirrored below the axis
+    for (const double x : levels) {
+        for (const double sign : {1.0, -1.0}) {
+            // boundary point of this reactance arc, a unit magnitude gamma
+            const std::complex<double> boundary = smith::gamma_from_impedance(std::complex<double>(0.0, sign * x));
+            // push the label outside the circle along the boundary direction
+            const float offset = frame.plot_w * 0.5f + k_reactance_label_offset;
+            frame.smith_labels.push_back({std::format("{:.1g}", sign * x), center_x + static_cast<float>(boundary.real()) * offset, center_y - static_cast<float>(boundary.imag()) * offset});
+        }
     }
     // series polylines in gamma-plane pixel coordinates
     for (const auto& [name, ordinate_series] : engine.series()) {
