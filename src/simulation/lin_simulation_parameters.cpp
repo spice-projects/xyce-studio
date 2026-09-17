@@ -198,17 +198,18 @@ std::vector<std::string> LinSimulationParameters::to_xyce_directives(const Netli
     directives.push_back(ac_directive);
 
     // build and append the .LIN directive
+    // SPARCALC/FORMAT/LINTYPE/DATAFORMAT are always emitted so a config that
+    // round-trips through the dialog keeps the original directive text
     std::string lin_directive = ".LIN";
-    if (!sparcalc) {
-        lin_directive += " SPARCALC=0";
-    }
-    if (format != "TOUCHSTONE2") {
+    lin_directive += " SPARCALC=";
+    lin_directive += sparcalc ? "1" : "0";
+    if (!format.empty()) {
         lin_directive += " FORMAT=" + format;
     }
-    if (lintype != "S") {
+    if (!lintype.empty()) {
         lin_directive += " LINTYPE=" + lintype;
     }
-    if (dataformat != "RI") {
+    if (!dataformat.empty()) {
         lin_directive += " DATAFORMAT=" + dataformat;
     }
     if (!file.empty()) {
