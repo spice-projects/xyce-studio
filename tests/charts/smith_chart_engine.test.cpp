@@ -9,13 +9,11 @@
 #include "core/step_information.h"
 #include "expression/expression.h"
 #include "expression/expression_manager.h"
-
 namespace
 {
     // build a smith chart engine over a frequency-swept complex expression
     struct SmithFixture
     {
-        std::vector<double> abscissa_data;
         std::vector<std::complex<double>> s11_data;
         std::vector<std::pair<size_t, size_t>> step_slices;
         std::vector<AnyExpression> expressions;
@@ -38,7 +36,6 @@ namespace
         }
     };
 } // namespace
-
 TEST(SmithChartEngineChecks, complex_expressions_plot_as_gamma_traces) {
     // arrange — s11 values (0.5, 0.1) and (0.2, 0.0)
     SmithFixture fixture({std::complex<double>(0.5, 0.1), std::complex<double>(0.2, 0.0)});
