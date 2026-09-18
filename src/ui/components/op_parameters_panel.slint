@@ -72,38 +72,40 @@ export component OpParametersPanel inherits Rectangle {
                     padding-left: 24px;
                     spacing: 8px;
 
-                    // wildcard voltage/current/power row
+                    // wildcard voltage/current/power and lead row
                     HorizontalLayout {
                         spacing: 16px;
-                        // min-widths pin each checkbox so toggling cannot reflow the row
-                        // (the cupertino style reports a narrower preferred width when checked)
+                        // explicit widths pin each checkbox so toggling cannot reflow the row
+                        // (the cupertino style reports a narrower preferred width when checked);
+                        // the fixed widths total 444px, which fits the panel width with the
+                        // 16px spacing in a single row
                         CheckBox {
                             text: "All voltages V(*)";
-                            min-width: 142px;
+                            width: 108px;
                             checked <=> root.print-all-nodes;
                         }
 
                         CheckBox {
                             text: "All currents I(*)";
-                            min-width: 136px;
+                            width: 102px;
                             checked <=> root.print-all-currents;
                         }
 
                         CheckBox {
                             text: "Power P(*)";
-                            min-width: 115px;
+                            width: 81px;
                             checked <=> root.print-power;
                         }
 
                         CheckBox {
                             text: "BJT leads";
-                            min-width: 110px;
+                            width: 76px;
                             checked <=> root.print-bjt-leads;
                         }
 
                         CheckBox {
                             text: "FET leads";
-                            min-width: 111px;
+                            width: 77px;
                             checked <=> root.print-fet-leads;
                         }
                     }

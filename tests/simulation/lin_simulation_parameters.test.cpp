@@ -83,17 +83,18 @@ TEST(LinSimulationParametersChecks, emits_lintype_keyword) {
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
     const std::string lin_line = find_lin_directive(directives);
-    EXPECT_EQ(lin_line, ".LIN LINTYPE=Z");
+    EXPECT_NE(lin_line.find("LINTYPE=Z"), std::string::npos);
 }
 
-TEST(LinSimulationParametersChecks, omits_lintype_keyword_for_default) {
-    // arrange — default lintype "S" must not be emitted
+TEST(LinSimulationParametersChecks, emits_lintype_keyword_for_default) {
+    // arrange — default lintype "S" is still emitted so the directive
+    // round-trips the netlist text unchanged
     const LinSimulationParameters params(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "100", "1", "1MEG", "", std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
     const std::string lin_line = find_lin_directive(directives);
-    EXPECT_EQ(lin_line.find("LINTYPE="), std::string::npos);
+    EXPECT_NE(lin_line.find("LINTYPE=S"), std::string::npos);
 }
 
 TEST(LinSimulationParametersChecks, emits_file_keyword) {
@@ -296,14 +297,15 @@ TEST(LinSimulationParametersChecks, emits_sparcalc_zero_when_disabled) {
     EXPECT_NE(lin_line.find("SPARCALC=0"), std::string::npos);
 }
 
-TEST(LinSimulationParametersChecks, omits_sparcalc_keyword_for_default) {
-    // arrange
+TEST(LinSimulationParametersChecks, emits_sparcalc_one_for_default) {
+    // arrange — the enabled state is emitted explicitly so the directive
+    // round-trips the netlist text unchanged
     const LinSimulationParameters params(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "100", "1", "1MEG", "", std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
     const std::string lin_line = find_lin_directive(directives);
-    EXPECT_EQ(lin_line.find("SPARCALC="), std::string::npos);
+    EXPECT_NE(lin_line.find("SPARCALC=1"), std::string::npos);
 }
 
 TEST(LinSimulationParametersChecks, emits_format_when_not_default) {
@@ -317,14 +319,15 @@ TEST(LinSimulationParametersChecks, emits_format_when_not_default) {
     EXPECT_EQ(lin_line.find("FORMAT=TOUCHSTONE2"), std::string::npos);
 }
 
-TEST(LinSimulationParametersChecks, omits_format_for_default) {
-    // arrange
+TEST(LinSimulationParametersChecks, emits_format_keyword_for_default) {
+    // arrange — the default format is emitted explicitly so the directive
+    // round-trips the netlist text unchanged
     const LinSimulationParameters params(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "100", "1", "1MEG", "", std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
     const std::string lin_line = find_lin_directive(directives);
-    EXPECT_EQ(lin_line.find("FORMAT="), std::string::npos);
+    EXPECT_NE(lin_line.find("FORMAT=TOUCHSTONE2"), std::string::npos);
 }
 
 TEST(LinSimulationParametersChecks, emits_output_layout_keywords) {
@@ -442,4 +445,19 @@ TEST(LinSimulationParametersChecks, full_keyword_set_round_trips_through_directi
     // assert
     ASSERT_TRUE(output.has_value());
     EXPECT_EQ(*output, *input);
+}
+
+TEST(LinSimulationParametersChecks, default_keyword_set_round_trips_verbatim) {
+    // arrange — the lin-simple-01 netlist directive: every keyword matches the
+    // Xyce defaults, and the emitted directive must keep the original text
+    const auto input = LinSimulationParameters::from_xyce_directives({".AC DEC 200 100meg 1.5g", ".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-simple-01.s2p WIDTH=16 PRECISION=8"});
+    ASSERT_TRUE(input.has_value());
+    // act
+    const auto directives = input->to_xyce_directives(NetlistTopology{});
+    const auto output = LinSimulationParameters::from_xyce_directives(directives);
+    // assert — the .LIN line is byte-for-byte the original
+    ASSERT_TRUE(output.has_value());
+    EXPECT_EQ(*output, *input);
+    const std::string lin_line = find_lin_directive(directives);
+    EXPECT_EQ(lin_line, ".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-simple-01.s2p WIDTH=16 PRECISION=8");
 }
