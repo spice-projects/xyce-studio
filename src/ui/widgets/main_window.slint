@@ -14,6 +14,7 @@ import {
 import {
     BreadcrumbItem,
     ExpressionItem,
+    LegendItem,
 } from "../components/expression_selector.slint";
 import { FftPanel } from "../components/fft_panel.slint";
 import { PluginConfigPanel } from "../components/plugin_config_panel.slint";
@@ -32,7 +33,7 @@ import { DcSweepRow } from "../components/dc_parameters_panel.slint";
 export {
     ChartsPanelActions,
     PlotTabItem,
-}from "../components/charts_panel.slint";
+} from "../components/charts_panel.slint";
 
 export global MainWindowActions {
     callback open-xyce-file();
@@ -242,6 +243,7 @@ export component MainWindow inherits Window {
     in property <bool> add-plot-visible: false;
     in property <[ExpressionItem]> add-plot-expressions: [];
     in property <[BreadcrumbItem]> add-plot-breadcrumb: [];
+    in property <[LegendItem]> add-plot-legend-items: [];
     in property <bool> add-plot-show-selected: false;
     in-out property <string> add-plot-filter-text: "";
     in-out property <string> add-plot-custom-text: "";
@@ -285,6 +287,7 @@ export component MainWindow inherits Window {
     in-out property <string> fft-custom-np: "";
     in property <[ExpressionItem]> fft-expressions: [];
     in property <[BreadcrumbItem]> fft-breadcrumb: [];
+    in property <[LegendItem]> fft-legend-items: [];
     in property <bool> fft-show-selected: false;
     in-out property <string> fft-filter-text: "";
     in property <bool> fft-show-error: false;
@@ -677,6 +680,7 @@ export component MainWindow inherits Window {
             height: 100%;
             expressions: root.add-plot-expressions;
             breadcrumb: root.add-plot-breadcrumb;
+            legend-items: root.add-plot-legend-items;
             show-selected: root.add-plot-show-selected;
             filter-text <=> root.add-plot-filter-text;
             custom-text <=> root.add-plot-custom-text;
@@ -852,6 +856,7 @@ export component MainWindow inherits Window {
         custom-np <=> root.fft-custom-np;
         expressions: root.fft-expressions;
         breadcrumb: root.fft-breadcrumb;
+        legend-items: root.fft-legend-items;
         show-selected: root.fft-show-selected;
         filter-text <=> root.fft-filter-text;
         show-error: root.fft-show-error;

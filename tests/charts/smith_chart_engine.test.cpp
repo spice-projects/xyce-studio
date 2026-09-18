@@ -30,7 +30,7 @@ namespace
             // frequency abscissa and the complex s11 expression
             std::unordered_map<std::string, std::string> s11_metadata{{"reference_impedance", "50.000000"}};
             expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_data), step_slices, "Hz"));
-            expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", "parameter", std::vector<std::unordered_map<std::string, std::string>>{std::move(s11_metadata)}));
+            expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", std::vector<std::unordered_map<std::string, std::string>>{std::move(s11_metadata)}));
             expression_manager = std::make_unique<ExpressionManager>(expressions, step_slices);
             engine = std::make_unique<ChartEngine>(expression_manager.get(), &step_information, AbscissaScale::LINEAR, 1000, ChartKind::SMITH);
         }

@@ -94,12 +94,12 @@ endif()
 set(SLINT_IS_TOPLEVEL_BUILD ON CACHE BOOL "Build Slint with rpath install_name on macOS" FORCE)
 
 # slint
-# slint: pinned to the immutable v1.17.1 tag; the release/1 moving branch
+# slint: pinned to the immutable v1.18.0 tag; the release/1 moving branch
 # breaks the CI dependency caches whenever upstream publishes a new release
 # onto it (the FetchContent git-update rebase hits upstream conflicts and the
 # new toolchain version changes the generated code and deprecation warnings)
 include(FetchContent)
-FetchContent_Declare(Slint GIT_REPOSITORY https://github.com/slint-ui/slint.git GIT_TAG v1.17.1 SOURCE_SUBDIR api/cpp)
+FetchContent_Declare(Slint GIT_REPOSITORY https://github.com/slint-ui/slint.git GIT_TAG v1.18.0 SOURCE_SUBDIR api/cpp)
 FetchContent_MakeAvailable(Slint)
 
 # slint's generated internal headers trigger -Wgnu-anonymous-struct and -Wextra-semi

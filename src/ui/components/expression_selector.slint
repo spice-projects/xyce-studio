@@ -8,9 +8,11 @@ export struct ExpressionItem {
     // scope kind: "subcircuit" or "sheet" for scope tiles; empty for
     // expression tiles
     kind: string,
-    // signal type for expression tiles (Voltage, Current, ...), empty for
-    // scope tiles
+    // signal classification for expression tiles (the measurement unit),
+    // empty for misc and scope tiles
     type: string,
+    // identity dot color of the expression tile, computed by the view
+    dot-color: color,
     // scope tiles drill into the group when clicked
     is-scope: bool,
     // expression tiles only
@@ -29,20 +31,8 @@ export struct BreadcrumbItem {
     level: int,
 }
 
-// resolves a signal category to its color
+// resolves a hierarchy scope kind to its color
 export global TypePalette {
-    public pure function color(type: string) -> color {
-        // the comparison is case-insensitive, the type strings arrive in
-        // lowercase from the raw file parser
-        if (type.to-lowercase() == "voltage") { return #5b9bd5; }
-        if (type.to-lowercase() == "current") { return #7cb342; }
-        if (type.to-lowercase() == "freq") { return #e57373; }
-        if (type.to-lowercase() == "frequency") { return #e57373; }
-        if (type.to-lowercase() == "time") { return #ba68c8; }
-        if (type.to-lowercase() == "power") { return #ffb74d; }
-        return #3a3d4a;
-    }
-
     // resolves a hierarchy scope kind to its color
     public pure function group-color(kind: string) -> color {
         if (kind.to-lowercase() == "subcircuit") { return #8e6dd9; }
@@ -279,13 +269,13 @@ export component ExpressionGrid inherits ScrollView {
     private property <length> cell-width: (self.visible-width - (self.columns - 1) * self.gap - 8px) / self.columns;
     private property <length> row-height: 32px;
     private property <int> row-count: Math.ceil(self.expressions.length / self.columns);
-    private property <length> content-height: self.row-count * (self.row-height + self.gap);
+    private property <length> grid-height: self.row-count * (self.row-height + self.gap);
 
     vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
-    viewport-width: self.visible-width;
-    viewport-height: self.content-height + 8px;
+    content-width: self.visible-width;
+    content-height: self.grid-height + 8px;
 
     for exp[index] in root.expressions: Rectangle {
         x: 4px + Math.mod(index, root.columns) * (root.cell-width + root.gap);
@@ -309,7 +299,7 @@ export component ExpressionGrid inherits ScrollView {
             height: 100%;
             label: exp.label;
             name: exp.name;
-            dot-color: TypePalette.color(exp.type);
+            dot-color: exp.dot-color;
             selected: exp.selected;
             clicked => {
                 root.expression-clicked(index);

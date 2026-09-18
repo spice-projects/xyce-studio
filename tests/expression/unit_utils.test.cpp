@@ -969,16 +969,30 @@ TEST(InferUnitChecks, function_call_preserving_case_insensitive) {
     ASSERT_EQ(result_real, "V");
 }
 
-TEST(InferUnitChecks, function_call_db_returns_dB) {
+TEST(InferUnitChecks, function_call_db_composes_argument_unit) {
     // arrange / act
     auto result = infer_unit(*make_call("db", make_identifier("v")), {{"v", "V"}});
     // assert
-    ASSERT_EQ(result, "dB");
+    ASSERT_EQ(result, "dBV");
+}
+
+TEST(InferUnitChecks, function_call_db_composes_power_unit) {
+    // arrange / act
+    auto result = infer_unit(*make_call("db", make_identifier("w")), {{"w", "W"}});
+    // assert
+    ASSERT_EQ(result, "dBW");
 }
 
 TEST(InferUnitChecks, function_call_db_case_insensitive) {
     // arrange / act
     auto result = infer_unit(*make_call("DB", make_identifier("v")), {{"v", "V"}});
+    // assert
+    ASSERT_EQ(result, "dBV");
+}
+
+TEST(InferUnitChecks, function_call_db_dimensionless_argument_returns_plain_dB) {
+    // arrange / act: ratio expressions like gain or loss keep plain dB
+    auto result = infer_unit(*make_call("db", make_identifier("gain")), {{"gain", ""}});
     // assert
     ASSERT_EQ(result, "dB");
 }
@@ -1145,7 +1159,7 @@ TEST(InferUnitChecks, parse_and_infer_db_v_out) {
     auto expr = parser.parse_expression("db(v(out))");
     auto result = infer_unit(*expr, {});
     // assert
-    ASSERT_EQ(result, "dB");
+    ASSERT_EQ(result, "dBV");
 }
 
 TEST(InferUnitChecks, parse_and_infer_v_out_at_2) {

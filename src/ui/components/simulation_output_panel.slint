@@ -4,10 +4,10 @@
 // The log uses a custom `ListView` element rather than the std-widgets one.
 // The std-widgets ListView is a ScrollView whose own scrollbar consumes wheel
 // events and applies the raw trackpad delta with no momentum, which scrolls
-// far too slowly on macOS; it also two-way-binds its viewport-y through the
+// far too slowly on macOS; it also two-way-binds its content-y through the
 // Flickable, which fights programmatic scrolling. This ListView inherits the
 // builtin Flickable so the compiler virtualizes the for-loop inside it (it
-// keys on the element type name "ListView" plus the viewport properties).
+// keys on the element type name "ListView" plus the content properties).
 //
 // The builtin Flickable's own wheel handling applies raw trackpad deltas with
 // kinetic momentum, which scrolls too fast on macOS. Wheel scrolling is
@@ -237,7 +237,7 @@ export component SimulationOutputPanel inherits Rectangle {
                     // first user scroll (wheel or thumb drag) replaces this
                     // binding, so new lines no longer force the viewport back
                     // to the bottom while reading
-                    viewport-y: max(0px, self.viewport-height - self.visible-height);
+                    content-y: max(0px, self.content-height - self.visible-height);
                 }
 
                 // selection overlay on top of the log: handles line selection
@@ -254,7 +254,7 @@ export component SimulationOutputPanel inherits Rectangle {
                         if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
                             keys.focus();
                             let row = max(0, min(root.log-lines.length - 1,
-                                floor((-log.viewport-y + self.mouse-y) / root.row-height)));
+                                floor((-log.content-y + self.mouse-y) / root.row-height)));
                             if (event.modifiers.shift) {
                                 root.selection-start = min(root.anchor, row);
                                 root.selection-end = max(root.anchor, row);
@@ -269,7 +269,7 @@ export component SimulationOutputPanel inherits Rectangle {
                     moved => {
                         if (self.pressed) {
                             let row = max(0, min(root.log-lines.length - 1,
-                                floor((-log.viewport-y + self.mouse-y) / root.row-height)));
+                                floor((-log.content-y + self.mouse-y) / root.row-height)));
                             root.selection-start = min(root.anchor, row);
                             root.selection-end = max(root.anchor, row);
                         }
@@ -277,8 +277,8 @@ export component SimulationOutputPanel inherits Rectangle {
 
                     scroll-event(event) => {
                         if (event.delta-y != 0) {
-                            log.viewport-y = max(-(log.viewport-height - log.visible-height), min(0px,
-                                log.viewport-y + event.delta-y));
+                            log.content-y = max(-(log.content-height - log.visible-height), min(0px,
+                                log.content-y + event.delta-y));
                             return accept;
                         }
                         reject
@@ -289,11 +289,11 @@ export component SimulationOutputPanel inherits Rectangle {
                     x: parent.width - self.width;
                     y: 0;
                     height: parent.height;
-                    viewport-y: log.viewport-y;
-                    viewport-height: log.viewport-height;
+                    viewport-y: log.content-y;
+                    viewport-height: log.content-height;
                     visible-height: log.visible-height;
                     scrolled-to(y) => {
-                        log.viewport-y = y;
+                        log.content-y = y;
                     }
                 }
 

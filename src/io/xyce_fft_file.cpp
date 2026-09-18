@@ -503,7 +503,7 @@ namespace
                 abscissa_values.insert(abscissa_values.end(), abscissa_data.begin(), abscissa_data.end());
             // initialize the expressions with the abscissa expression
             std::vector<AnyExpression> expressions;
-            expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_values), step_slices, "Hz", "FFT", "frequency"));
+            expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_values), step_slices, "Hz", "FFT"));
             // suggested plots
             std::vector<std::vector<std::string>> suggested_plots;
             // process each signal in this abscissa
@@ -543,8 +543,8 @@ namespace
                 if (suggested_plots.size() < 3)
                     suggested_plots.push_back({"FFT(" + clean_name + ")", "FFT(phase(" + clean_name + "))"});
                 // create the magnitude and phase expressions
-                expressions.emplace_back(Expression<double>("FFT(" + clean_name + ")", std::move(magnitude_data), step_slices, magnitude_unit, "FFT", "", metadata_steps));
-                expressions.emplace_back(Expression<double>("FFT(phase(" + clean_name + "))", std::move(phase_data), step_slices, "°", "FFT", "", metadata_steps));
+                expressions.emplace_back(Expression<double>("FFT(" + clean_name + ")", std::move(magnitude_data), step_slices, magnitude_unit, "FFT", metadata_steps));
+                expressions.emplace_back(Expression<double>("FFT(phase(" + clean_name + "))", std::move(phase_data), step_slices, "°", "FFT", metadata_steps));
             }
             // abscissa value ranges (dc to the last frequency) for every step
             std::vector<std::pair<double, double>> value_ranges;

@@ -592,7 +592,6 @@ TEST(ExpressionManagerChecks, compound_evaluate_keeps_requested_name_and_current
     ASSERT_NE(expression, nullptr);
     ASSERT_EQ(extract_name(*expression), compound);
     ASSERT_EQ(extract_unit(*expression), "A");
-    ASSERT_EQ(std::get<Expression<double>>(*expression).variable_type(), "current");
 }
 
 TEST(ExpressionManagerChecks, compound_reevaluation_without_name_returns_same_expression) {
@@ -642,5 +641,5 @@ TEST(ExpressionManagerChecks, evaluated_voltage_difference_gets_voltage_type) {
     auto* expression = manager.evaluate("V(1)-V(2)", "V(1)-V(2)");
     // assert
     ASSERT_NE(expression, nullptr);
-    ASSERT_EQ(std::get<Expression<double>>(*expression).variable_type(), "voltage");
+    ASSERT_EQ(std::get<Expression<double>>(*expression).unit(), "V");
 }

@@ -311,7 +311,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 0;
-                viewport-height: op-panel.preferred-height;
+                content-height: op-panel.preferred-height;
 
                 op-panel := OpParametersPanel {
                     print-enabled <=> root.op-print-enabled;
@@ -336,7 +336,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 1;
-                viewport-height: tran-panel.preferred-height;
+                content-height: tran-panel.preferred-height;
 
                 tran-panel := TransientParametersPanel {
                     initial-step <=> root.tran-initial-step;
@@ -365,7 +365,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 2;
-                viewport-height: dc-panel.preferred-height;
+                content-height: dc-panel.preferred-height;
 
                 dc-panel := DcParametersPanel {
                     sweep-mode-index <=> root.dc-sweep-mode-index;
@@ -392,7 +392,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 3;
-                viewport-height: ac-panel.preferred-height;
+                content-height: ac-panel.preferred-height;
 
                 ac-panel := AcParametersPanel {
                     sweep-mode-index <=> root.ac-sweep-mode-index;
@@ -415,7 +415,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 4;
-                viewport-height: noise-panel.preferred-height;
+                content-height: noise-panel.preferred-height;
 
                 noise-panel := NoiseParametersPanel {
                     output-node <=> root.noise-output-node;
@@ -441,7 +441,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 5;
-                viewport-height: hb-panel.preferred-height;
+                content-height: hb-panel.preferred-height;
 
                 hb-panel := HbParametersPanel {
                     frequencies <=> root.hb-frequencies;
@@ -465,7 +465,7 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 6;
-                viewport-height: lin-panel.preferred-height;
+                content-height: lin-panel.preferred-height;
 
                 lin-panel := LinParametersPanel {
                     sparcalc <=> root.lin-sparcalc;

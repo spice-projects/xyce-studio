@@ -645,7 +645,7 @@ TEST(XyceRawFileTest, load_chart_type_transient) {
     auto raw = xyce_raw_file_parser(temp_file.path());
     // assert
     ASSERT_TRUE(raw.has_value());
-    ASSERT_EQ(raw.value()->abscissa().variable_type(), "time");
+    ASSERT_EQ(raw.value()->abscissa().unit(), "s");
 }
 
 TEST(XyceRawFileTest, load_chart_type_dc) {
@@ -658,7 +658,7 @@ TEST(XyceRawFileTest, load_chart_type_dc) {
     auto raw = xyce_raw_file_parser(temp_file.path());
     // assert
     ASSERT_TRUE(raw.has_value());
-    ASSERT_EQ(raw.value()->abscissa().variable_type(), "voltage");
+    ASSERT_EQ(raw.value()->abscissa().unit(), "V");
 }
 
 TEST(XyceRawFileTest, load_dc_sweep_abscissa_is_unknown) {
@@ -671,7 +671,6 @@ TEST(XyceRawFileTest, load_dc_sweep_abscissa_is_unknown) {
     auto raw = xyce_raw_file_parser(temp_file.path());
     // assert
     ASSERT_TRUE(raw.has_value());
-    ASSERT_EQ(raw.value()->abscissa().variable_type(), "unknown");
     ASSERT_TRUE(raw.value()->abscissa().unit().empty());
 }
 
@@ -687,7 +686,6 @@ TEST(XyceRawFileTest, load_power_variable_classified_as_power) {
     ASSERT_TRUE(raw.has_value());
     auto* power = evaluate_real(raw.value()->expression_manager(), "P(L1)");
     ASSERT_NE(power, nullptr);
-    ASSERT_EQ(power->variable_type(), "power");
     ASSERT_EQ(power->unit(), "W");
 }
 
@@ -703,7 +701,6 @@ TEST(XyceRawFileTest, load_power_variable_with_explicit_type_still_power) {
     ASSERT_TRUE(raw.has_value());
     auto* power = evaluate_real(raw.value()->expression_manager(), "P(L1)");
     ASSERT_NE(power, nullptr);
-    ASSERT_EQ(power->variable_type(), "power");
     ASSERT_EQ(power->unit(), "W");
 }
 
@@ -761,6 +758,23 @@ TEST(XyceRawFileTest, load_unknown_variable_type_still_loaded) {
     // assert
     ASSERT_TRUE(raw.has_value());
     ASSERT_NE(raw.value()->expression_manager().evaluate("CUSTOM_SIG"), nullptr);
+}
+
+TEST(XyceRawFileTest, load_expression_variable_type_has_no_unit) {
+    // arrange: Xyce writes type "expression" for {...} expressions on print
+    // lines; such a variable carries no declared unit
+    const std::vector<TestVarDef> variable_definitions = {{0, "time", "time"}, {1, "{V(1)-V(2)}", "expression"}};
+    const std::vector<std::vector<double>> data_matrix = {{0.0, 1.0}, {1e-9, 2.0}};
+    const std::string content = make_raw_bytes("Circuit", "Transient", "real", variable_definitions, data_matrix);
+    const TempFileRAII temp_file(content);
+    // act
+    auto raw = xyce_raw_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(raw.has_value());
+    ASSERT_TRUE(raw.value()->expression_manager().abscissa().unit() == "s");
+    const auto& expressions = raw.value()->expression_manager().expressions();
+    ASSERT_EQ(expressions.size(), 2);
+    ASSERT_EQ(std::get<Expression<double>>(*expressions[1]).unit(), "");
 }
 
 TEST(XyceRawFileTest, load_step_information_abscissa_range) {
@@ -827,7 +841,7 @@ TEST(XyceRawFileTest, load_chart_type_ac) {
     auto raw = xyce_raw_file_parser(temp_file.path());
     // assert
     ASSERT_TRUE(raw.has_value());
-    ASSERT_EQ(raw.value()->abscissa().variable_type(), "frequency");
+    ASSERT_EQ(raw.value()->abscissa().unit(), "Hz");
 }
 
 TEST(XyceRawFileTest, load_complex_ac_abscissa_is_frequency) {
@@ -910,7 +924,7 @@ TEST(XyceRawFileTest, load_ascii_complex_ac) {
     // assert
     ASSERT_TRUE(raw.has_value());
     ASSERT_TRUE(raw.value()->is_complex());
-    ASSERT_EQ(raw.value()->abscissa().variable_type(), "frequency");
+    ASSERT_EQ(raw.value()->abscissa().unit(), "Hz");
     ASSERT_EQ(raw.value()->abscissa().step_data(0).size(), 2);
 }
 

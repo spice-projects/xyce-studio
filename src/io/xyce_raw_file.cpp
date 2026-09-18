@@ -349,8 +349,6 @@ namespace
                 int idx = std::get<0>(variable);
                 // parse variable name
                 std::string name = std::get<1>(variable);
-                // extract variable type info
-                auto [vtype, unit] = get_variable_type_info(std::get<2>(variable));
                 // check this is the abscissa (always a real number)
                 if (idx == 0) {
                     // cast pointer to double for real abscissa
@@ -378,8 +376,6 @@ namespace
             int idx = std::get<0>(variable);
             // parse name
             std::string name = std::get<1>(variable);
-            // extract variable type info
-            auto [vtype, unit] = get_variable_type_info(std::get<2>(variable));
             // cast pointer
             auto ptr = base_ptr + idx;
             // create stride view
@@ -703,18 +699,18 @@ std::optional<std::shared_ptr<XyceOutputFile>> xyce_raw_file_parser(const std::f
     expressions.reserve(temp_variables.size());
     // loop variables
     for (auto&& [idx, name, steps, variable_type] : temp_variables) {
-        // extract variable type info
-        auto [vtype, unit] = get_variable_type_info(variable_type);
+        // extract the measurement unit for the variable
+        auto unit = get_variable_unit(variable_type);
         // create expressions
-        auto l = [&expressions, &name, &vtype, &unit]<typename T0>(T0& s) {
+        auto l = [&expressions, &name, &unit]<typename T0>(T0& s) {
             // actual parameter type
             using TX = std::decay_t<T0>;
             // double
             if constexpr (std::is_same_v<TX, std::vector<View<double>>>)
-                expressions.emplace_back(Expression<double>(name, std::move(s), unit, "", vtype));
+                expressions.emplace_back(Expression<double>(name, std::move(s), unit));
             // complex
             if constexpr (std::is_same_v<TX, std::vector<View<std::complex<double>>>>)
-                expressions.emplace_back(Expression<std::complex<double>>(name, std::move(s), unit, "", vtype));
+                expressions.emplace_back(Expression<std::complex<double>>(name, std::move(s), unit));
         };
         // process list
         std::visit(l, steps);
