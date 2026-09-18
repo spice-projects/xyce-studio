@@ -411,7 +411,7 @@ TEST(ChartsDatasetsTest, smith_dataset_flag_follows_the_active_dataset) {
     std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
     std::vector<AnyExpression> expressions;
     expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_data), step_slices, "Hz"));
-    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", "parameter"));
+    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, ""));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"frequency"}, {{}}, {{0.0, 5.0}});
     std::vector<std::vector<ChartFrame>> published;
@@ -437,7 +437,7 @@ TEST(ChartsDatasetsTest, smith_dataset_creates_smith_kind_charts) {
     std::vector<std::pair<size_t, size_t>> step_slices = {{0, 6}};
     std::vector<AnyExpression> expressions;
     expressions.emplace_back(Expression<double>("frequency", std::move(abscissa_data), step_slices, "Hz"));
-    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, "", "", "parameter"));
+    expressions.emplace_back(Expression<std::complex<double>>("S11", std::move(s11_data), step_slices, ""));
     ExpressionManager expression_manager(expressions, step_slices);
     StepInformation step_information({"frequency"}, {{}}, {{0.0, 5.0}});
     std::vector<std::vector<ChartFrame>> published;

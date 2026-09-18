@@ -685,7 +685,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     // reserve space for frequency + n*n s-parameters
     expressions.reserve(1 + n * n);
     // create frequency abscissa as the first expression
-    expressions.emplace_back(Expression<double>("frequency", std::move(frequencies), step_slices, "Hz", "", "frequency"));
+    expressions.emplace_back(Expression<double>("frequency", std::move(frequencies), step_slices, "Hz"));
     // create s-parameter expressions
     for (int r = 0; r < n; ++r) {
         for (int c = 0; c < n; ++c) {
@@ -706,7 +706,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
                 metadata["reference_impedance"] = std::to_string(header.default_r);
             }
             // create the s-parameter expression
-            expressions.emplace_back(Expression<std::complex<double>>(name, std::move(s_params[static_cast<size_t>(r) * static_cast<size_t>(n) + static_cast<size_t>(c)]), step_slices, "", "", "parameter", {metadata}));
+            expressions.emplace_back(Expression<std::complex<double>>(name, std::move(s_params[static_cast<size_t>(r) * static_cast<size_t>(n) + static_cast<size_t>(c)]), step_slices, "", "", {metadata}));
         }
     }
     // create the expression manager

@@ -24,15 +24,14 @@ TEST(ExpressionChecks, constructor_stores_metadata_for_span_constructor) {
     std::vector<double> data = {1, 2, 3};
     std::vector<std::span<const double>> steps = {{data.data(), data.size()}};
     // act
-    const Expression<double> expr("net_voltage", std::move(data), std::move(steps), "V", "R1", "node");
+    const Expression<double> expr("net_voltage", std::move(data), std::move(steps), "V", "R1");
     // assert
     ASSERT_EQ(expr.name(), "net_voltage");
     ASSERT_EQ(expr.unit(), "V");
     ASSERT_EQ(expr.source(), "R1");
-    ASSERT_EQ(expr.variable_type(), "node");
 }
 
-TEST(ExpressionChecks, constructor_defaults_source_and_variable_type_to_empty) {
+TEST(ExpressionChecks, constructor_defaults_source_to_empty) {
     // arrange
     std::vector<double> data = {1, 2, 3};
     std::vector<std::span<const double>> steps = {{data.data(), data.size()}};
@@ -40,7 +39,6 @@ TEST(ExpressionChecks, constructor_defaults_source_and_variable_type_to_empty) {
     const Expression<double> expr("net_voltage", std::move(data), std::move(steps), "V");
     // assert
     ASSERT_TRUE(expr.source().empty());
-    ASSERT_TRUE(expr.variable_type().empty());
 }
 
 TEST(ExpressionChecks, step_count_returns_correct_count_for_view_steps) {
@@ -133,10 +131,9 @@ TEST(ExpressionChecks, transform_updates_metadata_and_values_for_real_expression
     // arrange
     std::vector<double> data_buffer = {1, 2, 3, 4};
     std::vector<std::span<const double>> steps = {{data_buffer.data(), 1}, {data_buffer.data() + 1, 3}};
-    Expression<double> expr("V1", std::move(data_buffer), std::move(steps), "V", "R1", "node");
+    Expression<double> expr("V1", std::move(data_buffer), std::move(steps), "V", "R1");
     std::string transformed_name = "V1_scaled";
     std::string transformed_unit = "mV";
-    std::string transformed_variable_type = "derived";
     // act
     expr.transform([](double v) { return v * 1000.0; });
     const auto data = expr.data();
@@ -158,12 +155,11 @@ TEST(ExpressionChecks, constructor_from_data_and_step_slices_builds_steps) {
     std::vector<double> data = {1, 2, 3, 4, 5, 6};
     const std::vector<std::pair<size_t, size_t>> slices = {{0, 2}, {2, 6}};
     // act
-    Expression<double> expr("V1", std::move(data), slices, "V", "R1", "node");
+    Expression<double> expr("V1", std::move(data), slices, "V", "R1");
     // assert
     ASSERT_EQ(expr.name(), "V1");
     ASSERT_EQ(expr.unit(), "V");
     ASSERT_EQ(expr.source(), "R1");
-    ASSERT_EQ(expr.variable_type(), "node");
     ASSERT_EQ(expr.step_count(), 2);
     ASSERT_EQ(expr.data().size(), 6);
     ASSERT_EQ(expr.data()[0], 1);
@@ -180,12 +176,11 @@ TEST(ExpressionChecks, constructor_from_view_copies_external_strided_data) {
     View<double> view(buffer.data(), 3, 2);
     const std::vector<std::pair<size_t, size_t>> slices = {{0, 2}, {2, 3}};
     // act
-    Expression<double> expr("V1", std::move(view), slices, "V", "R1", "node");
+    Expression<double> expr("V1", std::move(view), slices, "V", "R1");
     // assert
     ASSERT_EQ(expr.name(), "V1");
     ASSERT_EQ(expr.unit(), "V");
     ASSERT_EQ(expr.source(), "R1");
-    ASSERT_EQ(expr.variable_type(), "node");
     ASSERT_EQ(expr.step_count(), 2);
     const auto data = expr.data();
     ASSERT_EQ(data.size(), 3);
@@ -218,7 +213,7 @@ TEST(ExpressionChecks, constructor_from_owning_view_moves_owned_data) {
     ASSERT_EQ(expr.step_indices(), (std::vector<std::pair<size_t, size_t>>{{0, 2}, {2, 4}}));
 }
 
-TEST(ExpressionChecks, view_constructor_defaults_source_and_variable_type) {
+TEST(ExpressionChecks, view_constructor_defaults_source) {
     // arrange
     const std::vector<double> buffer = {1, 2};
     std::vector<View<double>> steps;
@@ -227,21 +222,19 @@ TEST(ExpressionChecks, view_constructor_defaults_source_and_variable_type) {
     const Expression<double> expr("V1", std::move(steps), "V");
     // assert
     ASSERT_TRUE(expr.source().empty());
-    ASSERT_TRUE(expr.variable_type().empty());
 }
 
 TEST(ExpressionChecks, move_constructor_transfers_metadata_and_span_steps) {
     // arrange
     std::vector<double> data = {1, 2, 3, 4};
     std::vector<std::span<const double>> steps = {{data.data(), 2}, {data.data() + 2, 2}};
-    Expression<double> source("V1", std::move(data), std::move(steps), "V", "R1", "node");
+    Expression<double> source("V1", std::move(data), std::move(steps), "V", "R1");
     // act
     Expression<double> dest(std::move(source));
     // assert
     ASSERT_EQ(dest.name(), "V1");
     ASSERT_EQ(dest.unit(), "V");
     ASSERT_EQ(dest.source(), "R1");
-    ASSERT_EQ(dest.variable_type(), "node");
     ASSERT_EQ(dest.step_count(), 2);
     ASSERT_EQ(dest.data().size(), 4);
     ASSERT_EQ(dest.data()[0], 1);
@@ -272,7 +265,7 @@ TEST(ExpressionChecks, move_assignment_transfers_metadata_and_data) {
     // arrange
     std::vector<double> data = {1, 2, 3, 4};
     std::vector<std::span<const double>> steps = {{data.data(), 2}, {data.data() + 2, 2}};
-    Expression<double> source("V1", std::move(data), std::move(steps), "V", "R1", "node");
+    Expression<double> source("V1", std::move(data), std::move(steps), "V", "R1");
     std::vector<double> other_data = {9};
     std::vector<std::span<const double>> other_steps = {{other_data.data(), 1}};
     Expression<double> dest("other", std::move(other_data), std::move(other_steps), "A");
@@ -282,7 +275,6 @@ TEST(ExpressionChecks, move_assignment_transfers_metadata_and_data) {
     ASSERT_EQ(dest.name(), "V1");
     ASSERT_EQ(dest.unit(), "V");
     ASSERT_EQ(dest.source(), "R1");
-    ASSERT_EQ(dest.variable_type(), "node");
     ASSERT_EQ(dest.step_count(), 2);
     ASSERT_EQ(dest.data().size(), 4);
     ASSERT_EQ(dest.data()[0], 1);

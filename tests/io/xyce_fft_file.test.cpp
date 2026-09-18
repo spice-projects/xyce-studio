@@ -489,7 +489,6 @@ TEST(XyceFftFileTest, output_file_contains_abscissa_metadata) {
     ASSERT_EQ(output_file->abscissa().name(), "frequency");
     ASSERT_EQ(output_file->abscissa().unit(), "Hz");
     ASSERT_EQ(output_file->abscissa().source(), "FFT");
-    ASSERT_EQ(output_file->abscissa().variable_type(), "frequency");
     ASSERT_EQ(output_file->metadata().at("Window"), "HANN");
     ASSERT_EQ(output_file->metadata().at("Normalized"), "true");
     ASSERT_EQ(output_file->metadata().at("First Harmonic"), "100.000000");

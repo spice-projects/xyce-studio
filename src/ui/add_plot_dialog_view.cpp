@@ -115,7 +115,8 @@ namespace add_plot_dialog_view
         }
 
         static std::string expression_type(const AnyExpression& expression) {
-            std::string type = std::visit([](const auto& e) { return e.variable_type(); }, expression);
+            // the unit is the classification; expressions without a unit are misc
+            std::string type = std::visit([](const auto& e) { return e.unit(); }, expression);
             return type.empty() ? "Misc" : type;
         }
 

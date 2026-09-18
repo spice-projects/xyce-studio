@@ -16,36 +16,42 @@ enum class VariableType
     POWER,
     PARAMETER,
     PHASE,
+    EXPRESSION,
     UNKNOWN
 };
 
-inline std::tuple<std::string, std::string> get_variable_type_info(const VariableType vt) {
+// measurement unit of a variable type; expression, parameter and unknown
+// variables carry no declared unit
+inline std::string get_variable_unit(const VariableType vt) {
     switch (vt) {
     // frequency case
     case VariableType::FREQUENCY:
-        return {"frequency", "Hz"};
+        return "Hz";
     // voltage case
     case VariableType::VOLTAGE:
-        return {"voltage", "V"};
+        return "V";
     // current case
     case VariableType::CURRENT:
-        return {"current", "A"};
+        return "A";
     // time case
     case VariableType::TIME:
-        return {"time", "s"};
+        return "s";
     // power case
     case VariableType::POWER:
-        return {"power", "W"};
+        return "W";
     // parameter case
     case VariableType::PARAMETER:
-        return {"parameter", ""};
+        return "";
     // phase case
     case VariableType::PHASE:
-        return {"phase", "°"};
+        return "°";
+    // expression case
+    case VariableType::EXPRESSION:
+        return "";
     // unknown case
     case VariableType::UNKNOWN:
     default:
-        return {"unknown", ""};
+        return "";
     }
 }
 
@@ -77,6 +83,11 @@ inline VariableType parse_variable_type(const std::string& type_str) {
     // check phase
     if (type_str == "phase") {
         return VariableType::PHASE;
+    }
+    // check expression, expressions printed on .PRINT lines are reported as
+    // expression in the raw file header
+    if (type_str == "expression") {
+        return VariableType::EXPRESSION;
     }
     // unknown
     return VariableType::UNKNOWN;

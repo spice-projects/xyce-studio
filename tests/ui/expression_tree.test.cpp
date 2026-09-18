@@ -575,7 +575,7 @@ TEST(ExpressionTreeChecks, reopen_dialog_flow_marks_plotted_compound_selected) {
     std::vector<std::pair<std::string, std::string>> items;
     for (AnyExpression* expression : manager.expressions()) {
         const auto name = std::visit([](const auto& e) { return e.name(); }, *expression);
-        const auto type = std::visit([](const auto& e) { return e.variable_type(); }, *expression);
+        const auto type = std::visit([](const auto& e) { return e.unit(); }, *expression);
         items.emplace_back(name, type);
     }
     tree.rebuild(items);
@@ -584,7 +584,7 @@ TEST(ExpressionTreeChecks, reopen_dialog_flow_marks_plotted_compound_selected) {
     ASSERT_NE(resolved, nullptr);
     const auto resolved_name = std::visit([](const auto& e) { return e.name(); }, *resolved);
     tree.set_selected(resolved_name, true);
-    // assert: the compound card at the root is selected with the current type
+    // assert: the compound card at the root is selected with the current unit
     const auto& cards = tree.cards();
     bool found = false;
     for (const ExpressionCard& card : cards) {
@@ -592,7 +592,7 @@ TEST(ExpressionTreeChecks, reopen_dialog_flow_marks_plotted_compound_selected) {
             found = true;
             ASSERT_FALSE(card.is_scope);
             ASSERT_TRUE(card.selected);
-            ASSERT_EQ(card.type, "current");
+            ASSERT_EQ(card.type, "A");
         }
     }
     ASSERT_TRUE(found);
