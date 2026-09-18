@@ -88,9 +88,10 @@ namespace
     std::string function_unit(const std::string& name, const std::string& arg_unit) {
         // handle special cases for certain functions
         const auto key = to_lower(name);
-        // db always returns decibels
+        // db composes the decibel prefix with the argument unit; dimensionless
+        // arguments (ratios like gain or loss) keep plain dB
         if (key == "db")
-            return "dB";
+            return arg_unit.empty() ? "dB" : "dB" + arg_unit;
         // angle aliases return degrees
         if (key == "angle" || key == "ph" || key == "phase")
             return "\u00B0";
