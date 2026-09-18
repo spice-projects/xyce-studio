@@ -11,7 +11,7 @@ class OptionParameters
 {
 public:
     // construct an option parameters instance from individual fields
-    OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic = {}, std::map<std::string, std::string> parser = {}, std::map<std::string, std::string> linsol_ac = {}, std::map<std::string, std::string> loca = {}, std::map<std::string, std::string> dist = {}, std::map<std::string, std::string> measure = {});
+    OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic = {}, std::map<std::string, std::string> parser = {}, std::map<std::string, std::string> linsol_ac = {}, std::map<std::string, std::string> loca = {}, std::map<std::string, std::string> dist = {}, std::map<std::string, std::string> measure = {}, std::map<std::string, std::string> nonlin_tran = {}, std::map<std::string, std::string> output = {}, std::map<std::string, std::string> restart = {});
 
     // parse all .OPTIONS directives into an OptionParameters instance
     [[nodiscard]] static OptionParameters from_xyce_directives(const std::vector<std::string>& directives);
@@ -44,4 +44,10 @@ public:
     std::map<std::string, std::string> dist;
     // measure output control parameters (MEASDGT, MEASFAIL, MEASOUT, MEASPRINT, etc.)
     std::map<std::string, std::string> measure;
+    // transient nonlinear solver parameters (same option keys as NONLIN)
+    std::map<std::string, std::string> nonlin_tran;
+    // transient output control parameters (INITIAL_INTERVAL, OUTPUTTIMEPOINTS, PRINTHEADER, etc.)
+    std::map<std::string, std::string> output;
+    // checkpointing/restarting control parameters (PACK, JOB, FILE, START_TIME, INITIAL_INTERVAL)
+    std::map<std::string, std::string> restart;
 };
