@@ -269,13 +269,13 @@ export component ExpressionGrid inherits ScrollView {
     private property <length> cell-width: (self.visible-width - (self.columns - 1) * self.gap - 8px) / self.columns;
     private property <length> row-height: 32px;
     private property <int> row-count: Math.ceil(self.expressions.length / self.columns);
-    private property <length> content-height: self.row-count * (self.row-height + self.gap);
+    private property <length> grid-height: self.row-count * (self.row-height + self.gap);
 
     vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
-    viewport-width: self.visible-width;
-    viewport-height: self.content-height + 8px;
+    content-width: self.visible-width;
+    content-height: self.grid-height + 8px;
 
     for exp[index] in root.expressions: Rectangle {
         x: 4px + Math.mod(index, root.columns) * (root.cell-width + root.gap);

@@ -78,14 +78,14 @@ export component NetlistEditor inherits Rectangle {
 
     HorizontalLayout {
         // line-number gutter; rows are offset by the content scroll position
-        // (viewport-y is negative when scrolled down) so the numbers stay
+        // (content-y is negative when scrolled down) so the numbers stay
         // aligned with the token layer while scrolling
         Rectangle {
             width: 44px;
             clip: true;
 
             for line in root.lines-model: Text {
-                y: (line.line-number - 1) * root.line-height + scroller.viewport-y;
+                y: (line.line-number - 1) * root.line-height + scroller.content-y;
                 width: parent.width - 8px;
                 height: root.line-height;
                 horizontal-alignment: right;
@@ -126,8 +126,8 @@ export component NetlistEditor inherits Rectangle {
         // width
         scroller := ScrollView {
             horizontal-stretch: 1;
-            viewport-width: max(self.visible-width, input.preferred-width);
-            viewport-height: max(self.visible-height, input.preferred-height);
+            content-width: max(self.visible-width, input.preferred-width);
+            content-height: max(self.visible-height, input.preferred-height);
 
             // layer 1: coloured token fragments, one row per netlist line; the
             // fixed row height matches the TextInput line height so the layers
@@ -200,16 +200,16 @@ export component NetlistEditor inherits Rectangle {
                     // keep the caret visible while it moves
                     root.caret-on = true;
                     // scroll the caret into view horizontally
-                    if (root.caret-x + scroller.viewport-x < 0px) {
-                        scroller.viewport-x = min(0px, max(scroller.visible-width - self.width, -root.caret-x));
-                    } else if (root.caret-x + scroller.viewport-x > scroller.visible-width) {
-                        scroller.viewport-x = min(0px, max(scroller.visible-width - self.width, scroller.visible-width - root.caret-x));
+                    if (root.caret-x + scroller.content-x < 0px) {
+                        scroller.content-x = min(0px, max(scroller.visible-width - self.width, -root.caret-x));
+                    } else if (root.caret-x + scroller.content-x > scroller.visible-width) {
+                        scroller.content-x = min(0px, max(scroller.visible-width - self.width, scroller.visible-width - root.caret-x));
                     }
                     // scroll the caret into view vertically
-                    if (root.caret-y + scroller.viewport-y < 0px) {
-                        scroller.viewport-y = min(0px, max(scroller.visible-height - self.height, -root.caret-y));
-                    } else if (root.caret-y + scroller.viewport-y > scroller.visible-height - root.line-height) {
-                        scroller.viewport-y = min(0px, max(scroller.visible-height - self.height, scroller.visible-height - root.caret-y - root.line-height));
+                    if (root.caret-y + scroller.content-y < 0px) {
+                        scroller.content-y = min(0px, max(scroller.visible-height - self.height, -root.caret-y));
+                    } else if (root.caret-y + scroller.content-y > scroller.visible-height - root.line-height) {
+                        scroller.content-y = min(0px, max(scroller.visible-height - self.height, scroller.visible-height - root.caret-y - root.line-height));
                     }
                 }
             }
