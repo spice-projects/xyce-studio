@@ -11,6 +11,7 @@
 
 #include "../core/util.h"
 #include "add_plot_dialog_view.h"
+#include "expression_colors.h"
 #include "expression_tree.h"
 #include "smith_plot_filter.h"
 
@@ -20,11 +21,13 @@ namespace add_plot_dialog_view
     {
         slint::SharedString to_shared_string(std::string value) { return slint::SharedString(value); }
 
-        // convert a visible card into the slint model item
+        // convert a visible card into the slint model item; the dot color is
+        // computed from the unit classification
         main_window::ExpressionItem to_item(const ExpressionCard& card) {
-            return main_window::ExpressionItem{
-                to_shared_string(card.label), to_shared_string(card.kind), to_shared_string(card.type), card.is_scope, card.selected, card.count, to_shared_string(card.full_name),
+            main_window::ExpressionItem item{
+                to_shared_string(card.label), to_shared_string(card.kind), to_shared_string(card.type), expression_colors::expression_unit_color(card.type), card.is_scope, card.selected, card.count, to_shared_string(card.full_name),
             };
+            return item;
         }
 
         // convert a breadcrumb entry into the slint model item
@@ -90,7 +93,7 @@ namespace add_plot_dialog_view
                 // smith charts filter out every non-diagonal expression
                 if (smith && !is_smith_plot_expression(*expression))
                     continue;
-                items.emplace_back(expression_name(*expression), expression_type(*expression));
+                items.emplace_back(expression_name(*expression), expression_unit(*expression));
             }
             // smith charts reject arbitrary custom expressions, only the
             // diagonal parameter entries can map to the gamma plane
@@ -114,10 +117,9 @@ namespace add_plot_dialog_view
             return std::visit([](const auto& e) { return e.name(); }, expression);
         }
 
-        static std::string expression_type(const AnyExpression& expression) {
-            // the unit is the classification; expressions without a unit are misc
-            std::string type = std::visit([](const auto& e) { return e.unit(); }, expression);
-            return type.empty() ? "Misc" : type;
+        static std::string expression_unit(const AnyExpression& expression) {
+            // the unit is the classification; the legend shows empty units as misc
+            return std::visit([](const auto& e) { return e.unit(); }, expression);
         }
 
         void refresh_cards() {
@@ -201,7 +203,7 @@ namespace add_plot_dialog_view
             window->set_add_plot_show_error(false);
             // derive name and type
             const std::string name = expression_name(*expression);
-            const std::string type = expression_type(*expression);
+            const std::string type = expression_unit(*expression);
             // existing expressions are selected in place, new ones are appended
             if (tree.contains(name)) {
                 tree.set_selected(name, true);

@@ -13,6 +13,7 @@
 #include "../core/util.h"
 #include "../dsp/fft.h"
 #include "../expression/expression.h"
+#include "expression_colors.h"
 #include "expression_tree.h"
 #include "fft_dialog_view.h"
 
@@ -44,11 +45,13 @@ namespace fft_dialog_view
 
         slint::SharedString to_shared_string(std::string value) { return slint::SharedString(value); }
 
-        // convert a visible card into the slint model item
+        // convert a visible card into the slint model item; the dot color is
+        // computed from the unit classification
         main_window::ExpressionItem to_item(const ExpressionCard& card) {
-            return main_window::ExpressionItem{
-                to_shared_string(card.label), to_shared_string(card.kind), to_shared_string(card.type), card.is_scope, card.selected, card.count, to_shared_string(card.full_name),
+            main_window::ExpressionItem item{
+                to_shared_string(card.label), to_shared_string(card.kind), to_shared_string(card.type), expression_colors::expression_unit_color(card.type), card.is_scope, card.selected, card.count, to_shared_string(card.full_name),
             };
+            return item;
         }
 
         // convert a breadcrumb entry into the slint model item
@@ -125,7 +128,7 @@ namespace fft_dialog_view
                 // skip time-domain expressions (unit "s")
                 if (std::get<Expression<double>>(*expression).unit() == "s")
                     continue;
-                items.emplace_back(expression_name(*expression), expression_type(*expression));
+                items.emplace_back(expression_name(*expression), expression_unit(*expression));
             }
             // rebuild the scope tree and return to the root scope
             tree.rebuild(items);
@@ -147,10 +150,9 @@ namespace fft_dialog_view
             return std::visit([](const auto& e) { return e.name(); }, expression);
         }
 
-        static std::string expression_type(const AnyExpression& expression) {
-            // the unit is the classification; expressions without a unit are misc
-            std::string type = std::visit([](const auto& e) { return e.unit(); }, expression);
-            return type.empty() ? "Misc" : type;
+        static std::string expression_unit(const AnyExpression& expression) {
+            // the unit is the classification; the legend shows empty units as misc
+            return std::visit([](const auto& e) { return e.unit(); }, expression);
         }
 
         void refresh_cards() {
