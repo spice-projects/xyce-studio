@@ -10,6 +10,7 @@ import {
     ExpressionItem,
     ExpressionGrid,
     Legend,
+    LegendItem,
 } from "../components/expression_selector.slint";
 import { ModalPanel } from "../components/modal_panel.slint";
 
@@ -23,6 +24,7 @@ export component AddPlotPanel inherits ModalPanel {
     in property <[BreadcrumbItem]> breadcrumb: [];
     in property <bool> show-selected: false;
     in property <bool> allow-custom-expressions: true;
+    in property <[LegendItem]> legend-items: [];
     in-out property <string> filter-text: "";
     in-out property <string> custom-text: "";
 
@@ -119,17 +121,8 @@ export component AddPlotPanel inherits ModalPanel {
         background: Palette.border;
     }
 
-    // signal type legend
+    // signal type legend, data-driven from the loaded dataset
     Legend {
-        items: [
-            { label: "Voltage", color: #5b9bd5 },
-            { label: "Current", color: #7cb342 },
-            { label: "Frequency", color: #e57373 },
-            { label: "Time", color: #ba68c8 },
-            { label: "Power", color: #ffb74d },
-            { label: "Misc", color: #3a3d4a },
-            { label: "Subcircuit", color: #8e6dd9 },
-            { label: "Sheet", color: #4dd0e1 },
-        ];
+        items: root.legend-items;
     }
 }

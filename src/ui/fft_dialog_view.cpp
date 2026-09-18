@@ -85,6 +85,15 @@ namespace fft_dialog_view
         // breadcrumb model of the browsed scope
         std::shared_ptr<slint::VectorModel<main_window::BreadcrumbItem>> breadcrumb;
 
+        // legend model of the signal categories present in the dataset
+        std::shared_ptr<slint::VectorModel<main_window::LegendItem>> legend;
+
+        // dataset units in first-seen order and scope presence feeding the
+        // legend; updated on every populate
+        std::vector<std::string> legend_units;
+        bool legend_has_subcircuit = false;
+        bool legend_has_sheet = false;
+
         // chart being edited
         size_t chart_index = 0;
 
@@ -101,6 +110,8 @@ namespace fft_dialog_view
             window->set_fft_expressions(expressions);
             breadcrumb = std::make_shared<slint::VectorModel<main_window::BreadcrumbItem>>();
             window->set_fft_breadcrumb(breadcrumb);
+            legend = std::make_shared<slint::VectorModel<main_window::LegendItem>>();
+            window->set_fft_legend_items(legend);
             connect_callbacks();
         }
 
@@ -129,6 +140,19 @@ namespace fft_dialog_view
                 if (std::get<Expression<double>>(*expression).unit() == "s")
                     continue;
                 items.emplace_back(expression_name(*expression), expression_unit(*expression));
+            }
+            // collect the dataset units and scope presence for the legend
+            legend_units.clear();
+            legend_has_subcircuit = false;
+            legend_has_sheet = false;
+            for (const auto& [name, unit] : items) {
+                // append every unit, the legend deduplicates
+                legend_units.push_back(unit);
+                // record the scope kinds present in the dataset
+                if (ExpressionTree::kind_of(name) == GroupKind::Subcircuit)
+                    legend_has_subcircuit = true;
+                else if (ExpressionTree::kind_of(name) == GroupKind::Sheet)
+                    legend_has_sheet = true;
             }
             // rebuild the scope tree and return to the root scope
             tree.rebuild(items);
@@ -166,6 +190,17 @@ namespace fft_dialog_view
                 breadcrumb->push_back(to_breadcrumb_item(entry));
             // reflect the selected-only view state on the toggle link
             window->set_fft_show_selected(tree.show_selected());
+            // refresh the legend rows
+            rebuild_legend();
+        }
+
+        void rebuild_legend() {
+            // legend rows from the dataset units and scope presence
+            const auto entries = expression_colors::expression_legend_entries(legend_units, legend_has_subcircuit, legend_has_sheet);
+            // rebuild the model rows
+            legend->clear();
+            for (const auto& entry : entries)
+                legend->push_back(main_window::LegendItem{to_shared_string(entry.label), entry.color});
         }
 
         void apply_filter(const slint::SharedString& query) {

@@ -84,3 +84,51 @@ TEST(ExpressionColorsChecks, case_variants_of_a_unit_share_the_hash_color) {
     // assert
     ASSERT_EQ(lower.as_argb_encoded(), upper.as_argb_encoded());
 }
+
+TEST(ExpressionColorsChecks, legend_entries_keep_first_seen_order_and_dedupe) {
+    // arrange
+    const std::vector<std::string> units = {"V", "A", "V", "A"};
+    // act
+    const auto entries = expression_colors::expression_legend_entries(units, false, false);
+    // assert
+    ASSERT_EQ(entries.size(), 2);
+    ASSERT_EQ(entries[0].label, "V");
+    ASSERT_EQ(entries[0].color.as_argb_encoded(), 0xff5b9bd5);
+    ASSERT_EQ(entries[1].label, "A");
+    ASSERT_EQ(entries[1].color.as_argb_encoded(), 0xff7cb342);
+}
+
+TEST(ExpressionColorsChecks, legend_entries_append_misc_for_empty_units) {
+    // arrange
+    const std::vector<std::string> units = {"V", "", "V"};
+    // act
+    const auto entries = expression_colors::expression_legend_entries(units, false, false);
+    // assert
+    ASSERT_EQ(entries.size(), 2);
+    ASSERT_EQ(entries[0].label, "V");
+    ASSERT_EQ(entries[1].label, "Misc");
+    ASSERT_EQ(entries[1].color.as_argb_encoded(), 0xff3a3d4a);
+}
+
+TEST(ExpressionColorsChecks, legend_entries_append_scope_kinds_when_present) {
+    // arrange
+    const std::vector<std::string> units = {"V"};
+    // act
+    const auto entries = expression_colors::expression_legend_entries(units, true, true);
+    // assert
+    ASSERT_EQ(entries.size(), 3);
+    ASSERT_EQ(entries[1].label, "Subcircuit");
+    ASSERT_EQ(entries[1].color.as_argb_encoded(), 0xff8e6dd9);
+    ASSERT_EQ(entries[2].label, "Sheet");
+    ASSERT_EQ(entries[2].color.as_argb_encoded(), 0xff4dd0e1);
+}
+
+TEST(ExpressionColorsChecks, legend_entries_without_units_only_show_scope_kinds) {
+    // arrange
+    const std::vector<std::string> units = {"V"};
+    // act
+    const auto entries = expression_colors::expression_legend_entries(units, false, false);
+    // assert
+    ASSERT_EQ(entries.size(), 1);
+    ASSERT_EQ(entries[0].label, "V");
+}

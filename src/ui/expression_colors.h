@@ -4,7 +4,9 @@
 #include <array>
 #include <cstdint>
 #include <ranges>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <slint.h>
 
@@ -96,5 +98,45 @@ namespace expression_colors
             hash *= 0x01000193;
         }
         return packed_color(FALLBACK[hash % FALLBACK.size()]);
+    }
+
+    // one legend row: display label and its color
+    struct LegendEntry
+    {
+        std::string label;
+        slint::Color color;
+    };
+
+    // build the legend rows for a dataset: distinct units in first-seen
+    // order, misc when any unit is empty, and the scope kinds that are
+    // present in the dataset
+    inline std::vector<LegendEntry> expression_legend_entries(const std::vector<std::string>& units, const bool has_subcircuit, const bool has_sheet) {
+        // result rows
+        std::vector<LegendEntry> entries;
+        // distinct units already emitted, preserving first-seen order
+        std::vector<std::string> seen;
+        // loop units, deduplicating while keeping first-seen order
+        for (const auto& unit : units) {
+            // empty units share the single misc row
+            if (unit.empty()) {
+                continue;
+            }
+            if (std::ranges::find(seen, unit) == seen.end()) {
+                seen.push_back(unit);
+            }
+        }
+        // emit a row per distinct unit
+        for (const auto& unit : seen)
+            entries.push_back({unit, expression_unit_color(unit)});
+        // misc row when the dataset has expressions without a unit
+        if (std::ranges::find(units, std::string{}) != units.end())
+            entries.push_back({"Misc", expression_unit_color("")});
+        // subcircuit scope row when the dataset has subcircuit probes
+        if (has_subcircuit)
+            entries.push_back({"Subcircuit", packed_color(0x8e6dd9)});
+        // sheet scope row when the dataset has sheet probes
+        if (has_sheet)
+            entries.push_back({"Sheet", packed_color(0x4dd0e1)});
+        return entries;
     }
 } // namespace expression_colors

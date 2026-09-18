@@ -58,6 +58,15 @@ namespace add_plot_dialog_view
         // breadcrumb model of the browsed scope
         std::shared_ptr<slint::VectorModel<main_window::BreadcrumbItem>> breadcrumb;
 
+        // legend model of the signal categories present in the dataset
+        std::shared_ptr<slint::VectorModel<main_window::LegendItem>> legend;
+
+        // dataset units in first-seen order and scope presence feeding the
+        // legend; updated on every populate and custom expression add
+        std::vector<std::string> legend_units;
+        bool legend_has_subcircuit = false;
+        bool legend_has_sheet = false;
+
         // chart being edited
         size_t chart_index = 0;
 
@@ -70,6 +79,8 @@ namespace add_plot_dialog_view
             window->set_add_plot_expressions(expressions);
             breadcrumb = std::make_shared<slint::VectorModel<main_window::BreadcrumbItem>>();
             window->set_add_plot_breadcrumb(breadcrumb);
+            legend = std::make_shared<slint::VectorModel<main_window::LegendItem>>();
+            window->set_add_plot_legend_items(legend);
             connect_callbacks();
         }
 
@@ -82,6 +93,15 @@ namespace add_plot_dialog_view
             window->on_add_plot_custom_add([this] { add_custom_expression(); });
             window->on_add_plot_accepted([this] { accept(); });
             window->on_add_plot_dismissed([this] { dismiss(); });
+        }
+
+        void rebuild_legend() {
+            // legend rows from the dataset units and scope presence
+            const auto entries = expression_colors::expression_legend_entries(legend_units, legend_has_subcircuit, legend_has_sheet);
+            // rebuild the model rows
+            legend->clear();
+            for (const auto& entry : entries)
+                legend->push_back(main_window::LegendItem{to_shared_string(entry.label), entry.color});
         }
 
         void populate() {
@@ -98,6 +118,19 @@ namespace add_plot_dialog_view
             // smith charts reject arbitrary custom expressions, only the
             // diagonal parameter entries can map to the gamma plane
             window->set_add_plot_allow_custom_expressions(!smith);
+            // collect the dataset units and scope presence for the legend
+            legend_units.clear();
+            legend_has_subcircuit = false;
+            legend_has_sheet = false;
+            for (const auto& [name, unit] : items) {
+                // append every unit, the legend deduplicates
+                legend_units.push_back(unit);
+                // record the scope kinds present in the dataset
+                if (ExpressionTree::kind_of(name) == GroupKind::Subcircuit)
+                    legend_has_subcircuit = true;
+                else if (ExpressionTree::kind_of(name) == GroupKind::Sheet)
+                    legend_has_sheet = true;
+            }
             // rebuild the scope tree and return to the root scope
             tree.rebuild(items);
             // mark the currently plotted expressions as selected
@@ -133,6 +166,8 @@ namespace add_plot_dialog_view
                 breadcrumb->push_back(to_breadcrumb_item(entry));
             // reflect the selected-only view state on the toggle link
             window->set_add_plot_show_selected(tree.show_selected());
+            // refresh the legend rows
+            rebuild_legend();
         }
 
         void apply_filter(const slint::SharedString& query) {
@@ -201,15 +236,21 @@ namespace add_plot_dialog_view
                 return;
             }
             window->set_add_plot_show_error(false);
-            // derive name and type
+            // derive name and unit
             const std::string name = expression_name(*expression);
-            const std::string type = expression_unit(*expression);
+            const std::string unit = expression_unit(*expression);
             // existing expressions are selected in place, new ones are appended
             if (tree.contains(name)) {
                 tree.set_selected(name, true);
             }
             else {
-                tree.add_leaf(name, type);
+                tree.add_leaf(name, unit);
+                // feed the legend with the new unit and scope kind
+                legend_units.push_back(unit);
+                if (ExpressionTree::kind_of(name) == GroupKind::Subcircuit)
+                    legend_has_subcircuit = true;
+                else if (ExpressionTree::kind_of(name) == GroupKind::Sheet)
+                    legend_has_sheet = true;
                 tree.set_selected(name, true);
             }
             // clear the custom input for the next entry
