@@ -307,6 +307,12 @@ jobs:
           name: xyce-studio-windows-x64
           path: artifacts/windows
 
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: xyce-studio-ubuntu-x64
+          path: artifacts/linux
+
       - name: Package macOS
         run: |
           mkdir -p packages
@@ -324,6 +330,17 @@ jobs:
           mkdir -p packages
           cp dist/xyce-studio-${{ steps.version.outputs.version }}.2.zip packages/kicad-xyce-plugin-windows.zip
 
+      - name: Package Linux
+        run: |
+          mkdir -p packages
+          # upload-artifact does not preserve file permissions, restore the exec bit
+          chmod +x artifacts/linux/xyce-studio
+          so_files=$(ls artifacts/linux/*.so* 2>/dev/null | tr '\n' ' ')
+          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.3' artifacts/linux/xyce-studio xyce-studio linux $so_files
+          cp dist/xyce-studio-${{ steps.version.outputs.version }}.3.zip packages/kicad-xyce-plugin-linux.zip
+          # zip from inside artifacts/linux so the archive has no path prefix
+          (cd artifacts/linux && zip -qry "../../packages/xyce-studio-linux.zip" .)
+
       - name: Associate with GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -331,5 +348,7 @@ jobs:
           gh release upload "${{ github.ref_name }}" \
             packages/kicad-xyce-plugin-macos.zip \
             packages/kicad-xyce-plugin-windows.zip \
+            packages/kicad-xyce-plugin-linux.zip \
             "packages/xyce-studio-macos.zip" \
+            "packages/xyce-studio-linux.zip" \
             --clobber
