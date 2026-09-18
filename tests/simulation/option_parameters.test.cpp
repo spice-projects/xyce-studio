@@ -97,6 +97,9 @@ TEST(OptionParametersChecks, parse_empty_directives) {
     ASSERT_EQ(params.nonlin.size(), 0);
     ASSERT_EQ(params.linsol.size(), 0);
     ASSERT_EQ(params.fft.size(), 0);
+    ASSERT_EQ(params.nonlin_tran.size(), 0);
+    ASSERT_EQ(params.output.size(), 0);
+    ASSERT_EQ(params.restart.size(), 0);
 }
 
 TEST(OptionParametersChecks, parse_non_option_directive) {
@@ -205,6 +208,168 @@ TEST(OptionParametersChecks, parse_measure_options_case_insensitive) {
     ASSERT_EQ(params.measure.at("MEASDGT"), "10");
 }
 
+TEST(OptionParametersChecks, parse_nonlin_tran_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS NONLIN-TRAN NOX=0 NLSTRATEGY=1 ABSTOL=1e-6 RELTOL=1e-2 MAXSTEP=20",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.nonlin_tran.size(), 5);
+    ASSERT_EQ(params.nonlin_tran.at("NOX"), "0");
+    ASSERT_EQ(params.nonlin_tran.at("NLSTRATEGY"), "1");
+    ASSERT_EQ(params.nonlin_tran.at("ABSTOL"), "1e-6");
+    ASSERT_EQ(params.nonlin_tran.at("RELTOL"), "1e-2");
+    ASSERT_EQ(params.nonlin_tran.at("MAXSTEP"), "20");
+    // the transient package must not leak into the generic NONLIN package
+    ASSERT_EQ(params.nonlin.size(), 0);
+}
+
+TEST(OptionParametersChecks, parse_nonlin_tran_options_case_insensitive) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS nonlin-tran maxstep=15",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.nonlin_tran.size(), 1);
+    ASSERT_EQ(params.nonlin_tran.at("MAXSTEP"), "15");
+}
+
+TEST(OptionParametersChecks, parse_output_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT PRINTHEADER=false PRINTFOOTER=false SNAPSHOTS=true ADD_STEPNUM_COL=true PHASE_OUTPUT_RADIANS=true",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.output.size(), 5);
+    ASSERT_EQ(params.output.at("PRINTHEADER"), "false");
+    ASSERT_EQ(params.output.at("PRINTFOOTER"), "false");
+    ASSERT_EQ(params.output.at("SNAPSHOTS"), "true");
+    ASSERT_EQ(params.output.at("ADD_STEPNUM_COL"), "true");
+    ASSERT_EQ(params.output.at("PHASE_OUTPUT_RADIANS"), "true");
+}
+
+TEST(OptionParametersChecks, parse_output_time_points_option) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT OUTPUTTIMEPOINTS=1e-3,2e-3,3e-3",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.output.size(), 1);
+    // the comma separated list is preserved verbatim in the value
+    ASSERT_EQ(params.output.at("OUTPUTTIMEPOINTS"), "1e-3,2e-3,3e-3");
+}
+
+TEST(OptionParametersChecks, parse_output_initial_interval_with_change_points) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.output.size(), 1);
+    // bare tokens following INITIAL_INTERVAL are consumed as interval change points
+    ASSERT_EQ(params.output.at("INITIAL_INTERVAL"), "0.1us 1.0us 0.5us 10us 0.1us");
+}
+
+TEST(OptionParametersChecks, parse_output_initial_interval_alone) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT INITIAL_INTERVAL=0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.output.size(), 1);
+    ASSERT_EQ(params.output.at("INITIAL_INTERVAL"), "0.1us");
+}
+
+TEST(OptionParametersChecks, parse_output_bare_token_without_interval_is_flag) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT PRINTHEADER",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.output.size(), 1);
+    ASSERT_EQ(params.output.at("PRINTHEADER"), "");
+}
+
+TEST(OptionParametersChecks, parse_restart_checkpoint_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART PACK=1 JOB=checkpt",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.restart.size(), 2);
+    ASSERT_EQ(params.restart.at("PACK"), "1");
+    ASSERT_EQ(params.restart.at("JOB"), "checkpt");
+}
+
+TEST(OptionParametersChecks, parse_restart_initial_interval_with_change_points) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART JOB=checkpt INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.restart.size(), 2);
+    // bare tokens following INITIAL_INTERVAL are consumed as interval change points
+    ASSERT_EQ(params.restart.at("INITIAL_INTERVAL"), "0.1us 1.0us 0.5us 10us 0.1us");
+    ASSERT_EQ(params.restart.at("JOB"), "checkpt");
+}
+
+TEST(OptionParametersChecks, parse_restart_from_job_and_start_time) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART JOB=checkpt START_TIME=0.133us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.restart.size(), 2);
+    ASSERT_EQ(params.restart.at("JOB"), "checkpt");
+    ASSERT_EQ(params.restart.at("START_TIME"), "0.133us");
+}
+
+TEST(OptionParametersChecks, parse_restart_from_file) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART FILE=checkpt0.000000133",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.restart.size(), 1);
+    ASSERT_EQ(params.restart.at("FILE"), "checkpt0.000000133");
+}
+
+TEST(OptionParametersChecks, parse_restart_from_file_with_continued_checkpointing) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART FILE=checkpt0.000000133 JOB=checkpt_again INITIAL_INTERVAL=0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.restart.size(), 3);
+    ASSERT_EQ(params.restart.at("FILE"), "checkpt0.000000133");
+    ASSERT_EQ(params.restart.at("JOB"), "checkpt_again");
+    ASSERT_EQ(params.restart.at("INITIAL_INTERVAL"), "0.1us");
+}
+
 // ========================================================================================
 // to_xyce_directives
 // ========================================================================================
@@ -302,6 +467,50 @@ TEST(OptionParametersChecks, generate_measure_directive) {
     // assert
     ASSERT_EQ(directives.size(), 1);
     ASSERT_EQ(directives[0], ".OPTIONS MEASURE MEASDGT=8 MEASFAIL=0");
+}
+
+TEST(OptionParametersChecks, generate_nonlin_tran_directive) {
+    // arrange
+    const OptionParameters params({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NOX", "0"}, {"MAXSTEP", "20"}});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    // keys are emitted in sorted map order (MAXSTEP < NOX)
+    ASSERT_EQ(directives[0], ".OPTIONS NONLIN-TRAN MAXSTEP=20 NOX=0");
+}
+
+TEST(OptionParametersChecks, generate_output_directive) {
+    // arrange
+    const OptionParameters params({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"PRINTHEADER", "false"}, {"PRINTFOOTER", "false"}, {"SNAPSHOTS", "true"}});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    // keys are emitted in sorted map order (PRINTFOOTER < PRINTHEADER < SNAPSHOTS)
+    ASSERT_EQ(directives[0], ".OPTIONS OUTPUT PRINTFOOTER=false PRINTHEADER=false SNAPSHOTS=true");
+}
+
+TEST(OptionParametersChecks, generate_output_initial_interval_with_change_points) {
+    // arrange
+    const OptionParameters params({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"INITIAL_INTERVAL", "0.1us 1.0us 0.5us 10us 0.1us"}});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    // the interval change points are emitted inline after INITIAL_INTERVAL
+    ASSERT_EQ(directives[0], ".OPTIONS OUTPUT INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us");
+}
+
+TEST(OptionParametersChecks, generate_restart_directive) {
+    // arrange
+    const OptionParameters params({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"PACK", "0"}, {"JOB", "checkpt"}, {"INITIAL_INTERVAL", "0.1us"}});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    // keys are emitted in sorted map order (INITIAL_INTERVAL < JOB < PACK)
+    ASSERT_EQ(directives[0], ".OPTIONS RESTART INITIAL_INTERVAL=0.1us JOB=checkpt PACK=0");
 }
 
 TEST(OptionParametersChecks, generate_new_packages_in_deterministic_order) {
@@ -404,6 +613,89 @@ TEST(OptionParametersChecks, round_trip_measure_options) {
     ASSERT_EQ(round_trip[0], ".OPTIONS MEASURE MEASDGT=10 MEASOUT=0");
 }
 
+TEST(OptionParametersChecks, round_trip_nonlin_tran_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS NONLIN-TRAN NOX=0 NLSTRATEGY=1 ABSTOL=1e-6 MAXSTEP=20",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (ABSTOL < MAXSTEP < NLSTRATEGY < NOX)
+    ASSERT_EQ(round_trip[0], ".OPTIONS NONLIN-TRAN ABSTOL=1e-6 MAXSTEP=20 NLSTRATEGY=1 NOX=0");
+}
+
+TEST(OptionParametersChecks, round_trip_output_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT OUTPUTTIMEPOINTS=1e-3,2e-3 PRINTHEADER=false SNAPSHOTS=true",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (OUTPUTTIMEPOINTS < PRINTHEADER < SNAPSHOTS)
+    ASSERT_EQ(round_trip[0], ".OPTIONS OUTPUT OUTPUTTIMEPOINTS=1e-3,2e-3 PRINTHEADER=false SNAPSHOTS=true");
+}
+
+TEST(OptionParametersChecks, round_trip_output_initial_interval_with_change_points) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    ASSERT_EQ(round_trip[0], ".OPTIONS OUTPUT INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us");
+}
+
+TEST(OptionParametersChecks, round_trip_restart_checkpoint_options) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART PACK=1 JOB=checkpt INITIAL_INTERVAL=0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (INITIAL_INTERVAL < JOB < PACK)
+    ASSERT_EQ(round_trip[0], ".OPTIONS RESTART INITIAL_INTERVAL=0.1us JOB=checkpt PACK=1");
+}
+
+TEST(OptionParametersChecks, round_trip_restart_initial_interval_with_change_points) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART JOB=checkpt INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (INITIAL_INTERVAL < JOB)
+    ASSERT_EQ(round_trip[0], ".OPTIONS RESTART INITIAL_INTERVAL=0.1us 1.0us 0.5us 10us 0.1us JOB=checkpt");
+}
+
+TEST(OptionParametersChecks, round_trip_restart_from_file) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS RESTART FILE=checkpt0.000000133 JOB=checkpt_again INITIAL_INTERVAL=0.1us",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (FILE < INITIAL_INTERVAL < JOB)
+    ASSERT_EQ(round_trip[0], ".OPTIONS RESTART FILE=checkpt0.000000133 INITIAL_INTERVAL=0.1us JOB=checkpt_again");
+}
+
 // ========================================================================================
 // equality
 // ========================================================================================
@@ -484,6 +776,62 @@ TEST(OptionParametersChecks, differing_measure_options_compare_unequal) {
     // arrange
     const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MEASDGT", "8"}});
     const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MEASDGT", "10"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, equal_nonlin_tran_options_compare_equal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "20"}, {"NOX", "0"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "20"}, {"NOX", "0"}});
+    // act / assert
+    ASSERT_TRUE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_nonlin_tran_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "20"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "40"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_nonlin_and_nonlin_tran_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {{"MAXSTEP", "200"}}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "20"}});
+    const OptionParameters b({}, {}, {{"MAXSTEP", "200"}}, {}, {}, {}, {}, {}, {}, {}, {}, {{"MAXSTEP", "200"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, equal_output_options_compare_equal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"PRINTHEADER", "false"}, {"SNAPSHOTS", "true"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"PRINTHEADER", "false"}, {"SNAPSHOTS", "true"}});
+    // act / assert
+    ASSERT_TRUE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_output_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"INITIAL_INTERVAL", "0.1us 1.0us 0.5us"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"INITIAL_INTERVAL", "0.1us 1.0us"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, equal_restart_options_compare_equal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt"}, {"START_TIME", "0.133us"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt"}, {"START_TIME", "0.133us"}});
+    // act / assert
+    ASSERT_TRUE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_restart_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt_again"}});
     // act / assert
     ASSERT_FALSE(a == b);
 }
