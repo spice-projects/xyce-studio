@@ -675,12 +675,45 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     }
     // check for success
     if (exit_code == 0) {
-        // compute the produced raw output file path (Xyce's default location next to the temporary netlist)
-        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
-        // parse the raw file when a path was computed and the file exists
-        std::optional<std::shared_ptr<XyceOutputFile>> raw_file;
-        if (raw_path.has_value() && std::filesystem::exists(*raw_path))
-            raw_file = xyce_raw_file_parser(raw_path->string());
+        // resolve the analysis print output file (.raw or .prn) and parse it
+        // as the primary simulation result
+        auto raw_file = resolve_analysis_output(m_simulation_netlist_path, m_simulation_working_directory);
+        // for .prn output files (which carry no analysis-type header) the
+        // title and plot type must be set from the simulation config so the
+        // tab label matches the simulation type (e.g. "DC Sweep" for .DC)
+        if (raw_file.has_value() && raw_file.value()->filename().extension() == ".prn") {
+            const std::string& at = m_simulation_config.analysis_type;
+            std::string at_upper = at;
+            std::transform(at_upper.begin(), at_upper.end(), at_upper.begin(), ::toupper);
+            PlotType pt = PlotType::UNKNOWN;
+            std::string title;
+            if (at_upper == "TRAN") {
+                pt = PlotType::TRANSIENT;
+                title = "Transient";
+            }
+            else if (at_upper == "AC") {
+                pt = PlotType::AC;
+                title = "AC Analysis";
+            }
+            else if (at_upper == "DC") {
+                pt = PlotType::DC;
+                title = "DC Sweep";
+            }
+            else if (at_upper == "NOISE") {
+                pt = PlotType::NOISE;
+                title = "Noise Analysis";
+            }
+            else if (at_upper == "OP") {
+                pt = PlotType::DC_OPERATING_POINT;
+                title = "DC Operating Point";
+            }
+            else {
+                pt = PlotType::UNKNOWN;
+                title = at;
+            }
+            raw_file.value()->set_title(title);
+            raw_file.value()->set_plot_type(pt);
+        }
         // resolve the touchstone output file produced by .LIN runs and parse
         // it; the raw file is often empty for .LIN netlists, so the touchstone
         // data is the primary plottable result of the run and is loaded
@@ -775,39 +808,6 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             // log the parsed touchstone file
             if (m_touchstone_file.has_value())
                 spdlog::info("Loaded touchstone output file '{}'", m_touchstone_file.value()->filename().string());
-            // discover .prn print output files produced by this run and parse them
-            // the parser handles all .prn formats: STD, NOINDEX, GNUPLOT, SPLOT
-            m_prn_files.clear();
-            for (const auto& print_params : m_simulation_config.prn_print_parameters()) {
-                // when FILE= is specified, resolve it against the working directory
-                std::filesystem::path prn_path;
-                if (!print_params.print_file.empty()) {
-                    const auto resolved = std::filesystem::path(strip_outer_quotes(print_params.print_file));
-                    prn_path = resolved.is_absolute() ? resolved : m_simulation_working_directory / resolved;
-                }
-                else {
-                    // no FILE= specified: Xyce writes <netlist>.prn next to the netlist
-                    prn_path = std::filesystem::path(m_simulation_netlist_path).string() + ".prn";
-                }
-                // try to parse the .prn file
-                if (std::filesystem::exists(prn_path)) {
-                    if (auto prn_file = xyce_prn_file_parser(prn_path)) {
-                        m_prn_files.push_back(*prn_file);
-                        // append as a non-closable plot dataset
-                        m_plot_datasets.push_back(PlotDataset{
-                            .id = m_next_dataset_id++,
-                            .file = std::move(*prn_file),
-                            .closable = false,
-                        });
-                    }
-                    else {
-                        spdlog::warn("Failed to parse PRN output file '{}'", prn_path.string());
-                    }
-                }
-            }
-            // log the number of loaded PRN files
-            if (!m_prn_files.empty())
-                spdlog::info("Loaded {} Xyce PRN output file(s)", m_prn_files.size());
             // activate the primary dataset, the touchstone tab stays selected
             // behind it like any secondary result tab; activation re-points the
             // renderer chart state at the new file, clearing the references
@@ -817,9 +817,13 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             sync_plot_tabs_with_view();
             // activate the primary dataset
             activate_plot_dataset(0);
-            // copy the produced raw file to the user-indicated location
-            if (raw_path.has_value())
-                copy_raw_output_to_destination(*raw_path);
+            // copy the produced raw output file to the user-indicated location
+            const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
+            if (raw_path.has_value()) {
+                // check both that the file exists and that it is a .raw file
+                if (std::filesystem::exists(*raw_path))
+                    copy_raw_output_to_destination(*raw_path);
+            }
             // switch to the charts view
             m_view.show_charts_view();
             // hide the output panel — it is only shown on failure
@@ -860,6 +864,54 @@ void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesys
     std::filesystem::copy_file(raw_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
     if (ec)
         spdlog::warn("Failed to copy RAW output file to '{}': {}", destination->string(), ec.message());
+}
+
+std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
+    // get the analysis print parameters; when no analysis is configured or the
+    // print is disabled, Xyce still produces a .raw file by default
+    const auto analysis_print = m_simulation_config.analysis_print_parameters();
+    // determine the output file format and build the expected file path:
+    // .prn-producing formats are STD (the default when no FORMAT is given),
+    // NOINDEX, GNUPLOT and SPLOT; RAW format produces .raw next to the netlist
+    bool is_prn_format = true;
+    std::filesystem::path output_path;
+    if (analysis_print.has_value()) {
+        // check for known .prn-producing formats; empty format defaults to STD
+        if (!analysis_print->print_format.empty()) {
+            std::string fmt_upper = analysis_print->print_format;
+            std::transform(fmt_upper.begin(), fmt_upper.end(), fmt_upper.begin(), ::toupper);
+            is_prn_format = (fmt_upper == "STD" || fmt_upper == "NOINDEX" || fmt_upper == "GNUPLOT" || fmt_upper == "SPLOT");
+        }
+        if (is_prn_format) {
+            // .prn formats preserve the FILE= option
+            if (!analysis_print->print_file.empty()) {
+                const auto resolved = std::filesystem::path(strip_outer_quotes(analysis_print->print_file));
+                output_path = resolved.is_absolute() ? resolved : working_directory / resolved;
+            }
+            else {
+                // no FILE= specified: Xyce writes <netlist>.prn next to the netlist
+                output_path = std::filesystem::path(netlist_path).string() + ".prn";
+            }
+        }
+        else {
+            // RAW format: FILE= is stripped for the Xyce run so the produced
+            // file is always next to the netlist
+            output_path = std::filesystem::path(netlist_path).string() + ".raw";
+        }
+    }
+    else {
+        // no analysis print configured: Xyce produces a .raw file by default
+        is_prn_format = false;
+        output_path = std::filesystem::path(netlist_path).string() + ".raw";
+    }
+    // check the file exists
+    if (!std::filesystem::exists(output_path))
+        return {};
+    // parse the file with the appropriate parser
+    if (is_prn_format) {
+        return xyce_prn_file_parser(output_path);
+    }
+    return xyce_raw_file_parser(output_path);
 }
 
 void SlintMainWindowPresenter::on_simulation_stdout(const std::string& line) {

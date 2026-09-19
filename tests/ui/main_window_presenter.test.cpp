@@ -1518,6 +1518,72 @@ TEST(SlintMainWindowPresenterChecks, tab_switch_preserves_dataset_chart_state) {
     EXPECT_EQ(view.m_released_dataset_ids.back(), fft_id);
 }
 
+TEST(SlintMainWindowPresenterChecks, prn_output_tab_label_matches_analysis_type) {
+    // arrange — launch a dc sweep simulation with a std-format print directive
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 DC 0V\nR1 1 2 1k\nR2 2 0 2k\n.DC V1 0 5 0.5\n.PRINT DC FORMAT=STD V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write a .prn file at the expected output location
+    const auto prn_path = view.m_started_netlist_path.string() + ".prn";
+    {
+        // write a minimal std-format .prn file with an index column
+        std::ofstream prn_file(prn_path, std::ios::out | std::ios::trunc);
+        prn_file << "INDEX SWEEP V(1)\n";
+        prn_file << "0 0.0 1.0\n";
+        prn_file << "1 0.5 1.1\n";
+        prn_file << "2 1.0 1.2\n";
+        prn_file << ".\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the plot tab shows the analysis type name (dc sweep), same as
+    // the .raw behaviour, and the tab is not closable
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "DC Sweep");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(prn_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, prn_default_format_produces_prn_file) {
+    // arrange — launch a dc sweep with a print directive that has no explicit
+    // format; the default is STD which produces a .prn file
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 DC 0V\nR1 1 2 1k\nR2 2 0 2k\n.DC V1 0 5 0.5\n.PRINT DC V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write a .prn file at the expected output location
+    const auto prn_path = view.m_started_netlist_path.string() + ".prn";
+    {
+        // write a minimal std-format .prn file
+        std::ofstream prn_file(prn_path, std::ios::out | std::ios::trunc);
+        prn_file << "INDEX SWEEP V(1)\n";
+        prn_file << "0 0.0 1.0\n";
+        prn_file << "1 0.5 1.1\n";
+        prn_file << "2 1.0 1.2\n";
+        prn_file << ".\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the plot tab shows the analysis type name (dc sweep)
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "DC Sweep");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(prn_path, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, fft_dialog_result_guards_without_raw_file) {
     // arrange
     RecordingView view;

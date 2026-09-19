@@ -1,7 +1,9 @@
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <iomanip>
 #include <optional>
 #include <string>
 #include <vector>
@@ -48,7 +50,7 @@ namespace
         std::filesystem::path m_path;
     };
 
-    } // namespace
+} // namespace
 
 TEST(XycePrnFileParserTest, returns_nullopt_when_file_not_found) {
     // arrange
@@ -283,4 +285,95 @@ TEST(XycePrnFileParserTest, evaluates_abscissa_data_values) {
     auto& abscissa = file.abscissa();
     auto data = abscissa.step_data(0);
     ASSERT_EQ(data.size(), 3);
+}
+
+TEST(XycePrnFileParserTest, power_variable_detected_correctly) {
+    // arrange
+    const std::string content = "INDEX TIME P(R1) V(1)\n"
+                                "0 0.0 0.5 1.0\n"
+                                "1 1e-9 0.6 1.1\n"
+                                ".\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    auto& file = *result.value();
+    auto& mgr = file.expression_manager();
+    AnyExpression* expr = mgr.evaluate("P(R1)");
+    ASSERT_NE(expr, nullptr);
+    auto* real = std::get_if<Expression<double>>(expr);
+    ASSERT_NE(real, nullptr);
+}
+
+TEST(XycePrnFileParserTest, expression_variable_detected_correctly) {
+    // arrange
+    const std::string content = "INDEX TIME {V(1)-V(2)} V(2)\n"
+                                "0 0.0 0.0 0.0\n"
+                                "1 1e-9 0.1 0.2\n"
+                                ".\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, decade_scale_detected_correctly) {
+    // arrange — decade spacing with 10 points per decade: 1, 1.26, 1.58, ..., 10
+    std::ostringstream content;
+    content << std::setprecision(15) << "INDEX FREQ V(1)\n";
+    for (int k = 0; k <= 10; ++k) {
+        double f = std::pow(10.0, static_cast<double>(k) / 10.0);
+        content << "0 " << f << " 0.5\n";
+    }
+    content << ".\n";
+    const TempFileRAII temp_file(content.str());
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result.value()->abscissa_scale(), AbscissaScale::DECADE);
+}
+
+TEST(XycePrnFileParserTest, octave_scale_detected_correctly) {
+    // arrange — octave spacing with 10 points per octave: powers of 2^(1/10)
+    std::ostringstream content;
+    content << std::setprecision(15) << "INDEX FREQ V(1)\n";
+    // 1 point per step, octave steps: 2^0, 2^0.1, 2^0.2, ..., 2^1.0
+    for (int k = 0; k <= 10; ++k) {
+        double f = std::pow(2.0, static_cast<double>(k) / 10.0);
+        content << "0 " << f << " 0.5\n";
+    }
+    content << ".\n";
+    const TempFileRAII temp_file(content.str());
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result.value()->abscissa_scale(), AbscissaScale::OCTAVE);
+}
+
+TEST(XycePrnFileParserTest, header_only_file_returns_no_data) {
+    // arrange — a file with only a header and no data rows
+    const std::string content = "INDEX TIME V(1)\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, complex_data_detected_correctly) {
+    // arrange — a column named with "imag" in the header
+    const std::string content = "INDEX FREQ V(1) IMAG(V(1))\n"
+                                "0 100 0.5 0.1\n"
+                                "1 200 0.7 0.2\n"
+                                ".\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result.value()->is_complex());
 }

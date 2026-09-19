@@ -127,6 +127,11 @@ private:
     // user-visible file up to date
     void copy_raw_output_to_destination(const std::filesystem::path& raw_path);
 
+    // resolve the analysis print output file (.raw or .prn) and parse it,
+    // setting the title and plot type from the simulation analysis type so the
+    // tab label is identical regardless of the .PRINT format
+    std::optional<std::shared_ptr<XyceOutputFile>> resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory);
+
     MainWindowViewDef& m_view;
 
     std::shared_ptr<KiCadSession> m_kicad_session;
@@ -141,7 +146,6 @@ private:
 
     std::optional<std::shared_ptr<XyceOutputFile>> m_xyce_raw_file;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_files;
-    std::vector<std::shared_ptr<XyceOutputFile>> m_prn_files;
     // touchstone output file produced by a .LIN run; a single run produces at
     // most one file (a .STEP run concatenates all steps into the same file)
     std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_file;

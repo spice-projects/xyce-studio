@@ -1,0 +1,10 @@
+* Simple DC sweep with STD print output (reproduces issue #233)
+V1 1 0 DC 0V
+R1 1 2 1k
+R2 2 0 2k
+
+.PREPROCESS REPLACEGROUND TRUE
+.DC V1 0 5 0.5
+.PRINT DC FORMAT=STD V(*) I(*)
+
+.END

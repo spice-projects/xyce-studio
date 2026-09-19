@@ -662,3 +662,44 @@ TEST(SimulationConfigPrintSanitizeChecks, transient_analysis_print_keeps_power_a
     ASSERT_TRUE(print_parameters.has_value());
     ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "P(*)", "IC(*)"}));
 }
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_std_format_analysis_print) {
+    // arrange — dc analysis with std-format print
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=STD V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_type, "DC");
+    EXPECT_EQ(prn_params[0].print_format, "STD");
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_noindex_format_analysis_print) {
+    // arrange — transient analysis with noindex-format print
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN FORMAT=NOINDEX V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_type, "TRAN");
+    EXPECT_EQ(prn_params[0].print_format, "NOINDEX");
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, excludes_raw_format) {
+    // arrange — analysis with raw-format print
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=RAW V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_TRUE(prn_params.empty());
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_unassociated_prn_prints) {
+    // arrange — analysis print is raw but there is an unassociated print with std format
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=RAW V(1)", ".PRINT DC FORMAT=GNUPLOT I(R1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert — the analysis print (raw) is excluded, the unassociated gnuplot print is included
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_format, "GNUPLOT");
+}

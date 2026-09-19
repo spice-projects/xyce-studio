@@ -412,20 +412,6 @@ std::optional<std::shared_ptr<XyceOutputFile>> xyce_prn_file_parser(const std::f
     }
     // create expression manager (constructor takes lvalue references)
     ExpressionManager expression_manager(expressions, abscissa_step_slices);
-    // build suggested plots
-    auto expr_list = expression_manager.expressions();
-    auto expr_names = expression_manager.expression_names();
-    std::vector<std::vector<std::string>> suggested_plots;
-    for (size_t i = 1; i < expr_list.size(); ++i) {
-        auto* expr_ptr = expr_list[i];
-        if (expr_ptr != nullptr && std::get_if<Expression<double>>(expr_ptr)) {
-            suggested_plots.push_back({"db(" + expr_names[i] + ")"});
-        }
-    }
-    // ensure at least one suggested plot
-    if (suggested_plots.empty() && expr_list.size() > 1) {
-        suggested_plots.push_back({"db(" + expr_names[1] + ")"});
-    }
     // build step information
     std::vector<std::vector<double>> step_values;
     std::vector<std::pair<double, double>> step_abscissa_ranges;
@@ -461,15 +447,16 @@ std::optional<std::shared_ptr<XyceOutputFile>> xyce_prn_file_parser(const std::f
         }
     }
     // capture values for logging before move operations
-    size_t variables_count = expr_list.size() - 1;
+    size_t variables_count = expressions.size() - 1;
     size_t steps_count = step_info.length();
     // build file-level metadata
     std::unordered_map<std::string, std::string> metadata;
     metadata["format"] = format_string(format);
     metadata["has_index"] = has_index ? "true" : "false";
-    // create the output file
-    auto xyce_file = std::make_shared<XyceOutputFile>(filename, filename.stem().string(), is_complex, std::move(step_info), plot_type, abscissa_scale, std::move(expression_manager), nullptr, suggested_plots, std::move(metadata));
+    // create the output file with no suggested plots (user chooses what to plot)
+    auto xyce_file = std::make_shared<XyceOutputFile>(filename, filename.stem().string(), is_complex, std::move(step_info), plot_type, abscissa_scale, std::move(expression_manager), nullptr, std::vector<std::vector<std::string>>{}, std::move(metadata));
     // log completion
     spdlog::info("Successfully parsed PRN file: {}, format: {}, variables: {}, steps: {}, elapsed time: {}ms", filename.string(), format_string(format), variables_count, steps_count, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count());
+    // use file
     return xyce_file;
 }
