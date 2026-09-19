@@ -162,6 +162,35 @@ class SlintClientFacadeChecks(unittest.TestCase):
         # assert
         self.assertEqual(mcp.calls()[0], ("drag_element", {"elementHandle": {"index": "5", "generation": "1"}, "target": {"x": 120.0, "y": 80.0}}))
 
+    def test_scroll_element_passes_handle_and_deltas(self) -> None:
+        # arrange
+        mcp = FakeMcpClient({})
+        client = SlintClient(mcp)
+        # act
+        client.scroll_element({"index": "5", "generation": "1"}, 10.0, -60.0)
+        # assert
+        self.assertEqual(mcp.calls()[0], ("scroll_element", {"elementHandle": {"index": "5", "generation": "1"}, "deltaX": 10.0, "deltaY": -60.0}))
+
+    def test_scroll_element_defaults_to_zero_deltas(self) -> None:
+        # arrange
+        mcp = FakeMcpClient({})
+        client = SlintClient(mcp)
+        # act
+        client.scroll_element({"index": "5", "generation": "1"})
+        # assert
+        self.assertEqual(mcp.calls()[0][1]["deltaX"], 0.0)
+        self.assertEqual(mcp.calls()[0][1]["deltaY"], 0.0)
+
+    def test_dispatch_pointer_scroll_uses_first_window_and_position(self) -> None:
+        # arrange
+        handle = {"index": "1", "generation": "1"}
+        mcp = FakeMcpClient({"list_windows": {"windowHandles": [handle]}})
+        client = SlintClient(mcp)
+        # act
+        client.dispatch_pointer_scroll(300.0, 400.0, 0.0, -80.0)
+        # assert
+        self.assertEqual(mcp.calls()[1], ("dispatch_pointer_scroll", {"windowHandle": handle, "position": {"x": 300.0, "y": 400.0}, "deltaX": 0.0, "deltaY": -80.0}))
+
     def test_get_element_properties_passes_handle(self) -> None:
         # arrange
         handle = {"index": "7", "generation": "1"}

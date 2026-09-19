@@ -73,6 +73,15 @@ class SlintClient:
         # drag from the element center to the logical target position
         self._mcp.call_tool("drag_element", {"elementHandle": element_handle, "target": {"x": target_x, "y": target_y}})
 
+    def scroll_element(self, element_handle: dict, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # send a mouse wheel event over the element center; a negative delta_y
+        # moves the viewport down revealing content further below (wheel-down)
+        self._mcp.call_tool("scroll_element", {"elementHandle": element_handle, "deltaX": delta_x, "deltaY": delta_y})
+
+    def dispatch_pointer_scroll(self, x: float, y: float, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # send a mouse wheel event at a logical window position
+        self._mcp.call_tool("dispatch_pointer_scroll", {"windowHandle": self._first_window(), "position": {"x": x, "y": y}, "deltaX": delta_x, "deltaY": delta_y})
+
     def set_element_value(self, element_handle: dict, value: str) -> None:
         # set the accessible value of the element handle
         self._mcp.call_tool("set_element_value", {"elementHandle": element_handle, "value": value})

@@ -72,6 +72,11 @@ class Locator:
         # drag from the matched element center to the logical target position
         self._perform(lambda handle: self._client.drag_element(handle, target_x, target_y))
 
+    def scroll(self, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # send a mouse wheel event over the matched element center; a negative
+        # delta_y reveals content further below like a wheel-down does
+        self._perform(lambda handle: self._client.scroll_element(handle, delta_x, delta_y))
+
     def count(self) -> int:
         # report the number of currently matched elements
         return len(self._resolve())

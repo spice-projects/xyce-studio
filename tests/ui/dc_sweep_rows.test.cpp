@@ -179,7 +179,7 @@ TEST(DcSweepRowsChecks, lin_dialog_roundtrip_preserves_nested_entries) {
     const auto rebuilt = dc_sweeps_from_rows(dc_sweep_rows_from_sweeps(parsed->sweeps), parsed->sweep_mode);
     // assert — every tuple survives, including index 2
     ASSERT_EQ(rebuilt, parsed->sweeps);
-    const DCSimulationParameters params(parsed->sweep_mode, rebuilt, "", std::nullopt, {}, std::nullopt);
+    const DCSimulationParameters params(parsed->sweep_mode, rebuilt, "", std::nullopt, {}, std::nullopt, std::nullopt);
     ASSERT_EQ(params.to_xyce_directives(NetlistTopology{}), parsed->to_xyce_directives(NetlistTopology{}));
 }
 
@@ -203,7 +203,7 @@ TEST(DcSweepRowsChecks, list_dialog_roundtrip_preserves_every_sweep) {
     const auto rebuilt = dc_sweeps_from_rows(dc_sweep_rows_from_sweeps(parsed->sweeps), parsed->sweep_mode);
     // assert — the secondary LIST values survive the dialog and pass validation
     ASSERT_EQ(rebuilt, parsed->sweeps);
-    const DCSimulationParameters params(parsed->sweep_mode, rebuilt, "", std::nullopt, {}, std::nullopt);
+    const DCSimulationParameters params(parsed->sweep_mode, rebuilt, "", std::nullopt, {}, std::nullopt, std::nullopt);
     ASSERT_EQ(params.validate(), std::nullopt);
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     ASSERT_EQ(directives[0], ".DC VDS LIST 0 3.5 0.05 VGS LIST 0 3.5 0.5");

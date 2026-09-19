@@ -137,6 +137,28 @@ TEST(SimulationConfigUnassociatedPrintChecks, hb_ic_and_hb_startup_prints_are_ha
     EXPECT_TRUE(config.unassociated_prints.empty());
 }
 
+TEST(SimulationConfigUnassociatedPrintChecks, pce_prints_are_handled_by_dc_analysis) {
+    // arrange — the DC parser claims .PRINT PCE into its structured PCE parameters
+    const std::vector<std::string> directives = {".DC 0 5 0.1", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"};
+    // act
+    const auto config = SimulationConfig::from_xyce_directives(directives);
+    // assert
+    EXPECT_TRUE(config.unassociated_prints.empty());
+    ASSERT_TRUE(std::holds_alternative<DCSimulationParameters>(config.analysis));
+    EXPECT_TRUE(std::get<DCSimulationParameters>(config.analysis).pce.has_value());
+}
+
+TEST(SimulationConfigUnassociatedPrintChecks, pce_prints_are_handled_by_tran_analysis) {
+    // arrange — the TRAN parser claims .PRINT PCE into its structured PCE parameters
+    const std::vector<std::string> directives = {".TRAN 1u 1m", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"};
+    // act
+    const auto config = SimulationConfig::from_xyce_directives(directives);
+    // assert
+    EXPECT_TRUE(config.unassociated_prints.empty());
+    ASSERT_TRUE(std::holds_alternative<TransientSimulationParameters>(config.analysis));
+    EXPECT_TRUE(std::get<TransientSimulationParameters>(config.analysis).pce.has_value());
+}
+
 TEST(SimulationConfigUnassociatedPrintChecks, other_print_types_become_unassociated) {
     // arrange — a DC print under a transient analysis is not handled by it
     const std::vector<std::string> directives = {".TRAN 1u 1m", ".PRINT DC V(1)"};
@@ -432,7 +454,7 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_requires_an_analysis) {
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_requires_fft_parameters) {
     // arrange — a transient analysis without .FFT directives
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.fft_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -441,7 +463,7 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_requires_fft_parameters) {
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_matches_transient_with_fft_parameters) {
     // arrange — a transient analysis carrying one .FFT directive
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.fft_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -567,7 +589,7 @@ TEST(SimulationConfigTouchstonePathChecks, touchstone_path_resolves_from_parsed_
 
 TEST(SimulationConfigValidationChecks, validate_passes_when_no_steps) {
     // arrange
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
@@ -575,7 +597,7 @@ TEST(SimulationConfigValidationChecks, validate_passes_when_no_steps) {
 TEST(SimulationConfigValidationChecks, validate_passes_when_step_is_disabled) {
     // arrange
     const StepParameters disabled_step("LIN", "R1", "1k", "10k", "1k", "", {}, "", false);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt), {disabled_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {disabled_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
@@ -593,7 +615,7 @@ TEST(SimulationConfigValidationChecks, validate_rejects_step_without_analysis) {
 TEST(SimulationConfigValidationChecks, validate_checks_invalid_step_params) {
     // arrange — a step has empty variable
     const StepParameters bad_step("LIST", "", "", "", "", "", {}, "", true);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt), {bad_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {bad_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     const auto error = config.validate();
     ASSERT_TRUE(error.has_value());
@@ -603,7 +625,7 @@ TEST(SimulationConfigValidationChecks, validate_checks_invalid_step_params) {
 TEST(SimulationConfigValidationChecks, validate_passes_with_enabled_step_and_analysis) {
     // arrange
     const StepParameters valid_step("LIN", "R1", "1k", "10k", "1k", "", {}, "", true);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt), {valid_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {valid_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }

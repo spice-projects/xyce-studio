@@ -236,6 +236,22 @@ response `{}`. Verified live: produces press → move → release events, all `A
 
 Drag from element center to `{"x": <logical>, "y": <logical>}` in interpolated steps.
 
+#### scroll_element — `{elementHandle, deltaX?, deltaY?}`
+
+Send a mouse wheel event over the element center. `deltaX`/`deltaY` are logical pixels;
+a **negative `deltaY` reveals content further down** (wheel-down; verified against the
+server unit test `test_scroll_element_scrolls_a_flickable`, which asserts a Flickable
+with `content-height: 400` ends at `content-y == -50` after `deltaY: -50`). Use this to
+scroll a `ScrollView`/`Flickable` whose area the element center falls into, and for
+wheel-driven gestures such as canvas zoom. Newer servers also expose `hover_element`,
+`move_pointer` and `dispatch_pointer_scroll` (window-level wheel at a position, arguments
+`{windowHandle, position, deltaX?, deltaY?}`).
+
+#### dispatch_pointer_scroll — `{windowHandle, position, deltaX?, deltaY?}`
+
+Send a mouse wheel event at a logical window position; `use scroll_element` to scroll by
+element handle.
+
 #### invoke_accessibility_action — `{elementHandle, action}`
 
 `Default_` (activate button/checkbox), `Increment`/`Decrement` (slider, spinbox),

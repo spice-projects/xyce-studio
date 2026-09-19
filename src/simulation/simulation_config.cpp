@@ -156,10 +156,18 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
         else if (analysis_type == "DC") {
             handled_print_types.insert("DC");
             handled_print_types.insert("HOMOTOPY");
+            // the DC parser claims .PRINT PCE into its structured PCE
+            // parameters; without this the same directive would also be
+            // appended to the unassociated prints
+            handled_print_types.insert("PCE");
         }
         else if (analysis_type == "TRAN") {
             handled_print_types.insert("TRAN");
             handled_print_types.insert("TRANADJOINT");
+            // the TRAN parser claims .PRINT PCE into its structured PCE
+            // parameters; without this the same directive would also be
+            // appended to the unassociated prints
+            handled_print_types.insert("PCE");
         }
         else if (analysis_type == "HB") {
             handled_print_types.insert("HB");
