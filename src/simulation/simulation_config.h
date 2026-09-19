@@ -74,6 +74,11 @@ public:
     // analysis produces no touchstone output
     [[nodiscard]] std::optional<std::filesystem::path> touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const;
 
+    // collect all print parameters that produce .prn output (STD, NOINDEX,
+    // GNUPLOT, SPLOT formats), including the analysis print and any
+    // unassociated .PRINT directives; empty when no .prn output is configured
+    [[nodiscard]] std::vector<PrintParameters> prn_print_parameters() const;
+
     // get the first step for backward compatibility
     [[nodiscard]] StepParameters step() const;
 

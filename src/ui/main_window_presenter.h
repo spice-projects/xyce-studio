@@ -141,6 +141,7 @@ private:
 
     std::optional<std::shared_ptr<XyceOutputFile>> m_xyce_raw_file;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_files;
+    std::vector<std::shared_ptr<XyceOutputFile>> m_prn_files;
     // touchstone output file produced by a .LIN run; a single run produces at
     // most one file (a .STEP run concatenates all steps into the same file)
     std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_file;

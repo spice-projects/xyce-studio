@@ -10,6 +10,7 @@
 #include "../dsp/fft.h"
 #include "../io/touchstone_file.h"
 #include "../io/xyce_fft_file.h"
+#include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
 #include "../kicad/kicad_session.h"
 #include "../netlist/editor_netlist_source.h"
@@ -144,6 +145,18 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
             // load the parsed raw file
             load_raw_file(std::move(raw_file.value()));
         }
+        return;
+    }
+    // prn file extension
+    if (extension == ".prn") {
+        // parse the prn file
+        auto prn_file = xyce_prn_file_parser(path);
+        // check prn file was parsed
+        if (prn_file.has_value()) {
+            // load the parsed prn file
+            load_raw_file(std::move(prn_file.value()));
+        }
+        return;
     }
 }
 
@@ -762,6 +775,39 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             // log the parsed touchstone file
             if (m_touchstone_file.has_value())
                 spdlog::info("Loaded touchstone output file '{}'", m_touchstone_file.value()->filename().string());
+            // discover .prn print output files produced by this run and parse them
+            // the parser handles all .prn formats: STD, NOINDEX, GNUPLOT, SPLOT
+            m_prn_files.clear();
+            for (const auto& print_params : m_simulation_config.prn_print_parameters()) {
+                // when FILE= is specified, resolve it against the working directory
+                std::filesystem::path prn_path;
+                if (!print_params.print_file.empty()) {
+                    const auto resolved = std::filesystem::path(strip_outer_quotes(print_params.print_file));
+                    prn_path = resolved.is_absolute() ? resolved : m_simulation_working_directory / resolved;
+                }
+                else {
+                    // no FILE= specified: Xyce writes <netlist>.prn next to the netlist
+                    prn_path = std::filesystem::path(m_simulation_netlist_path).string() + ".prn";
+                }
+                // try to parse the .prn file
+                if (std::filesystem::exists(prn_path)) {
+                    if (auto prn_file = xyce_prn_file_parser(prn_path)) {
+                        m_prn_files.push_back(*prn_file);
+                        // append as a non-closable plot dataset
+                        m_plot_datasets.push_back(PlotDataset{
+                            .id = m_next_dataset_id++,
+                            .file = std::move(*prn_file),
+                            .closable = false,
+                        });
+                    }
+                    else {
+                        spdlog::warn("Failed to parse PRN output file '{}'", prn_path.string());
+                    }
+                }
+            }
+            // log the number of loaded PRN files
+            if (!m_prn_files.empty())
+                spdlog::info("Loaded {} Xyce PRN output file(s)", m_prn_files.size());
             // activate the primary dataset, the touchstone tab stays selected
             // behind it like any secondary result tab; activation re-points the
             // renderer chart state at the new file, clearing the references

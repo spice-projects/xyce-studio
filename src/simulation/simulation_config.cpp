@@ -427,3 +427,33 @@ std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_pa
 
     return std::visit(TouchstonePathVisitor{netlist_file_path, working_directory}, analysis);
 }
+
+std::vector<PrintParameters> SimulationConfig::prn_print_parameters() const {
+    // result vector for print parameters that produce .prn output
+    std::vector<PrintParameters> result;
+    // check the analysis print
+    const auto analysis_print = analysis_print_parameters();
+    // helper to check if a print format produces .prn output
+    auto is_prn_format = [](const std::string& fmt) -> bool {
+        // empty format means RAW output (handled separately)
+        if (fmt.empty()) {
+            return false;
+        }
+        // normalize to uppercase
+        std::string upper = fmt;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        // STD, NOINDEX, GNUPLOT, and SPLOT formats produce .prn files
+        return upper == "STD" || upper == "NOINDEX" || upper == "GNUPLOT" || upper == "SPLOT";
+    };
+    // add the analysis print if it produces .prn output
+    if (analysis_print.has_value() && is_prn_format(analysis_print->print_format)) {
+        result.push_back(*analysis_print);
+    }
+    // add unassociated prints that produce .prn output
+    for (const auto& print : unassociated_prints) {
+        if (is_prn_format(print.print_format)) {
+            result.push_back(print);
+        }
+    }
+    return result;
+}
