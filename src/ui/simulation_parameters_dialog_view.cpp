@@ -23,6 +23,7 @@
 #include "../simulation/measure_parameters.h"
 #include "../simulation/noise_simulation_parameters.h"
 #include "../simulation/op_simulation_parameters.h"
+#include "../simulation/pce_parameters.h"
 #include "../simulation/print_parameters.h"
 #include "../simulation/simulation_config.h"
 #include "../simulation/transient_simulation_parameters.h"
@@ -70,11 +71,19 @@ namespace simulation_parameters_dialog_view
         // index 0 is the "(default)" entry which serializes to an empty string
         static constexpr std::array<const char*, 9> PRINT_FORMAT_VALUES = {"", "STD", "NOINDEX", "PROBE", "TECPLOT", "RAW", "CSV", "GNUPLOT", "SPLOT"};
 
+        // .PRINT PCE format values in combo order; the PCE print type only
+        // supports STD, GNUPLOT, SPLOT, NOINDEX, CSV and TECPLOT per Xyce RG
+        // table 2-29, so RAW and PROBE are not offered
+        static constexpr std::array<const char*, 7> PCE_PRINT_FORMAT_VALUES = {"", "STD", "NOINDEX", "TECPLOT", "CSV", "GNUPLOT", "SPLOT"};
+
         // AC/LIN/NOISE sweep mode values in combo order
         static constexpr std::array<const char*, 4> SWEEP_MODE_VALUES = {"LIN", "DEC", "OCT", "DATA"};
 
         // DC sweep mode values in combo order
         static constexpr std::array<const char*, 5> DC_SWEEP_MODE_VALUES = {"LIN", "DEC", "OCT", "LIST", "DATA"};
+
+        // PCE distribution types in combo order per Xyce RG 2.1.27
+        static constexpr std::array<const char*, 3> PCE_DISTRIBUTION_CHOICES = {"uniform", "normal", "gamma"};
 
         // transient analysis OP keyword values in combo order
         static constexpr std::array<const char*, 3> OP_KEYWORD_VALUES = {"", "NOOP", "UIC"};
@@ -121,7 +130,11 @@ namespace simulation_parameters_dialog_view
         }
 
         // resolve a format string (eg. "STD") to its combo index; falls back to 0
-        [[nodiscard]] int format_index_for_string(const std::string& format_str) { return choice_index_for(PRINT_FORMAT_VALUES, format_str); }
+        // resolve the combo index of a print format within a format model
+        template <size_t M>
+        [[nodiscard]] int format_index_for(const std::array<const char*, M>& format_model, const std::string& format_str) {
+            return choice_index_for(format_model, format_str);
+        }
 
         // resolve a sweep mode string to its combo index; defaults to LIN
         [[nodiscard]] int sweep_mode_index_for(const std::string& sweep_mode) { return choice_index_for(SWEEP_MODE_VALUES, sweep_mode); }
@@ -195,8 +208,8 @@ namespace simulation_parameters_dialog_view
         };
 
         // populate the dialog root's print fields from saved parameters
-        template <size_t N>
-        void apply_print_section(const std::optional<PrintParameters>& params, bool show_power, bool has_bjt, bool has_fet, bool has_type_combo, const std::array<const char*, N>& type_model, const PrintSetters& s) {
+        template <size_t N, size_t M>
+        void apply_print_section(const std::optional<PrintParameters>& params, bool show_power, bool has_bjt, bool has_fet, bool has_type_combo, const std::array<const char*, N>& type_model, const std::array<const char*, M>& format_model, const PrintSetters& s) {
             if (!params) {
                 s.enabled(false);
                 return;
@@ -219,7 +232,7 @@ namespace simulation_parameters_dialog_view
                     specific.push_back(v);
             }
             s.specific_variables(slint::SharedString(join(specific, " ")));
-            s.format_index(format_index_for_string(pp.print_format));
+            s.format_index(format_index_for(format_model, pp.print_format));
             s.output_file(slint::SharedString(pp.print_file));
             // extra options are space-separated KEY=VALUE tokens (WIDTH=, PRECISION=, ...)
             s.extra_options(slint::SharedString(join(pp.extra_options, " ")));
@@ -229,8 +242,8 @@ namespace simulation_parameters_dialog_view
 
         // read the dialog root's print fields into a PrintParameters model;
         // returns nullopt when the print section is disabled
-        template <size_t N>
-        [[nodiscard]] std::optional<PrintParameters> build_print_section(bool show_power, bool has_bjt, bool has_fet, bool has_type_combo, std::string_view default_type, const std::array<const char*, N>& type_model, const PrintGetters& g) {
+        template <size_t N, size_t M>
+        [[nodiscard]] std::optional<PrintParameters> build_print_section(bool show_power, bool has_bjt, bool has_fet, bool has_type_combo, std::string_view default_type, const std::array<const char*, N>& type_model, const std::array<const char*, M>& format_model, const PrintGetters& g) {
             if (!g.enabled())
                 return std::nullopt;
             std::vector<std::string> output_vars;
@@ -258,7 +271,7 @@ namespace simulation_parameters_dialog_view
                 output_vars.push_back(tok);
             // format index -> format string (0 == default == empty)
             const int fmt_idx = g.format_index();
-            const std::string print_format = (fmt_idx > 0 && fmt_idx < static_cast<int>(PRINT_FORMAT_VALUES.size())) ? PRINT_FORMAT_VALUES[static_cast<size_t>(fmt_idx)] : "";
+            const std::string print_format = (fmt_idx > 0 && fmt_idx < static_cast<int>(M)) ? format_model[static_cast<size_t>(fmt_idx)] : "";
             // the print type comes from the combo, or the analysis prefix when
             // the combo is hidden
             const std::string print_type = has_type_combo ? type_model[static_cast<size_t>(std::clamp(g.type_index(), 0, static_cast<int>(N) - 1))] : std::string(default_type);
@@ -460,7 +473,7 @@ namespace simulation_parameters_dialog_view
         // push the saved operating point parameters into the dialog root's op-* fields
         void apply_op_parameters(const WindowHandle& dialog, const OpSimulationParameters& params) {
             // print section (no print-type combo; the type is always DC)
-            apply_print_section(params.print_parameters, true, true, true, false, NO_PRINT_TYPES,
+            apply_print_section(params.print_parameters, true, true, true, false, NO_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_op_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_op_print_all_nodes(v); },
@@ -487,7 +500,7 @@ namespace simulation_parameters_dialog_view
         // read the operating point parameters from the dialog root's op-* fields
         [[nodiscard]] OpSimulationParameters build_op_parameters(const WindowHandle& dialog) {
             // print parameters (the print type is always DC for an OP analysis)
-            auto print_params = build_print_section(true, true, true, false, "DC", NO_PRINT_TYPES,
+            auto print_params = build_print_section(true, true, true, false, "DC", NO_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_op_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_op_print_all_nodes(); },
@@ -527,7 +540,7 @@ namespace simulation_parameters_dialog_view
             dialog->set_ac_measure(slint::SharedString(format_measure_lines(params.measure_parameters)));
             // print section (power and device lead currents are not available
             // for an AC analysis per the Xyce reference guide)
-            apply_print_section(params.print_parameters, false, false, false, true, AC_PRINT_TYPES,
+            apply_print_section(params.print_parameters, false, false, false, true, AC_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_ac_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_ac_print_all_nodes(v); },
@@ -558,7 +571,7 @@ namespace simulation_parameters_dialog_view
             auto measures = parse_measure_lines(std::string(dialog->get_ac_measure()));
             // print parameters (power and device lead currents are not
             // available for an AC analysis per the Xyce reference guide)
-            auto print_params = build_print_section(false, false, false, true, "AC", AC_PRINT_TYPES,
+            auto print_params = build_print_section(false, false, false, true, "AC", AC_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_ac_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_ac_print_all_nodes(); },
@@ -578,6 +591,130 @@ namespace simulation_parameters_dialog_view
         // default AC analysis parameters, used to reset the panel to defaults
         [[nodiscard]] AcSimulationParameters default_ac_parameters() { return AcSimulationParameters("LIN", "", "", "", "", std::nullopt, {}, std::nullopt); }
 
+        // --- PCE (uncertainty quantification) section ---
+
+        // push the saved PCE parameters into the dialog root's pce-* fields;
+        // enabled selects whether the section starts expanded
+        void apply_pce_parameters(const WindowHandle& dialog, const std::shared_ptr<slint::VectorModel<main_window::PceParamRow>>& param_rows, const PceParameters& params, bool enabled) {
+            dialog->set_pce_enabled(enabled);
+            dialog->set_pce_use_expression(params.use_expression);
+            // project the parameter entries into the host-owned model rows
+            std::vector<main_window::PceParamRow> model_rows;
+            model_rows.reserve(params.parameters.size());
+            // per-type positional index for the value lists
+            size_t uniform_index = 0;
+            size_t normal_index = 0;
+            size_t gamma_index = 0;
+            for (size_t i = 0; i < params.parameters.size(); ++i) {
+                // resolve the distribution type string and its combo index
+                const std::string type = i < params.distribution_types.size() ? to_lower(params.distribution_types[i]) : "";
+                const int type_index = choice_index_for(PCE_DISTRIBUTION_CHOICES, type);
+                // pick the value pair fields by distribution type
+                std::string first_value;
+                std::string second_value;
+                if (type == "uniform") {
+                    first_value = uniform_index < params.lower_bounds.size() ? params.lower_bounds[uniform_index] : "";
+                    second_value = uniform_index < params.upper_bounds.size() ? params.upper_bounds[uniform_index] : "";
+                    ++uniform_index;
+                }
+                else if (type == "normal") {
+                    first_value = normal_index < params.means.size() ? params.means[normal_index] : "";
+                    second_value = normal_index < params.std_deviations.size() ? params.std_deviations[normal_index] : "";
+                    ++normal_index;
+                }
+                else if (type == "gamma") {
+                    first_value = gamma_index < params.alphas.size() ? params.alphas[gamma_index] : "";
+                    second_value = gamma_index < params.betas.size() ? params.betas[gamma_index] : "";
+                    ++gamma_index;
+                }
+                model_rows.push_back(main_window::PceParamRow{slint::SharedString(params.parameters[i]), type_index, slint::SharedString(first_value), slint::SharedString(second_value)});
+            }
+            param_rows->set_vector(std::move(model_rows));
+            // PCES package entries (one key=value per line)
+            dialog->set_pces_options(slint::SharedString(format_options_text(params.pces_options)));
+            // print section (no print-type combo; the type is always PCE)
+            apply_print_section(params.print_parameters, false, false, false, false, NO_PRINT_TYPES, PCE_PRINT_FORMAT_VALUES,
+                                PrintSetters{
+                                    .enabled = [&dialog](bool v) { dialog->set_pce_print_enabled(v); },
+                                    .all_nodes = [&dialog](bool v) { dialog->set_pce_print_all_nodes(v); },
+                                    .all_currents = [&dialog](bool v) { dialog->set_pce_print_all_currents(v); },
+                                    .power = [](bool) {},
+                                    .bjt_leads = [](bool) {},
+                                    .fet_leads = [](bool) {},
+                                    .specific_variables = [&dialog](slint::SharedString v) { dialog->set_pce_print_specific_variables(v); },
+                                    .format_index = [&dialog](int v) { dialog->set_pce_print_format_index(v); },
+                                    .output_file = [&dialog](slint::SharedString v) { dialog->set_pce_print_output_file(v); },
+                                    .extra_options = [&dialog](slint::SharedString v) { dialog->set_pce_print_extra_options(v); },
+                                    .type_index = [](int) {},
+                                });
+        }
+
+        // read the PCE parameters back from the dialog root's pce-* fields;
+        // returns nullopt when the PCE section is disabled
+        [[nodiscard]] std::optional<PceParameters> build_pce_section(const WindowHandle& dialog, const std::shared_ptr<slint::VectorModel<main_window::PceParamRow>>& param_rows) {
+            // a disabled section yields no PCE directives
+            if (!dialog->get_pce_enabled())
+                return std::nullopt;
+            // expression-based random inputs ignore the parameter table
+            const bool use_expression = dialog->get_pce_use_expression();
+            // init the parallel parameter lists
+            std::vector<std::string> parameters;
+            std::vector<std::string> distribution_types;
+            std::vector<std::string> means;
+            std::vector<std::string> std_deviations;
+            std::vector<std::string> lower_bounds;
+            std::vector<std::string> upper_bounds;
+            std::vector<std::string> alphas;
+            std::vector<std::string> betas;
+            // read the model rows into per-type value lists
+            if (!use_expression) {
+                for (size_t i = 0; i < param_rows->row_count(); ++i) {
+                    // skip missing rows
+                    if (const auto row = param_rows->row_data(i)) {
+                        // append the parameter name and distribution type
+                        parameters.push_back(std::string(row->name));
+                        const int type_index = std::clamp(row->type_index, 0, static_cast<int>(PCE_DISTRIBUTION_CHOICES.size()) - 1);
+                        const std::string type = PCE_DISTRIBUTION_CHOICES[static_cast<size_t>(type_index)];
+                        distribution_types.push_back(type);
+                        // append the value pair to the type-specific lists
+                        if (type == "uniform") {
+                            lower_bounds.push_back(std::string(row->first_value));
+                            upper_bounds.push_back(std::string(row->second_value));
+                        }
+                        else if (type == "normal") {
+                            means.push_back(std::string(row->first_value));
+                            std_deviations.push_back(std::string(row->second_value));
+                        }
+                        else if (type == "gamma") {
+                            alphas.push_back(std::string(row->first_value));
+                            betas.push_back(std::string(row->second_value));
+                        }
+                    }
+                }
+            }
+            // PCES package entries (one key=value per line)
+            auto pces_options = parse_options_text(std::string(dialog->get_pces_options()));
+            // print parameters (the print type is always PCE)
+            auto print_params = build_print_section(false, false, false, false, "PCE", NO_PRINT_TYPES, PCE_PRINT_FORMAT_VALUES,
+                                                    PrintGetters{
+                                                        .enabled = [&dialog] { return dialog->get_pce_print_enabled(); },
+                                                        .all_nodes = [&dialog] { return dialog->get_pce_print_all_nodes(); },
+                                                        .all_currents = [&dialog] { return dialog->get_pce_print_all_currents(); },
+                                                        .power = [] { return false; },
+                                                        .bjt_leads = [] { return false; },
+                                                        .fet_leads = [] { return false; },
+                                                        .specific_variables = [&dialog] { return std::string(dialog->get_pce_print_specific_variables()); },
+                                                        .format_index = [&dialog] { return dialog->get_pce_print_format_index(); },
+                                                        .output_file = [&dialog] { return std::string(dialog->get_pce_print_output_file()); },
+                                                        .extra_options = [&dialog] { return std::string(dialog->get_pce_print_extra_options()); },
+                                                        .type_index = [] { return 0; },
+                                                    });
+            return PceParameters(use_expression, std::move(parameters), std::move(distribution_types), std::move(means), std::move(std_deviations), std::move(lower_bounds), std::move(upper_bounds), std::move(alphas), std::move(betas), std::move(pces_options), std::move(print_params));
+        }
+
+        // default PCE parameters, used to reset the section to defaults
+        [[nodiscard]] PceParameters default_pce_parameters() { return PceParameters(false, {}, {}, {}, {}, {}, {}, {}, {}, {}, std::nullopt); }
+
         // --- transient analysis panel ---
 
         // push the saved transient parameters into the dialog root's tran-* fields
@@ -592,7 +729,7 @@ namespace simulation_parameters_dialog_view
             dialog->set_tran_four(slint::SharedString(format_four_lines(params.four_parameters)));
             dialog->set_tran_measure(slint::SharedString(format_measure_lines(params.measure_parameters)));
             // print section
-            apply_print_section(params.print_parameters, true, true, true, true, TRAN_PRINT_TYPES,
+            apply_print_section(params.print_parameters, true, true, true, true, TRAN_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_tran_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_tran_print_all_nodes(v); },
@@ -609,7 +746,7 @@ namespace simulation_parameters_dialog_view
         }
 
         // read the transient parameters from the dialog root's tran-* fields
-        [[nodiscard]] TransientSimulationParameters build_transient_parameters(const WindowHandle& dialog) {
+        [[nodiscard]] TransientSimulationParameters build_transient_parameters(const WindowHandle& dialog, const std::shared_ptr<slint::VectorModel<main_window::PceParamRow>>& pce_rows) {
             // resolve the OP keyword from the combo; index 0 is "(None)"
             std::string op_keyword;
             const int op_index = dialog->get_tran_op_keyword_index();
@@ -621,7 +758,7 @@ namespace simulation_parameters_dialog_view
             auto four_params = parse_four_lines(std::string(dialog->get_tran_four()));
             auto measure_params = parse_measure_lines(std::string(dialog->get_tran_measure()));
             // print parameters
-            auto print_params = build_print_section(true, true, true, true, "TRAN", TRAN_PRINT_TYPES,
+            auto print_params = build_print_section(true, true, true, true, "TRAN", TRAN_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_tran_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_tran_print_all_nodes(); },
@@ -635,11 +772,11 @@ namespace simulation_parameters_dialog_view
                                                         .extra_options = [&dialog] { return std::string(dialog->get_tran_print_extra_options()); },
                                                         .type_index = [&dialog] { return dialog->get_tran_print_type_index(); },
                                                     });
-            return TransientSimulationParameters(std::string(dialog->get_tran_initial_step()), std::string(dialog->get_tran_final_time()), std::string(dialog->get_tran_start_time()), std::string(dialog->get_tran_step_ceiling()), std::move(op_keyword), std::move(schedule_points), std::move(print_params), std::move(fft_params), std::move(four_params), std::move(measure_params), std::nullopt);
+            return TransientSimulationParameters(std::string(dialog->get_tran_initial_step()), std::string(dialog->get_tran_final_time()), std::string(dialog->get_tran_start_time()), std::string(dialog->get_tran_step_ceiling()), std::move(op_keyword), std::move(schedule_points), std::move(print_params), std::move(fft_params), std::move(four_params), std::move(measure_params), std::nullopt, build_pce_section(dialog, pce_rows));
         }
 
         // default transient analysis parameters, used to reset the panel to defaults
-        [[nodiscard]] TransientSimulationParameters default_transient_parameters() { return TransientSimulationParameters("", "", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt); }
+        [[nodiscard]] TransientSimulationParameters default_transient_parameters() { return TransientSimulationParameters("", "", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt); }
 
         // --- DC analysis panel ---
 
@@ -663,7 +800,7 @@ namespace simulation_parameters_dialog_view
             sweep_rows->set_vector(std::move(model_rows));
             dialog->set_dc_measure(slint::SharedString(format_measure_lines(params.measure_parameters)));
             // print section
-            apply_print_section(params.print_parameters, true, true, true, true, DC_PRINT_TYPES,
+            apply_print_section(params.print_parameters, true, true, true, true, DC_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_dc_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_dc_print_all_nodes(v); },
@@ -680,7 +817,7 @@ namespace simulation_parameters_dialog_view
         }
 
         // read the DC parameters back from the dialog's sweep table model
-        [[nodiscard]] DCSimulationParameters build_dc_parameters(const WindowHandle& dialog, const std::shared_ptr<slint::VectorModel<main_window::DcSweepRow>>& sweep_rows) {
+        [[nodiscard]] DCSimulationParameters build_dc_parameters(const WindowHandle& dialog, const std::shared_ptr<slint::VectorModel<main_window::DcSweepRow>>& sweep_rows, const std::shared_ptr<slint::VectorModel<main_window::PceParamRow>>& pce_rows) {
             const int sweep_mode_index = std::clamp(dialog->get_dc_sweep_mode_index(), 0, static_cast<int>(DC_SWEEP_MODE_VALUES.size()) - 1);
             const std::string sweep_mode = DC_SWEEP_MODE_VALUES[static_cast<size_t>(sweep_mode_index)];
             // read the model rows back into plain-string projections
@@ -697,7 +834,7 @@ namespace simulation_parameters_dialog_view
             // parse .MEASURE directives (one per line)
             auto measure_params = parse_measure_lines(std::string(dialog->get_dc_measure()));
             // print parameters
-            auto print_params = build_print_section(true, true, true, true, "DC", DC_PRINT_TYPES,
+            auto print_params = build_print_section(true, true, true, true, "DC", DC_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_dc_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_dc_print_all_nodes(); },
@@ -711,11 +848,11 @@ namespace simulation_parameters_dialog_view
                                                         .extra_options = [&dialog] { return std::string(dialog->get_dc_print_extra_options()); },
                                                         .type_index = [&dialog] { return dialog->get_dc_print_type_index(); },
                                                     });
-            return DCSimulationParameters(sweep_mode, std::move(sweeps), data_table_name, print_params, std::move(measure_params), std::nullopt);
+            return DCSimulationParameters(sweep_mode, std::move(sweeps), data_table_name, print_params, std::move(measure_params), std::nullopt, build_pce_section(dialog, pce_rows));
         }
 
         // default DC analysis parameters, used to reset the panel to defaults
-        [[nodiscard]] DCSimulationParameters default_dc_parameters() { return DCSimulationParameters("", {}, "", std::nullopt, {}, std::nullopt); }
+        [[nodiscard]] DCSimulationParameters default_dc_parameters() { return DCSimulationParameters("", {}, "", std::nullopt, {}, std::nullopt, std::nullopt); }
 
         // --- noise analysis panel ---
 
@@ -732,7 +869,7 @@ namespace simulation_parameters_dialog_view
             dialog->set_noise_device_noise(slint::SharedString(format_device_noise_text(params.device_noise_operators)));
             // print section (power and device lead currents are not available
             // for a noise analysis per the Xyce reference guide)
-            apply_print_section(params.print_parameters, false, false, false, true, NOISE_PRINT_TYPES,
+            apply_print_section(params.print_parameters, false, false, false, true, NOISE_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_noise_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_noise_print_all_nodes(v); },
@@ -762,7 +899,7 @@ namespace simulation_parameters_dialog_view
             auto device_noise = parse_device_noise_text(std::string(dialog->get_noise_device_noise()));
             // print parameters (power and device lead currents are not
             // available for a noise analysis per the Xyce reference guide)
-            auto print_params = build_print_section(false, false, false, true, "NOISE", NOISE_PRINT_TYPES,
+            auto print_params = build_print_section(false, false, false, true, "NOISE", NOISE_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_noise_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_noise_print_all_nodes(); },
@@ -802,7 +939,7 @@ namespace simulation_parameters_dialog_view
             dialog->set_hb_nonlin_options(slint::SharedString(format_options_text(params.nonlin_options)));
             dialog->set_hb_linsol_options(slint::SharedString(format_options_text(params.linsol_options)));
             // print section (no power, no BJT/FET leads for HB)
-            apply_print_section(params.print_parameters, false, false, false, true, HB_PRINT_TYPES,
+            apply_print_section(params.print_parameters, false, false, false, true, HB_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_hb_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_hb_print_all_nodes(v); },
@@ -843,7 +980,7 @@ namespace simulation_parameters_dialog_view
             if (const auto value = parse_int(dialog->get_hb_startup_periods()))
                 startup_periods = value;
             // print parameters (no power, no BJT/FET leads for HB)
-            auto print_params = build_print_section(false, false, false, true, "HB", HB_PRINT_TYPES,
+            auto print_params = build_print_section(false, false, false, true, "HB", HB_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_hb_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_hb_print_all_nodes(); },
@@ -884,7 +1021,7 @@ namespace simulation_parameters_dialog_view
             dialog->set_lin_data_table(slint::SharedString(params.data_table_name));
             // print section (power and device lead currents are not available
             // for a linear analysis; the print is an AC print)
-            apply_print_section(params.print_parameters, false, false, false, true, LIN_PRINT_TYPES,
+            apply_print_section(params.print_parameters, false, false, false, true, LIN_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                 PrintSetters{
                                     .enabled = [&dialog](bool v) { dialog->set_lin_print_enabled(v); },
                                     .all_nodes = [&dialog](bool v) { dialog->set_lin_print_all_nodes(v); },
@@ -915,7 +1052,7 @@ namespace simulation_parameters_dialog_view
             const std::string data_table = is_data_sweep ? std::string(dialog->get_lin_data_table()) : "";
             // print parameters (power and device lead currents are not
             // available for a linear analysis; the print is an AC print)
-            auto print_params = build_print_section(false, false, false, true, "AC", LIN_PRINT_TYPES,
+            auto print_params = build_print_section(false, false, false, true, "AC", LIN_PRINT_TYPES, PRINT_FORMAT_VALUES,
                                                     PrintGetters{
                                                         .enabled = [&dialog] { return dialog->get_lin_print_enabled(); },
                                                         .all_nodes = [&dialog] { return dialog->get_lin_print_all_nodes(); },
@@ -955,11 +1092,17 @@ namespace simulation_parameters_dialog_view
         // host-owned row model backing the DC panel's nested sweep table
         std::shared_ptr<slint::VectorModel<main_window::DcSweepRow>> dc_sweeps;
 
+        // host-owned row model backing the PCE section's uncertain parameter table
+        std::shared_ptr<slint::VectorModel<main_window::PceParamRow>> pce_params;
+
         Impl(WindowHandle w) :
             window(w), m_config(SimulationConfig::from_xyce_directives({})) {
             // the sweep table model lives here so edits survive panel rebuilds
             dc_sweeps = std::make_shared<slint::VectorModel<main_window::DcSweepRow>>();
             window->set_dc_sweeps(dc_sweeps);
+            // the uncertain parameter table model lives here so edits survive panel rebuilds
+            pce_params = std::make_shared<slint::VectorModel<main_window::PceParamRow>>();
+            window->set_pce_parameters(pce_params);
             // wire the forwarded callbacks from the inline panel to this view
             window->on_simulation_parameters_accepted([this] { accept(); });
             window->on_simulation_parameters_dismissed([this] { dismiss(); });
@@ -974,6 +1117,18 @@ namespace simulation_parameters_dialog_view
             window->on_dc_sweep_row_updated([this](int index, main_window::DcSweepRow row) {
                 if (index >= 0 && static_cast<size_t>(index) < dc_sweeps->row_count())
                     dc_sweeps->set_row_data(static_cast<size_t>(index), row);
+            });
+            // append a blank parameter row when the panel requests one
+            window->on_pce_add_parameter([this] { pce_params->push_back(main_window::PceParamRow{}); });
+            // remove the parameter row at the requested index
+            window->on_pce_remove_parameter([this](int index) {
+                if (index >= 0 && static_cast<size_t>(index) < pce_params->row_count())
+                    pce_params->erase(static_cast<size_t>(index));
+            });
+            // commit an edited parameter row back into the model
+            window->on_pce_parameter_row_updated([this](int index, main_window::PceParamRow row) {
+                if (index >= 0 && static_cast<size_t>(index) < pce_params->row_count())
+                    pce_params->set_row_data(static_cast<size_t>(index), row);
             });
         }
 
@@ -994,17 +1149,33 @@ namespace simulation_parameters_dialog_view
             }
             // read the transient analysis panel back into the analysis variant
             else if (selected_tab == PAGE_TRAN) {
-                m_config.analysis = build_transient_parameters(window);
+                m_config.analysis = build_transient_parameters(window, pce_params);
+                // reject an invalid PCE configuration without closing the panel
+                if (const auto* tran = std::get_if<TransientSimulationParameters>(&m_config.analysis); tran && tran->pce) {
+                    if (const auto error = tran->pce->validate()) {
+                        window->set_simulation_parameters_error_message(slint::SharedString(*error));
+                        window->set_simulation_parameters_show_error(true);
+                        return;
+                    }
+                }
                 m_config.replace_ground = window->get_tran_replace_ground();
             }
             // read the DC analysis panel back into the analysis variant;
             // reject an invalid DC sweep without closing the panel
             else if (selected_tab == PAGE_DC) {
-                auto dc = build_dc_parameters(window, dc_sweeps);
+                auto dc = build_dc_parameters(window, dc_sweeps, pce_params);
                 if (const auto error = dc.validate()) {
                     window->set_simulation_parameters_error_message(slint::SharedString(*error));
                     window->set_simulation_parameters_show_error(true);
                     return;
+                }
+                // reject an invalid PCE configuration without closing the panel
+                if (dc.pce) {
+                    if (const auto error = dc.pce->validate()) {
+                        window->set_simulation_parameters_error_message(slint::SharedString(*error));
+                        window->set_simulation_parameters_show_error(true);
+                        return;
+                    }
                 }
                 m_config.analysis = std::move(dc);
                 m_config.replace_ground = window->get_dc_replace_ground();
@@ -1089,6 +1260,17 @@ namespace simulation_parameters_dialog_view
             apply_dc_parameters(m_impl->window, m_impl->dc_sweeps, default_dc_parameters());
         // mirror the replace-ground toggle onto the DC panel state
         m_impl->window->set_dc_replace_ground(current.replace_ground);
+        // sync the PCE section to the seeded config from the DC or transient
+        // analysis, or reset it to defaults when PCE is not configured
+        const PceParameters* pce = nullptr;
+        if (const auto* dc = std::get_if<DCSimulationParameters>(&current.analysis); dc && dc->pce)
+            pce = &*dc->pce;
+        else if (const auto* tran = std::get_if<TransientSimulationParameters>(&current.analysis); tran && tran->pce)
+            pce = &*tran->pce;
+        if (pce)
+            apply_pce_parameters(m_impl->window, m_impl->pce_params, *pce, true);
+        else
+            apply_pce_parameters(m_impl->window, m_impl->pce_params, default_pce_parameters(), false);
         // sync the noise analysis panel to the seeded config, or reset it to
         // defaults when a different analysis is currently active
         if (const auto* noise = std::get_if<NoiseSimulationParameters>(&current.analysis))

@@ -190,6 +190,35 @@ A rejected **OK** keeps the dialog open so you can correct the input;
   `.MEASURE DC vout_max MAX V(out)`.
 - **Print type**: `DC` or `HOMOTOPY`; includes the Power option.
 
+### Uncertainty quantification (.PCE)
+
+The DC and transient pages carry a shared **Uncertainty quantification
+(.PCE)** section (Xyce Reference Guide §2.1.27). `.PCE` runs a fully
+intrusive Polynomial Chaos Expansion on top of the `.DC` or `.TRAN`
+analysis: the circuit is evaluated at quadrature points of the
+distribution and the uncertainty propagates from inputs to outputs.
+
+- **Uncertain parameters** — one row per sampled parameter with a name
+  (any parameter valid for `.STEP`), a distribution type and two value
+  fields: `uniform` → lower/upper bounds, `normal` → mean/standard
+  deviation, `gamma` → alpha/beta.
+- **Expression-based inputs (useExpr)** — when enabled, the random
+  inputs come from expression operators such as `AGAUSS` and `AUNIF`
+  and the parameter table is ignored.
+- **.OPTIONS PCES package** — one `key=value` entry per line; the
+  required `OUTPUTS` entry lists the outputs for which statistics are
+  computed (e.g. `OUTPUTS={V(out)}`); further entries are `COVMATRIX`,
+  `SAMPLE_TYPE`, `SEED`, `OUTPUT_SAMPLE_STATS`, `RESAMPLE`,
+  `OUTPUT_PCE_COEFFS`, `SPARSE_GRID` and `STDOUTPUT`.
+- **.PRINT PCE output** — enables the companion print directive; extra
+  options accept `OUTPUT_SAMPLE_STATS=true` (mean, meanplus, meanminus,
+  stddev and variance) and `OUTPUT_ALL_SAMPLES=true` (all quadrature
+  points).
+
+The dialog rejects a PCE configuration with mismatched list lengths or
+missing distribution values (e.g. `PCE parameter R1: a normal
+distribution requires means`) and keeps the dialog open for corrections.
+
 ---
 
 ## AC Analysis (.AC)

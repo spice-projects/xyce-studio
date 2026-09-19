@@ -158,7 +158,7 @@ TEST(TransientSimulationParametersChecks, no_tran_directive_returns_none) {
 
 TEST(TransientSimulationParametersChecks, generates_minimal_directive) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -168,7 +168,7 @@ TEST(TransientSimulationParametersChecks, generates_minimal_directive) {
 
 TEST(TransientSimulationParametersChecks, generates_with_start_time) {
     // arrange
-    const TransientSimulationParameters params("1n", "10u", "100n", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1n", "10u", "100n", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -178,7 +178,7 @@ TEST(TransientSimulationParametersChecks, generates_with_start_time) {
 
 TEST(TransientSimulationParametersChecks, generates_with_step_ceiling) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "0", "10u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "0", "10u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -188,7 +188,7 @@ TEST(TransientSimulationParametersChecks, generates_with_step_ceiling) {
 
 TEST(TransientSimulationParametersChecks, generates_with_schedule_points) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("10u", "100u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("10u", "100u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -198,7 +198,7 @@ TEST(TransientSimulationParametersChecks, generates_with_schedule_points) {
 
 TEST(TransientSimulationParametersChecks, generates_with_fft_parameters) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(OUT)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(OUT)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -209,7 +209,7 @@ TEST(TransientSimulationParametersChecks, generates_with_fft_parameters) {
 
 TEST(TransientSimulationParametersChecks, generates_with_four_parameters) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("1k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("1k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -220,7 +220,7 @@ TEST(TransientSimulationParametersChecks, generates_with_four_parameters) {
 
 TEST(TransientSimulationParametersChecks, generates_with_print_parameters) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"V(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"V(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -231,7 +231,7 @@ TEST(TransientSimulationParametersChecks, generates_with_print_parameters) {
 
 TEST(TransientSimulationParametersChecks, generates_with_measure_parameters) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "rise", "RISE", "V(OUT)")}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "rise", "RISE", "V(OUT)")}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -242,7 +242,7 @@ TEST(TransientSimulationParametersChecks, generates_with_measure_parameters) {
 
 TEST(TransientSimulationParametersChecks, generates_with_sensitivity) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt));
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -258,8 +258,8 @@ TEST(TransientSimulationParametersChecks, generates_with_sensitivity) {
 
 TEST(TransientSimulationParametersChecks, equality_operator_equal_params) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -268,8 +268,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_equal_params) {
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_initial_step) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("2u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("2u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -278,8 +278,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_initial_st
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_final_time) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "10m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "10m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -288,8 +288,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_final_time
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_start_time) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "100n", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "100n", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -298,8 +298,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_start_time
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_step_ceiling) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "0", "10u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "0", "20u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "0", "10u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "0", "20u", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -308,8 +308,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_step_ceili
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_schedule_points) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("10u", "100u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("20u", "200u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("10u", "100u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "0", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("20u", "200u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -318,8 +318,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_schedule_p
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_fft_parameters) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(OUT)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(IN)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(OUT)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{FftParameters("V(IN)", "", "", "", "", "", "", "", "", "")}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -328,8 +328,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_fft_parame
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_four_parameters) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("1k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("2k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("1k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{FourParameters("2k", {"V(OUT)"})}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -338,8 +338,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_four_param
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_print_parameters) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"V(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"I(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"V(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, PrintParameters("TRAN", "", "", {"I(*)"}, {}), std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -348,8 +348,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_print_para
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_measure_parameters) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "rise", "RISE", "V(OUT)")}, std::nullopt);
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "fall", "FALL", "V(OUT)")}, std::nullopt);
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "rise", "RISE", "V(OUT)")}, std::nullopt, std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{MeasureEntry("TRAN", "fall", "FALL", "V(OUT)")}, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -358,8 +358,8 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_measure_pa
 
 TEST(TransientSimulationParametersChecks, equality_operator_different_sensitivity) {
     // arrange
-    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt));
-    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(IN)"}, {"R1:R"}, false, true, std::nullopt));
+    const TransientSimulationParameters params1("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
+    const TransientSimulationParameters params2("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, SensParameter("", "objfunc", {"V(IN)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -372,7 +372,7 @@ TEST(TransientSimulationParametersChecks, equality_operator_different_sensitivit
 
 TEST(TransientSimulationParametersChecks, generates_with_noop_keyword) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "NOOP", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "NOOP", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -382,7 +382,7 @@ TEST(TransientSimulationParametersChecks, generates_with_noop_keyword) {
 
 TEST(TransientSimulationParametersChecks, generates_with_uic_keyword) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "", "", "UIC", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "UIC", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -392,7 +392,7 @@ TEST(TransientSimulationParametersChecks, generates_with_uic_keyword) {
 
 TEST(TransientSimulationParametersChecks, generates_with_multiple_schedule_points) {
     // arrange
-    const TransientSimulationParameters params("1n", "20u", "", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("1u", "10n"), TransientSchedulePoint("10u", "100n")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1n", "20u", "", "", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("1u", "10n"), TransientSchedulePoint("10u", "100n")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -402,7 +402,7 @@ TEST(TransientSimulationParametersChecks, generates_with_multiple_schedule_point
 
 TEST(TransientSimulationParametersChecks, generates_with_schedule_and_start_step_ceiling) {
     // arrange
-    const TransientSimulationParameters params("1n", "10u", "0", "200n", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("5u", "50n")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1n", "10u", "0", "200n", "", std::vector<TransientSchedulePoint>{TransientSchedulePoint("5u", "50n")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -412,7 +412,7 @@ TEST(TransientSimulationParametersChecks, generates_with_schedule_and_start_step
 
 TEST(TransientSimulationParametersChecks, generates_with_all_options_combined) {
     // arrange
-    const TransientSimulationParameters params("1u", "1m", "0", "5u", "NOOP", std::vector<TransientSchedulePoint>{TransientSchedulePoint("500u", "1u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "0", "5u", "NOOP", std::vector<TransientSchedulePoint>{TransientSchedulePoint("500u", "1u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -648,7 +648,7 @@ TEST(TransientSimulationParametersChecks, tran_with_only_initial_step_leaves_fin
 TEST(TransientSimulationParametersChecks, generic_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("TRAN", "", "", {"V(*)", "I(*)", "P(*)"}, {});
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = TransientSimulationParameters::from_xyce_directives(directives);
@@ -665,7 +665,7 @@ TEST(TransientSimulationParametersChecks, generic_wildcards_round_trip) {
 TEST(TransientSimulationParametersChecks, bjt_lead_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("TRAN", "", "", {"IB(*)", "IC(*)", "IE(*)", "IS(*)"}, {});
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = TransientSimulationParameters::from_xyce_directives(directives);
@@ -682,7 +682,7 @@ TEST(TransientSimulationParametersChecks, bjt_lead_wildcards_round_trip) {
 TEST(TransientSimulationParametersChecks, fet_lead_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("TRAN", "", "", {"IB(*)", "ID(*)", "IG(*)", "IS(*)"}, {});
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = TransientSimulationParameters::from_xyce_directives(directives);
@@ -709,7 +709,7 @@ TEST(TransientSimulationParametersChecks, w_star_normalizes_to_p_star_on_parse) 
 TEST(TransientSimulationParametersChecks, print_directive_uses_tran_not_dc_type) {
     // arrange
     const PrintParameters print_params("TRAN", "", "", {"V(*)"}, {});
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -724,7 +724,7 @@ TEST(TransientSimulationParametersChecks, print_directive_uses_tran_not_dc_type)
 
 TEST(TransientSimulationParametersChecks, minimal_round_trip) {
     // arrange
-    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto parsed = TransientSimulationParameters::from_xyce_directives(original.to_xyce_directives(NetlistTopology{}));
     // assert
@@ -735,7 +735,7 @@ TEST(TransientSimulationParametersChecks, minimal_round_trip) {
 
 TEST(TransientSimulationParametersChecks, full_round_trip) {
     // arrange
-    const TransientSimulationParameters original("1u", "1m", "0", "5u", "NOOP", std::vector<TransientSchedulePoint>{TransientSchedulePoint("500u", "1u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters original("1u", "1m", "0", "5u", "NOOP", std::vector<TransientSchedulePoint>{TransientSchedulePoint("500u", "1u")}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto parsed = TransientSimulationParameters::from_xyce_directives(original.to_xyce_directives(NetlistTopology{}));
     // assert
@@ -753,7 +753,7 @@ TEST(TransientSimulationParametersChecks, full_round_trip) {
 TEST(TransientSimulationParametersChecks, round_trip_with_print_parameters) {
     // arrange
     const PrintParameters print_params("TRAN", "RAW", "waves.raw", {"V(OUT)", "ID(M1)", "{V(OUT)*I(V1)}"}, {});
-    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, print_params, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto parsed = TransientSimulationParameters::from_xyce_directives(original.to_xyce_directives(NetlistTopology{}));
     // assert
@@ -771,7 +771,7 @@ TEST(TransientSimulationParametersChecks, round_trip_with_print_parameters) {
 TEST(TransientSimulationParametersChecks, round_trip_with_fft_parameters) {
     // arrange
     const FftParameters fft("V(OUT)", "1024", "HANN", "", "", "", "", "", "", "");
-    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{fft}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt);
+    const TransientSimulationParameters original("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{fft}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
     // act
     const auto parsed = TransientSimulationParameters::from_xyce_directives(original.to_xyce_directives(NetlistTopology{}));
     // assert
@@ -866,7 +866,7 @@ TEST(TransientSimulationParametersChecks, parses_meas_alias) {
 TEST(TransientSimulationParametersChecks, emits_single_measure_directive) {
     // arrange
     const MeasureEntry measure("TRAN", "avg_out", "AVG", "V(OUT)");
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -878,7 +878,7 @@ TEST(TransientSimulationParametersChecks, emits_multiple_measure_directives) {
     // arrange
     const MeasureEntry measure1("TRAN", "avg_out", "AVG", "V(OUT)");
     const MeasureEntry measure2("TRAN", "max_out", "MAX", "V(OUT)");
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure1, measure2}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure1, measure2}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -890,7 +890,7 @@ TEST(TransientSimulationParametersChecks, emits_multiple_measure_directives) {
 TEST(TransientSimulationParametersChecks, emits_measure_with_qualifiers) {
     // arrange
     const MeasureEntry measure("TRAN", "avg_out", "AVG", "V(OUT)", "0", "1m");
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -901,7 +901,7 @@ TEST(TransientSimulationParametersChecks, emits_measure_with_qualifiers) {
 TEST(TransientSimulationParametersChecks, measure_round_trip) {
     // arrange
     const MeasureEntry measure("TRAN", "avg_out", "AVG", "V(OUT)", "0", "1m");
-    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt);
+    const TransientSimulationParameters params("1u", "1m", "", "", "", std::vector<TransientSchedulePoint>{}, std::nullopt, std::vector<FftParameters>{}, std::vector<FourParameters>{}, std::vector<MeasureEntry>{measure}, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = TransientSimulationParameters::from_xyce_directives(directives);
@@ -977,4 +977,37 @@ TEST(TransientSimulationParametersChecks, reference_guide_example_with_schedule)
     ASSERT_NE(generated[0].find("0.5e-3, 0"), std::string::npos);
     ASSERT_NE(generated[0].find("1.0e-3, 1.0e-6"), std::string::npos);
     ASSERT_NE(generated[0].find("2.0e-3, 0"), std::string::npos);
+}
+
+TEST(TransientSimulationParametersChecks, claims_pce_companion_directives) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".TRAN 1u 1m",
+        ".PCE param=R1 type=uniform lower_bounds=1K upper_bounds=5K",
+        ".OPTIONS PCES OUTPUTS={V(1)}",
+        ".PRINT PCE OUTPUT_SAMPLE_STATS=true V(1)",
+    };
+    // act
+    const auto result = TransientSimulationParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result->pce.has_value());
+    ASSERT_EQ(result->pce->parameters.size(), 1);
+    ASSERT_EQ(result->pce->distribution_types[0], "uniform");
+    ASSERT_TRUE(result->pce->print_parameters.has_value());
+    // round-trip through directives
+    const auto regenerated = result->to_xyce_directives(NetlistTopology{});
+    const auto reparsed = TransientSimulationParameters::from_xyce_directives(regenerated);
+    ASSERT_TRUE(reparsed.has_value());
+    ASSERT_EQ(*reparsed, *result);
+}
+
+TEST(TransientSimulationParametersChecks, no_pce_directives_leave_pce_empty) {
+    // arrange
+    const std::vector<std::string> directives = {".TRAN 1u 1m"};
+    // act
+    const auto result = TransientSimulationParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_FALSE(result->pce.has_value());
 }

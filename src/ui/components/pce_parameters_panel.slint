@@ -1,0 +1,480 @@
+import {
+    Button,
+    CheckBox,
+    ComboBox,
+    LineEdit,
+    Palette,
+    TextEdit,
+} from "std-widgets.slint";
+
+// one row of the uncertain parameter table
+export struct PceParamRow {
+    name: string,
+    // 0 = uniform, 1 = normal, 2 = gamma
+    type-index: int,
+    first-value: string,
+    second-value: string,
+}
+
+// one editable row of the uncertain parameter table; text is displayed one-way
+// from the host-owned model and committed back through the edited callback
+component PceParamRowEditor inherits Rectangle {
+
+    border-width: 1px;
+    border-color: Palette.border;
+    border-radius: 4px;
+    background: Palette.background;
+
+    // index of this row within the parameters model
+    in property <int> param-index;
+    // the row values owned by the host model; displayed one-way and committed
+    // back through the edited callback
+    in property <PceParamRow> row-data;
+    // a committed field edit; carries the full updated row
+    callback edited(int, PceParamRow);
+    // the remove button was pressed for this row
+    callback remove-requested(int);
+
+    // scratch copy used to build the updated row on commit
+    private property <PceParamRow> pending;
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 6px;
+
+        // row header with the per-row remove action
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: "Parameter \{param-index + 1}";
+                font-size: 12px;
+                font-weight: 600;
+                color: Palette.foreground;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            Button {
+                text: "Remove";
+                height: 24px;
+                clicked => { root.remove-requested(param-index); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "Parameter";
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 120px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            LineEdit {
+                height: 28px;
+                placeholder-text: "e.g. R1";
+                text: root.row-data.name;
+                edited(new-text) => {
+                    root.pending = root.row-data;
+                    root.pending.name = new-text;
+                    root.edited(root.param-index, root.pending);
+                }
+            }
+        }
+
+        // distribution type selector
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "Distribution";
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 120px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            ComboBox {
+                height: 28px;
+                model: ["uniform", "normal", "gamma"];
+                // the distribution is displayed one-way from the host-owned row
+                current-index: root.row-data.type-index;
+                // a selection must commit the full updated row back to the host
+                // model, exactly like the text field edits do; the combobox
+                // updates current-index before selected() fires
+                selected(value) => {
+                    root.pending = root.row-data;
+                    root.pending.type-index = self.current-index;
+                    root.edited(root.param-index, root.pending);
+                }
+            }
+        }
+
+        // first distribution value: lower bound, mean or alpha
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.row-data.type-index == 0 ? "Lower bound" : (root.row-data.type-index == 1 ? "Mean" : "Alpha");
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 120px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            LineEdit {
+                height: 28px;
+                placeholder-text: "e.g. 1K";
+                text: root.row-data.first-value;
+                edited(new-text) => {
+                    root.pending = root.row-data;
+                    root.pending.first-value = new-text;
+                    root.edited(root.param-index, root.pending);
+                }
+            }
+        }
+
+        // second distribution value: upper bound, standard deviation or beta
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.row-data.type-index == 0 ? "Upper bound" : (root.row-data.type-index == 1 ? "Std deviation" : "Beta");
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 120px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            LineEdit {
+                height: 28px;
+                placeholder-text: "e.g. 5K";
+                text: root.row-data.second-value;
+                edited(new-text) => {
+                    root.pending = root.row-data;
+                    root.pending.second-value = new-text;
+                    root.edited(root.param-index, root.pending);
+                }
+            }
+        }
+    }
+}
+
+// uncertainty quantification (.PCE) section embedded in the DC and transient
+// analysis panels; state is shared at the host root so both pages edit the
+// same configuration
+export component PceParametersPanel inherits Rectangle {
+
+    // --- enable / useExpr ---
+    in-out property <bool> section-enabled: false;
+    // expression-based random inputs (useExpr=true); disables the parameter table
+    in-out property <bool> use-expression: false;
+
+    // --- uncertain parameter table ---
+    // parameter rows — one per sampled parameter, any count (0..N)
+    in-out property <[PceParamRow]> parameters: [];
+    // request a new blank parameter row
+    callback add-parameter();
+    // remove the parameter row at the given index
+    callback remove-parameter(int);
+    // a row's field was committed; deliver the updated row to the host
+    callback parameter-row-updated(int, PceParamRow);
+
+    // --- .OPTIONS PCES package ---
+    in-out property <string> pces-options: "";
+
+    // --- .PRINT PCE section ---
+    in-out property <bool> print-enabled: false;
+    in-out property <bool> print-all-nodes: false;
+    in-out property <bool> print-all-currents: false;
+    in-out property <string> print-specific-variables: "";
+    in-out property <int> print-format-index: 0;
+    in-out property <string> print-output-file: "";
+    in-out property <string> print-extra-options: "";
+
+    // card look: bordered, rounded, on the control background
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Palette.border;
+    background: Palette.control-background;
+
+    VerticalLayout {
+
+        padding: 16px;
+        spacing: 14px;
+
+        // card header with the global enable toggle
+        HorizontalLayout {
+            spacing: 8px;
+
+            CheckBox {
+                text: "Uncertainty quantification (.PCE)";
+                font-weight: 600;
+                checked <=> root.section-enabled;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+        }
+
+        if root.section-enabled: VerticalLayout {
+            spacing: 14px;
+
+            // expression-based random inputs toggle
+            HorizontalLayout {
+                spacing: 8px;
+
+                CheckBox {
+                    text: "Expression-based inputs (useExpr)";
+                    checked <=> root.use-expression;
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+            }
+
+            Text {
+                text: "When enabled, the random inputs come from expression operators such as AGAUSS and AUNIF, and the parameter table below is ignored (Xyce RG 2.1.27).";
+                font-size: 12px;
+                font-italic: true;
+                color: Palette.foreground.transparentize(0.4);
+                wrap: word-wrap;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            // ---- uncertain parameter table ----
+            if root.use-expression == false: Rectangle {
+
+                border-width: 1px;
+                border-color: Palette.border;
+                border-radius: 6px;
+                background: Palette.alternate-background;
+
+                VerticalLayout {
+
+                    padding: 10px;
+                    spacing: 8px;
+
+                    // table header with the global add action
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Uncertain parameters";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+
+                        // spacer pushes the add button to the trailing edge
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+
+                        Button {
+                            text: "Add Parameter";
+                            height: 26px;
+                            clicked => { root.add-parameter(); }
+                        }
+                    }
+
+                    // empty-state hint when no parameters are configured
+                    if root.parameters.length == 0: Text {
+                        text: "No parameters configured — use Add Parameter";
+                        font-size: 12px;
+                        font-italic: true;
+                        color: Palette.foreground.transparentize(0.4);
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+
+                    for row[idx] in root.parameters: PceParamRowEditor {
+                        param-index: idx;
+                        row-data: row;
+                        edited(index, updated-row) => { root.parameter-row-updated(index, updated-row); }
+                        remove-requested(index) => { root.remove-parameter(index); }
+                    }
+                }
+            }
+
+            // ---- .OPTIONS PCES package ----
+            Rectangle {
+
+                border-width: 1px;
+                border-color: Palette.border;
+                border-radius: 6px;
+                background: Palette.alternate-background;
+
+                VerticalLayout {
+
+                    padding: 10px;
+                    spacing: 6px;
+
+                    Text {
+                        text: ".OPTIONS PCES package (one key=value per line)";
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: Palette.foreground;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+
+                    TextEdit {
+                        min-height: 60px;
+                        wrap: word-wrap;
+                        placeholder-text: "e.g. OUTPUTS={V(1)}";
+                        text <=> root.pces-options;
+                    }
+                }
+            }
+
+            // ---- .PRINT PCE section ----
+            Rectangle {
+
+                border-width: 1px;
+                border-color: Palette.border;
+                border-radius: 6px;
+                background: Palette.alternate-background;
+
+                VerticalLayout {
+
+                    padding: 10px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        CheckBox {
+                            text: "Enable .PRINT PCE output";
+                            font-weight: 600;
+                            checked <=> root.print-enabled;
+                        }
+
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    if root.print-enabled: VerticalLayout {
+                        padding-left: 24px;
+                        spacing: 8px;
+
+                        // wildcard voltage/current row
+                        HorizontalLayout {
+                            spacing: 16px;
+                            CheckBox {
+                                text: "All voltages V(*)";
+                                width: 108px;
+                                checked <=> root.print-all-nodes;
+                            }
+
+                            CheckBox {
+                                text: "All currents I(*)";
+                                width: 102px;
+                                checked <=> root.print-all-currents;
+                            }
+                        }
+
+                        // additional variables
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: "Additional variables";
+                                font-size: 13px;
+                                color: Palette.foreground;
+                                min-width: 120px;
+                                vertical-alignment: center;
+                                horizontal-alignment: left;
+                                overflow: elide;
+                            }
+
+                            LineEdit {
+                                height: 28px;
+                                placeholder-text: "e.g. V(out)";
+                                text <=> root.print-specific-variables;
+                            }
+                        }
+
+                        // format combo
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: LayoutAlignment.start;
+                            Text {
+                                text: "Format";
+                                font-size: 13px;
+                                color: Palette.foreground;
+                                min-width: 120px;
+                                vertical-alignment: center;
+                                horizontal-alignment: left;
+                                overflow: elide;
+                            }
+
+                            ComboBox {
+                                height: 28px;
+                                // .PRINT PCE only supports these formats per
+                                // Xyce RG table 2-29; RAW and PROBE are not
+                                // valid for the PCE print type
+                                model: ["(default)", "STD", "NOINDEX", "TECPLOT", "CSV", "GNUPLOT", "SPLOT"];
+                                current-index <=> root.print-format-index;
+                            }
+                        }
+
+                        // output file
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: "Output file";
+                                font-size: 13px;
+                                color: Palette.foreground;
+                                min-width: 120px;
+                                vertical-alignment: center;
+                                horizontal-alignment: left;
+                                overflow: elide;
+                            }
+
+                            LineEdit {
+                                height: 28px;
+                                placeholder-text: "optional output file path";
+                                text <=> root.print-output-file;
+                            }
+                        }
+
+                        // extra print options (OUTPUT_SAMPLE_STATS=, ...)
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: "Extra options";
+                                font-size: 13px;
+                                color: Palette.foreground;
+                                min-width: 120px;
+                                vertical-alignment: center;
+                                horizontal-alignment: left;
+                                overflow: elide;
+                            }
+
+                            LineEdit {
+                                height: 28px;
+                                placeholder-text: "e.g. OUTPUT_SAMPLE_STATS=true";
+                                text <=> root.print-extra-options;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

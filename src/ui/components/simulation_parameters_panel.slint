@@ -17,6 +17,10 @@ import {
 import { ModalPanel } from "../components/modal_panel.slint";
 import { OpParametersPanel } from "../components/op_parameters_panel.slint";
 import {
+    PceParametersPanel,
+    PceParamRow,
+} from "../components/pce_parameters_panel.slint";
+import {
     TransientParametersPanel,
 } from "../components/transient_parameters_panel.slint";
 
@@ -230,6 +234,27 @@ export component SimulationParametersPanel inherits ModalPanel {
     in-out property <string> lin-print-extra-options: "";
     in-out property <bool> lin-replace-ground: true;
 
+    // uncertainty quantification (.PCE) section state, shared by the DC and
+    // transient pages via the PceParametersPanel sub-component. C++ reads/writes
+    // these root-level properties (sub-component state is not directly
+    // addressable from C++ in this Slint version).
+    in-out property <bool> pce-enabled: false;
+    in-out property <bool> pce-use-expression: false;
+    // uncertain parameter rows — projected from PceParameters by C++
+    in-out property <[PceParamRow]> pce-parameters: [];
+    // forwarded PceParametersPanel parameter table actions
+    callback pce-add-parameter();
+    callback pce-remove-parameter(int);
+    callback pce-parameter-row-updated(int, PceParamRow);
+    in-out property <string> pces-options: "";
+    in-out property <bool> pce-print-enabled: false;
+    in-out property <bool> pce-print-all-nodes: false;
+    in-out property <bool> pce-print-all-currents: false;
+    in-out property <string> pce-print-specific-variables: "";
+    in-out property <int> pce-print-format-index: 0;
+    in-out property <string> pce-print-output-file: "";
+    in-out property <string> pce-print-extra-options: "";
+
     // the tabbed parameter interface: a vertical sidebar of analysis tabs on
     // the left, a divider, and a scrollable content area on the right that
     // shows the parameters for the selected analysis
@@ -336,57 +361,99 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 1;
-                content-height: tran-panel.preferred-height;
+                content-height: tran-page.preferred-height;
 
-                tran-panel := TransientParametersPanel {
-                    initial-step <=> root.tran-initial-step;
-                    final-time <=> root.tran-final-time;
-                    start-time <=> root.tran-start-time;
-                    step-ceiling <=> root.tran-step-ceiling;
-                    op-keyword-index <=> root.tran-op-keyword-index;
-                    schedule <=> root.tran-schedule;
-                    fft <=> root.tran-fft;
-                    four <=> root.tran-four;
-                    measure <=> root.tran-measure;
-                    print-enabled <=> root.tran-print-enabled;
-                    print-type-index <=> root.tran-print-type-index;
-                    print-all-nodes <=> root.tran-print-all-nodes;
-                    print-all-currents <=> root.tran-print-all-currents;
-                    print-power <=> root.tran-print-power;
-                    print-bjt-leads <=> root.tran-print-bjt-leads;
-                    print-fet-leads <=> root.tran-print-fet-leads;
-                    print-specific-variables <=> root.tran-print-specific-variables;
-                    print-format-index <=> root.tran-print-format-index;
-                    print-output-file <=> root.tran-print-output-file;
-                    print-extra-options <=> root.tran-print-extra-options;
-                    replace-ground <=> root.tran-replace-ground;
+                tran-page := VerticalLayout {
+                    spacing: 10px;
+
+                    tran-panel := TransientParametersPanel {
+                        initial-step <=> root.tran-initial-step;
+                        final-time <=> root.tran-final-time;
+                        start-time <=> root.tran-start-time;
+                        step-ceiling <=> root.tran-step-ceiling;
+                        op-keyword-index <=> root.tran-op-keyword-index;
+                        schedule <=> root.tran-schedule;
+                        fft <=> root.tran-fft;
+                        four <=> root.tran-four;
+                        measure <=> root.tran-measure;
+                        print-enabled <=> root.tran-print-enabled;
+                        print-type-index <=> root.tran-print-type-index;
+                        print-all-nodes <=> root.tran-print-all-nodes;
+                        print-all-currents <=> root.tran-print-all-currents;
+                        print-power <=> root.tran-print-power;
+                        print-bjt-leads <=> root.tran-print-bjt-leads;
+                        print-fet-leads <=> root.tran-print-fet-leads;
+                        print-specific-variables <=> root.tran-print-specific-variables;
+                        print-format-index <=> root.tran-print-format-index;
+                        print-output-file <=> root.tran-print-output-file;
+                        print-extra-options <=> root.tran-print-extra-options;
+                        replace-ground <=> root.tran-replace-ground;
+                    }
+
+                    PceParametersPanel {
+                        section-enabled <=> root.pce-enabled;
+                        use-expression <=> root.pce-use-expression;
+                        parameters <=> root.pce-parameters;
+                        add-parameter => { root.pce-add-parameter(); }
+                        remove-parameter(index) => { root.pce-remove-parameter(index); }
+                        parameter-row-updated(index, row) => { root.pce-parameter-row-updated(index, row); }
+                        pces-options <=> root.pces-options;
+                        print-enabled <=> root.pce-print-enabled;
+                        print-all-nodes <=> root.pce-print-all-nodes;
+                        print-all-currents <=> root.pce-print-all-currents;
+                        print-specific-variables <=> root.pce-print-specific-variables;
+                        print-format-index <=> root.pce-print-format-index;
+                        print-output-file <=> root.pce-print-output-file;
+                        print-extra-options <=> root.pce-print-extra-options;
+                    }
                 }
             }
 
             ScrollView {
                 visible: root.selected-tab == 2;
-                content-height: dc-panel.preferred-height;
+                content-height: dc-page.preferred-height;
 
-                dc-panel := DcParametersPanel {
-                    sweep-mode-index <=> root.dc-sweep-mode-index;
-                    sweeps <=> root.dc-sweeps;
-                    data-table <=> root.dc-data-table;
-                    add-sweep => { root.dc-add-sweep(); }
-                    remove-sweep(index) => { root.dc-remove-sweep(index); }
-                    sweep-row-updated(index, row) => { root.dc-sweep-row-updated(index, row); }
-                    measure <=> root.dc-measure;
-                    print-enabled <=> root.dc-print-enabled;
-                    print-type-index <=> root.dc-print-type-index;
-                    print-all-nodes <=> root.dc-print-all-nodes;
-                    print-all-currents <=> root.dc-print-all-currents;
-                    print-power <=> root.dc-print-power;
-                    print-bjt-leads <=> root.dc-print-bjt-leads;
-                    print-fet-leads <=> root.dc-print-fet-leads;
-                    print-specific-variables <=> root.dc-print-specific-variables;
-                    print-format-index <=> root.dc-print-format-index;
-                    print-output-file <=> root.dc-print-output-file;
-                    print-extra-options <=> root.dc-print-extra-options;
-                    replace-ground <=> root.dc-replace-ground;
+                dc-page := VerticalLayout {
+                    spacing: 10px;
+
+                    dc-panel := DcParametersPanel {
+                        sweep-mode-index <=> root.dc-sweep-mode-index;
+                        sweeps <=> root.dc-sweeps;
+                        data-table <=> root.dc-data-table;
+                        add-sweep => { root.dc-add-sweep(); }
+                        remove-sweep(index) => { root.dc-remove-sweep(index); }
+                        sweep-row-updated(index, row) => { root.dc-sweep-row-updated(index, row); }
+                        measure <=> root.dc-measure;
+                        print-enabled <=> root.dc-print-enabled;
+                        print-type-index <=> root.dc-print-type-index;
+                        print-all-nodes <=> root.dc-print-all-nodes;
+                        print-all-currents <=> root.dc-print-all-currents;
+                        print-power <=> root.dc-print-power;
+                        print-bjt-leads <=> root.dc-print-bjt-leads;
+                        print-fet-leads <=> root.dc-print-fet-leads;
+                        print-specific-variables <=> root.dc-print-specific-variables;
+                        print-format-index <=> root.dc-print-format-index;
+                        print-output-file <=> root.dc-print-output-file;
+                        print-extra-options <=> root.dc-print-extra-options;
+                        replace-ground <=> root.dc-replace-ground;
+                    }
+
+                    PceParametersPanel {
+                        section-enabled <=> root.pce-enabled;
+                        use-expression <=> root.pce-use-expression;
+                        parameters <=> root.pce-parameters;
+                        add-parameter => { root.pce-add-parameter(); }
+                        remove-parameter(index) => { root.pce-remove-parameter(index); }
+                        parameter-row-updated(index, row) => { root.pce-parameter-row-updated(index, row); }
+                        pces-options <=> root.pces-options;
+                        print-enabled <=> root.pce-print-enabled;
+                        print-all-nodes <=> root.pce-print-all-nodes;
+                        print-all-currents <=> root.pce-print-all-currents;
+                        print-specific-variables <=> root.pce-print-specific-variables;
+                        print-format-index <=> root.pce-print-format-index;
+                        print-output-file <=> root.pce-print-output-file;
+                        print-extra-options <=> root.pce-print-extra-options;
+                    }
                 }
             }
 

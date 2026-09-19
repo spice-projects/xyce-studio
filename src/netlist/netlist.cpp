@@ -32,12 +32,12 @@ namespace
 
     // directives that are recognized as simulation-control and stored separately
     const std::vector<std::string_view> SIMULATION_DIRECTIVES = {
-        ".OP", ".PRINT", ".SAVE", ".NODESET", ".DC", ".TRAN", ".FFT", ".FOUR", ".AC", ".LIN", ".HB", ".NOISE", ".MEASURE", ".MEAS", ".SENS", ".IC", ".DCVOLT", ".STEP", ".DATA", ".ENDDATA",
+        ".OP", ".PRINT", ".SAVE", ".NODESET", ".DC", ".TRAN", ".FFT", ".FOUR", ".AC", ".LIN", ".HB", ".NOISE", ".MEASURE", ".MEAS", ".SENS", ".PCE", ".IC", ".DCVOLT", ".STEP", ".DATA", ".ENDDATA",
     };
 
     // .OPTIONS packages that are managed and stored as directives
     const std::vector<std::string_view> MANAGED_OPTIONS_PACKAGES = {
-        "HBINT", "NONLIN-HB", "LINSOL-HB", "DEVICE", "TIMEINT", "NONLIN", "LINSOL", "FFT", "MEASURE",
+        "HBINT", "NONLIN-HB", "LINSOL-HB", "DEVICE", "TIMEINT", "NONLIN", "LINSOL", "FFT", "MEASURE", "PCES",
     };
 
     // join lines that start with '+' into the preceding logical line

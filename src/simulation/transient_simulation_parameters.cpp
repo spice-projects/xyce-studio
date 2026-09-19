@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../core/util.h"
+#include "pce_parameters.h"
 #include "transient_simulation_parameters.h"
 
 TransientSchedulePoint::TransientSchedulePoint(std::string time_value, std::string max_time_step_value) :
@@ -15,8 +16,8 @@ bool TransientSchedulePoint::operator==(const TransientSchedulePoint& other) con
     return time_value == other.time_value && max_time_step_value == other.max_time_step_value;
 }
 
-TransientSimulationParameters::TransientSimulationParameters(std::string initial_step_value, std::string final_time_value, std::string start_time_value, std::string step_ceiling_value, std::string op_keyword, std::vector<TransientSchedulePoint> schedule_points, std::optional<PrintParameters> print_parameters, std::vector<FftParameters> fft_parameters, std::vector<FourParameters> four_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity) :
-    initial_step_value(std::move(initial_step_value)), final_time_value(std::move(final_time_value)), start_time_value(std::move(start_time_value)), step_ceiling_value(std::move(step_ceiling_value)), op_keyword(std::move(op_keyword)), schedule_points(std::move(schedule_points)), print_parameters(std::move(print_parameters)), fft_parameters(std::move(fft_parameters)), four_parameters(std::move(four_parameters)), measure_parameters(std::move(measure_parameters)), sensitivity(std::move(sensitivity)) {}
+TransientSimulationParameters::TransientSimulationParameters(std::string initial_step_value, std::string final_time_value, std::string start_time_value, std::string step_ceiling_value, std::string op_keyword, std::vector<TransientSchedulePoint> schedule_points, std::optional<PrintParameters> print_parameters, std::vector<FftParameters> fft_parameters, std::vector<FourParameters> four_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce) :
+    initial_step_value(std::move(initial_step_value)), final_time_value(std::move(final_time_value)), start_time_value(std::move(start_time_value)), step_ceiling_value(std::move(step_ceiling_value)), op_keyword(std::move(op_keyword)), schedule_points(std::move(schedule_points)), print_parameters(std::move(print_parameters)), fft_parameters(std::move(fft_parameters)), four_parameters(std::move(four_parameters)), measure_parameters(std::move(measure_parameters)), sensitivity(std::move(sensitivity)), pce(std::move(pce)) {}
 
 std::optional<TransientSimulationParameters> TransientSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults
@@ -31,6 +32,7 @@ std::optional<TransientSimulationParameters> TransientSimulationParameters::from
     std::vector<FourParameters> four_parameters;
     std::vector<MeasureEntry> measure_parameters;
     std::optional<SensParameter> sensitivity;
+    std::optional<PceParameters> pce;
     // flag indicating whether a valid directive was found
     bool found = false;
 
@@ -176,12 +178,15 @@ std::optional<TransientSimulationParameters> TransientSimulationParameters::from
     // parse sensitivity as a companion directive before analysis detection
     sensitivity = SensParameter::from_xyce_directives(directives);
 
+    // parse PCE as a companion directive before analysis detection
+    pce = PceParameters::from_xyce_directives(directives);
+
     // return instance if a valid directive was found
     if (!found) {
         return std::nullopt;
     }
 
-    return TransientSimulationParameters(initial_step_value, final_time_value, start_time_value, step_ceiling_value, op_keyword, schedule_points, print_parameters, fft_parameters, four_parameters, measure_parameters, sensitivity);
+    return TransientSimulationParameters(initial_step_value, final_time_value, start_time_value, step_ceiling_value, op_keyword, schedule_points, print_parameters, fft_parameters, four_parameters, measure_parameters, sensitivity, pce);
 }
 
 std::vector<std::string> TransientSimulationParameters::to_xyce_directives(const NetlistTopology& topology) const {
@@ -227,6 +232,13 @@ std::vector<std::string> TransientSimulationParameters::to_xyce_directives(const
         // append to the output list
         directives.insert(directives.end(), sens_directives.begin(), sens_directives.end());
     }
+    // append PCE directives when configured
+    if (pce) {
+        // retrieve PCE directives
+        const auto pce_directives = pce->to_xyce_directives(topology);
+        // append to the output list
+        directives.insert(directives.end(), pce_directives.begin(), pce_directives.end());
+    }
     // append fft directives
     for (const auto& fft : fft_parameters)
         directives.push_back(fft.to_xyce_statement());
@@ -242,5 +254,5 @@ std::vector<std::string> TransientSimulationParameters::to_xyce_directives(const
 
 bool TransientSimulationParameters::operator==(const TransientSimulationParameters& other) const {
     // compare all fields for equality
-    return initial_step_value == other.initial_step_value && final_time_value == other.final_time_value && start_time_value == other.start_time_value && step_ceiling_value == other.step_ceiling_value && op_keyword == other.op_keyword && schedule_points == other.schedule_points && print_parameters == other.print_parameters && fft_parameters == other.fft_parameters && four_parameters == other.four_parameters && measure_parameters == other.measure_parameters && sensitivity == other.sensitivity;
+    return initial_step_value == other.initial_step_value && final_time_value == other.final_time_value && start_time_value == other.start_time_value && step_ceiling_value == other.step_ceiling_value && op_keyword == other.op_keyword && schedule_points == other.schedule_points && print_parameters == other.print_parameters && fft_parameters == other.fft_parameters && four_parameters == other.four_parameters && measure_parameters == other.measure_parameters && sensitivity == other.sensitivity && pce == other.pce;
 }

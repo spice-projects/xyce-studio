@@ -6,6 +6,7 @@
 
 #include "../netlist/netlist.h"
 #include "measure_parameters.h"
+#include "pce_parameters.h"
 #include "print_parameters.h"
 #include "sens_parameter.h"
 
@@ -34,7 +35,7 @@ class DCSimulationParameters
 {
 public:
     // construct a DC simulation parameters instance from individual fields
-    DCSimulationParameters(std::string sweep_mode, std::vector<DcSweep> sweeps, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity);
+    DCSimulationParameters(std::string sweep_mode, std::vector<DcSweep> sweeps, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce);
 
     // parse all directives into a DCSimulationParameters instance;
     // returns nullopt when no .DC directive is found
@@ -62,4 +63,6 @@ public:
     std::vector<MeasureEntry> measure_parameters;
     // optional sensitivity parameters
     std::optional<SensParameter> sensitivity;
+    // optional PCE (Polynomial Chaos Expansion) parameters
+    std::optional<PceParameters> pce;
 };

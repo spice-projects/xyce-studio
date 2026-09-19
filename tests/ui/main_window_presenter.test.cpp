@@ -325,7 +325,7 @@ TEST(SlintMainWindowPresenterChecks, pending_dialog_result_launches_the_simulati
     presenter.on_run_simulation();
     ASSERT_FALSE(view.m_started);
     // act — accept a transient configuration through the dialog result
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     // assert
     ASSERT_TRUE(view.m_started);
@@ -345,7 +345,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_with_saved_config_does_not_show_empty
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
     ASSERT_FALSE(view.m_started);
     // accept a transient configuration
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     ASSERT_TRUE(view.m_started);
     // record the first run's netlist path
@@ -422,7 +422,7 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
     ASSERT_FALSE(view.m_started);
     // accept a transient configuration whose print file name carries spaces,
     // entered in the dialog without quotes
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "RAW", "file with space.raw", {"V(1)"}, {}), {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "RAW", "file with space.raw", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     ASSERT_TRUE(view.m_started);
     // assert — the netlist handed to Xyce carries no FILE= option at all
@@ -609,7 +609,7 @@ TEST(SlintMainWindowPresenterChecks, schematic_change_without_directives_preserv
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
     ASSERT_FALSE(view.m_started);
     // accept a transient configuration
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     ASSERT_TRUE(view.m_started);
     const auto first_netlist_path = view.m_started_netlist_path;
@@ -651,7 +651,7 @@ TEST(SlintMainWindowPresenterChecks, schematic_reexport_with_identical_content_k
     // act — edit the transient end time through the configure dialog and accept it
     presenter.on_configure_simulation();
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
-    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(edited);
     // assert — the editor reflects the edited parameters
     EXPECT_NE(view.m_editor_content.find(".TRAN 1u 25m"), std::string::npos);
@@ -690,7 +690,7 @@ TEST(SlintMainWindowPresenterChecks, schematic_reexport_with_identical_content_d
     // act — edit the transient end time through the configure dialog and accept it
     presenter.on_configure_simulation();
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
-    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(edited);
     // arrange — KiCad autosaves the schematic and re-exports it; the exported
     // content is identical because the schematic still holds the old directives
@@ -719,7 +719,7 @@ TEST(SlintMainWindowPresenterChecks, schematic_change_with_directives_overwrites
     // act — edit the transient end time through the configure dialog and accept it
     presenter.on_configure_simulation();
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
-    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(edited);
     presenter.on_simulation_finished(0, false);
     view.m_started = false;
@@ -756,7 +756,7 @@ TEST(SlintMainWindowPresenterChecks, configure_result_updates_netlist_without_la
     presenter.on_configure_simulation();
     ASSERT_FALSE(view.m_started);
     // act — accept a transient configuration from the configure dialog
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     // assert — the editor was rebuilt with the new directives, nothing launched
     EXPECT_FALSE(view.m_started);
@@ -773,7 +773,7 @@ TEST(SlintMainWindowPresenterChecks, subsequent_configure_shows_dialog_with_save
     ASSERT_TRUE(view.m_last_simulation_config_seed.has_value());
     EXPECT_TRUE(std::holds_alternative<std::monostate>(view.m_last_simulation_config_seed->analysis));
     // accept a transient configuration
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     // act — second configure: dialog shown again, seeded with the saved transient config
     presenter.on_configure_simulation();

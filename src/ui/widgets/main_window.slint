@@ -30,6 +30,7 @@ import {
     SimulationParametersPanel,
 } from "../components/simulation_parameters_panel.slint";
 import { DcSweepRow } from "../components/dc_parameters_panel.slint";
+import { PceParamRow } from "../components/pce_parameters_panel.slint";
 export {
     ChartsPanelActions,
     PlotTabItem,
@@ -452,6 +453,23 @@ export component MainWindow inherits Window {
     in-out property <string> lin-print-extra-options: "";
     in-out property <bool> lin-replace-ground: true;
 
+    in-out property <bool> pce-enabled: false;
+    in-out property <bool> pce-use-expression: false;
+    // uncertain parameter rows — projected from PceParameters by C++
+    in-out property <[PceParamRow]> pce-parameters: [];
+    // forwarded PceParametersPanel parameter table actions
+    callback pce-add-parameter();
+    callback pce-remove-parameter(int);
+    callback pce-parameter-row-updated(int, PceParamRow);
+    in-out property <string> pces-options: "";
+    in-out property <bool> pce-print-enabled: false;
+    in-out property <bool> pce-print-all-nodes: false;
+    in-out property <bool> pce-print-all-currents: false;
+    in-out property <string> pce-print-specific-variables: "";
+    in-out property <int> pce-print-format-index: 0;
+    in-out property <string> pce-print-output-file: "";
+    in-out property <string> pce-print-extra-options: "";
+
     background: root.modal-active ? Palette.background.transparentize(0.35) : Palette.background;
 
     // a plain Rectangle wraps the layout and the overlay so the panel can be
@@ -834,6 +852,20 @@ export component MainWindow inherits Window {
             lin-print-output-file <=> root.lin-print-output-file;
             lin-print-extra-options <=> root.lin-print-extra-options;
             lin-replace-ground <=> root.lin-replace-ground;
+            pce-enabled <=> root.pce-enabled;
+            pce-use-expression <=> root.pce-use-expression;
+            pce-parameters <=> root.pce-parameters;
+            pce-add-parameter => { root.pce-add-parameter(); }
+            pce-remove-parameter(index) => { root.pce-remove-parameter(index); }
+            pce-parameter-row-updated(index, row) => { root.pce-parameter-row-updated(index, row); }
+            pces-options <=> root.pces-options;
+            pce-print-enabled <=> root.pce-print-enabled;
+            pce-print-all-nodes <=> root.pce-print-all-nodes;
+            pce-print-all-currents <=> root.pce-print-all-currents;
+            pce-print-specific-variables <=> root.pce-print-specific-variables;
+            pce-print-format-index <=> root.pce-print-format-index;
+            pce-print-output-file <=> root.pce-print-output-file;
+            pce-print-extra-options <=> root.pce-print-extra-options;
         }
     }
 

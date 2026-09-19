@@ -25,6 +25,10 @@ class StaleHandleClient:
         self._filled: str | None = None
         # _dragged records the target of the successful drag
         self._dragged: tuple[float, float] | None = None
+        # _scroll_attempts counts the scroll invocations including stale ones
+        self._scroll_attempts = 0
+        # _scrolled records the deltas of the successful scroll
+        self._scrolled: tuple[float, float] | None = None
 
     def find_elements_by_id(self, elements_id: str) -> list[dict]:
         # count the resolution
@@ -59,6 +63,15 @@ class StaleHandleClient:
         # record the target that the retried drag used
         self._dragged = (target_x, target_y)
 
+    def scroll_element(self, element_handle: dict, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # count the attempt
+        self._scroll_attempts += 1
+        # fail the first attempt with a stale handle like the live server does
+        if self._scroll_attempts == 1:
+            raise McpError("Error: Invalid handle")
+        # record the deltas that the retried scroll used
+        self._scrolled = (delta_x, delta_y)
+
     def resolve_count(self) -> int:
         # report how often elements were resolved
         return self._resolve_count
@@ -86,6 +99,14 @@ class StaleHandleClient:
     def dragged(self) -> tuple[float, float] | None:
         # report the target of the successful drag
         return self._dragged
+
+    def scroll_attempts(self) -> int:
+        # report how many scrolls were attempted
+        return self._scroll_attempts
+
+    def scrolled(self) -> tuple[float, float] | None:
+        # report the deltas of the successful scroll
+        return self._scrolled
 
 
 class UnrelatedErrorClient:
@@ -118,6 +139,8 @@ class FakeClient:
         self._drags: list[tuple[dict, float, float]] = []
         # _keys records every key dispatch invocation
         self._keys: list[tuple[str, str]] = []
+        # _scrolls records every scroll invocation
+        self._scrolls: list[tuple[dict, float, float]] = []
 
     def find_elements_by_id(self, elements_id: str) -> list[dict]:
         # count the resolution calls for the lazy semantics test
@@ -159,6 +182,10 @@ class FakeClient:
         # record the drag invocation for later assertions
         self._drags.append((element_handle, target_x, target_y))
 
+    def scroll_element(self, element_handle: dict, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # record the scroll invocation for later assertions
+        self._scrolls.append((element_handle, delta_x, delta_y))
+
     def dispatch_key_event(self, text: str, event_type: str = "PressAndRelease") -> None:
         # record the key dispatch invocation for later assertions
         self._keys.append((text, event_type))
@@ -178,6 +205,10 @@ class FakeClient:
     def drags(self) -> list[tuple[dict, float, float]]:
         # return the recorded drag invocations
         return self._drags
+
+    def scrolls(self) -> list[tuple[dict, float, float]]:
+        # return the recorded scroll invocations
+        return self._scrolls
 
     def keys(self) -> list[tuple[str, str]]:
         # return the recorded key dispatch invocations
@@ -382,6 +413,25 @@ class LocatorResolutionChecks(unittest.TestCase):
             locator.drag(10.0, 10.0)
         self.assertIn("element not found", str(context.exception))
         self.assertEqual(client.drags(), [])
+
+    def test_scroll_passes_resolved_handle_and_deltas(self) -> None:
+        # arrange
+        client = FakeClient({"App::panel": [{"index": "6", "generation": "1"}]}, {})
+        locator = Locator(client, "App::panel")
+        # act
+        locator.scroll(0.0, -60.0)
+        # assert
+        self.assertEqual(client.scrolls(), [({"index": "6", "generation": "1"}, 0.0, -60.0)])
+
+    def test_scroll_missing_element_raises(self) -> None:
+        # arrange
+        client = FakeClient({}, {})
+        locator = Locator(client, "App::missing")
+        # act / assert
+        with self.assertRaises(LocatorError) as context:
+            locator.scroll(0.0, -60.0)
+        self.assertIn("element not found", str(context.exception))
+        self.assertEqual(client.scrolls(), [])
 
     def test_count_returns_number_of_current_matches(self) -> None:
         # arrange
@@ -599,6 +649,16 @@ class StaleHandleChecks(unittest.TestCase):
         # assert: the drag was retried once with a fresh resolution
         self.assertEqual(client.drag_attempts(), 2)
         self.assertEqual(client.dragged(), (120.0, 60.0))
+
+    def test_scroll_retries_once_on_stale_handle(self) -> None:
+        # arrange
+        client = StaleHandleClient([{"index": "6", "generation": "1"}])
+        locator = Locator(client, "App::panel")
+        # act
+        locator.scroll(0.0, -60.0)
+        # assert: the scroll was retried once with a fresh resolution
+        self.assertEqual(client.scroll_attempts(), 2)
+        self.assertEqual(client.scrolled(), (0.0, -60.0))
 
     def test_click_does_not_retry_on_unrelated_errors(self) -> None:
         # arrange
