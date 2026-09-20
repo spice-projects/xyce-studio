@@ -679,37 +679,39 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // as the primary simulation result
         auto raw_file = resolve_analysis_output(m_simulation_netlist_path, m_simulation_working_directory);
         // for .prn output files (which carry no analysis-type header) the
-        // title and plot type must be set from the simulation config so the
-        // tab label matches the simulation type (e.g. "DC Sweep" for .DC)
+        // title and plot type must be set from the print type so the tab label
+        // matches the simulation type (e.g. "DC Sweep" for .DC, "AC Analysis"
+        // for .PRINT AC inside a .LIN analysis)
         if (raw_file.has_value() && raw_file.value()->filename().extension() == ".prn") {
-            const std::string& at = m_simulation_config.analysis_type;
-            std::string at_upper = at;
-            std::transform(at_upper.begin(), at_upper.end(), at_upper.begin(), ::toupper);
+            const auto ap = m_simulation_config.analysis_print_parameters();
+            std::string pt_name = ap.has_value() ? ap->print_type : m_simulation_config.analysis_type;
+            std::string pt_upper = pt_name;
+            std::transform(pt_upper.begin(), pt_upper.end(), pt_upper.begin(), ::toupper);
             PlotType pt = PlotType::UNKNOWN;
             std::string title;
-            if (at_upper == "TRAN") {
+            if (pt_upper == "TRAN") {
                 pt = PlotType::TRANSIENT;
                 title = "Transient";
             }
-            else if (at_upper == "AC") {
+            else if (pt_upper == "AC" || pt_upper.find("AC") == 0) {
                 pt = PlotType::AC;
                 title = "AC Analysis";
             }
-            else if (at_upper == "DC") {
+            else if (pt_upper == "DC") {
                 pt = PlotType::DC;
                 title = "DC Sweep";
             }
-            else if (at_upper == "NOISE") {
+            else if (pt_upper == "NOISE") {
                 pt = PlotType::NOISE;
                 title = "Noise Analysis";
             }
-            else if (at_upper == "OP") {
+            else if (pt_upper == "OP") {
                 pt = PlotType::DC_OPERATING_POINT;
                 title = "DC Operating Point";
             }
             else {
                 pt = PlotType::UNKNOWN;
-                title = at;
+                title = pt_name;
             }
             raw_file.value()->set_title(title);
             raw_file.value()->set_plot_type(pt);
@@ -867,6 +869,18 @@ void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesys
 }
 
 std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
+    // helper to map the .PRINT type to the Xyce output file suffix; AC
+    // produces .FD.prn (frequency domain), AC_IC and HB time-domain
+    // subtypes produce .TD.prn, everything else uses .prn
+    auto prn_suffix = [](const std::string& print_type) -> std::string {
+        std::string u = print_type;
+        std::transform(u.begin(), u.end(), u.begin(), ::toupper);
+        if (u == "AC" || u == "HB" || u == "HB_FD" || u == "LIN")
+            return ".FD.prn";
+        if (u == "AC_IC" || u == "HB_TD" || u == "HB_IC" || u == "HB_STARTUP")
+            return ".TD.prn";
+        return ".prn";
+    };
     // get the analysis print parameters; when no analysis is configured or the
     // print is disabled, Xyce still produces a .raw file by default
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
@@ -889,8 +903,9 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
                 output_path = resolved.is_absolute() ? resolved : working_directory / resolved;
             }
             else {
-                // no FILE= specified: Xyce writes <netlist>.prn next to the netlist
-                output_path = std::filesystem::path(netlist_path).string() + ".prn";
+                // no FILE= specified: Xyce writes <netlist><suffix>.prn next
+                // to the netlist; the suffix depends on the print type
+                output_path = std::filesystem::path(netlist_path).string() + prn_suffix(analysis_print->print_type);
             }
         }
         else {
