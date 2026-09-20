@@ -1727,3 +1727,33 @@ TEST(SlintMainWindowPresenterChecks, fft_dialog_result_with_empty_selection_sets
     EXPECT_EQ(view.m_status_text, "No expressions selected for FFT");
     EXPECT_TRUE(view.m_spawned_files.empty());
 }
+
+TEST(SlintMainWindowPresenterChecks, prn_tranadjoint_default_format_looks_for_tradj_prn) {
+    // arrange — launch a transient analysis with TRANADJOINT print; Xyce
+    // produces <netlist>.TRADJ.prn for TRANADJOINT
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRANADJOINT V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write a .prn file at the .TRADJ.prn location
+    const auto prn_path = view.m_started_netlist_path.string() + ".TRADJ.prn";
+    {
+        std::ofstream prn_file(prn_path, std::ios::out | std::ios::trunc);
+        prn_file << "INDEX TIME V(1)\n";
+        prn_file << "0 0.0 1.0\n";
+        prn_file << "1 1e-9 1.1\n";
+        prn_file << ".\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(prn_path, ec);
+}

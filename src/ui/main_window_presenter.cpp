@@ -869,18 +869,6 @@ void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesys
 }
 
 std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
-    // helper to map the .PRINT type to the Xyce output file suffix; AC
-    // produces .FD.prn (frequency domain), AC_IC and HB time-domain
-    // subtypes produce .TD.prn, everything else uses .prn
-    auto prn_suffix = [](const std::string& print_type) -> std::string {
-        std::string u = print_type;
-        std::transform(u.begin(), u.end(), u.begin(), ::toupper);
-        if (u == "AC" || u == "HB" || u == "HB_FD" || u == "LIN")
-            return ".FD.prn";
-        if (u == "AC_IC" || u == "HB_TD" || u == "HB_IC" || u == "HB_STARTUP")
-            return ".TD.prn";
-        return ".prn";
-    };
     // get the analysis print parameters; when no analysis is configured or the
     // print is disabled, Xyce still produces a .raw file by default
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
@@ -905,7 +893,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
             else {
                 // no FILE= specified: Xyce writes <netlist><suffix>.prn next
                 // to the netlist; the suffix depends on the print type
-                output_path = std::filesystem::path(netlist_path).string() + prn_suffix(analysis_print->print_type);
+                output_path = std::filesystem::path(netlist_path).string() + prn_output_suffix(analysis_print->print_type);
             }
         }
         else {

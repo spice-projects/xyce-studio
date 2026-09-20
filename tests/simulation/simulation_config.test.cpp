@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
 
 TEST(SimulationConfigReplaceGroundChecks, from_xyce_directives_parses_disabled_statement) {
@@ -702,4 +703,125 @@ TEST(SimulationConfigPrnPrintParametersChecks, collects_unassociated_prn_prints)
     // assert — the analysis print (raw) is excluded, the unassociated gnuplot print is included
     ASSERT_EQ(prn_params.size(), 1u);
     EXPECT_EQ(prn_params[0].print_format, "GNUPLOT");
+}
+
+TEST(PrnOutputSuffixChecks, ac_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("AC");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, ac_ic_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("AC_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, dc_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("DC");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, tran_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("TRAN");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, noise_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("NOISE");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, homotopy_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HOMOTOPY");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, es_produces_es_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("ES");
+    // assert
+    EXPECT_EQ(suffix, ".ES.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_fd_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_FD");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_td_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_TD");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_ic_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_startup_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_STARTUP");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, sens_produces_sens_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("SENS");
+    // assert
+    EXPECT_EQ(suffix, ".SENS.prn");
+}
+
+TEST(PrnOutputSuffixChecks, tranadjoint_produces_tradj_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("TRANADJOINT");
+    // assert
+    EXPECT_EQ(suffix, ".TRADJ.prn");
+}
+
+TEST(PrnOutputSuffixChecks, pce_produces_pce_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("PCE");
+    // assert
+    EXPECT_EQ(suffix, ".PCE.prn");
+}
+
+TEST(PrnOutputSuffixChecks, lin_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("LIN");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, unknown_type_falls_back_to_dot_prn) {
+    // arrange / act
+    const auto unknown_suffix = prn_output_suffix("UNKNOWN_TYPE");
+    const auto empty_suffix = prn_output_suffix("");
+    // assert
+    EXPECT_EQ(unknown_suffix, ".prn");
+    EXPECT_EQ(empty_suffix, ".prn");
 }
