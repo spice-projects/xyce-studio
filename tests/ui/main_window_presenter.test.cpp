@@ -527,7 +527,7 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
     auto opened_file = xyce_raw_file_parser(working_directory / "user_out.raw");
     ASSERT_TRUE(opened_file.has_value());
     // act — open the file as the primary dataset, then launch the simulation
-    presenter.load_raw_file(std::move(opened_file.value()));
+    presenter.load_analysis_measurements(std::move(opened_file.value()));
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
     // simulate Xyce producing a parseable RAW file next to the temporary netlist
@@ -849,7 +849,7 @@ TEST(SlintMainWindowPresenterChecks, simulation_finished_success_loads_raw_file)
     EXPECT_EQ(view.m_title, "Presenter Test Circuit");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     EXPECT_TRUE(view.m_output_panel_hidden);
-    ASSERT_TRUE(presenter.raw_file().has_value());
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
     EXPECT_GT(view.m_update_charts_count, 0);
     // cleanup
     std::error_code ec;
@@ -949,8 +949,8 @@ TEST(SlintMainWindowPresenterChecks, lin_run_appends_touchstone_tab_and_keeps_pr
     // primary tab is active
     EXPECT_TRUE(view.m_charts_view_shown);
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
-    ASSERT_TRUE(presenter.raw_file().has_value());
-    ASSERT_TRUE(presenter.touchstone_file().has_value());
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    ASSERT_TRUE(presenter.touchstone_measurements().has_value());
     ASSERT_EQ(view.m_plot_tabs.size(), 3u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
     EXPECT_FALSE(view.m_plot_tabs[0].closable);
@@ -990,7 +990,7 @@ TEST(SlintMainWindowPresenterChecks, lin_run_without_raw_file_loads_touchstone_a
     EXPECT_TRUE(view.m_charts_view_shown);
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     EXPECT_TRUE(view.m_output_panel_hidden);
-    ASSERT_TRUE(presenter.touchstone_file().has_value());
+    ASSERT_TRUE(presenter.touchstone_measurements().has_value());
     ASSERT_EQ(view.m_plot_tabs.size(), 2u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "LIN Analysis");
     EXPECT_FALSE(view.m_plot_tabs[0].closable);
@@ -1254,7 +1254,7 @@ TEST(SlintMainWindowPresenterChecks, open_raw_extension_ignores_missing_file) {
     // act
     presenter.on_open_xyce_file("/nonexistent/presenter_missing.raw");
     // assert — parse failure leaves the window untouched
-    EXPECT_FALSE(presenter.raw_file().has_value());
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
     EXPECT_FALSE(view.m_charts_view_shown);
 }
 
@@ -1357,17 +1357,17 @@ namespace
     }
 } // namespace
 
-TEST(SlintMainWindowPresenterChecks, load_raw_file_switches_to_charts_view) {
+TEST(SlintMainWindowPresenterChecks, load_analysis_measurements_switches_to_charts_view) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
     // act
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // assert
     EXPECT_EQ(view.m_update_charts_count, 1);
     EXPECT_TRUE(view.m_charts_view_shown);
     EXPECT_EQ(view.m_title, "Loaded Circuit");
-    ASSERT_TRUE(presenter.raw_file().has_value());
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
 }
 
 TEST(SlintMainWindowPresenterChecks, chart_actions_are_guarded_without_raw_file) {
@@ -1388,7 +1388,7 @@ TEST(SlintMainWindowPresenterChecks, chart_actions_delegate_with_loaded_raw_file
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // act
     presenter.on_chart_calculate_fft(2);
     presenter.on_chart_step_tool(1);
@@ -1403,7 +1403,7 @@ TEST(SlintMainWindowPresenterChecks, chart_move_routes_to_the_view_with_a_loaded
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // act
     presenter.on_chart_moved(2, 0);
     // assert — the move reached the view with the requested indexes
@@ -1424,12 +1424,12 @@ TEST(SlintMainWindowPresenterChecks, chart_move_is_ignored_without_raw_file) {
     EXPECT_TRUE(view.m_moved_to.empty());
 }
 
-TEST(SlintMainWindowPresenterChecks, load_raw_file_populates_plot_tabs) {
+TEST(SlintMainWindowPresenterChecks, load_analysis_measurements_populates_plot_tabs) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
     // act
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // assert — the raw file became the primary, non-closable, active tab
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
@@ -1442,7 +1442,7 @@ TEST(SlintMainWindowPresenterChecks, select_plot_tab_validates_index) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     const int charts_before = view.m_update_charts_count;
     // act — out of bounds and already-active selections are ignored
     presenter.on_select_plot_tab(3);
@@ -1456,9 +1456,9 @@ TEST(SlintMainWindowPresenterChecks, fft_dialog_result_adds_closable_plot_tab) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // act — compute an FFT over the full abscissa range of the loaded raw file
-    auto expressions = presenter.raw_file().value()->expression_manager().expressions();
+    auto expressions = presenter.analysis_measurements().value()->expression_manager().expressions();
     const fft::FftParameters parameters{
         .np = 4,
         .window = fft::WindowFunction::RECTANGULAR,
@@ -1490,10 +1490,10 @@ TEST(SlintMainWindowPresenterChecks, tab_switch_preserves_dataset_chart_state) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     const int primary_id = view.m_updated_dataset_ids.back();
     // arrange — create a second dataset through an interactive FFT
-    auto expressions = presenter.raw_file().value()->expression_manager().expressions();
+    auto expressions = presenter.analysis_measurements().value()->expression_manager().expressions();
     const fft::FftParameters parameters{
         .np = 4,
         .window = fft::WindowFunction::RECTANGULAR,
@@ -1720,7 +1720,7 @@ TEST(SlintMainWindowPresenterChecks, fft_dialog_result_with_empty_selection_sets
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    presenter.load_raw_file(make_raw_file());
+    presenter.load_analysis_measurements(make_raw_file());
     // act
     presenter.on_fft_dialog_result({}, fft::FftParameters{});
     // assert

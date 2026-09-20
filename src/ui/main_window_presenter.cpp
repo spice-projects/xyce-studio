@@ -117,11 +117,11 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         // clear the cached simulation config, forcing a fresh parse on next run
         m_simulation_config = SimulationConfig::from_xyce_directives({});
         // remove the raw output file reference
-        m_xyce_raw_file = std::nullopt;
+        m_analysis_measurements = std::nullopt;
         // remove the parsed FFT calculation files, they belong to a previous run
-        m_fft_files.clear();
+        m_fft_measurements.clear();
         // remove the parsed touchstone file, it belongs to a previous file
-        m_touchstone_file = std::nullopt;
+        m_touchstone_measurements = std::nullopt;
         // drop every dataset chart state, they belong to a previous file
         m_view.release_all_charts();
         // clear plot datasets
@@ -143,7 +143,7 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         // check raw file was parsed
         if (raw_file.has_value()) {
             // load the parsed raw file
-            load_raw_file(std::move(raw_file.value()));
+            load_analysis_measurements(std::move(raw_file.value()));
         }
         return;
     }
@@ -154,7 +154,7 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         // check prn file was parsed
         if (prn_file.has_value()) {
             // load the parsed prn file
-            load_raw_file(std::move(prn_file.value()));
+            load_analysis_measurements(std::move(prn_file.value()));
         }
         return;
     }
@@ -294,9 +294,9 @@ void SlintMainWindowPresenter::launch_simulation() {
         return;
     }
     // clear the parsed FFT calculation files, they belong to the previous run
-    m_fft_files.clear();
+    m_fft_measurements.clear();
     // clear the parsed touchstone file, it belongs to the previous run
-    m_touchstone_file = std::nullopt;
+    m_touchstone_measurements = std::nullopt;
     // remember the run paths for the finished handler; the view owns the runner
     m_simulation_working_directory = working_directory;
     m_simulation_netlist_path = temp_path;
@@ -374,9 +374,9 @@ void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const Simu
 void SlintMainWindowPresenter::on_fft_dialog_result(std::vector<AnyExpression*> selected_expressions, const fft::FftParameters& fft_params) {
     // the transform needs the charts data (expression manager and step
     // information) from the raw file loaded in this window
-    if (!m_xyce_raw_file.has_value())
+    if (!m_analysis_measurements.has_value())
         return;
-    auto& file = m_xyce_raw_file.value();
+    auto& file = m_analysis_measurements.value();
     ExpressionManager& expression_manager = file->expression_manager();
     const StepInformation& step_information = file->step_information();
     // validate the expression selection
@@ -563,7 +563,7 @@ void SlintMainWindowPresenter::on_close_plot_tab(int index) {
         // reset active dataset index
         m_active_dataset_index = 0;
         // reset raw file reference
-        m_xyce_raw_file = std::nullopt;
+        m_analysis_measurements = std::nullopt;
         // drop any remaining chart state
         m_view.release_all_charts();
         // synchronize plot tabs with view
@@ -604,7 +604,7 @@ void SlintMainWindowPresenter::on_close_plot_tab(int index) {
 void SlintMainWindowPresenter::on_chart_calculate_fft(size_t chart_index) {
     // the FFT dialog needs the charts data (expression manager and step
     // information) from the raw file loaded in this window
-    if (!m_xyce_raw_file.has_value())
+    if (!m_analysis_measurements.has_value())
         return;
     // ask the view to show the FFT setup dialog for the chart; the accepted
     // expressions and parameters are delivered through on_fft_dialog_result
@@ -614,7 +614,7 @@ void SlintMainWindowPresenter::on_chart_calculate_fft(size_t chart_index) {
 void SlintMainWindowPresenter::on_chart_step_tool(size_t chart_index) {
     // the step tool needs the charts data (step information) from the raw file
     // loaded in this window
-    if (!m_xyce_raw_file.has_value())
+    if (!m_analysis_measurements.has_value())
         return;
     // ask the view to show the step tool dialog for the chart; the accepted
     // step selection is applied back to the chart through the renderer
@@ -623,26 +623,26 @@ void SlintMainWindowPresenter::on_chart_step_tool(size_t chart_index) {
 
 void SlintMainWindowPresenter::on_chart_new_window(size_t) {
     // spawn a new window seeded with the active dataset file
-    if (m_xyce_raw_file.has_value())
-        m_view.spawn_raw_file_window(m_xyce_raw_file.value());
+    if (m_analysis_measurements.has_value())
+        m_view.spawn_raw_file_window(m_analysis_measurements.value());
 }
 
 void SlintMainWindowPresenter::on_chart_moved(const size_t from, const size_t to) {
     // nothing to reorder without a loaded dataset
-    if (!m_xyce_raw_file.has_value())
+    if (!m_analysis_measurements.has_value())
         return;
     // mediate the reorder so a future change can persist the chart order
     m_view.move_chart(from, to);
 }
 
-void SlintMainWindowPresenter::load_raw_file(std::shared_ptr<XyceOutputFile> raw_file) {
+void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOutputFile> raw_file) {
     // guard against a missing file
     if (raw_file == nullptr)
         return;
     // drop existing datasets and chart state before loading a new raw file
-    m_fft_files.clear();
-    m_touchstone_file = std::nullopt;
-    m_xyce_raw_file = std::nullopt;
+    m_fft_measurements.clear();
+    m_touchstone_measurements = std::nullopt;
+    m_analysis_measurements = std::nullopt;
     m_view.release_all_charts();
     m_plot_datasets.clear();
     m_active_dataset_index = 0;
@@ -656,7 +656,7 @@ void SlintMainWindowPresenter::load_raw_file(std::shared_ptr<XyceOutputFile> raw
     // creates a fresh chart state for it) and switch to the charts view
     sync_plot_tabs_with_view();
     activate_plot_dataset(m_plot_datasets.size() - 1);
-    show_raw_file_view();
+    show_simulation_output_view();
 }
 
 void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_canceled) {
@@ -752,9 +752,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
                 m_view.release_charts(m_plot_datasets[i].id);
             m_plot_datasets.resize(std::min<size_t>(m_plot_datasets.size(), 1));
             // remove the parsed FFT calculation files from the previous run
-            m_fft_files.clear();
+            m_fft_measurements.clear();
             // remove the parsed touchstone file from the previous run
-            m_touchstone_file = std::nullopt;
+            m_touchstone_measurements = std::nullopt;
             // install the raw file as the primary dataset; a re-run replaces
             // the primary file in place, a first run appends it as a
             // non-closable dataset
@@ -772,7 +772,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             // plot dataset, followed by the smith chart tab plotting the same
             // file on the gamma plane with the diagonal entries by default
             if (touchstone_file.has_value()) {
-                m_touchstone_file = *touchstone_file;
+                m_touchstone_measurements = *touchstone_file;
                 // LIN Analysis tab with the suggested rectangular plots
                 m_plot_datasets.push_back(PlotDataset{
                     .id = m_next_dataset_id++,
@@ -793,9 +793,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
                 // parse the matching FFT output files
                 if (auto parsed_files = xyce_fft_file_parser(*fft_pattern, m_plot_datasets[0].file->step_information(), &m_plot_datasets[0].file->expression_manager())) {
                     // store the parsed FFT files
-                    m_fft_files = std::move(*parsed_files);
+                    m_fft_measurements = std::move(*parsed_files);
                     // append each FFT output file as a non-closable plot dataset
-                    for (auto& fft_file : m_fft_files) {
+                    for (auto& fft_file : m_fft_measurements) {
                         // append dataset
                         m_plot_datasets.push_back(PlotDataset{
                             .id = m_next_dataset_id++,
@@ -805,11 +805,11 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
                     }
                 }
                 // log the number of loaded FFT files
-                spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_files.size());
+                spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_measurements.size());
             }
             // log the parsed touchstone file
-            if (m_touchstone_file.has_value())
-                spdlog::info("Loaded touchstone output file '{}'", m_touchstone_file.value()->filename().string());
+            if (m_touchstone_measurements.has_value())
+                spdlog::info("Loaded touchstone output file '{}'", m_touchstone_measurements.value()->filename().string());
             // activate the primary dataset, the touchstone tab stays selected
             // behind it like any secondary result tab; activation re-points the
             // renderer chart state at the new file, clearing the references
@@ -824,7 +824,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             if (raw_path.has_value()) {
                 // check both that the file exists and that it is a .raw file
                 if (std::filesystem::exists(*raw_path))
-                    copy_raw_output_to_destination(*raw_path);
+                    copy_simulation_output_to_destination(*raw_path);
             }
             // switch to the charts view
             m_view.show_charts_view();
@@ -850,7 +850,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     refresh_action_states();
 }
 
-void SlintMainWindowPresenter::copy_raw_output_to_destination(const std::filesystem::path& raw_path) {
+void SlintMainWindowPresenter::copy_simulation_output_to_destination(const std::filesystem::path& raw_path) {
     // resolve the user-facing copy destination from the analysis print
     const auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory);
     // no destination configured, or it is the produced file itself
@@ -953,19 +953,19 @@ void SlintMainWindowPresenter::on_extract_schematic_netlist() {
     refresh_action_states();
 }
 
-const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::raw_file() const {
-    // return the current raw file reference
-    return m_xyce_raw_file;
+const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::analysis_measurements() const {
+    // return the current analysis measurement reference
+    return m_analysis_measurements;
 }
 
-const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::fft_files() const {
+const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::fft_measurements() const {
     // return the parsed FFT calculation output files
-    return m_fft_files;
+    return m_fft_measurements;
 }
 
-const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::touchstone_file() const {
-    // return the parsed touchstone output file
-    return m_touchstone_file;
+const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::touchstone_measurements() const {
+    // return the parsed s-parameter output file
+    return m_touchstone_measurements;
 }
 
 void SlintMainWindowPresenter::refresh_action_states() {
@@ -973,15 +973,15 @@ void SlintMainWindowPresenter::refresh_action_states() {
     ActionStateInput input;
     input.has_netlist = m_netlist_has_content;
     input.has_netlist_file = m_netlist_source != nullptr && !m_netlist_source->is_read_only();
-    input.has_raw = m_xyce_raw_file.has_value();
+    input.has_raw = m_analysis_measurements.has_value();
     input.charts_shown = m_view.charts_shown();
     input.simulation_running = m_simulation_running;
     input.netlist_editor_dirty = m_netlist_editor_dirty;
     input.output_hidden = m_view.simulation_output_panel_hidden();
     input.log_has_content = m_view.simulation_output_has_content();
     // chart context tools are tied to the loaded raw output
-    input.abscissa_is_time = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->expression_manager().abscissa().unit() == "s";
-    input.has_steps = m_xyce_raw_file.has_value() && m_xyce_raw_file.value()->step_information().length() > 1;
+    input.abscissa_is_time = m_analysis_measurements.has_value() && m_analysis_measurements.value()->expression_manager().abscissa().unit() == "s";
+    input.has_steps = m_analysis_measurements.has_value() && m_analysis_measurements.value()->step_information().length() > 1;
     // the smith chart tab drives the panel's cartesian-tool visibility
     input.charts_smith = !m_plot_datasets.empty() && m_plot_datasets[m_active_dataset_index].smith;
     // compute the action enablement for the current state
@@ -1024,11 +1024,11 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
     // store the active dataset index
     m_active_dataset_index = index;
     // set the current raw file reference to the dataset file
-    m_xyce_raw_file = m_plot_datasets[index].file;
+    m_analysis_measurements = m_plot_datasets[index].file;
     // check the file is present
-    if (m_xyce_raw_file.has_value()) {
+    if (m_analysis_measurements.has_value()) {
         // file instance
-        auto& file = m_xyce_raw_file.value();
+        auto& file = m_analysis_measurements.value();
         // activate the dataset in the renderer; switching back to a dataset
         // restores its charts with zoom windows, plots and step selections intact;
         // smith datasets suggest the diagonal entries instead of the rectangular plots
@@ -1040,9 +1040,9 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
     }
 }
 
-void SlintMainWindowPresenter::show_raw_file_view() {
+void SlintMainWindowPresenter::show_simulation_output_view() {
     // update the window title from the raw file
-    set_base_title(m_xyce_raw_file.value()->title());
+    set_base_title(m_analysis_measurements.value()->title());
     // clear the netlist editor content
     update_netlist_editor_content("", false);
     // show the charts view over the netlist editor

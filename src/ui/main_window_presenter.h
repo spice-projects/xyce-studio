@@ -68,9 +68,9 @@ public:
     // future change can persist the chart order
     void on_chart_moved(size_t from, size_t to) override;
 
-    // load an already-parsed raw file into this window and switch to the charts
+    // load the analysis output into this window and switch to the charts
     // view; used to seed windows spawned through App::new_window
-    void load_raw_file(std::shared_ptr<XyceOutputFile> raw_file);
+    void load_analysis_measurements(std::shared_ptr<XyceOutputFile> file);
 
     // simulation lifecycle events (forwarded by the view from the runner)
     void on_simulation_finished(int exit_code, bool was_canceled) override;
@@ -84,9 +84,9 @@ public:
     void on_extract_schematic_netlist() override;
 
     // accessors
-    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& raw_file() const;
-    [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_files() const;
-    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& touchstone_file() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& analysis_measurements() const;
+    [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_measurements() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& touchstone_measurements() const;
     [[nodiscard]] size_t active_dataset_index() const { return m_active_dataset_index; }
 
 private:
@@ -110,7 +110,7 @@ private:
     // result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
-    void show_raw_file_view();
+    void show_simulation_output_view();
 
     void set_base_title(const std::string& title);
 
@@ -125,7 +125,7 @@ private:
     // analysis print carries a file; the application maps the produced file
     // (which is never rewritten by a later run) while the copy keeps the
     // user-visible file up to date
-    void copy_raw_output_to_destination(const std::filesystem::path& raw_path);
+    void copy_simulation_output_to_destination(const std::filesystem::path& raw_path);
 
     // resolve the analysis print output file (.raw or .prn) and parse it,
     // setting the title and plot type from the simulation analysis type so the
@@ -144,11 +144,11 @@ private:
     size_t m_active_dataset_index = 0;
     int m_next_dataset_id = 1;
 
-    std::optional<std::shared_ptr<XyceOutputFile>> m_xyce_raw_file;
-    std::vector<std::shared_ptr<XyceOutputFile>> m_fft_files;
-    // touchstone output file produced by a .LIN run; a single run produces at
+    std::optional<std::shared_ptr<XyceOutputFile>> m_analysis_measurements;
+    std::vector<std::shared_ptr<XyceOutputFile>> m_fft_measurements;
+    // s-parameter measurement produced by a .LIN run; a single run produces at
     // most one file (a .STEP run concatenates all steps into the same file)
-    std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_file;
+    std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_measurements;
 
     SimulationConfig m_simulation_config;
     PluginConfig m_plugin_config;
