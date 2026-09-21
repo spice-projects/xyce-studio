@@ -20,7 +20,7 @@ TEST(SimulationConfigReplaceGroundChecks, from_xyce_directives_defaults_to_true_
 
 TEST(SimulationConfigReplaceGroundChecks, to_xyce_directives_emits_disabled_statement) {
     // arrange
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, false);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, false);
     // act
     const auto directives = config.to_xyce_directives(NetlistTopology{});
     // assert
@@ -30,7 +30,7 @@ TEST(SimulationConfigReplaceGroundChecks, to_xyce_directives_emits_disabled_stat
 
 TEST(SimulationConfigReplaceGroundChecks, disabled_state_round_trips_through_directives) {
     // arrange
-    const SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, false);
+    const SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, false);
     // act
     const auto directives = input.to_xyce_directives(NetlistTopology{});
     const auto output = SimulationConfig::from_xyce_directives(directives);
@@ -40,7 +40,7 @@ TEST(SimulationConfigReplaceGroundChecks, disabled_state_round_trips_through_dir
 
 TEST(SimulationConfigReplaceGroundChecks, enabled_state_round_trips_through_directives) {
     // arrange
-    const SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto directives = input.to_xyce_directives(NetlistTopology{});
     const auto output = SimulationConfig::from_xyce_directives(directives);
@@ -202,7 +202,7 @@ TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_missing_analysis)
 
 TEST(SimulationConfigOutputPathChecks, raw_path_defaults_to_netlist_plus_raw) {
     // arrange — an OP analysis without print directives
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.raw_output_file_path("/tmp/net.cir");
     // assert
@@ -215,7 +215,7 @@ TEST(SimulationConfigOutputPathChecks, raw_path_ignores_print_file_uses_netlist_
     // stripped for the Xyce run, so the produced file is always netlist-derived
     // and the user's file only serves as the copy destination (issue: Xyce must
     // never rewrite a file the application holds mapped)
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.raw_output_file_path("/tmp/net.cir");
     // assert
@@ -225,7 +225,7 @@ TEST(SimulationConfigOutputPathChecks, raw_path_ignores_print_file_uses_netlist_
 
 TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_non_raw_format) {
     // arrange — a CSV print produces no raw output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.raw_output_file_path("/tmp/net.cir");
     // assert
@@ -247,7 +247,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_miss
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_print_file_against_working_directory) {
     // arrange — a RAW print with an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -257,7 +257,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_print_file
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_without_print_file) {
     // arrange — a RAW print without an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", "", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -266,7 +266,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_without_
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_non_raw_format) {
     // arrange — a CSV print produces no raw output file to copy
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -276,7 +276,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_non_
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_strips_quoted_file) {
     // arrange — the model always carries the bare filename; a quote-carrying
     // value (direct construction) is normalized when composing the destination
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", R"("out raw.raw")", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", R"("out raw.raw")", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -291,7 +291,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_strips_quoted_file)
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_the_legacy_op_print) {
     // arrange — an OP analysis built from the legacy print_dc_* fields with a
     // duplicated variable; the normalized print must match the legacy emission
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)", "V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)", "V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
     // assert: variables are de-duplicated and the statement matches the legacy emission
@@ -302,7 +302,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_th
 TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_emitted_directive) {
     // arrange — legacy OP print fields; the emitted directive must equal the
     // analysis print statement so the presenter strips its FILE= option
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
     const auto directives = std::get<OpSimulationParameters>(config.analysis).to_xyce_directives(NetlistTopology{});
@@ -315,7 +315,7 @@ TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_
 
 TEST(SimulationConfigOutputPathChecks, raw_path_resolves_the_legacy_op_print) {
     // arrange — legacy OP print fields with a RAW format
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.raw_output_file_path("/tmp/net.cir");
     // assert
@@ -325,7 +325,7 @@ TEST(SimulationConfigOutputPathChecks, raw_path_resolves_the_legacy_op_print) {
 
 TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_legacy_op_print_with_non_raw_format) {
     // arrange — legacy OP print fields with a CSV format produce no raw file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.raw_output_file_path("/tmp/net.cir");
     // assert
@@ -334,7 +334,7 @@ TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_legacy_op_print_w
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_the_legacy_op_print) {
     // arrange — legacy OP print fields with an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -344,7 +344,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_the_legacy
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_without_file) {
     // arrange — legacy OP print fields without an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -353,7 +353,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_lega
 
 TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_with_non_raw_format) {
     // arrange — legacy OP print fields with a CSV format produce no raw file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto destination = config.raw_output_copy_destination("/tmp/work");
     // assert
@@ -403,7 +403,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_fo
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_serializes_the_analysis_print) {
     // arrange — a RAW print with an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
     // assert
@@ -413,7 +413,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_serializes_th
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_without_print) {
     // arrange — an OP analysis with the print disabled
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
     // assert

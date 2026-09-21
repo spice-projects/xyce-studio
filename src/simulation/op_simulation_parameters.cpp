@@ -16,16 +16,8 @@ bool NodesetEntry::operator==(const NodesetEntry& other) const {
     return node == other.node && voltage == other.voltage;
 }
 
-IcEntry::IcEntry(std::string node, std::string voltage) :
-    node(std::move(node)), voltage(std::move(voltage)) {}
-
-bool IcEntry::operator==(const IcEntry& other) const {
-    // compare all fields for equality
-    return node == other.node && voltage == other.voltage;
-}
-
-OpSimulationParameters::OpSimulationParameters(bool print_dc_enabled, bool print_dc_all_nodes, bool print_dc_all_currents, std::vector<std::string> print_dc_specific_variables, std::string print_dc_format, std::string print_dc_file, bool save_enabled, std::string save_type, std::string save_file, std::vector<NodesetEntry> nodeset_entries, std::vector<IcEntry> ic_entries, std::optional<PrintParameters> print_parameters, std::string save_level) :
-    print_dc_enabled(print_dc_enabled), print_dc_all_nodes(print_dc_all_nodes), print_dc_all_currents(print_dc_all_currents), print_dc_specific_variables(std::move(print_dc_specific_variables)), print_dc_format(std::move(print_dc_format)), print_dc_file(std::move(print_dc_file)), save_enabled(save_enabled), save_type(std::move(save_type)), save_file(std::move(save_file)), save_level(std::move(save_level)), nodeset_entries(std::move(nodeset_entries)), ic_entries(std::move(ic_entries)), print_parameters(std::move(print_parameters)) {}
+OpSimulationParameters::OpSimulationParameters(bool print_dc_enabled, bool print_dc_all_nodes, bool print_dc_all_currents, std::vector<std::string> print_dc_specific_variables, std::string print_dc_format, std::string print_dc_file, bool save_enabled, std::string save_type, std::string save_file, std::vector<NodesetEntry> nodeset_entries, std::optional<PrintParameters> print_parameters, std::string save_level) :
+    print_dc_enabled(print_dc_enabled), print_dc_all_nodes(print_dc_all_nodes), print_dc_all_currents(print_dc_all_currents), print_dc_specific_variables(std::move(print_dc_specific_variables)), print_dc_format(std::move(print_dc_format)), print_dc_file(std::move(print_dc_file)), save_enabled(save_enabled), save_type(std::move(save_type)), save_file(std::move(save_file)), save_level(std::move(save_level)), nodeset_entries(std::move(nodeset_entries)), print_parameters(std::move(print_parameters)) {}
 
 std::optional<OpSimulationParameters> OpSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init flag
@@ -42,8 +34,6 @@ std::optional<OpSimulationParameters> OpSimulationParameters::from_xyce_directiv
     std::string save_level;
     // init list
     std::vector<NodesetEntry> nodeset_entries;
-    // init list
-    std::vector<IcEntry> ic_entries;
 
     // flag indicating whether a valid directive was found
     bool found = false;
@@ -149,34 +139,6 @@ std::optional<OpSimulationParameters> OpSimulationParameters::from_xyce_directiv
             }
             continue;
         }
-
-        // handle initial conditions (.IC and .DCVOLT use the same format)
-        if (cmd == ".IC" || cmd == ".DCVOLT") {
-            // iterate tokens looking for V(node)=val or node val pairs
-            for (size_t i = 1; i < tokens.size(); ++i) {
-                const auto& token = tokens[i];
-                if (token.find('=') != std::string::npos) {
-                    // V(node)=val form
-                    const auto eq_pos = token.find('=');
-                    const auto lhs = token.substr(0, eq_pos);
-                    const auto voltage = token.substr(eq_pos + 1);
-                    std::string node;
-                    if (lhs.substr(0, 2) == "V(" && lhs.back() == ')') {
-                        node = lhs.substr(2, lhs.length() - 3);
-                    }
-                    else {
-                        node = lhs;
-                    }
-                    ic_entries.emplace_back(std::string(node), std::string(voltage));
-                }
-                else if (i + 1 < tokens.size()) {
-                    // node val pair form
-                    ic_entries.emplace_back(std::string(token), std::string(tokens[i + 1]));
-                    ++i;
-                }
-            }
-            continue;
-        }
     }
 
     // return instance if a valid directive was found
@@ -184,7 +146,7 @@ std::optional<OpSimulationParameters> OpSimulationParameters::from_xyce_directiv
         return std::nullopt;
     }
 
-    return OpSimulationParameters(print_dc_enabled, false, false, print_dc_vars, "", "", save_enabled, save_type, save_file, nodeset_entries, ic_entries, print_parameters_parsed, save_level);
+    return OpSimulationParameters(print_dc_enabled, false, false, print_dc_vars, "", "", save_enabled, save_type, save_file, nodeset_entries, print_parameters_parsed, save_level);
 }
 
 std::vector<std::string> OpSimulationParameters::to_xyce_directives(const NetlistTopology& topology) const {
@@ -263,22 +225,11 @@ std::vector<std::string> OpSimulationParameters::to_xyce_directives(const Netlis
         directives.push_back(".NODESET " + node + "=" + entry.voltage);
     }
 
-    // check initial condition entries
-    for (const auto& entry : ic_entries) {
-        // format the node, wrapping in V(...) unless it is already a voltage node name
-        std::string node = entry.node;
-        if (node.empty() || (node[0] != 'V' && node[0] != 'v')) {
-            node = "V(" + entry.node + ")";
-        }
-        // append one directive per entry
-        directives.push_back(".IC " + node + "=" + entry.voltage);
-    }
-
     // return directives
     return directives;
 }
 
 bool OpSimulationParameters::operator==(const OpSimulationParameters& other) const {
     // compare all fields for equality
-    return print_dc_enabled == other.print_dc_enabled && print_dc_all_nodes == other.print_dc_all_nodes && print_dc_all_currents == other.print_dc_all_currents && print_dc_specific_variables == other.print_dc_specific_variables && print_dc_format == other.print_dc_format && print_dc_file == other.print_dc_file && save_enabled == other.save_enabled && save_type == other.save_type && save_file == other.save_file && save_level == other.save_level && nodeset_entries == other.nodeset_entries && ic_entries == other.ic_entries && print_parameters == other.print_parameters;
+    return print_dc_enabled == other.print_dc_enabled && print_dc_all_nodes == other.print_dc_all_nodes && print_dc_all_currents == other.print_dc_all_currents && print_dc_specific_variables == other.print_dc_specific_variables && print_dc_format == other.print_dc_format && print_dc_file == other.print_dc_file && save_enabled == other.save_enabled && save_type == other.save_type && save_file == other.save_file && save_level == other.save_level && nodeset_entries == other.nodeset_entries && print_parameters == other.print_parameters;
 }

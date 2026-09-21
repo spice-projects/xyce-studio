@@ -494,7 +494,6 @@ namespace simulation_parameters_dialog_view
             dialog->set_op_save_level_index(choice_index_for(SAVE_LEVEL_VALUES, params.save_level));
             // convergence hints / initial conditions
             dialog->set_op_nodeset(slint::SharedString(join_entries(params.nodeset_entries)));
-            dialog->set_op_initial_conditions(slint::SharedString(join_entries(params.ic_entries)));
         }
 
         // read the operating point parameters from the dialog root's op-* fields
@@ -521,12 +520,11 @@ namespace simulation_parameters_dialog_view
             const std::string save_level = SAVE_LEVEL_VALUES[static_cast<size_t>(std::clamp(dialog->get_op_save_level_index(), 0, static_cast<int>(SAVE_LEVEL_VALUES.size()) - 1))];
             // nodeset / initial conditions
             const auto nodeset_entries = parse_nodeset_entries(std::string(dialog->get_op_nodeset()));
-            const auto ic_entries = parse_ic_entries(std::string(dialog->get_op_initial_conditions()));
-            return OpSimulationParameters(print_params.has_value(), false, false, {}, "", "", save_enabled, save_type, save_file, std::move(nodeset_entries), std::move(ic_entries), std::move(print_params), save_level);
+            return OpSimulationParameters(print_params.has_value(), false, false, {}, "", "", save_enabled, save_type, save_file, std::move(nodeset_entries), std::move(print_params), save_level);
         }
 
         // default operating point parameters, used to reset the panel to defaults
-        [[nodiscard]] OpSimulationParameters default_op_parameters() { return OpSimulationParameters(false, false, false, {}, "", "", false, "", "", {}, {}, std::nullopt); }
+        [[nodiscard]] OpSimulationParameters default_op_parameters() { return OpSimulationParameters(false, false, false, {}, "", "", false, "", "", {}, std::nullopt); }
 
         // push the saved AC analysis parameters into the dialog root's ac-* fields
         void apply_ac_parameters(const WindowHandle& dialog, const AcSimulationParameters& params) {

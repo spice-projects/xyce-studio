@@ -8,7 +8,7 @@
 TEST(OpSimulationParametersTopologyChecks, passes_through_node_wildcard_from_topology) {
     // arrange
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\nR2 2 1 200\nQ1 3 2 1 npn\n.END\n");
-    const OpSimulationParameters params(true, true, false, {"V(*)"}, "", "", false, "", "", {}, {}, std::nullopt);
+    const OpSimulationParameters params(true, true, false, {"V(*)"}, "", "", false, "", "", {}, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(topology);
     // assert
@@ -33,7 +33,7 @@ TEST(OpSimulationParametersTopologyChecks, passes_through_node_wildcard_from_top
 TEST(OpSimulationParametersTopologyChecks, passes_through_current_wildcard_from_topology) {
     // arrange
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\nC1 2 0 1u\n.END\n");
-    const OpSimulationParameters params(true, false, true, {"I(*)"}, "", "", false, "", "", {}, {}, std::nullopt);
+    const OpSimulationParameters params(true, false, true, {"I(*)"}, "", "", false, "", "", {}, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(topology);
     // assert
@@ -56,7 +56,7 @@ TEST(OpSimulationParametersTopologyChecks, passes_through_current_wildcard_from_
 TEST(OpSimulationParametersTopologyChecks, deduplicates_vars) {
     // arrange
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.END\n");
-    const OpSimulationParameters params(true, true, true, {"V(1)"}, "", "", false, "", "", {}, {}, std::nullopt);
+    const OpSimulationParameters params(true, true, true, {"V(1)"}, "", "", false, "", "", {}, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(topology);
     // assert
@@ -81,7 +81,7 @@ TEST(OpSimulationParametersTopologyChecks, deduplicates_vars) {
 
 TEST(OpSimulationParametersTopologyChecks, passes_through_no_topology) {
     // arrange
-    const OpSimulationParameters params(true, false, false, {"V(1)"}, "", "", false, "", "", {}, {}, std::nullopt);
+    const OpSimulationParameters params(true, false, false, {"V(1)"}, "", "", false, "", "", {}, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -102,7 +102,7 @@ TEST(OpSimulationParametersTopologyChecks, passes_through_wildcards_when_print_p
     // arrange
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.END\n");
     const PrintParameters print_params("DC", "RAW", "", {"V(*)"}, {});
-    const OpSimulationParameters params(false, true, true, {}, "", "", false, "", "", {}, {}, print_params);
+    const OpSimulationParameters params(false, true, true, {}, "", "", false, "", "", {}, print_params);
     // act
     const auto directives = params.to_xyce_directives(topology);
     // assert

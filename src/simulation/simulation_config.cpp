@@ -9,13 +9,15 @@
 #include "ac_simulation_parameters.h"
 #include "dc_simulation_parameters.h"
 #include "hb_simulation_parameters.h"
+#include "ic_parameters.h"
 #include "lin_simulation_parameters.h"
 #include "noise_simulation_parameters.h"
 #include "op_simulation_parameters.h"
+#include "simulation_config.h"
 #include "transient_simulation_parameters.h"
 
-SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground) :
-    analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground) {}
+SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters) :
+    analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground), ic_parameters(std::move(ic_parameters)) {}
 
 StepParameters SimulationConfig::step() const {
     // return the first step for backward compatibility, or a disabled default
@@ -227,8 +229,11 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
         }
     }
 
+    // parse the initial condition (.IC / .DCVOLT) directives
+    const auto ic_parameters = ICParameters::from_xyce_directives(directives);
+
     // return the combined configuration container
-    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground);
+    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground, ic_parameters);
 }
 
 std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopology& topology) const {
@@ -242,6 +247,10 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
     // emit the replace-ground preprocessing directive at most once for the whole netlist
     // the state is always emitted explicitly so that a disabled replacement round-trips
     directives.push_back(replace_ground ? ".PREPROCESS REPLACEGROUND TRUE" : ".PREPROCESS REPLACEGROUND FALSE");
+
+    // emit the initial condition directives (independent of analysis type)
+    const auto ic_directives = ic_parameters.to_xyce_directives(topology);
+    directives.insert(directives.end(), ic_directives.begin(), ic_directives.end());
 
     // check if an analysis is configured
     // Use std::visit to call to_xyce_directives on the active variant member
@@ -288,7 +297,7 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
 
 bool SimulationConfig::operator==(const SimulationConfig& other) const {
     // compare all fields for equality
-    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && replace_ground == other.replace_ground;
+    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground;
 }
 
 std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& netlist_file_path) const {
