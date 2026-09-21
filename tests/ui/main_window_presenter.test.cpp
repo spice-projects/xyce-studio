@@ -1809,8 +1809,9 @@ TEST(SlintMainWindowPresenterChecks, fft_run_without_print_loads_fft_tabs) {
 TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_primary_tab) {
     // arrange — a transient run with a raw print and an FFT directive
     RecordingView view;
-    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.PRINT TRAN FORMAT=RAW V(*)\n.FFT I(L1) NP=1024 WINDOW=HANN\n.END\n";
-    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    auto netlist_source = std::make_unique<StubNetlistSource>("V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.PRINT TRAN FORMAT=RAW V(*)\n.FFT I(L1) NP=1024 WINDOW=HANN\n.END\n", std::filesystem::temp_directory_path());
+    StubNetlistSource* source = netlist_source.get();
+    SlintMainWindowPresenter presenter(view, std::move(netlist_source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
     // arrange — write the raw output and the FFT file the run produces
@@ -1847,9 +1848,24 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     const int primary_id = view.m_plot_tabs[0].id;
     const int fft_id = view.m_plot_tabs[1].id;
-    // arrange — remove the raw output so the re-run produces no analysis output
-    std::filesystem::remove(raw_path);
-    // act — finish a second run of the same netlist
+    // arrange — the netlist is edited and the raw print line removed, then the
+    // simulation runs again
+    source->m_reloaded = true;
+    source->m_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.FFT I(L1) NP=1024 WINDOW=HANN\n.END\n";
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the FFT file the second run produces at its own output location
+    const auto fft0_path_second_run = view.m_started_netlist_path.string() + ".fft0";
+    {
+        std::ofstream fft0(fft0_path_second_run, std::ios::out | std::ios::trunc);
+        fft0 << "FFT analysis for I(L1):\n";
+        fft0 << "  Window: HANN, Start Time: 0.000000e+00, Stop Time: 2.000000e-02\n";
+        fft0 << "  First Harmonic: 9.765625e+02, Start Freq: 0.000000e+00, Stop Freq: 5.000000e+05\n";
+        fft0 << "  DC component    Norm. Mag= 1.000000e-02   Phase= 1.800000e+02\n";
+        fft0 << "       Index       Frequency       Norm. Mag           Phase\n";
+        fft0 << "   1    9.765625e+02    5.000000e-01    9.000000e+01\n";
+    }
+    // act — finish the second run
     presenter.on_simulation_finished(0, false);
     // assert — the stale transient tab was dropped with the whole previous
     // result set, only the fresh fft tab remains
@@ -1865,5 +1881,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(fft0_path_second_run, ec);
+    std::filesystem::remove(raw_path, ec);
     std::filesystem::remove(fft0_path, ec);
 }
