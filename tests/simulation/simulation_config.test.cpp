@@ -899,3 +899,119 @@ TEST(PrnOutputSuffixChecks, unknown_type_falls_back_to_dot_prn) {
     EXPECT_EQ(unknown_suffix, ".prn");
     EXPECT_EQ(empty_suffix, ".prn");
 }
+
+// ========================================================================================
+// csd output file path computation
+// ========================================================================================
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_is_nullopt_for_missing_analysis) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(path.has_value());
+}
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_defaults_to_netlist_plus_csd) {
+    // arrange — a transient PROBE print produces the plain .csd file
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
+}
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_ignores_print_file_uses_netlist_plus_csd) {
+    // arrange — a PROBE print with an explicit output file: the FILE= option is
+    // stripped for the Xyce run, so the produced file is always netlist-derived
+    // and the user's file only serves as the copy destination
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
+}
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_carries_the_td_suffix_for_ac_ic_prints) {
+    // arrange — the AC_IC print type writes time-domain output to a .TD.csd file
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", PrintParameters("AC_IC", "PROBE", "out.csd", {"V(1)"}, {}), {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.TD.csd");
+}
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_is_nullopt_for_non_probe_format) {
+    // arrange — a CSV print produces no csd output file
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "CSV", "out.csv", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(path.has_value());
+}
+
+TEST(SimulationConfigCsdOutputPathChecks, csd_path_resolves_the_legacy_op_print) {
+    // arrange — legacy OP print fields with a PROBE format normalize to a DC print
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "PROBE", "dc.csd", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.csd_output_file_path("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
+}
+
+// ========================================================================================
+// csd output copy destination computation
+// ========================================================================================
+
+TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_for_missing_analysis) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.csd_output_copy_destination("/tmp/work");
+    // assert
+    EXPECT_FALSE(destination.has_value());
+}
+
+TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_resolves_print_file_against_working_directory) {
+    // arrange — a PROBE print with an explicit output file
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.csd_output_copy_destination("/tmp/work");
+    // assert
+    ASSERT_TRUE(destination.has_value());
+    EXPECT_EQ(destination->generic_string(), "/tmp/work/out.csd");
+}
+
+TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_without_print_file) {
+    // arrange — a PROBE print without an explicit output file
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.csd_output_copy_destination("/tmp/work");
+    // assert
+    EXPECT_FALSE(destination.has_value());
+}
+
+TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_for_non_probe_format) {
+    // arrange — a CSV print produces no csd output file to copy
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "CSV", "out.csv", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.csd_output_copy_destination("/tmp/work");
+    // assert
+    EXPECT_FALSE(destination.has_value());
+}
+
+TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_strips_quoted_file) {
+    // arrange — the model always carries the bare filename; a quote-carrying
+    // value (direct construction) is normalized when composing the destination
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", R"("out probe.csd")", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto destination = config.csd_output_copy_destination("/tmp/work");
+    // assert
+    ASSERT_TRUE(destination.has_value());
+    EXPECT_EQ(destination->generic_string(), "/tmp/work/out probe.csd");
+}
