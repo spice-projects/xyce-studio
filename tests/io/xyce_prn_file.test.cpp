@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cmath>
+#include <complex>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -364,8 +365,10 @@ TEST(XycePrnFileParserTest, header_only_file_returns_no_data) {
     ASSERT_FALSE(result.has_value());
 }
 
-TEST(XycePrnFileParserTest, complex_data_detected_correctly) {
-    // arrange — a column named with "imag" in the header
+TEST(XycePrnFileParserTest, non_paired_imag_column_is_not_complex) {
+    // arrange — a column named with "imag" in the header: Xyce only writes
+    // Re(X)/Im(X) pairs for complex data, so a lone IMAG column is a plain
+    // real column and does not mark the file as complex
     const std::string content = "INDEX FREQ V(1) IMAG(V(1))\n"
                                 "0 100 0.5 0.1\n"
                                 "1 200 0.7 0.2\n"
@@ -375,5 +378,194 @@ TEST(XycePrnFileParserTest, complex_data_detected_correctly) {
     const auto result = xyce_prn_file_parser(temp_file.path());
     // assert
     ASSERT_TRUE(result.has_value());
+    ASSERT_FALSE(result.value()->is_complex());
+    // both columns stay real expressions
+    auto& expr_manager = result.value()->expression_manager();
+    auto* v1_expr = expr_manager.evaluate("V(1)");
+    ASSERT_NE(v1_expr, nullptr);
+    EXPECT_NE(std::get_if<Expression<double>>(v1_expr), nullptr);
+    auto* imag_expr = expr_manager.evaluate("IMAG(V(1))");
+    ASSERT_NE(imag_expr, nullptr);
+    EXPECT_NE(std::get_if<Expression<double>>(imag_expr), nullptr);
+}
+
+TEST(XycePrnFileParserTest, complex_file_promotes_plain_columns_and_keeps_real_abscissa) {
+    // arrange — a complex file with a Re(X)/Im(X) pair and a plain column:
+    // the abscissa stays real and every data expression becomes complex, the
+    // plain column values ride in the real component
+    const std::string content = "Index FREQ Re(V(N2)) Im(V(N2)) V(IN)\n"
+                                "0 100 1.0 -0.01 1.5\n"
+                                "1 200 2.0 -0.02 1.6\n"
+                                "End of Xyce(TM) Simulation\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
     ASSERT_TRUE(result.value()->is_complex());
+    auto& expr_manager = result.value()->expression_manager();
+    // the abscissa expression is a real number
+    auto* freq_expr = expr_manager.evaluate("FREQ");
+    ASSERT_NE(freq_expr, nullptr);
+    EXPECT_NE(std::get_if<Expression<double>>(freq_expr), nullptr);
+    // the paired column is a complex expression
+    auto* vn2_expr = expr_manager.evaluate("V(N2)");
+    ASSERT_NE(vn2_expr, nullptr);
+    auto* vn2_complex = std::get_if<Expression<std::complex<double>>>(vn2_expr);
+    ASSERT_NE(vn2_complex, nullptr);
+    auto vn2_data = vn2_complex->step_data(0);
+    ASSERT_EQ(vn2_data.size(), 2);
+    ASSERT_DOUBLE_EQ(vn2_data[0].real(), 1.0);
+    ASSERT_DOUBLE_EQ(vn2_data[0].imag(), -0.01);
+    ASSERT_DOUBLE_EQ(vn2_data[1].real(), 2.0);
+    ASSERT_DOUBLE_EQ(vn2_data[1].imag(), -0.02);
+    // the plain column is promoted to a complex expression with the values in the real component
+    auto* vin_expr = expr_manager.evaluate("V(IN)");
+    ASSERT_NE(vin_expr, nullptr);
+    auto* vin_complex = std::get_if<Expression<std::complex<double>>>(vin_expr);
+    ASSERT_NE(vin_complex, nullptr);
+    auto vin_data = vin_complex->step_data(0);
+    ASSERT_EQ(vin_data.size(), 2);
+    ASSERT_DOUBLE_EQ(vin_data[0].real(), 1.5);
+    ASSERT_DOUBLE_EQ(vin_data[0].imag(), 0.0);
+    ASSERT_DOUBLE_EQ(vin_data[1].real(), 1.6);
+    ASSERT_DOUBLE_EQ(vin_data[1].imag(), 0.0);
+}
+
+TEST(XycePrnFileParserTest, parses_fd_complex_columns_into_complex_variables) {
+    // arrange — the real Xyce FD prn header shape: mixed case Index column and
+    // Re(X)/Im(X) column pairs for complex data
+    const std::string content = "Index       FREQ            Re(V(N2))         Im(V(N2))         Re(I(V1))         Im(I(V1))    \n"
+                                "0        1.00000000e+00    1.00000000e+00   -6.28318779e-04   -3.94784332e-09   -6.28318531e-06\n"
+                                "1        5.26410526e+03   -9.05764875e-02   -3.01399710e-02   -9.96890055e-04    2.99584892e-03\n"
+                                "End of Xyce(TM) Simulation\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result.value()->is_complex());
+    ASSERT_EQ(result.value()->metadata().at("has_index"), "true");
+    ASSERT_EQ(result.value()->metadata().at("format"), "STD");
+    // the abscissa is the frequency column, not the index column
+    auto& file = *result.value();
+    auto& abscissa = file.abscissa();
+    ASSERT_EQ(abscissa.name(), "FREQ");
+    ASSERT_EQ(abscissa.step_data(0).size(), 2);
+    ASSERT_DOUBLE_EQ(abscissa.step_data(0)[0], 1.00000000e+00);
+    ASSERT_DOUBLE_EQ(abscissa.step_data(0)[1], 5.26410526e+03);
+    // each Re(X)/Im(X) pair is combined into a single complex variable X
+    auto& expr_manager = file.expression_manager();
+    auto* vn2_expr = expr_manager.evaluate("V(N2)");
+    ASSERT_NE(vn2_expr, nullptr);
+    auto* vn2_complex = std::get_if<Expression<std::complex<double>>>(vn2_expr);
+    ASSERT_NE(vn2_complex, nullptr);
+    auto vn2_data = vn2_complex->step_data(0);
+    ASSERT_EQ(vn2_data.size(), 2);
+    ASSERT_DOUBLE_EQ(vn2_data[0].real(), 1.00000000e+00);
+    ASSERT_DOUBLE_EQ(vn2_data[0].imag(), -6.28318779e-04);
+    ASSERT_DOUBLE_EQ(vn2_data[1].real(), -9.05764875e-02);
+    ASSERT_DOUBLE_EQ(vn2_data[1].imag(), -3.01399710e-02);
+    auto* iv1_expr = expr_manager.evaluate("I(V1)");
+    ASSERT_NE(iv1_expr, nullptr);
+    auto* iv1_complex = std::get_if<Expression<std::complex<double>>>(iv1_expr);
+    ASSERT_NE(iv1_complex, nullptr);
+    auto iv1_data = iv1_complex->step_data(0);
+    ASSERT_EQ(iv1_data.size(), 2);
+    ASSERT_DOUBLE_EQ(iv1_data[1].real(), -9.96890055e-04);
+    ASSERT_DOUBLE_EQ(iv1_data[1].imag(), 2.99584892e-03);
+}
+
+TEST(XycePrnFileParserTest, parses_mixed_case_index_column) {
+    // arrange — the Xyce output writes the index column with mixed case
+    const std::string content = "Index TIME V(1)\n"
+                                "0 0.0 1.0\n"
+                                "1 1e-9 1.1\n"
+                                "2 2e-9 1.2\n"
+                                ".\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result.value()->metadata().at("has_index"), "true");
+    // the abscissa is the time column with its unit
+    auto& abscissa = result.value()->abscissa();
+    ASSERT_EQ(abscissa.name(), "TIME");
+    ASSERT_DOUBLE_EQ(abscissa.step_data(0)[2], 2e-9);
+}
+
+TEST(XycePrnFileParserTest, parses_complex_columns_in_reverse_order) {
+    // arrange — the imaginary part column appears before the real part column
+    const std::string content = "Index FREQ Im(V(N2)) Re(V(N2)) Im(I(V1)) Re(I(V1))\n"
+                                "0 100 0.25 0.5 -0.01 0.02\n"
+                                "1 200 0.35 0.7 -0.02 0.04\n"
+                                "End of Xyce(TM) Simulation\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result.value()->is_complex());
+    // each Im(X)/Re(X) pair is combined into a single complex variable X with
+    // the real and imaginary components taken from their own columns
+    auto& expr_manager = result.value()->expression_manager();
+    auto* vn2_expr = expr_manager.evaluate("V(N2)");
+    ASSERT_NE(vn2_expr, nullptr);
+    auto* vn2_complex = std::get_if<Expression<std::complex<double>>>(vn2_expr);
+    ASSERT_NE(vn2_complex, nullptr);
+    auto vn2_data = vn2_complex->step_data(0);
+    ASSERT_EQ(vn2_data.size(), 2);
+    ASSERT_DOUBLE_EQ(vn2_data[0].real(), 0.5);
+    ASSERT_DOUBLE_EQ(vn2_data[0].imag(), 0.25);
+    ASSERT_DOUBLE_EQ(vn2_data[1].real(), 0.7);
+    ASSERT_DOUBLE_EQ(vn2_data[1].imag(), 0.35);
+    auto* iv1_expr = expr_manager.evaluate("I(V1)");
+    ASSERT_NE(iv1_expr, nullptr);
+    auto* iv1_complex = std::get_if<Expression<std::complex<double>>>(iv1_expr);
+    ASSERT_NE(iv1_complex, nullptr);
+    auto iv1_data = iv1_complex->step_data(0);
+    ASSERT_EQ(iv1_data.size(), 2);
+    ASSERT_DOUBLE_EQ(iv1_data[0].real(), 0.02);
+    ASSERT_DOUBLE_EQ(iv1_data[0].imag(), -0.01);
+    ASSERT_DOUBLE_EQ(iv1_data[1].real(), 0.04);
+    ASSERT_DOUBLE_EQ(iv1_data[1].imag(), -0.02);
+}
+
+TEST(XycePrnFileParserTest, parses_interleaved_complex_columns) {
+    // arrange — the parts of two complex variables are interleaved and appear
+    // in mixed order
+    const std::string content = "Index FREQ Im(V(1)) Im(V(2)) Re(V(1)) Re(V(2))\n"
+                                "0 100 0.1 0.2 1.0 2.0\n"
+                                "1 200 0.3 0.4 3.0 4.0\n"
+                                "End of Xyce(TM) Simulation\n";
+    const TempFileRAII temp_file(content);
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_TRUE(result.value()->is_complex());
+    // each pair is combined into a single complex variable regardless of the
+    // interleaving
+    auto& expr_manager = result.value()->expression_manager();
+    auto* v1_expr = expr_manager.evaluate("V(1)");
+    ASSERT_NE(v1_expr, nullptr);
+    auto* v1_complex = std::get_if<Expression<std::complex<double>>>(v1_expr);
+    ASSERT_NE(v1_complex, nullptr);
+    auto v1_data = v1_complex->step_data(0);
+    ASSERT_EQ(v1_data.size(), 2);
+    ASSERT_DOUBLE_EQ(v1_data[0].real(), 1.0);
+    ASSERT_DOUBLE_EQ(v1_data[0].imag(), 0.1);
+    ASSERT_DOUBLE_EQ(v1_data[1].real(), 3.0);
+    ASSERT_DOUBLE_EQ(v1_data[1].imag(), 0.3);
+    auto* v2_expr = expr_manager.evaluate("V(2)");
+    ASSERT_NE(v2_expr, nullptr);
+    auto* v2_complex = std::get_if<Expression<std::complex<double>>>(v2_expr);
+    ASSERT_NE(v2_complex, nullptr);
+    auto v2_data = v2_complex->step_data(0);
+    ASSERT_EQ(v2_data.size(), 2);
+    ASSERT_DOUBLE_EQ(v2_data[0].real(), 2.0);
+    ASSERT_DOUBLE_EQ(v2_data[0].imag(), 0.2);
+    ASSERT_DOUBLE_EQ(v2_data[1].real(), 4.0);
+    ASSERT_DOUBLE_EQ(v2_data[1].imag(), 0.4);
 }
