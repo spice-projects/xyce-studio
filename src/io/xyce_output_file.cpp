@@ -68,7 +68,8 @@ const std::unordered_map<std::string, std::string>& XyceOutputFile::metadata() c
     return m_metadata;
 }
 
-const std::vector<std::vector<std::string>>& XyceOutputFile::suggested_plots() const {
-    // return suggested plots
-    return m_suggested_plots;
-}
+const std::vector<std::vector<std::string>>& XyceOutputFile::suggested_plots() const { return m_suggested_plots; }
+
+void XyceOutputFile::set_title(std::string title) { m_title = std::move(title); }
+
+void XyceOutputFile::set_plot_type(const PlotType plot_type) { m_plot_type = plot_type; }

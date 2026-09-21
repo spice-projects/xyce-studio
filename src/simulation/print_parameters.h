@@ -63,3 +63,9 @@ public:
 // format a FILE= option value: values containing whitespace are quoted so the
 // statement survives tokenization; already-quoted values pass through as-is
 [[nodiscard]] std::string format_print_file_value(const std::string& file);
+
+// return the Xyce output file suffix for a .PRINT type per the reference guide:
+// AC/HB/FD → .FD.prn, AC_IC and HB time-domain subtypes → .TD.prn,
+// ES → .ES.prn, SENS → .SENS.prn, TRANADJOINT → .TRADJ.prn, PCE → .PCE.prn,
+// everything else (DC, TRAN, NOISE, HOMOTOPY, etc.) → .prn
+[[nodiscard]] std::string prn_output_suffix(const std::string& print_type);

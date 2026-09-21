@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
 
 TEST(SimulationConfigReplaceGroundChecks, from_xyce_directives_parses_disabled_statement) {
@@ -481,106 +482,180 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_is_absent_for_other_analyses) {
 }
 
 // ========================================================================================
-// touchstone output file path computation
+// s-parameter output file path computation
 // ========================================================================================
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_requires_an_analysis) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_requires_an_analysis) {
     // arrange
     const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     EXPECT_FALSE(path.has_value());
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_is_absent_for_other_analyses) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_is_absent_for_other_analyses) {
     // arrange
     const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     EXPECT_FALSE(path.has_value());
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_defaults_to_netlist_plus_s2p_without_file) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_defaults_to_netlist_plus_s2p_without_file) {
     // arrange — a LIN analysis with the default touchstone format and no FILE=
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act — without FILE= Xyce writes <netlist>.s2p next to the netlist, so the
-    // working directory plays no role in the default resolution
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    // act — without FILE= Xyce writes <netlist>.sNp next to the netlist, N being
+    // the port count (2 here), so the working directory plays no role
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_resolves_file_against_working_directory) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_uses_port_count_for_default_name) {
+    // arrange — a 3-port LIN run without FILE=; Xyce writes <netlist>.s3p
+    const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work", 3);
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.s3p");
+}
+
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_resolves_file_against_working_directory) {
     // arrange — a LIN analysis with an explicit FILE=; Xyce resolves the value
     // against its process cwd, which is the run's working directory
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "out.s2p", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/work/out.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_falls_back_to_filename_when_file_missing) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_falls_back_to_filename_when_file_missing) {
     // arrange — FILENAME= is the HSPICE synonym, accepted only when FILE= is absent
     const auto config = SimulationConfig::from_xyce_directives({".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILENAME=synonym.s2p"});
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/work/synonym.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_gives_file_precedence_over_filename) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_gives_file_precedence_over_filename) {
     // arrange — both FILE= and FILENAME= carried (direct construction)
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "file.s2p", "", "filename.s2p", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/work/file.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_strips_quoted_file) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_strips_quoted_file) {
     // arrange — a quote-carrying FILE value (direct construction) is normalized
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", R"("out s2p.s2p")", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/work/out s2p.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_keeps_absolute_file) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_keeps_absolute_file) {
     // arrange — an absolute FILE= value is used verbatim
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "/tmp/abs/out.s2p", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/abs/out.s2p");
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_is_absent_for_non_touchstone_format) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_is_absent_for_non_touchstone_format) {
     // arrange — a LIN run that writes its output in a non-touchstone format
     const SimulationConfig config("LIN", LinSimulationParameters(true, "SPICE", "S", "RI", "out.s2p", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     EXPECT_FALSE(path.has_value());
 }
 
-TEST(SimulationConfigTouchstonePathChecks, touchstone_path_resolves_from_parsed_directives) {
+TEST(SimulationConfigSParameterPathChecks, s_parameter_path_resolves_from_parsed_directives) {
     // arrange — a LIN directive set parsed end to end, mirroring the run flow
     const auto config = SimulationConfig::from_xyce_directives({".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-simple-01.s2p WIDTH=16 PRECISION=8"});
     // act
-    const auto path = config.touchstone_output_file_path("/tmp/net.cir", "/tmp/work");
+    const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/work/lin-simple-01.s2p");
+}
+
+// ========================================================================================
+// produced measurements
+// ========================================================================================
+
+TEST(SimulationConfigProducedMeasurementsChecks, no_analysis_produces_nothing) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.fft);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, lin_with_touchstone_format_produces_s_parameters) {
+    // arrange
+    const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_TRUE(produced.s_parameters);
+    EXPECT_FALSE(produced.fft);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, lin_without_touchstone_format_produces_no_s_parameters) {
+    // arrange
+    const SimulationConfig config("LIN", LinSimulationParameters(true, "SPICE", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.fft);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, tran_with_fft_directives_produces_fft) {
+    // arrange
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_TRUE(produced.fft);
+    EXPECT_FALSE(produced.s_parameters);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_produces_no_fft) {
+    // arrange
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.s_parameters);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, other_analyses_produce_nothing) {
+    // arrange
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.fft);
 }
 
 // ========================================================================================
@@ -661,4 +736,166 @@ TEST(SimulationConfigPrintSanitizeChecks, transient_analysis_print_keeps_power_a
     const auto print_parameters = config.analysis_print_parameters();
     ASSERT_TRUE(print_parameters.has_value());
     ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "P(*)", "IC(*)"}));
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_std_format_analysis_print) {
+    // arrange — dc analysis with std-format print
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=STD V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_type, "DC");
+    EXPECT_EQ(prn_params[0].print_format, "STD");
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_noindex_format_analysis_print) {
+    // arrange — transient analysis with noindex-format print
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN FORMAT=NOINDEX V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_type, "TRAN");
+    EXPECT_EQ(prn_params[0].print_format, "NOINDEX");
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, excludes_raw_format) {
+    // arrange — analysis with raw-format print
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=RAW V(1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert
+    ASSERT_TRUE(prn_params.empty());
+}
+
+TEST(SimulationConfigPrnPrintParametersChecks, collects_unassociated_prn_prints) {
+    // arrange — analysis print is raw but there is an unassociated print with std format
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PRINT DC FORMAT=RAW V(1)", ".PRINT DC FORMAT=GNUPLOT I(R1)"});
+    // act
+    const auto prn_params = config.prn_print_parameters();
+    // assert — the analysis print (raw) is excluded, the unassociated gnuplot print is included
+    ASSERT_EQ(prn_params.size(), 1u);
+    EXPECT_EQ(prn_params[0].print_format, "GNUPLOT");
+}
+
+TEST(PrnOutputSuffixChecks, ac_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("AC");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, ac_ic_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("AC_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, dc_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("DC");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, tran_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("TRAN");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, noise_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("NOISE");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, homotopy_produces_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HOMOTOPY");
+    // assert
+    EXPECT_EQ(suffix, ".prn");
+}
+
+TEST(PrnOutputSuffixChecks, es_produces_es_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("ES");
+    // assert
+    EXPECT_EQ(suffix, ".ES.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_fd_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_FD");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_td_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_TD");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_ic_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, hb_startup_produces_td_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("HB_STARTUP");
+    // assert
+    EXPECT_EQ(suffix, ".TD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, sens_produces_sens_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("SENS");
+    // assert
+    EXPECT_EQ(suffix, ".SENS.prn");
+}
+
+TEST(PrnOutputSuffixChecks, tranadjoint_produces_tradj_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("TRANADJOINT");
+    // assert
+    EXPECT_EQ(suffix, ".TRADJ.prn");
+}
+
+TEST(PrnOutputSuffixChecks, pce_produces_pce_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("PCE");
+    // assert
+    EXPECT_EQ(suffix, ".PCE.prn");
+}
+
+TEST(PrnOutputSuffixChecks, lin_produces_fd_dot_prn) {
+    // arrange / act
+    const auto suffix = prn_output_suffix("LIN");
+    // assert
+    EXPECT_EQ(suffix, ".FD.prn");
+}
+
+TEST(PrnOutputSuffixChecks, unknown_type_falls_back_to_dot_prn) {
+    // arrange / act
+    const auto unknown_suffix = prn_output_suffix("UNKNOWN_TYPE");
+    const auto empty_suffix = prn_output_suffix("");
+    // assert
+    EXPECT_EQ(unknown_suffix, ".prn");
+    EXPECT_EQ(empty_suffix, ".prn");
 }

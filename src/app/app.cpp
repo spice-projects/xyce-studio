@@ -155,7 +155,7 @@ void App::new_window(std::shared_ptr<XyceOutputFile> raw_file) {
     // seed the new window with the raw file, switching to the charts view; the
     // window was shown by create_window, so the native content view exists when
     // the charts renderer attaches
-    presenter->load_raw_file(std::move(raw_file));
+    presenter->load_analysis_measurements(std::move(raw_file));
 }
 
 SlintMainWindowPresenter* App::create_window(std::unique_ptr<NetlistSource> netlist_source, std::shared_ptr<KiCadSession> session) {

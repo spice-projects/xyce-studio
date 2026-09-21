@@ -66,6 +66,13 @@ public:
 
     [[nodiscard]] const std::vector<std::vector<std::string>>& suggested_plots() const;
 
+    // set the title (used by the presenter for .prn outputs that carry no
+    // analysis-type header in the file itself)
+    void set_title(std::string title);
+
+    // set the plot type (used by the presenter for .prn outputs)
+    void set_plot_type(PlotType plot_type);
+
 private:
     std::filesystem::path m_filename;
     std::string m_title;
