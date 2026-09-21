@@ -51,6 +51,15 @@ public:
     // is produced or the analysis print carries no explicit file
     [[nodiscard]] std::optional<std::filesystem::path> raw_output_copy_destination(const std::filesystem::path& working_directory) const;
 
+    // compute the produced csd output file path for the configured analysis;
+    // .PRINT FORMAT=PROBE writes .csd (or .TD.csd for AC_IC) next to the netlist
+    [[nodiscard]] std::optional<std::filesystem::path> csd_output_file_path(const std::filesystem::path& netlist_file_path) const;
+
+    // compute the user-facing csd output copy destination (the .PRINT FILE=
+    // value resolved against the working directory); nullopt when no csd file
+    // is produced or the analysis print carries no explicit file
+    [[nodiscard]] std::optional<std::filesystem::path> csd_output_copy_destination(const std::filesystem::path& working_directory) const;
+
     // extract the analysis print parameters, normalizing the legacy OP
     // representation (print_dc_* fields without structured print_parameters)
     // into a PrintParameters instance; nullopt when no analysis is configured,

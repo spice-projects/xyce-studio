@@ -324,6 +324,38 @@ std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destinati
     return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
 }
 
+std::optional<std::filesystem::path> SimulationConfig::csd_output_file_path(const std::filesystem::path& netlist_file_path) const {
+    // no analysis, no csd output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // a print configured without PROBE format produces no csd output file
+    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
+        return std::nullopt;
+    // AC_IC print produces .TD.csd
+    if (to_upper(print_parameters->print_type) == "AC_IC")
+        return std::optional<std::filesystem::path>(netlist_file_path.string() + ".TD.csd");
+    // DC, AC, and TRAN produce .csd
+    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".csd");
+}
+
+std::optional<std::filesystem::path> SimulationConfig::csd_output_copy_destination(const std::filesystem::path& working_directory) const {
+    // no analysis, no csd output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // no print configured or a non-PROBE format produces no csd file to copy
+    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
+        return std::nullopt;
+    // no explicit file to copy to
+    if (print_parameters->print_file.empty())
+        return std::nullopt;
+    // resolve the user's print file against the working directory
+    return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
+}
+
 std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {
     // process simulation types
     auto l = []<typename T0>(T0& a) -> std::optional<PrintParameters> {

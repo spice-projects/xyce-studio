@@ -313,16 +313,17 @@ std::string strip_print_file_option(const std::string& print_statement) {
         return print_statement;
     }
     // first pass: scan the option section (before the first output variable) for
-    // the format option; only RAW output (or an unspecified format) is redirected
-    bool is_raw = true;
+    // the format option; only RAW and PROBE output (or an unspecified format) are redirected
+    bool is_redirected = true;
     bool in_output_variables = false;
     for (size_t i = 2; i < tokens.size() && !in_output_variables; ++i) {
         // parse option token
         const auto option_pair = split_option_token(tokens[i]);
         // check for the format option
         if (option_pair.first == "FORMAT") {
-            // only RAW output is redirected to the netlist-derived file
-            is_raw = to_upper(option_pair.second) == "RAW";
+            // only RAW and PROBE output are redirected to the netlist-derived file
+            const std::string fmt = to_upper(option_pair.second);
+            is_redirected = fmt == "RAW" || fmt == "PROBE";
         }
         // check for the start of the output-variable section
         else if (option_pair.first.empty()) {
@@ -330,8 +331,8 @@ std::string strip_print_file_option(const std::string& print_statement) {
             in_output_variables = true;
         }
     }
-    // return non-raw statements unchanged
-    if (!is_raw)
+    // return non-redirected statements unchanged
+    if (!is_redirected)
         return print_statement;
     // second pass: rebuild the statement without the file option
     std::vector<std::string> result;
