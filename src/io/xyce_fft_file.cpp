@@ -479,7 +479,11 @@ namespace
         return true;
     }
 
-    std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> build_output_files(const std::vector<std::filesystem::path>& matching_files, const StepInformation& step_information, ExpressionManager* expression_manager, const std::map<AbscissaKey, AbscissaEntry>& signals) {
+    std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> build_output_files(const std::vector<std::filesystem::path>& matching_files, const StepInformation* step_information, ExpressionManager* expression_manager, const std::map<AbscissaKey, AbscissaEntry>& signals) {
+        // step count driving the slices: the analysis step information when
+        // provided, otherwise the files' own STEP markers (all signals of an
+        // abscissa carry the same step count)
+        const size_t step_count = step_information != nullptr ? step_information->length() : (signals.empty() || signals.begin()->second.signals.empty() ? 0 : signals.begin()->second.signals.begin()->second.size());
         // result
         std::vector<std::shared_ptr<XyceOutputFile>> output_files;
         // reserve capacity
@@ -493,13 +497,13 @@ namespace
             abscissa_data.insert(abscissa_data.end(), entry.frequency->begin(), entry.frequency->end());
             // step slices for the concatenated data (one slice per step)
             std::vector<std::pair<size_t, size_t>> step_slices;
-            step_slices.reserve(step_information.length());
-            for (size_t idx = 0; idx < step_information.length(); ++idx)
+            step_slices.reserve(step_count);
+            for (size_t idx = 0; idx < step_count; ++idx)
                 step_slices.emplace_back(idx * abscissa_data.size(), (idx + 1) * abscissa_data.size());
             // abscissa data repeated for every step
             std::vector<double> abscissa_values;
-            abscissa_values.reserve(step_information.length() * abscissa_data.size());
-            for (size_t idx = 0; idx < step_information.length(); ++idx)
+            abscissa_values.reserve(step_count * abscissa_data.size());
+            for (size_t idx = 0; idx < step_count; ++idx)
                 abscissa_values.insert(abscissa_values.end(), abscissa_data.begin(), abscissa_data.end());
             // initialize the expressions with the abscissa expression
             std::vector<AnyExpression> expressions;
@@ -508,10 +512,10 @@ namespace
             std::vector<std::vector<std::string>> suggested_plots;
             // process each signal in this abscissa
             for (const auto& [signal_name, steps] : entry.signals) {
-                // validate the step count matches the step information
-                if (steps.size() != step_information.length()) {
+                // validate the step count matches the resolved step count
+                if (steps.size() != step_count) {
                     // log the error
-                    spdlog::error("invalid Xyce FFT file: inconsistent step count for signal '{}' in '{}': expected {}, found {}", signal_name, matching_files[0].string(), step_information.length(), steps.size());
+                    spdlog::error("invalid Xyce FFT file: inconsistent step count for signal '{}' in '{}': expected {}, found {}", signal_name, matching_files[0].string(), step_count, steps.size());
                     // exit
                     return std::nullopt;
                 }
@@ -548,11 +552,13 @@ namespace
             }
             // abscissa value ranges (dc to the last frequency) for every step
             std::vector<std::pair<double, double>> value_ranges;
-            value_ranges.reserve(step_information.length());
-            for (size_t idx = 0; idx < step_information.length(); ++idx)
+            value_ranges.reserve(step_count);
+            for (size_t idx = 0; idx < step_count; ++idx)
                 value_ranges.emplace_back(abscissa_data.front(), abscissa_data.back());
-            // create the step information
-            StepInformation fft_step_information(step_information.keys(), step_information.values(), std::move(value_ranges));
+            // create the step information; the analysis step information is
+            // carried over when provided, otherwise the files define a
+            // step-less single-block dataset
+            StepInformation fft_step_information(step_information != nullptr ? step_information->keys() : std::vector<std::string>{}, step_information != nullptr ? step_information->values() : std::vector<std::vector<double>>{}, std::move(value_ranges));
             // create the expression manager
             ExpressionManager fft_expression_manager(expressions, step_slices);
             // file metadata
@@ -569,7 +575,7 @@ namespace
     }
 } // namespace
 
-std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> xyce_fft_file_parser(const std::filesystem::path& file_pattern, const StepInformation& step_information, ExpressionManager* expression_manager) {
+std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> xyce_fft_file_parser(const std::filesystem::path& file_pattern, const StepInformation* step_information, ExpressionManager* expression_manager) {
     // record the start time
     auto start_time = std::chrono::steady_clock::now();
     // find all files matching the pattern
@@ -593,8 +599,7 @@ std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> xyce_fft_file_parser
             return std::nullopt;
     }
     // build the output files
-    auto output_files = build_output_files(matching_files, step_information, expression_manager, signals);
-    // log the information
+    auto output_files = build_output_files(matching_files, step_information, expression_manager, signals); // log the information
     if (output_files)
         spdlog::info("Successfully parsed Xyce FFT files: {}, elapsed time: {}ms", matching_files.size(), std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count());
     // return the output files

@@ -338,9 +338,7 @@ std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() con
             // structured print parameters when set
             if (a.print_parameters.has_value())
                 return a.print_parameters;
-            // legacy OP representation: derive the structured print from the
-            // print_dc_* fields (de-duplicated variables, matching the
-            // legacy directive emission)
+            // legacy OP representation: derive the structured print from the print_dc_* fields (de-duplicated variables, matching the legacy directive emission)
             if constexpr (std::is_same_v<TX, OpSimulationParameters>) {
                 if (a.print_dc_enabled) {
                     // de-duplicate the variables preserving order, matching the legacy emission
@@ -394,11 +392,36 @@ std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_patt
     return std::visit(FftPathVisitor{netlist_file_path}, analysis);
 }
 
-std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const {
-    struct TouchstonePathVisitor
+SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements() const {
+
+    struct ProducedMeasurementsVisitor
+    {
+        SimulationConfig::ProducedMeasurements operator()(const std::monostate&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const AcSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const DCSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const HbSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
+            // a .TRAN analysis with .FFT directives dumps the FFT calculation files
+            return {.fft = !params.fft_parameters.empty()};
+        }
+        SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {
+            // a .LIN run with a touchstone format dumps one s-parameter file
+            return {.s_parameters = params.format == "TOUCHSTONE" || params.format == "TOUCHSTONE2"};
+        }
+    };
+
+    return std::visit(ProducedMeasurementsVisitor{}, analysis);
+}
+
+std::optional<std::filesystem::path> SimulationConfig::s_parameter_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory, int num_ports) const {
+
+    struct SParameterPathVisitor
     {
         const std::filesystem::path& netlist_file_path;
         const std::filesystem::path& working_directory;
+        int num_ports;
 
         std::optional<std::filesystem::path> operator()(const std::monostate&) const { return std::nullopt; }
         std::optional<std::filesystem::path> operator()(const AcSimulationParameters&) const { return std::nullopt; }
@@ -409,24 +432,21 @@ std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_pa
         std::optional<std::filesystem::path> operator()(const TransientSimulationParameters&) const { return std::nullopt; }
         std::optional<std::filesystem::path> operator()(const LinSimulationParameters& params) const {
             // only touchstone output formats produce a touchstone file
-            if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE") {
+            if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE")
                 return std::nullopt;
-            }
-            // no FILE=/FILENAME= given: Xyce writes <netlist>.s2p next to the netlist
-            if (params.file.empty()) {
-                return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s2p");
-            }
-            // FILE= takes precedence over FILENAME= (already enforced at parse
-            // time); strip outer quotes and resolve relative values against the
-            // working directory, which is Xyce's process cwd for the run
+            // no FILE=/FILENAME= given: Xyce writes <netlist>.sNp next to the netlist, N being the port count (P devices in the netlist)
+            if (params.file.empty())
+                return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s" + std::to_string(num_ports) + "p");
+            // FILE= takes precedence over FILENAME= (already enforced at parse time); strip outer quotes and resolve relative values against the working directory, which is Xyce's process cwd for the run
             const auto file = strip_outer_quotes(params.file);
             if (std::filesystem::path(file).is_absolute())
                 return std::optional<std::filesystem::path>(file);
+            // resolve relative paths against the working directory
             return std::optional<std::filesystem::path>(working_directory / file);
         }
     };
 
-    return std::visit(TouchstonePathVisitor{netlist_file_path, working_directory}, analysis);
+    return std::visit(SParameterPathVisitor{netlist_file_path, working_directory, num_ports}, analysis);
 }
 
 std::vector<PrintParameters> SimulationConfig::prn_print_parameters() const {

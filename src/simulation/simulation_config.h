@@ -67,12 +67,28 @@ public:
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 
-    // compute the touchstone output file path for the configured analysis; LIN
-    // runs with a touchstone FORMAT produce a .s2p file — with FILE=/FILENAME=
-    // the value is resolved against the working directory (Xyce's process cwd),
-    // otherwise Xyce writes <netlist>.s2p next to the netlist; nullopt when the
-    // analysis produces no touchstone output
-    [[nodiscard]] std::optional<std::filesystem::path> touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const;
+    // the companion measurement data a finished run produces besides the
+    // analysis output; which entries are set depends on the configured
+    // analysis type — the analysis parameters own the knowledge of what data
+    // their run dumps
+    struct ProducedMeasurements
+    {
+        // a .LIN analysis with a touchstone format dumps one s-parameter file
+        bool s_parameters = false;
+        // a .TRAN analysis with .FFT directives dumps the FFT calculation files
+        bool fft = false;
+    };
+
+    // report the companion measurement data the configured analysis produces
+    [[nodiscard]] ProducedMeasurements produced_measurements() const;
+
+    // compute the s-parameter output file path for the configured analysis; LIN
+    // runs with a touchstone FORMAT produce a touchstone file — with
+    // FILE=/FILENAME= the value is used verbatim, resolved against the working
+    // directory (Xyce's process cwd), otherwise Xyce writes <netlist>.sNp next
+    // to the netlist, N being the port count (the number of P devices in the
+    // netlist); nullopt when the analysis produces no s-parameter output
+    [[nodiscard]] std::optional<std::filesystem::path> s_parameter_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory, int num_ports = 2) const;
 
     // collect all print parameters that produce .prn output (STD, NOINDEX,
     // GNUPLOT, SPLOT formats), including the analysis print and any
