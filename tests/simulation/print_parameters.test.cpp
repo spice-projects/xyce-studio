@@ -458,6 +458,25 @@ TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_raw_statem
     ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=RAW V(OUT) I(V1)");
 }
 
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_probe_statement) {
+    // arrange — PROBE output is redirected to the netlist-derived .csd file as well
+    const std::string statement = ".PRINT TRAN FORMAT=PROBE FILE=waves.csd V(OUT) I(V1)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=PROBE V(OUT) I(V1)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_removes_probe_file_before_format) {
+    // arrange: the FILE option appearing before the FORMAT option must be
+    // stripped as well (the format is discovered in a first pass)
+    const std::string statement = ".PRINT TRAN FILE=waves.csd FORMAT=PROBE V(OUT)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=PROBE V(OUT)");
+}
+
 TEST(PrintParametersChecks, strip_print_file_removes_file_option_before_format) {
     // arrange: the FILE option appearing before the FORMAT option must be
     // stripped as well (the format is discovered in a first pass)

@@ -857,6 +857,95 @@ TEST(SlintMainWindowPresenterChecks, simulation_finished_success_loads_raw_file)
     std::filesystem::remove(raw_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, simulation_finished_success_loads_csd_file) {
+    // arrange — launch a transient simulation with a PROBE print first so the run paths are known
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=PROBE V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write a real csd file at the expected output location
+    const auto csd_path = view.m_started_netlist_path.string() + ".csd";
+    {
+        std::ofstream csd_file(csd_path, std::ios::out | std::ios::trunc);
+        csd_file << "#H\n";
+        csd_file << "SOURCE='Xyce' VERSION='7.10'\n";
+        csd_file << "TITLE='* Presenter Probe Circuit'\n";
+        csd_file << "SUBTITLE='Xyce data'\n";
+        csd_file << "ANALYSIS='Transient Analysis' SERIALNO='12345'\n";
+        csd_file << "ALLVALUES='NO' COMPLEXVALUES='NO' NODES='1'\n";
+        csd_file << "SWEEPVAR='Time' SWEEPMODE='VAR_STEP'\n";
+        csd_file << "#N\n";
+        csd_file << "'V(1)'\n";
+        csd_file << "#C 0.000000000e+00 1\n";
+        csd_file << "1.000000000e+00:1\n";
+        csd_file << "#C 1.000000000e-09 1\n";
+        csd_file << "2.000000000e+00:1\n";
+        csd_file << "#;\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — charts are shown with the parsed csd data and the title comes from the csd file
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_title, "Presenter Probe Circuit");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(csd_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, probe_print_file_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — netlist with a transient analysis whose PROBE print carries an output file
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_probe_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=PROBE FILE=probe_user_out.csd V(1)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — launch the simulation
+    presenter.on_run_simulation();
+    // assert — the netlist handed to Xyce does not carry the FILE= option
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find("FILE=probe_user_out.csd"), std::string::npos);
+        EXPECT_NE(content.find(".PRINT TRAN FORMAT=PROBE V(1)"), std::string::npos);
+    }
+    // the editor keeps the user-facing directive with the FILE= option intact
+    EXPECT_NE(view.m_editor_content.find("FILE=probe_user_out.csd"), std::string::npos);
+    // simulate Xyce producing the csd file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".csd";
+    {
+        std::ofstream produced(produced_path, std::ios::out | std::ios::trunc);
+        produced << "#H\n";
+        produced << "SOURCE='Xyce' VERSION='7.10'\n";
+        produced << "TITLE='* Probe Copy Test'\n";
+        produced << "SUBTITLE='Xyce data'\n";
+        produced << "ANALYSIS='Transient Analysis' SERIALNO='12345'\n";
+        produced << "ALLVALUES='NO' COMPLEXVALUES='NO' NODES='1'\n";
+        produced << "SWEEPVAR='Time' SWEEPMODE='VAR_STEP'\n";
+        produced << "#N\n";
+        produced << "'V(1)'\n";
+        produced << "#C 0.000000000e+00 1\n";
+        produced << "1.000000000e+00:1\n";
+        produced << "#;\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced file was copied to the user-indicated location
+    const auto copied_path = working_directory / "probe_user_out.csd";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove(copied_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, simulation_finished_success_hides_output_panel) {
     // arrange — launch a transient simulation
     RecordingView view;
@@ -1253,6 +1342,38 @@ TEST(SlintMainWindowPresenterChecks, open_raw_extension_ignores_missing_file) {
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
     // act
     presenter.on_open_xyce_file("/nonexistent/presenter_missing.raw");
+    // assert — parse failure leaves the window untouched
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_FALSE(view.m_charts_view_shown);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_csd_extension_loads_analysis_measurements) {
+    // arrange — a real TRAN csd file produced by the probe outputter
+    const auto csd_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_csd";
+    std::filesystem::create_directories(csd_dir);
+    const auto csd_path = csd_dir / "demo.csd";
+    write_file(csd_path, "#H\nSOURCE='Xyce' VERSION='7.10'\nTITLE='* demo.cir'\nSUBTITLE='Xyce data'\nANALYSIS='Transient Analysis' SERIALNO='12345'\nCOMPLEXVALUES='NO' NODES='1'\nSWEEPVAR='Time' SWEEPMODE='VAR_STEP'\n#N\n'V(1)'\n#C 0.000000000e+00 1\n1.000000000e+00:1\n#C 1.000000000e-09 1\n1.100000000e+00:1\n#;\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", csd_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(csd_path);
+    // assert — the csd file parsed into the analysis measurements and charts are shown
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_EQ(view.m_title, "demo.cir");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(csd_path, ec);
+    std::filesystem::remove_all(csd_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_csd_extension_ignores_missing_file) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file("/nonexistent/presenter_missing.TD.csd");
     // assert — parse failure leaves the window untouched
     EXPECT_FALSE(presenter.analysis_measurements().has_value());
     EXPECT_FALSE(view.m_charts_view_shown);

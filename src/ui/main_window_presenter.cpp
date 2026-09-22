@@ -10,6 +10,7 @@
 #include "../core/util.h"
 #include "../dsp/fft.h"
 #include "../io/touchstone_file.h"
+#include "../io/xyce_csd_file.h"
 #include "../io/xyce_fft_file.h"
 #include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
@@ -145,6 +146,17 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         if (raw_file.has_value()) {
             // load the parsed raw file
             load_analysis_measurements(std::move(raw_file.value()));
+        }
+        return;
+    }
+    // csd file extension, covering the .TD.csd AC_IC variant as well
+    if (extension == ".csd") {
+        // parse the csd file
+        auto csd_file = xyce_csd_file_parser(path);
+        // check csd file was parsed
+        if (csd_file.has_value()) {
+            // load the parsed csd file
+            load_analysis_measurements(std::move(csd_file.value()));
         }
         return;
     }
@@ -745,10 +757,11 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             m_active_dataset_index = 0;
             activate_plot_dataset(0);
         }
-        // 8. copy the produced raw output file to the user-indicated location
-        const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path);
-        if (raw_path.has_value() && std::filesystem::exists(*raw_path))
+        // 8. copy the produced analysis output file to the user-indicated location; RAW and PROBE formats are mutually exclusive so exactly one of the two paths resolves
+        if (const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path); raw_path.has_value() && std::filesystem::exists(*raw_path))
             copy_simulation_output_to_destination(*raw_path);
+        else if (const auto csd_path = m_simulation_config.csd_output_file_path(m_simulation_netlist_path); csd_path.has_value() && std::filesystem::exists(*csd_path))
+            copy_simulation_output_to_destination(*csd_path);
         // switch to the charts view
         m_view.show_charts_view();
         // hide the output panel — it is only shown on failure
@@ -770,22 +783,25 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     refresh_action_states();
 }
 
-void SlintMainWindowPresenter::copy_simulation_output_to_destination(const std::filesystem::path& raw_path) {
-    // resolve the user-facing copy destination from the analysis print
-    const auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory);
+void SlintMainWindowPresenter::copy_simulation_output_to_destination(const std::filesystem::path& produced_path) {
+    // resolve the user-facing copy destination from the analysis print; RAW and PROBE formats are mutually exclusive so one of the two destinations resolves
+    auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory);
+    // PROBE runs copy to the csd destination
+    if (!destination.has_value())
+        destination = m_simulation_config.csd_output_copy_destination(m_simulation_working_directory);
     // no destination configured, or it is the produced file itself
-    if (!destination.has_value() || *destination == raw_path)
+    if (!destination.has_value() || *destination == produced_path)
         return;
     // the produced file must exist
     std::error_code ec;
-    if (!std::filesystem::exists(raw_path))
+    if (!std::filesystem::exists(produced_path))
         return;
     // create the destination parent directory when missing
     std::filesystem::create_directories(destination->parent_path(), ec);
     // copy the produced file, overwriting the previous run's copy
-    std::filesystem::copy_file(raw_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
+    std::filesystem::copy_file(produced_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
     if (ec)
-        spdlog::warn("Failed to copy RAW output file to '{}': {}", destination->string(), ec.message());
+        spdlog::warn("Failed to copy output file to '{}': {}", destination->string(), ec.message());
 }
 
 std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
@@ -794,8 +810,9 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
     if (!analysis_print.has_value())
         return std::nullopt;
-    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; RAW format produces .raw next to the netlist
+    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
     bool is_prn_format = true;
+    bool is_probe_format = false;
     std::filesystem::path output_path;
     // check for known .prn-producing formats; empty format defaults to STD
     if (!analysis_print->print_format.empty()) {
@@ -803,6 +820,8 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
         auto format = to_upper(analysis_print->print_format);
         // all this formats produce .prn files
         is_prn_format = (format == "STD" || format == "NOINDEX" || format == "GNUPLOT" || format == "SPLOT");
+        // PROBE format produces the .csd output file
+        is_probe_format = (format == "PROBE");
     }
     if (is_prn_format) {
         // .prn formats preserve the FILE= option
@@ -815,6 +834,22 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
             // to the netlist; the suffix depends on the print type
             output_path = std::filesystem::path(netlist_path).string() + prn_output_suffix(analysis_print->print_type);
         }
+    }
+    else if (is_probe_format) {
+        // PROBE format: FILE= is stripped for the Xyce run so the produced file
+        // is always next to the netlist; the path carries the .TD suffix for
+        // AC_IC runs, which produce time-domain output in a .TD.csd file
+        const auto csd_path = m_simulation_config.csd_output_file_path(netlist_path);
+        // without a produced csd file there is nothing to load
+        if (!csd_path.has_value() || !std::filesystem::exists(*csd_path))
+            return std::nullopt;
+        // parse the produced csd file and prepare the instance: the tab plot
+        // type follows the configured analysis print type, not the produced
+        // file, so the label is identical for every format
+        auto measurements = xyce_csd_file_parser(*csd_path);
+        if (measurements.has_value())
+            apply_analysis_print_metadata(**measurements);
+        return measurements;
     }
     else {
         // RAW format: FILE= is stripped for the Xyce run so the produced file is always next to the netlist
