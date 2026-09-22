@@ -11,8 +11,8 @@ Xyce Studio can be used in two ways:
   The netlist is extracted from your schematic automatically, so you can go
   from schematic to simulation results without leaving KiCad.
 - **As a standalone application** — open Xyce netlist files (`.cir`) or
-  simulation output files (`.raw`) directly, edit them, and run simulations
-  on your own schedule.
+  simulation output files (`.raw`, `.prn`, `.csv`, `.csd`) directly, edit
+  them, and run simulations on your own schedule.
 
 Both modes share the same window layout, dialogs, and plotting tools, so
 everything in this guide applies to both unless explicitly noted.

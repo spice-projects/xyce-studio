@@ -366,15 +366,17 @@ card:
 - **Extra options** — additional `KEY=VALUE` pairs (e.g. `WIDTH=20
   PRECISION=12`).
 
-Xyce Studio can plot **all** simulation output as long as the `.PRINT`
-directive uses the **RAW** format — the charts panel reads the raw
-output file produced by the run. Therefore:
+Xyce Studio can plot **all** simulation output: the charts panel reads
+the print file produced by the run in any plottable format — `RAW`
+(`.raw`), `PROBE` (`.csd`), `CSV` (`.csv`) and the `.prn` formats
+(`STD`, `NOINDEX`, `GNUPLOT`, `SPLOT`). TECPLOT (`.dat`) cannot be
+plotted. Therefore:
 
 - always **enable .PRINT output** for the analysis you are running, and
-- always select **RAW** as the **Format**.
+- keep the **Format** on any plottable value — `(default)` (STD) works.
 
-Without a `.PRINT ... FORMAT=RAW` line the run may complete but produce
-nothing plottable, and the charts panel will stay empty.
+Without a `.PRINT` line the run may complete but produce nothing
+plottable, and the charts panel will stay empty.
 
 ## Directives
 

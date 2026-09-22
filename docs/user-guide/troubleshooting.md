@@ -18,10 +18,11 @@
   convergence failures are reported there line by line.
 - **“Simulation failed (exit code N)”** — the Xyce process exited with
   an error; the log above it usually contains the cause.
-- **“Simulation finished but output raw file could not be found”** — the
-  run completed but produced no plottable raw output. Make sure a
-  `.PRINT ... FORMAT=RAW` line (or equivalent) is present for the
-  analysis you ran.
+- **“Simulation finished but output file could not be found”** — the
+  run completed but produced no plottable output. Make sure a `.PRINT`
+  line is present for the analysis you ran; any plottable format works
+  (`RAW`, `PROBE`, `CSV` or the default `.prn` formats — see
+  [Simulation Output Files](output-files.md)).
 - DC convergence problems: add `.NODESET` hints or `.IC` conditions in
   the [Operating Point tab](simulations.md#operating-point-op), or save
   a converged bias point with `.SAVE` and reuse it.
