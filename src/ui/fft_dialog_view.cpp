@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 #include <set>
 #include <string>
@@ -10,7 +9,6 @@
 
 #include <main_window.h>
 
-#include "../core/util.h"
 #include "../dsp/fft.h"
 #include "../expression/expression.h"
 #include "expression_colors.h"

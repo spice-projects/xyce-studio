@@ -1410,6 +1410,37 @@ TEST(SlintMainWindowPresenterChecks, open_csv_extension_ignores_missing_file) {
     EXPECT_FALSE(view.m_charts_view_shown);
 }
 
+TEST(SlintMainWindowPresenterChecks, open_dat_extension_loads_analysis_measurements) {
+    // arrange — a real TRAN tecplot file produced by the FORMAT=TECPLOT outputter
+    const auto dat_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_dat";
+    std::filesystem::create_directories(dat_dir);
+    const auto dat_path = dat_dir / "demo.dat";
+    write_file(dat_path, "TITLE = \"demo.cir - Xyce Electrical Simulator\", \n\tVARIABLES = \" TIME\" \n\" V(1)\" \nZONE F=POINT T=\"demo.cir \" \n0.0 1.0\n1e-9 1.1\n2e-9 1.2\nEnd of Xyce(TM) Simulation\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", dat_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(dat_path);
+    // assert — the dat file parsed into the analysis measurements and charts are shown
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(dat_path, ec);
+    std::filesystem::remove_all(dat_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_dat_extension_ignores_missing_file) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file("/nonexistent/presenter_missing.dat");
+    // assert — parse failure leaves the window untouched
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_FALSE(view.m_charts_view_shown);
+}
+
 TEST(SlintMainWindowPresenterChecks, open_raw_extension_loads_analysis_measurements) {
     // arrange — a parseable transient raw file
     const auto raw_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_raw";
@@ -2061,6 +2092,111 @@ TEST(SlintMainWindowPresenterChecks, csv_file_option_output_loads_from_destinati
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
     // assert — the named csv file loaded as the transient dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, tecplot_tran_default_format_looks_for_dat) {
+    // arrange — launch a transient analysis with a FORMAT=TECPLOT print
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=TECPLOT V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — the FILE= option is kept for TECPLOT runs, and Xyce writes <netlist>.dat next to the temporary netlist
+    {
+        std::ifstream started(view.m_started_netlist_path);
+        const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
+        EXPECT_NE(started_content.find(".PRINT TRAN FORMAT=TECPLOT V(1)"), std::string::npos);
+    }
+    const auto dat_path = view.m_started_netlist_path.string() + ".dat";
+    {
+        std::ofstream dat_file(dat_path, std::ios::out | std::ios::trunc);
+        dat_file << "TITLE = \"demo.cir - Xyce Electrical Simulator\", \n";
+        dat_file << "\tVARIABLES = \" TIME\" \n";
+        dat_file << "\" V(1)\" \n";
+        dat_file << "ZONE F=POINT T=\"demo.cir \" \n";
+        dat_file << "0.0 1.0\n";
+        dat_file << "1e-9 1.1\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced dat loaded as the transient dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(dat_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, tecplot_ac_default_format_looks_for_fd_dat) {
+    // arrange — launch an ac analysis with a FORMAT=TECPLOT print; Xyce produces
+    // <netlist>.FD.dat for the frequency-domain output
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 AC 1\nR1 1 0 1K\n.AC DEC 10 1 100MEG\n.PRINT AC FORMAT=TECPLOT V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the frequency-domain dat file with a complex Re/Im pair
+    const auto dat_path = view.m_started_netlist_path.string() + ".FD.dat";
+    {
+        std::ofstream dat_file(dat_path, std::ios::out | std::ios::trunc);
+        dat_file << " TITLE = \" Xyce Frequency Domain data, demo.cir\", \n";
+        dat_file << "\tVARIABLES = \" FREQ\" \n";
+        dat_file << "\" Re(V(1))\" \n";
+        dat_file << "\" Im(V(1))\" \n";
+        dat_file << "ZONE F=POINT  T=\"Xyce data\" \n";
+        dat_file << "1.000000000000e+02 1.0 -0.5\n";
+        dat_file << "1.000000000000e+03 0.9 -0.4\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced dat loaded as the ac dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE((*presenter.analysis_measurements())->is_complex());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(dat_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, tecplot_file_option_output_loads_from_destination) {
+    // arrange — launch a transient analysis with a FORMAT=TECPLOT print carrying
+    // a FILE= option: the option survives the run and Xyce writes the named file
+    // in the working directory, which the presenter must resolve and load
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_tecplot_file_option_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=TECPLOT FILE=my_results.dat V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — Xyce produced the named file in the working directory
+    {
+        std::ofstream dat_file(working_directory / "my_results.dat", std::ios::out | std::ios::trunc);
+        dat_file << "TITLE = \"demo.cir - Xyce Electrical Simulator\", \n";
+        dat_file << "\tVARIABLES = \" TIME\" \n";
+        dat_file << "\" V(1)\" \n";
+        dat_file << "ZONE F=POINT T=\"demo.cir \" \n";
+        dat_file << "0.0 1.0\n";
+        dat_file << "1e-9 1.1\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the named dat file loaded as the transient dataset
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");

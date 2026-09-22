@@ -43,9 +43,9 @@ static bool has_extension(const std::filesystem::path& path, std::string_view ex
 }
 
 // extensions of the analysis output files the main window loads: the raw, prn,
-// csd (PROBE) and csv (FORMAT=CSV) print formats, mirrored by the open dialog
-// filter in ui/file_dialog.cpp
-static constexpr std::array<std::string_view, 4> ANALYSIS_OUTPUT_EXTENSIONS = {".raw", ".prn", ".csd", ".csv"};
+// csd (PROBE), csv (FORMAT=CSV) and dat (FORMAT=TECPLOT) print formats,
+// mirrored by the open dialog filter in ui/file_dialog.cpp
+static constexpr std::array<std::string_view, 5> ANALYSIS_OUTPUT_EXTENSIONS = {".raw", ".prn", ".csd", ".csv", ".dat"};
 
 // check that the path carries one of the analysis output extensions, logging a
 // warning and rejecting it otherwise

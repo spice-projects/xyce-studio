@@ -41,7 +41,7 @@ namespace
 
 std::string FileDialog::open_file_extensions() {
     // the netlist format plus every analysis output format the presenter dispatches by extension in on_open_xyce_file
-    return std::string("cir,raw,prn,csd,csv");
+    return std::string("cir,raw,prn,csd,csv,dat");
 }
 
 std::optional<std::filesystem::path> FileDialog::open_xyce_file() {

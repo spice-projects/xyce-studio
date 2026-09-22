@@ -15,6 +15,7 @@
 #include "../io/xyce_fft_file.h"
 #include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
+#include "../io/xyce_tecplot_file.h"
 #include "../kicad/kicad_session.h"
 #include "../netlist/editor_netlist_source.h"
 #include "../netlist/netlist.h"
@@ -181,6 +182,19 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         if (csv_file.has_value()) {
             // load the parsed csv file
             load_analysis_measurements(std::move(csv_file.value()));
+        }
+        return;
+    }
+    // dat file extension, covering all the analysis-specific .dat variants
+    // produced by .PRINT FORMAT=TECPLOT, including the intrusive PCE
+    // companion files
+    if (extension == ".dat") {
+        // parse the tecplot file
+        auto tecplot_file = xyce_tecplot_file_parser(path);
+        // check tecplot file was parsed
+        if (tecplot_file.has_value()) {
+            // load the parsed tecplot file
+            load_analysis_measurements(std::move(tecplot_file.value()));
         }
         return;
     }
@@ -823,9 +837,10 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
     if (!analysis_print.has_value())
         return std::nullopt;
-    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; CSV produces the same table with a comma delimiter and a .csv extension; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
+    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; CSV produces the same table with a comma delimiter and a .csv extension; TECPLOT produces the same table in the tecplot format with a .dat extension; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
     bool is_prn_format = true;
     bool is_csv_format = false;
+    bool is_tecplot_format = false;
     bool is_probe_format = false;
     std::filesystem::path output_path;
     // check for known .prn-producing formats; empty format defaults to STD
@@ -836,18 +851,20 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
         is_prn_format = (format == "STD" || format == "NOINDEX" || format == "GNUPLOT" || format == "SPLOT");
         // CSV format produces the same table with a comma delimiter in a .csv file
         is_csv_format = (format == "CSV");
+        // TECPLOT format produces the same table in the tecplot format in a .dat file
+        is_tecplot_format = (format == "TECPLOT");
         // PROBE format produces the .csd output file
         is_probe_format = (format == "PROBE");
     }
-    if (is_prn_format || is_csv_format) {
-        // .prn and .csv formats preserve the FILE= option
+    if (is_prn_format || is_csv_format || is_tecplot_format) {
+        // .prn, .csv and .dat formats preserve the FILE= option
         if (!analysis_print->print_file.empty()) {
             const auto resolved = std::filesystem::path(strip_outer_quotes(analysis_print->print_file));
             output_path = resolved.is_absolute() ? resolved : working_directory / resolved;
         }
         else {
             // no FILE= specified: Xyce writes <netlist><suffix> next to the netlist; the suffix depends on the print type and the format
-            output_path = std::filesystem::path(netlist_path).string() + (is_csv_format ? csv_output_suffix(analysis_print->print_type) : prn_output_suffix(analysis_print->print_type));
+            output_path = std::filesystem::path(netlist_path).string() + (is_csv_format ? csv_output_suffix(analysis_print->print_type) : is_tecplot_format ? tecplot_output_suffix(analysis_print->print_type) : prn_output_suffix(analysis_print->print_type));
         }
     }
     else if (is_probe_format) {
@@ -876,7 +893,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
     // parse the file with the appropriate parser and prepare the instance: the
     // tab plot type follows the configured analysis print type, not
     // the produced file, so the label is identical for every format
-    auto measurements = is_csv_format ? xyce_csv_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
+    auto measurements = is_csv_format ? xyce_csv_file_parser(output_path) : is_tecplot_format ? xyce_tecplot_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
     if (measurements.has_value())
         apply_analysis_print_metadata(**measurements);
     return measurements;
