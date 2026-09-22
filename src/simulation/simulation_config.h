@@ -8,6 +8,7 @@
 
 #include "../netlist/netlist.h"
 #include "data_block.h"
+#include "ic_parameters.h"
 #include "option_parameters.h"
 #include "print_parameters.h"
 #include "step_parameters.h"
@@ -32,7 +33,7 @@ public:
     // construct a simulation config from individual components
     // replace_ground defaults to true because KiCad netlists reference the ground node as "GND"
     // while Xyce uses node "0"; the .PREPROCESS REPLACEGROUND directive has no default per the RG
-    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true);
+    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true, ICParameters ic_parameters = {});
 
     // parse all directives into a SimulationConfig instance
     [[nodiscard]] static SimulationConfig from_xyce_directives(const std::vector<std::string>& directives);
@@ -128,4 +129,6 @@ public:
     std::vector<PrintParameters> unassociated_prints;
     // whether to apply the replace-ground (GND->0) preprocessing directive
     bool replace_ground;
+    // initial condition parameters (.IC / .DCVOLT directives)
+    ICParameters ic_parameters;
 };
