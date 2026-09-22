@@ -1,6 +1,26 @@
 # Xyce Studio
 
+[![Documentation](https://img.shields.io/badge/docs-github%20pages-blue)](https://spice-projects.github.io/xyce-studio/)
+
 Native desktop UI for the Xyce circuit simulator, shipped as a KiCad plugin (launched from the schematic editor over IPC) and as a standalone macOS application for loading netlists, running simulations, and visualizing output.
+
+**Xyce Studio is not a simulator** — it drives the [Xyce](https://xyce.sandia.gov/) executable from Sandia National Labs, which you install separately.
+
+![Xyce Studio main window](docs/user-guide/images/main-window.png)
+
+## Features
+
+- SPICE-style netlist editor with syntax coloring
+- Simulation command dialog supporting Transient, AC, DC, Harmonic Balance, Noise, Operating Point, and Linear analyses
+- Interactive charts with expression plotting, zoom, FFT calculations, and parametric step filtering
+- Persistent plugin configuration for the Xyce executable path
+- IPC integration with KiCad via NNG and the vendored KiCad protobuf API
+
+## Documentation
+
+The full user documentation is at **https://spice-projects.github.io/xyce-studio/** — installation, first simulation tutorial, user guide (simulations, waveform viewer, KiCad integration), troubleshooting, and build instructions.
+
+This README only covers the KiCad plugin installation; see the documentation site for the complete guide.
 
 ## Installation
 
@@ -12,7 +32,7 @@ Native desktop UI for the Xyce circuit simulator, shipped as a KiCad plugin (lau
 2. Go to **Preferences** → **Settings** → **API**
 3. Enable **KiCad API**
 
-![KiCad Plugin Preferences](docs/kicad-plugin-settings.png)
+![KiCad Plugin Preferences](docs/images/kicad-plugin-settings.png)
 
 #### Step 2: Restart KiCad
 
@@ -30,7 +50,7 @@ Download the package for your platform: `kicad-xyce-plugin-macos.zip` or `kicad-
 2. Go to **Tools** → **Plugin Manager** (or **Preferences** → **Plugin Manager**)
 3. Click **Install from File...** and select the downloaded plugin `.zip` file
 
-![Install from File](docs/kicad-package-manager.png)
+![Install from File](docs/images/kicad-package-manager.png)
 
 #### Step 5: Restart KiCad
 
@@ -40,115 +60,26 @@ Restart KiCad so the newly installed plugin is loaded and registered.
 
 Open a schematic project. The plugin appears as a toolbar button in the schematic editor — click it to launch the simulator.
 
-![KiCad Schematic Editor](docs/kicad-schematic-editor.png)
+![KiCad Schematic Editor](docs/images/kicad-schematic-editor.png)
 
 ### Standalone app (macOS)
 
 Download `xyce-studio-macos.zip` from the [latest release](https://github.com/spice-projects/xyce-studio/releases/latest), unzip it, and drag `Xyce Studio.app` to your Applications folder. The standalone app does not connect to KiCad: it opens netlist files, runs simulations with Xyce, and visualizes the output, and it can also open Xyce simulation output files directly.
 
-## Current status
+## Building from Source
 
-- Development status: in progress
-- Primary action: Run Xyce Circuit Simulator
-- Runtime: native C++23 executable (IPC plugin)
-
-## What this project provides
-
-- Native KiCad plugin action to launch the simulator UI
-- Simulation command dialog supporting Transient, AC, DC, Harmonic Balance, Noise, Operating Point, and Linear analyses
-- Xyce process runner with streamed stdout and stderr handling
-- Interactive Slint desktop UI with native charts and expression plotting
-- FFT calculations for transient analysis and STEP visualization
-- Persistent plugin configuration for the Xyce executable path
-- IPC integration with KiCad via NNG and the vendored KiCad protobuf API
-
-## Repository layout
-
-- `src/`: main source directory containing the application logic and files
-  - `src/main.osx.mm`, `src/main.win32.c++`, `src/main.linux.c++`: platform entry points
-  - `src/app/`: application lifecycle (singleton, platform initialization)
-  - `src/core/`: shared utilities (`util`, `view`, `step_information`)
-  - `src/plugin.json`: KiCad Plugin and Content Manager (PCM) executable-plugin metadata
-  - `src/kicad/`: KiCad IPC connection (NNG), session handling, and netlist source
-  - `src/netlist/`: Xyce netlist generation
-  - `src/simulation/`: simulation parameter models
-  - `src/expression/`: expression parsing/evaluation
-  - `src/dsp/`: FFT computation for spectral analysis
-  - `src/io/`: Xyce output/raw/FFT file readers
-  - `src/charts/`: chart data model and decimation algorithms
-  - `src/config/`: plugin configuration
-  - `src/ui/`: Slint desktop UI (flat layout: views/presenters, dialog wrappers, platform backends, charts renderer)
-- `netlists/`: sample/test netlists
-- `tests/`: C++ unit tests (GoogleTest)
-- `xyce-docs/`: vendor-provided Xyce documentation PDFs
-- `STYLE-GUIDE.md`: style guidelines for the codebase
-
-## Requirements
-
-- C++23 compiler and CMake 3.25+
-- KiCad 10.0 or newer with IPC plugin runtime support
-- Xyce executable installed and available on disk
-- Dependencies are managed via `vcpkg` (see `vcpkg.json`)
-
-## Local development setup
-
-Configure and build with CMake presets. Dependencies come from vcpkg via the toolchain file.
+Requires a C++23 compiler, CMake 3.25+, and vcpkg-managed dependencies (see `vcpkg.json`). Build with:
 
 ```bash
 cmake --preset debug
 cmake --build --preset debug
 ```
 
-Other presets are available in `CMakePresets.json`: `release` and `profile`.
-
-## Running locally
-
-The binary runs in two modes:
-
-- **Standalone**: run the executable directly (`.build-debug/xyce-studio`); it opens netlist and simulation output files through the file dialog.
-- **KiCad plugin mode**: launched by KiCad over IPC using the `KICAD_API_SOCKET` and `KICAD_API_TOKEN` environment variables; the plugin entrypoint/metadata referenced by KiCad lives in `src/plugin.json` and `metadata.json`.
-
-## Building the KiCad package
-
-```bash
-./build/create-kicad-package.sh <version>
-```
-
-The executable defaults to `.build-debug/xyce-studio` and can be overridden as the second argument. The result is written to `dist/`.
-
-## Testing
-
-### C++
-
-Tests are built alongside the plugin. Run the test executable directly:
-
-```bash
-./.build-debug/tests/xyce-studio-tests
-```
-
-### Python (including UI integration tests)
-
-```bash
-python3 -m unittest discover -v -s . -p "*_test.py"
-```
-
-The KiCad plugin mode scenario in `tests_ui/kicad_reconfigure_test.py` requires the `pynng` package (`pip install pynng`); it simulates the KiCad API server with an in-process mock.
-
-## Configuration
-
-At runtime, the plugin expects a valid path to the Xyce executable. Configure it in the plugin UI via the Configuration dialog, along with analysis-specific simulation settings.
-
-## Troubleshooting
-
-- If simulation fails to start, verify the configured Xyce path points to an executable file
-- If the plugin does not run from KiCad, verify KiCad plugin discovery and IPC runtime environment configuration
-- If the UI fails to initialize, verify the platform graphics backend (Metal/D3D11/OpenGL) is available
+Run the built binary directly for standalone mode, or launch it from KiCad over IPC (`KICAD_API_SOCKET`/`KICAD_API_TOKEN`). The full developer guide — presets, application modes, tests, and building the KiCad package — is at [Building from Source](https://spice-projects.github.io/xyce-studio/development/building/).
 
 ## Contributing
 
-1. Open an issue describing the proposed change
-2. Implement and test in a feature branch
-3. Submit a pull request with a clear summary and validation notes
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

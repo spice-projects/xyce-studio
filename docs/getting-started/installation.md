@@ -5,7 +5,7 @@
 - **KiCad 10.0 or newer** (only needed for the KiCad plugin mode)
 - **Xyce** installed somewhere on disk — Xyce Studio drives the Xyce
   executable; it does not bundle a simulator. The path is configured on
-  first use (see [Configuring the Xyce Executable](configuration.md)).
+  first use (see [Configuring the Xyce Executable](../user-guide/configuration.md)).
 
 ## KiCad plugin
 
@@ -15,7 +15,7 @@
 2. Go to **Preferences** → **Settings** → **API**.
 3. Enable **KiCad API**.
 
-![KiCad Plugin Preferences](../kicad-plugin-settings.png)
+![KiCad Plugin Preferences](../images/kicad-plugin-settings.png)
 
 ### Step 2: Restart KiCad
 
@@ -36,7 +36,7 @@ Pick the package for your platform: `kicad-xyce-plugin-macos.zip` or
    **Plugin Manager**).
 3. Click **Install from File...** and select the downloaded `.zip` file.
 
-![Install from File](../kicad-package-manager.png)
+![Install from File](../images/kicad-package-manager.png)
 
 ### Step 5: Restart KiCad
 
@@ -48,7 +48,7 @@ Open a schematic project. The plugin appears as a toolbar button in the
 schematic editor — **Run Xyce Circuit Simulator**. Click it to launch the
 simulator with your schematic already netlisted.
 
-![KiCad Schematic Editor](../kicad-schematic-editor.png)
+![KiCad Schematic Editor](../images/kicad-schematic-editor.png)
 
 When launched from KiCad, Xyce Studio extracts the schematic netlist
 automatically and places it in the built-in editor. The editor is

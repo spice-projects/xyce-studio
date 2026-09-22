@@ -86,3 +86,5 @@ dist/
 
 # vcpkg binary cache (populated by CMake presets)
 .vcpkg-cache/
+site
+.venv-docs/

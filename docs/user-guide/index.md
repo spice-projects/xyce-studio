@@ -19,7 +19,8 @@ everything in this guide applies to both unless explicitly noted.
 
 ## Contents
 
-1. [Installation](installation.md)
+1. [Installation](../getting-started/installation.md) and a
+   [First Simulation tutorial](../getting-started/first-simulation.md)
 2. [The Main Window](main-window.md)
 3. [Configuring the Xyce Executable](configuration.md)
 4. [Running Simulations](simulations.md)
