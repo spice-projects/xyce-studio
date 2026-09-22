@@ -466,3 +466,36 @@ std::string csv_output_suffix(const std::string& print_type) {
     // default suffix for all other types (DC, TRAN, ...): appended straight to the netlist name
     return ".csv";
 }
+
+std::string tecplot_output_suffix(const std::string& print_type) {
+    // normalize the print type to uppercase
+    std::string u = print_type;
+    std::transform(u.begin(), u.end(), u.begin(), ::toupper);
+    // frequency-domain subtypes with their own suffixes (reference guide tables 2-19 to 2-29)
+    if (u == "HB" || u == "HB_FD")
+        return ".HB.FD.dat";
+    if (u == "HB_TD")
+        return ".HB.TD.dat";
+    if (u == "HB_IC")
+        return ".hb_ic.dat";
+    if (u == "HB_STARTUP")
+        return ".startup.dat";
+    if (u == "AC" || u == "LIN")
+        return ".FD.dat";
+    if (u == "AC_IC")
+        return ".TD.dat";
+    if (u == "NOISE")
+        return ".NOISE.dat";
+    if (u == "HOMOTOPY")
+        return ".HOMOTOPY.dat";
+    if (u == "SENS")
+        return ".SENS.dat";
+    if (u == "TRANADJOINT")
+        return ".TRADJ.dat";
+    if (u == "ES")
+        return ".ES.dat";
+    if (u == "PCE")
+        return ".PCE.dat";
+    // default suffix for all other types (DC, TRAN, ...): appended straight to the netlist name
+    return ".dat";
+}

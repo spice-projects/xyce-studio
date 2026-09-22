@@ -169,6 +169,13 @@ TEST(AppChecks, initialize_parses_prn_csd_csv_output_forms) {
     }
     ASSERT_TRUE(app.raw_path().has_value());
     EXPECT_EQ(app.raw_path()->string(), "/tmp/output.csv");
+    // act / assert — dat
+    {
+        const char* argv[] = {"test", "--raw", "/tmp/output.dat"};
+        app.initialize(3, const_cast<char**>(argv));
+    }
+    ASSERT_TRUE(app.raw_path().has_value());
+    EXPECT_EQ(app.raw_path()->string(), "/tmp/output.dat");
 }
 
 TEST(AppChecks, initialize_accepts_uppercase_output_extension) {

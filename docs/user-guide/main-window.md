@@ -7,7 +7,7 @@ The main window has four areas:
 - the **toolbar** at the top,
 - the **netlist editor** in the center,
 - the **charts panel** (shown after a simulation or when opening a
-  simulation output file — `.raw`, `.prn`, `.csv` or `.csd`), and
+  simulation output file — `.raw`, `.prn`, `.csv`, `.csd` or `.dat`), and
 - the **status bar** at the bottom.
 
 The window title shows the netlist or schematic file name. When the
@@ -19,7 +19,7 @@ From left to right:
 
 | Tool | Action |
 | --- | --- |
-| **Open** | Open a Xyce file (`.cir` netlist, or a simulation output: `.raw`, `.prn`, `.csv`, `.csd`). Standalone mode only. |
+| **Open** | Open a Xyce file (`.cir` netlist, or a simulation output: `.raw`, `.prn`, `.csv`, `.csd`, `.dat`). Standalone mode only. |
 | **Save** | Save the netlist. Enabled only when the editor has unsaved changes. |
 | **Netlist** | Show the netlist editor. |
 | **Charts** | Show the charts panel. |

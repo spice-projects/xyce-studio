@@ -63,6 +63,6 @@ pick up changes.
 
 The standalone app does not connect to KiCad: it opens netlist files
 (`.cir`), runs simulations, and visualizes the output. It can also open
-Xyce simulation output files (`.raw`, `.prn`, `.csv` or `.csd`) directly
-— useful for re-examining results from a previous run or analyzing output
-produced by a command-line Xyce session.
+Xyce simulation output files (`.raw`, `.prn`, `.csv`, `.csd` or `.dat`)
+directly — useful for re-examining results from a previous run or analyzing
+output produced by a command-line Xyce session.

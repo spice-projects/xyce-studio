@@ -79,3 +79,12 @@ public:
 // .TRADJ.csv, ES → .ES.csv, PCE → .PCE.csv, everything else (DC, TRAN, ...) →
 // .csv appended straight to the netlist name
 [[nodiscard]] std::string csv_output_suffix(const std::string& print_type);
+
+// return the Xyce .dat output file suffix for a .PRINT FORMAT=TECPLOT print
+// type per the reference guide (tables 2-19 to 2-29): AC → .FD.dat, AC_IC →
+// .TD.dat, HB frequency data → .HB.FD.dat, HB time data → .HB.TD.dat, HB
+// initial conditions → .hb_ic.dat, HB startup → .startup.dat, NOISE →
+// .NOISE.dat, HOMOTOPY → .HOMOTOPY.dat, SENS → .SENS.dat, TRANADJOINT →
+// .TRADJ.dat, ES → .ES.dat, PCE → .PCE.dat, everything else (DC, TRAN, ...) →
+// .dat appended straight to the netlist name
+[[nodiscard]] std::string tecplot_output_suffix(const std::string& print_type);

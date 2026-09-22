@@ -368,9 +368,8 @@ card:
 
 Xyce Studio can plot **all** simulation output: the charts panel reads
 the print file produced by the run in any plottable format — `RAW`
-(`.raw`), `PROBE` (`.csd`), `CSV` (`.csv`) and the `.prn` formats
-(`STD`, `NOINDEX`, `GNUPLOT`, `SPLOT`). TECPLOT (`.dat`) cannot be
-plotted. Therefore:
+(`.raw`), `PROBE` (`.csd`), `CSV` (`.csv`), `TECPLOT` (`.dat`) and the
+`.prn` formats (`STD`, `NOINDEX`, `GNUPLOT`, `SPLOT`). Therefore:
 
 - always **enable .PRINT output** for the analysis you are running, and
 - keep the **Format** on any plottable value — `(default)` (STD) works.

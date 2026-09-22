@@ -1003,6 +1003,109 @@ TEST(CsvOutputSuffixChecks, unknown_type_falls_back_to_dot_csv) {
     EXPECT_EQ(lower_suffix, ".FD.csv");
 }
 
+TEST(TecplotOutputSuffixChecks, tran_produces_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("TRAN");
+    // assert
+    EXPECT_EQ(suffix, ".dat");
+}
+
+TEST(TecplotOutputSuffixChecks, dc_produces_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("DC");
+    // assert
+    EXPECT_EQ(suffix, ".dat");
+}
+
+TEST(TecplotOutputSuffixChecks, ac_produces_fd_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("AC");
+    // assert
+    EXPECT_EQ(suffix, ".FD.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, ac_ic_produces_td_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("AC_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, hb_variants_produce_their_own_dat_suffixes) {
+    // arrange / act
+    const auto hb = tecplot_output_suffix("HB");
+    const auto hb_fd = tecplot_output_suffix("HB_FD");
+    const auto hb_td = tecplot_output_suffix("HB_TD");
+    const auto hb_ic = tecplot_output_suffix("HB_IC");
+    const auto hb_startup = tecplot_output_suffix("HB_STARTUP");
+    // assert
+    EXPECT_EQ(hb, ".HB.FD.dat");
+    EXPECT_EQ(hb_fd, ".HB.FD.dat");
+    EXPECT_EQ(hb_td, ".HB.TD.dat");
+    EXPECT_EQ(hb_ic, ".hb_ic.dat");
+    EXPECT_EQ(hb_startup, ".startup.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, noise_produces_noise_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("NOISE");
+    // assert
+    EXPECT_EQ(suffix, ".NOISE.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, homotopy_produces_homotopy_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("HOMOTOPY");
+    // assert
+    EXPECT_EQ(suffix, ".HOMOTOPY.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, sens_produces_sens_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("SENS");
+    // assert
+    EXPECT_EQ(suffix, ".SENS.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, tranadjoint_produces_tradj_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("TRANADJOINT");
+    // assert
+    EXPECT_EQ(suffix, ".TRADJ.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, es_produces_es_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("ES");
+    // assert
+    EXPECT_EQ(suffix, ".ES.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, pce_produces_pce_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("PCE");
+    // assert
+    EXPECT_EQ(suffix, ".PCE.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, lin_produces_fd_dot_dat) {
+    // arrange / act
+    const auto suffix = tecplot_output_suffix("LIN");
+    // assert
+    EXPECT_EQ(suffix, ".FD.dat");
+}
+
+TEST(TecplotOutputSuffixChecks, unknown_type_falls_back_to_dot_dat) {
+    // arrange / act
+    const auto unknown_suffix = tecplot_output_suffix("UNKNOWN_TYPE");
+    const auto empty_suffix = tecplot_output_suffix("");
+    const auto lower_suffix = tecplot_output_suffix("ac");
+    // assert
+    EXPECT_EQ(unknown_suffix, ".dat");
+    EXPECT_EQ(empty_suffix, ".dat");
+    EXPECT_EQ(lower_suffix, ".FD.dat");
+}
+
 // ========================================================================================
 // csd output file path computation
 // ========================================================================================
