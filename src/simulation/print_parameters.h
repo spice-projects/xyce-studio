@@ -64,8 +64,18 @@ public:
 // statement survives tokenization; already-quoted values pass through as-is
 [[nodiscard]] std::string format_print_file_value(const std::string& file);
 
-// return the Xyce output file suffix for a .PRINT type per the reference guide:
-// AC/HB/FD → .FD.prn, AC_IC and HB time-domain subtypes → .TD.prn,
-// ES → .ES.prn, SENS → .SENS.prn, TRANADJOINT → .TRADJ.prn, PCE → .PCE.prn,
-// everything else (DC, TRAN, NOISE, HOMOTOPY, etc.) → .prn
+// return the Xyce .prn output file suffix for a .PRINT type per the reference
+// guide: AC → .FD.prn, AC_IC → .TD.prn, HB frequency data → .HB.FD.prn, HB
+// time data → .HB.TD.prn, HB initial conditions → .hb_ic.prn, HB startup →
+// .startup.prn, ES → .ES.prn, SENS → .SENS.prn, TRANADJOINT → .TRADJ.prn,
+// PCE → .PCE.prn, everything else (DC, TRAN, NOISE, HOMOTOPY, etc.) → .prn
 [[nodiscard]] std::string prn_output_suffix(const std::string& print_type);
+
+// return the Xyce .csv output file suffix for a .PRINT FORMAT=CSV print type
+// per the reference guide (tables 2-19 to 2-29): AC → .FD.csv, AC_IC →
+// .TD.csv, HB frequency data → .HB.FD.csv, HB time data → .HB.TD.csv, HB
+// initial conditions → .hb_ic.csv, HB startup → .startup.csv, NOISE →
+// .NOISE.csv, HOMOTOPY → .HOMOTOPY.csv, SENS → .SENS.csv, TRANADJOINT →
+// .TRADJ.csv, ES → .ES.csv, PCE → .PCE.csv, everything else (DC, TRAN, ...) →
+// .csv appended straight to the netlist name
+[[nodiscard]] std::string csv_output_suffix(const std::string& print_type);

@@ -2,7 +2,8 @@
 
 After a successful simulation the charts panel opens automatically. You
 can also switch to it with the **Charts** toolbar tool, or open a Xyce
-raw output file (`.raw`) directly in standalone mode.
+simulation output file (`.raw`, `.prn`, `.csv` or `.csd`) directly in
+standalone mode.
 
 ![Transient charts](images/charts-transient.png)
 

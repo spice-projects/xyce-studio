@@ -19,11 +19,12 @@ namespace
     class TempFileRAII
     {
     public:
-        // construct file with given content
-        explicit TempFileRAII(const std::string& content) {
+        // construct file with given content and optional explicit stem
+        explicit TempFileRAII(const std::string& content, const std::string& name = "") {
             static int counter = 0;
             // build unique path
-            m_path = std::filesystem::temp_directory_path() / ("test_prn_gtest_" + std::to_string(counter++) + "_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".prn");
+            const std::string stem = name.empty() ? ("test_prn_gtest_" + std::to_string(counter++) + "_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count())) : name;
+            m_path = std::filesystem::temp_directory_path() / (stem + ".prn");
             // open file stream
             std::ofstream out(m_path, std::ios::binary);
             // write content
@@ -568,4 +569,154 @@ TEST(XycePrnFileParserTest, parses_interleaved_complex_columns) {
     ASSERT_DOUBLE_EQ(v2_data[0].imag(), 0.2);
     ASSERT_DOUBLE_EQ(v2_data[1].real(), 4.0);
     ASSERT_DOUBLE_EQ(v2_data[1].imag(), 0.4);
+}
+
+TEST(XycePrnFileParserTest, returns_nullopt_when_file_is_not_readable) {
+    // arrange — the file exists but read permission is withdrawn; platforms that do not deny reads on permission-none files (Windows maps perms::none to the read-only attribute) skip the assertion
+    const auto path = std::filesystem::temp_directory_path() / "xyce_prn_unreadable_test.prn";
+    {
+        std::ofstream out(path, std::ios::binary);
+        out << "TIME V(1)\n0.0 1.0\n";
+    }
+    std::error_code ec;
+    std::filesystem::permissions(path, std::filesystem::perms::none, ec);
+    // probe whether the platform really denies the read
+    {
+        std::ifstream probe(path);
+        if (probe.is_open()) {
+            // restore and remove the file before skipping
+            std::filesystem::permissions(path, std::filesystem::perms::all, ec);
+            std::filesystem::remove(path, ec);
+            GTEST_SKIP() << "platform does not deny reads on permission-none files";
+        }
+    }
+    // act
+    const auto result = xyce_prn_file_parser(path);
+    // assert
+    EXPECT_FALSE(result.has_value());
+    // cleanup — restore permissions so the file can be removed
+    std::filesystem::permissions(path, std::filesystem::perms::all, ec);
+    std::filesystem::remove(path, ec);
+}
+
+TEST(XycePrnFileParserTest, returns_nullopt_when_file_has_only_crlf_blank_lines) {
+    // arrange — carriage-only lines: the header search strips them and finds no header
+    const TempFileRAII temp_file("\r\n\r\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, returns_nullopt_when_header_line_is_whitespace_only) {
+    // arrange — the first non-blank line holds no tokens
+    const TempFileRAII temp_file("   \nTIME V(1)\n0.0 1.0\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, returns_nullopt_when_header_has_only_format_token) {
+    // arrange — the FORMAT= token is not a column, so no columns remain
+    const TempFileRAII temp_file("FORMAT=UNKNOWN\n0.0\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, returns_nullopt_when_index_column_has_no_absconissa) {
+    // arrange — an index-only header leaves no abscissa column
+    const TempFileRAII temp_file("INDEX\n0\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(XycePrnFileParserTest, explicit_gnuplot_format_token_wins_over_inference) {
+    // arrange
+    const TempFileRAII temp_file("TIME V(1) FORMAT=GNUPLOT\n0.0 1.0\n1e-9 1.1\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()->metadata().at("format"), "GNUPLOT");
+}
+
+TEST(XycePrnFileParserTest, explicit_splot_format_token_wins_over_inference) {
+    // arrange
+    const TempFileRAII temp_file("TIME V(1) FORMAT=SPLOT\n0.0 1.0\n1e-9 1.1\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()->metadata().at("format"), "SPLOT");
+}
+
+TEST(XycePrnFileParserTest, explicit_std_format_token_wins_over_inference) {
+    // arrange
+    const TempFileRAII temp_file("TIME V(1) FORMAT=STD\n0.0 1.0\n1e-9 1.1\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()->metadata().at("format"), "STD");
+}
+
+TEST(XycePrnFileParserTest, handles_windows_line_endings_in_header_and_data) {
+    // arrange
+    const TempFileRAII temp_file("TIME V(1)\r\n0.0 1.0\r\n1e-9 1.1\r\n.\r\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    auto data = result.value()->abscissa().data();
+    ASSERT_EQ(data.size(), 2);
+    EXPECT_DOUBLE_EQ(data[1], 1e-9);
+}
+
+TEST(XycePrnFileParserTest, skips_rows_with_non_numeric_tokens) {
+    // arrange
+    const TempFileRAII temp_file("TIME V(1)\n0.0 1.0\nabc 2.0\n1e-9 1.1\n");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    auto data = result.value()->abscissa().data();
+    ASSERT_EQ(data.size(), 2);
+    EXPECT_DOUBLE_EQ(data[1], 1e-9);
+}
+
+TEST(XycePrnFileParserTest, plot_type_from_noise_suffix) {
+    // arrange
+    const TempFileRAII temp_file("FREQ INOISE\n100 1.0\n", "probe_noise.NOISE");
+    // act
+    const auto result = xyce_prn_file_parser(temp_file.path());
+    // assert
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()->plot_type(), PlotType::NOISE);
+}
+
+TEST(XycePrnFileParserTest, plot_type_from_netlist_name_markers) {
+    // arrange — plain .prn files carry the analysis marker in the netlist name
+    const TempFileRAII tran("TIME V(1)\n0.0 1.0\n", "probe_tran_file");
+    const TempFileRAII ac("FREQ V(1)\n100 1.0\n", "probe_ac_file");
+    const TempFileRAII dc("SOURCE V(1)\n0.0 1.0\n", "probe_dc_file");
+    const TempFileRAII noise("SOURCE V(1)\n0.0 1.0\n", "probename_noise_x");
+    // act
+    const auto tran_result = xyce_prn_file_parser(tran.path());
+    const auto ac_result = xyce_prn_file_parser(ac.path());
+    const auto dc_result = xyce_prn_file_parser(dc.path());
+    const auto noise_result = xyce_prn_file_parser(noise.path());
+    // assert
+    ASSERT_TRUE(tran_result.has_value());
+    EXPECT_EQ(tran_result.value()->plot_type(), PlotType::TRANSIENT);
+    ASSERT_TRUE(ac_result.has_value());
+    EXPECT_EQ(ac_result.value()->plot_type(), PlotType::AC);
+    ASSERT_TRUE(dc_result.has_value());
+    EXPECT_EQ(dc_result.value()->plot_type(), PlotType::DC);
+    ASSERT_TRUE(noise_result.has_value());
+    EXPECT_EQ(noise_result.value()->plot_type(), PlotType::NOISE);
 }

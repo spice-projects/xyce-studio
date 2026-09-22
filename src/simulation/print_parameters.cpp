@@ -404,11 +404,22 @@ std::string prn_output_suffix(const std::string& print_type) {
     // normalize the print type to uppercase
     std::string u = print_type;
     std::transform(u.begin(), u.end(), u.begin(), ::toupper);
-    // frequency-domain print types (AC, HB, LIN)
-    if (u == "AC" || u == "HB" || u == "HB_FD" || u == "LIN")
+    // frequency-domain subtypes with their own suffixes: HB writes .HB.FD.prn
+    if (u == "HB" || u == "HB_FD")
+        return ".HB.FD.prn";
+    // time-domain HB subtypes: HB_TD writes .HB.TD.prn, HB_IC writes
+    // .hb_ic.prn and HB_STARTUP writes .startup.prn
+    if (u == "HB_TD")
+        return ".HB.TD.prn";
+    if (u == "HB_IC")
+        return ".hb_ic.prn";
+    if (u == "HB_STARTUP")
+        return ".startup.prn";
+    // frequency-domain output types: AC and .LIN produce .FD.prn
+    if (u == "AC" || u == "LIN")
         return ".FD.prn";
-    // time-domain subtypes (AC_IC, HB_TD, HB_IC, HB_STARTUP)
-    if (u == "AC_IC" || u == "HB_TD" || u == "HB_IC" || u == "HB_STARTUP")
+    // time-domain subtypes (AC_IC)
+    if (u == "AC_IC")
         return ".TD.prn";
     // specialized types with their own suffix
     if (u == "ES")
@@ -421,4 +432,37 @@ std::string prn_output_suffix(const std::string& print_type) {
         return ".PCE.prn";
     // default suffix for all other types (DC, TRAN, NOISE, HOMOTOPY, ...)
     return ".prn";
+}
+
+std::string csv_output_suffix(const std::string& print_type) {
+    // normalize the print type to uppercase
+    std::string u = print_type;
+    std::transform(u.begin(), u.end(), u.begin(), ::toupper);
+    // frequency-domain subtypes with their own suffixes (reference guide tables 2-19 to 2-29)
+    if (u == "HB" || u == "HB_FD")
+        return ".HB.FD.csv";
+    if (u == "HB_TD")
+        return ".HB.TD.csv";
+    if (u == "HB_IC")
+        return ".hb_ic.csv";
+    if (u == "HB_STARTUP")
+        return ".startup.csv";
+    if (u == "AC" || u == "LIN")
+        return ".FD.csv";
+    if (u == "AC_IC")
+        return ".TD.csv";
+    if (u == "NOISE")
+        return ".NOISE.csv";
+    if (u == "HOMOTOPY")
+        return ".HOMOTOPY.csv";
+    if (u == "SENS")
+        return ".SENS.csv";
+    if (u == "TRANADJOINT")
+        return ".TRADJ.csv";
+    if (u == "ES")
+        return ".ES.csv";
+    if (u == "PCE")
+        return ".PCE.csv";
+    // default suffix for all other types (DC, TRAN, ...): appended straight to the netlist name
+    return ".csv";
 }

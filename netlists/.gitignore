@@ -6,3 +6,6 @@
 *.s5p
 *.y0
 *.print_*
+*.csv
+*.prn
+*.csd

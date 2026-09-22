@@ -1,3 +1,4 @@
+#include <array>
 #include <cctype>
 #include <memory>
 #include <optional>
@@ -41,6 +42,27 @@ static bool has_extension(const std::filesystem::path& path, std::string_view ex
     return false;
 }
 
+// extensions of the analysis output files the main window loads: the raw, prn,
+// csd (PROBE) and csv (FORMAT=CSV) print formats, mirrored by the open dialog
+// filter in ui/file_dialog.cpp
+static constexpr std::array<std::string_view, 4> ANALYSIS_OUTPUT_EXTENSIONS = {".raw", ".prn", ".csd", ".csv"};
+
+// check that the path carries one of the analysis output extensions, logging a
+// warning and rejecting it otherwise
+static bool has_analysis_output_extension(const std::filesystem::path& path) {
+    // normalized lowercase extension
+    const auto extension = to_lower(path.extension().string());
+    // compare against the known output extensions
+    for (const auto& known : ANALYSIS_OUTPUT_EXTENSIONS) {
+        if (extension == known)
+            return true;
+    }
+    // warn about the rejected file so the user understands why it was not opened
+    spdlog::warn("ignoring {}: {} is not a Xyce output file", path.string(), path.string());
+    // reject the path
+    return false;
+}
+
 App& App::instance() {
     static App app;
     return app;
@@ -67,10 +89,10 @@ void App::initialize(int argc, char** argv) {
             if (has_extension(*netlist_value, ".cir"))
                 m_netlist_path = std::filesystem::path(*netlist_value);
         }
-        // --raw VALUE or --raw=VALUE opens a simulation output file at startup
+        // --raw VALUE or --raw=VALUE opens a simulation output file at startup; the option accepts every analysis output format the main window loads (.raw, .prn, .csd and the FORMAT=CSV .csv variants)
         else if (auto raw_value = option_value(argc, argv, i, "--raw")) {
-            // only raw output files are accepted through this option
-            if (has_extension(*raw_value, ".raw"))
+            // only output files are accepted through this option
+            if (has_analysis_output_extension(*raw_value))
                 m_raw_path = std::filesystem::path(*raw_value);
         }
         // --xyce VALUE or --xyce=VALUE overrides the Xyce executable for this session
@@ -123,7 +145,7 @@ int App::run() {
         // open the requested netlist through the same code path as the file selection action
         if (m_netlist_path)
             main_presenter->on_open_xyce_file(*m_netlist_path);
-        // load the requested raw output through the same dispatch as the file selection action
+        // load the requested analysis output through the same dispatch as the file selection action
         if (m_raw_path)
             main_presenter->on_open_xyce_file(*m_raw_path);
     }
