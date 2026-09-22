@@ -1454,6 +1454,46 @@ TEST(SlintMainWindowPresenterChecks, open_prn_extension_loads_analysis_measureme
     std::filesystem::remove_all(prn_dir, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, open_prn_extension_ignores_unparseable_file) {
+    // arrange — an existing prn file without a parsable table
+    const auto prn_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_prn_bad";
+    std::filesystem::create_directories(prn_dir);
+    const auto prn_path = prn_dir / "broken.prn";
+    write_file(prn_path, "not a print table\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", prn_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(prn_path);
+    // assert — parse failure leaves the window untouched
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_FALSE(view.m_charts_view_shown);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(prn_path, ec);
+    std::filesystem::remove_all(prn_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_unsupported_extension_is_ignored) {
+    // arrange — a file the dispatch chain knows no parser for
+    const auto other_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_other";
+    std::filesystem::create_directories(other_dir);
+    const auto other_path = other_dir / "notes.txt";
+    write_file(other_path, "hello\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", other_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(other_path);
+    // assert — nothing loads and the editor state is left untouched
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_FALSE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_title, "");
+    EXPECT_TRUE(view.m_editor_read_only);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(other_path, ec);
+    std::filesystem::remove_all(other_dir, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, missing_table_output_finishes_without_dataset) {
     // arrange — a FORMAT=CSV run that produced no file at all
     RecordingView view;

@@ -3,6 +3,8 @@
 #include <array>
 #include <filesystem>
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include <nfd.hpp>
 #include <spdlog/spdlog.h>
@@ -37,14 +39,19 @@ namespace
 
 } // anonymous namespace
 
+std::string FileDialog::open_file_extensions() {
+    // the netlist format plus every analysis output format the presenter dispatches by extension in on_open_xyce_file
+    return std::string("cir,raw,prn,csd,csv");
+}
+
 std::optional<std::filesystem::path> FileDialog::open_xyce_file() {
     // ensure the native file dialog library is initialized
     ensure_nfd();
 
-    // filter list limited to the two file types relevant to Xyce
-    const std::array filters{
-        nfdu8filteritem_t{"Xyce Files", "cir,raw"},
-    };
+    // filter list covering the netlist and all loadable analysis output files;
+    // the description and extension pair lives for the whole call
+    static const std::string extensions = open_file_extensions();
+    static const std::array<nfdu8filteritem_t, 1> filters{{nfdu8filteritem_t{"Xyce Files", extensions.c_str()}}};
 
     // open the native dialog with the filter applied
     nfdu8char_t* outPath = nullptr;

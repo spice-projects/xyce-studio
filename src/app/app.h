@@ -45,7 +45,7 @@ public:
     // the netlist file requested through --netlist, unset when not provided
     [[nodiscard]] const std::optional<std::filesystem::path>& netlist_path() const { return m_netlist_path; }
 
-    // the raw output file requested through --raw, unset when not provided
+    // the analysis output file requested through --raw (.raw, .prn, .csd or .csv), unset when not provided
     [[nodiscard]] const std::optional<std::filesystem::path>& raw_path() const { return m_raw_path; }
 
     // the Xyce executable requested through --xyce, unset when not provided

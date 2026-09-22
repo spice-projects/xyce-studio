@@ -145,6 +145,53 @@ TEST(AppChecks, initialize_parses_raw_space_form) {
     EXPECT_EQ(app.raw_path()->string(), "/tmp/output.raw");
 }
 
+TEST(AppChecks, initialize_parses_prn_csd_csv_output_forms) {
+    // arrange — every analysis output extension the main window loads is accepted through --raw
+    App& app = App::instance();
+    // act / assert — prn
+    {
+        const char* argv[] = {"test", "--raw", "/tmp/output.prn"};
+        app.initialize(3, const_cast<char**>(argv));
+    }
+    ASSERT_TRUE(app.raw_path().has_value());
+    EXPECT_EQ(app.raw_path()->string(), "/tmp/output.prn");
+    // act / assert — csd
+    {
+        const char* argv[] = {"test", "--raw", "/tmp/output.csd"};
+        app.initialize(3, const_cast<char**>(argv));
+    }
+    ASSERT_TRUE(app.raw_path().has_value());
+    EXPECT_EQ(app.raw_path()->string(), "/tmp/output.csd");
+    // act / assert — csv
+    {
+        const char* argv[] = {"test", "--raw", "/tmp/output.csv"};
+        app.initialize(3, const_cast<char**>(argv));
+    }
+    ASSERT_TRUE(app.raw_path().has_value());
+    EXPECT_EQ(app.raw_path()->string(), "/tmp/output.csv");
+}
+
+TEST(AppChecks, initialize_accepts_uppercase_output_extension) {
+    // arrange — the extension comparison is case-insensitive
+    const char* argv[] = {"test", "--raw=/tmp/RESULTS.CSV"};
+    App& app = App::instance();
+    // act
+    app.initialize(2, const_cast<char**>(argv));
+    // assert
+    ASSERT_TRUE(app.raw_path().has_value());
+    EXPECT_EQ(app.raw_path()->string(), "/tmp/RESULTS.CSV");
+}
+
+TEST(AppChecks, initialize_rejects_raw_with_unrelated_extension) {
+    // arrange — a .txt file is not an analysis output
+    const char* argv[] = {"test", "--raw", "/tmp/notes.txt"};
+    App& app = App::instance();
+    // act
+    app.initialize(3, const_cast<char**>(argv));
+    // assert
+    EXPECT_FALSE(app.raw_path().has_value());
+}
+
 TEST(AppChecks, initialize_parses_xyce_space_form) {
     // arrange
     const char* argv[] = {"test", "--xyce", "/usr/local/bin/Xyce"};
