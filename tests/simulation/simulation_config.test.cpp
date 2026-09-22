@@ -828,39 +828,39 @@ TEST(PrnOutputSuffixChecks, es_produces_es_dot_prn) {
     EXPECT_EQ(suffix, ".ES.prn");
 }
 
-TEST(PrnOutputSuffixChecks, hb_produces_fd_dot_prn) {
+TEST(PrnOutputSuffixChecks, hb_produces_hb_fd_dot_prn) {
     // arrange / act
     const auto suffix = prn_output_suffix("HB");
     // assert
-    EXPECT_EQ(suffix, ".FD.prn");
+    EXPECT_EQ(suffix, ".HB.FD.prn");
 }
 
-TEST(PrnOutputSuffixChecks, hb_fd_produces_fd_dot_prn) {
+TEST(PrnOutputSuffixChecks, hb_fd_produces_hb_fd_dot_prn) {
     // arrange / act
     const auto suffix = prn_output_suffix("HB_FD");
     // assert
-    EXPECT_EQ(suffix, ".FD.prn");
+    EXPECT_EQ(suffix, ".HB.FD.prn");
 }
 
-TEST(PrnOutputSuffixChecks, hb_td_produces_td_dot_prn) {
+TEST(PrnOutputSuffixChecks, hb_td_produces_hb_td_dot_prn) {
     // arrange / act
     const auto suffix = prn_output_suffix("HB_TD");
     // assert
-    EXPECT_EQ(suffix, ".TD.prn");
+    EXPECT_EQ(suffix, ".HB.TD.prn");
 }
 
-TEST(PrnOutputSuffixChecks, hb_ic_produces_td_dot_prn) {
+TEST(PrnOutputSuffixChecks, hb_ic_produces_hb_ic_dot_prn) {
     // arrange / act
     const auto suffix = prn_output_suffix("HB_IC");
     // assert
-    EXPECT_EQ(suffix, ".TD.prn");
+    EXPECT_EQ(suffix, ".hb_ic.prn");
 }
 
-TEST(PrnOutputSuffixChecks, hb_startup_produces_td_dot_prn) {
+TEST(PrnOutputSuffixChecks, hb_startup_produces_startup_dot_prn) {
     // arrange / act
     const auto suffix = prn_output_suffix("HB_STARTUP");
     // assert
-    EXPECT_EQ(suffix, ".TD.prn");
+    EXPECT_EQ(suffix, ".startup.prn");
 }
 
 TEST(PrnOutputSuffixChecks, sens_produces_sens_dot_prn) {
@@ -898,6 +898,109 @@ TEST(PrnOutputSuffixChecks, unknown_type_falls_back_to_dot_prn) {
     // assert
     EXPECT_EQ(unknown_suffix, ".prn");
     EXPECT_EQ(empty_suffix, ".prn");
+}
+
+TEST(CsvOutputSuffixChecks, tran_produces_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("TRAN");
+    // assert
+    EXPECT_EQ(suffix, ".csv");
+}
+
+TEST(CsvOutputSuffixChecks, dc_produces_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("DC");
+    // assert
+    EXPECT_EQ(suffix, ".csv");
+}
+
+TEST(CsvOutputSuffixChecks, ac_produces_fd_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("AC");
+    // assert
+    EXPECT_EQ(suffix, ".FD.csv");
+}
+
+TEST(CsvOutputSuffixChecks, ac_ic_produces_td_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("AC_IC");
+    // assert
+    EXPECT_EQ(suffix, ".TD.csv");
+}
+
+TEST(CsvOutputSuffixChecks, hb_variants_produce_their_own_csv_suffixes) {
+    // arrange / act
+    const auto hb = csv_output_suffix("HB");
+    const auto hb_fd = csv_output_suffix("HB_FD");
+    const auto hb_td = csv_output_suffix("HB_TD");
+    const auto hb_ic = csv_output_suffix("HB_IC");
+    const auto hb_startup = csv_output_suffix("HB_STARTUP");
+    // assert
+    EXPECT_EQ(hb, ".HB.FD.csv");
+    EXPECT_EQ(hb_fd, ".HB.FD.csv");
+    EXPECT_EQ(hb_td, ".HB.TD.csv");
+    EXPECT_EQ(hb_ic, ".hb_ic.csv");
+    EXPECT_EQ(hb_startup, ".startup.csv");
+}
+
+TEST(CsvOutputSuffixChecks, noise_produces_noise_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("NOISE");
+    // assert
+    EXPECT_EQ(suffix, ".NOISE.csv");
+}
+
+TEST(CsvOutputSuffixChecks, homotopy_produces_homotopy_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("HOMOTOPY");
+    // assert
+    EXPECT_EQ(suffix, ".HOMOTOPY.csv");
+}
+
+TEST(CsvOutputSuffixChecks, sens_produces_sens_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("SENS");
+    // assert
+    EXPECT_EQ(suffix, ".SENS.csv");
+}
+
+TEST(CsvOutputSuffixChecks, tranadjoint_produces_tradj_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("TRANADJOINT");
+    // assert
+    EXPECT_EQ(suffix, ".TRADJ.csv");
+}
+
+TEST(CsvOutputSuffixChecks, es_produces_es_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("ES");
+    // assert
+    EXPECT_EQ(suffix, ".ES.csv");
+}
+
+TEST(CsvOutputSuffixChecks, pce_produces_pce_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("PCE");
+    // assert
+    EXPECT_EQ(suffix, ".PCE.csv");
+}
+
+TEST(CsvOutputSuffixChecks, lin_produces_fd_dot_csv) {
+    // arrange / act
+    const auto suffix = csv_output_suffix("LIN");
+    // assert
+    EXPECT_EQ(suffix, ".FD.csv");
+}
+
+TEST(CsvOutputSuffixChecks, unknown_type_falls_back_to_dot_csv) {
+    // arrange / act
+    const auto unknown_suffix = csv_output_suffix("UNKNOWN_TYPE");
+    const auto empty_suffix = csv_output_suffix("");
+    const auto lower_suffix = csv_output_suffix("ac");
+    // assert
+    EXPECT_EQ(unknown_suffix, ".csv");
+    EXPECT_EQ(empty_suffix, ".csv");
+    EXPECT_EQ(lower_suffix, ".FD.csv");
 }
 
 // ========================================================================================

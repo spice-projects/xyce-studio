@@ -11,6 +11,7 @@
 #include "../dsp/fft.h"
 #include "../io/touchstone_file.h"
 #include "../io/xyce_csd_file.h"
+#include "../io/xyce_csv_file.h"
 #include "../io/xyce_fft_file.h"
 #include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
@@ -168,6 +169,18 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         if (prn_file.has_value()) {
             // load the parsed prn file
             load_analysis_measurements(std::move(prn_file.value()));
+        }
+        return;
+    }
+    // csv file extension, covering all the analysis-specific .csv variants
+    // produced by .PRINT FORMAT=CSV
+    if (extension == ".csv") {
+        // parse the csv file
+        auto csv_file = xyce_csv_file_parser(path);
+        // check csv file was parsed
+        if (csv_file.has_value()) {
+            // load the parsed csv file
+            load_analysis_measurements(std::move(csv_file.value()));
         }
         return;
     }
@@ -810,8 +823,9 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
     if (!analysis_print.has_value())
         return std::nullopt;
-    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
+    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; CSV produces the same table with a comma delimiter and a .csv extension; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
     bool is_prn_format = true;
+    bool is_csv_format = false;
     bool is_probe_format = false;
     std::filesystem::path output_path;
     // check for known .prn-producing formats; empty format defaults to STD
@@ -820,19 +834,20 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
         auto format = to_upper(analysis_print->print_format);
         // all this formats produce .prn files
         is_prn_format = (format == "STD" || format == "NOINDEX" || format == "GNUPLOT" || format == "SPLOT");
+        // CSV format produces the same table with a comma delimiter in a .csv file
+        is_csv_format = (format == "CSV");
         // PROBE format produces the .csd output file
         is_probe_format = (format == "PROBE");
     }
-    if (is_prn_format) {
-        // .prn formats preserve the FILE= option
+    if (is_prn_format || is_csv_format) {
+        // .prn and .csv formats preserve the FILE= option
         if (!analysis_print->print_file.empty()) {
             const auto resolved = std::filesystem::path(strip_outer_quotes(analysis_print->print_file));
             output_path = resolved.is_absolute() ? resolved : working_directory / resolved;
         }
         else {
-            // no FILE= specified: Xyce writes <netlist><suffix>.prn next
-            // to the netlist; the suffix depends on the print type
-            output_path = std::filesystem::path(netlist_path).string() + prn_output_suffix(analysis_print->print_type);
+            // no FILE= specified: Xyce writes <netlist><suffix> next to the netlist; the suffix depends on the print type and the format
+            output_path = std::filesystem::path(netlist_path).string() + (is_csv_format ? csv_output_suffix(analysis_print->print_type) : prn_output_suffix(analysis_print->print_type));
         }
     }
     else if (is_probe_format) {
@@ -861,7 +876,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
     // parse the file with the appropriate parser and prepare the instance: the
     // tab plot type follows the configured analysis print type, not
     // the produced file, so the label is identical for every format
-    auto measurements = is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path);
+    auto measurements = is_csv_format ? xyce_csv_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
     if (measurements.has_value())
         apply_analysis_print_metadata(**measurements);
     return measurements;

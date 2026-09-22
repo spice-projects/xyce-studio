@@ -1379,6 +1379,116 @@ TEST(SlintMainWindowPresenterChecks, open_csd_extension_ignores_missing_file) {
     EXPECT_FALSE(view.m_charts_view_shown);
 }
 
+TEST(SlintMainWindowPresenterChecks, open_csv_extension_loads_analysis_measurements) {
+    // arrange — a real TRAN csv file produced by the FORMAT=CSV outputter
+    const auto csv_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_csv";
+    std::filesystem::create_directories(csv_dir);
+    const auto csv_path = csv_dir / "demo.csv";
+    write_file(csv_path, "TIME,V(1)\n0.0,1.0\n1e-9,1.1\n2e-9,1.2\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", csv_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(csv_path);
+    // assert — the csv file parsed into the analysis measurements and charts are shown
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(csv_path, ec);
+    std::filesystem::remove_all(csv_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_csv_extension_ignores_missing_file) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file("/nonexistent/presenter_missing.csv");
+    // assert — parse failure leaves the window untouched
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_FALSE(view.m_charts_view_shown);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_raw_extension_loads_analysis_measurements) {
+    // arrange — a parseable transient raw file
+    const auto raw_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_raw";
+    std::filesystem::create_directories(raw_dir);
+    const auto raw_path = raw_dir / "demo.raw";
+    {
+        std::ofstream raw_file(raw_path, std::ios::binary);
+        raw_file << "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+        raw_file.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+    }
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", raw_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(raw_path);
+    // assert — the raw file parsed into the analysis measurements and charts are shown
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(raw_path, ec);
+    std::filesystem::remove_all(raw_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, open_prn_extension_loads_analysis_measurements) {
+    // arrange — a parseable transient prn file
+    const auto prn_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_prn";
+    std::filesystem::create_directories(prn_dir);
+    const auto prn_path = prn_dir / "demo.prn";
+    write_file(prn_path, "TIME V(1)\n0.0 1.0\n1e-9 1.1\n.\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", prn_dir), PluginConfig(""), nullptr);
+    // act
+    presenter.on_open_xyce_file(prn_path);
+    // assert — the prn file parsed into the analysis measurements and charts are shown
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_GT(view.m_update_charts_count, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(prn_path, ec);
+    std::filesystem::remove_all(prn_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, missing_table_output_finishes_without_dataset) {
+    // arrange — a FORMAT=CSV run that produced no file at all
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — finish successfully although the expected .csv file was never written
+    presenter.on_simulation_finished(0, false);
+    // assert — the status reports the missing output and no dataset was installed
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_FALSE(view.m_output_panel_hidden);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, missing_csd_output_finishes_without_dataset) {
+    // arrange — a PROBE run that produced no .csd file
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=PROBE V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — finish successfully although the expected .csd file was never written
+    presenter.on_simulation_finished(0, false);
+    // assert — the status reports the missing output and no dataset was installed
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, editor_modified_marks_dirty_and_enables_save) {
     // arrange — open a .cir file so a base title exists
     const auto netlist_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_dirty";
@@ -1819,11 +1929,105 @@ TEST(SlintMainWindowPresenterChecks, prn_lin_default_format_looks_for_fd_prn) {
     ASSERT_GE(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
     EXPECT_TRUE(view.m_charts_view_shown);
-    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
     std::filesystem::remove(prn_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, csv_tran_default_format_looks_for_csv) {
+    // arrange — launch a transient analysis with a FORMAT=CSV print
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — the FILE= option is kept for CSV runs, and Xyce writes <netlist>.csv next to the temporary netlist
+    {
+        std::ifstream started(view.m_started_netlist_path);
+        const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
+        EXPECT_NE(started_content.find(".PRINT TRAN FORMAT=CSV V(1)"), std::string::npos);
+    }
+    const auto csv_path = view.m_started_netlist_path.string() + ".csv";
+    {
+        std::ofstream csv_file(csv_path, std::ios::out | std::ios::trunc);
+        csv_file << "TIME,V(1)\n";
+        csv_file << "0.0,1.0\n";
+        csv_file << "1e-9,1.1\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced csv loaded as the transient dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(csv_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, csv_ac_default_format_looks_for_fd_csv) {
+    // arrange — launch an ac analysis with a FORMAT=CSV print; Xyce produces
+    // <netlist>.FD.csv for the frequency-domain output
+    RecordingView view;
+    const std::string netlist_content = "V1 1 0 AC 1\nR1 1 0 1K\n.AC DEC 10 1 100MEG\n.PRINT AC FORMAT=CSV V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the frequency-domain csv file with a complex Re/Im pair
+    const auto csv_path = view.m_started_netlist_path.string() + ".FD.csv";
+    {
+        std::ofstream csv_file(csv_path, std::ios::out | std::ios::trunc);
+        csv_file << "FREQ,Re(V(1)),Im(V(1))\n";
+        csv_file << "100,1.0,-0.5\n";
+        csv_file << "1000,0.9,-0.4\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the produced csv loaded as the ac dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE((*presenter.analysis_measurements())->is_complex());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(csv_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, csv_file_option_output_loads_from_destination) {
+    // arrange — launch a transient analysis with a FORMAT=CSV print carrying a
+    // FILE= option: the option survives the run and Xyce writes the named file
+    // in the working directory, which the presenter must resolve and load
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_csv_file_option_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=CSV FILE=my_results.csv V(1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — Xyce produced the named file in the working directory
+    {
+        std::ofstream csv_file(working_directory / "my_results.csv", std::ios::out | std::ios::trunc);
+        csv_file << "TIME,V(1)\n";
+        csv_file << "0.0,1.0\n";
+        csv_file << "1e-9,1.1\n";
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the named csv file loaded as the transient dataset
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
 }
 
 TEST(SlintMainWindowPresenterChecks, fft_dialog_result_guards_without_raw_file) {
