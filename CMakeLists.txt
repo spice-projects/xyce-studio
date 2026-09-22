@@ -282,17 +282,29 @@ if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
 install(TARGETS xyce-studio RUNTIME_DEPENDENCY_SET xyce-studio-deps RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps BUNDLE DESTINATION artifacts COMPONENT RuntimeDeps)
-install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
-  DIRECTORIES
+
+# directories searched by the runtime dependency walk below
+set(XYCE_RUNTIME_DEPENDENCY_DIRS
     $<TARGET_FILE_DIR:xyce-studio>
     ${CMAKE_BINARY_DIR}/_deps/slint-build
     ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
     ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+)
+if(WIN32)
+    # app-local c++ runtime: msvcp140/vcruntime140(_1) are neither inbox (like
+    # the api-ms-win-crt ucrt forwarders) nor part of vcpkg; they live next to
+    # link.exe inside the msvc toolchain dir, so add that dir and let the walk
+    # collect them next to the executable (app-local deployment of the c++
+    # runtime is explicitly permitted by the visual studio license)
+    get_filename_component(XYCE_MSVC_BIN_DIR "${CMAKE_LINKER}" DIRECTORY)
+    list(APPEND XYCE_RUNTIME_DEPENDENCY_DIRS "${XYCE_MSVC_BIN_DIR}")
+endif()
+
+install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
+  DIRECTORIES ${XYCE_RUNTIME_DEPENDENCY_DIRS}
   PRE_EXCLUDE_REGEXES
     [[api-ms-.*]]
     [[ext-ms-.*]]
-    [[vcruntime.*]]
-    [[msvcp.*]]
     [[ucrtbase.*]]
   POST_EXCLUDE_REGEXES
     [[^/usr/lib]]
