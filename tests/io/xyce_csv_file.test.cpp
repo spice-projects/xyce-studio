@@ -76,7 +76,7 @@ TEST(XyceCsvFileParserTest, returns_nullopt_when_path_is_a_directory) {
 }
 
 TEST(XyceCsvFileParserTest, returns_nullopt_when_file_is_not_readable) {
-    // arrange — the file exists but read permission is withdrawn
+    // arrange — the file exists but read permission is withdrawn; platforms that do not deny reads on permission-none files (Windows maps perms::none to the read-only attribute) skip the assertion
     const auto path = std::filesystem::temp_directory_path() / "xyce_csv_unreadable_test.csv";
     {
         std::ofstream out(path, std::ios::binary);
@@ -84,6 +84,16 @@ TEST(XyceCsvFileParserTest, returns_nullopt_when_file_is_not_readable) {
     }
     std::error_code ec;
     std::filesystem::permissions(path, std::filesystem::perms::none, ec);
+    // probe whether the platform really denies the read
+    {
+        std::ifstream probe(path);
+        if (probe.is_open()) {
+            // restore and remove the file before skipping
+            std::filesystem::permissions(path, std::filesystem::perms::all, ec);
+            std::filesystem::remove(path, ec);
+            GTEST_SKIP() << "platform does not deny reads on permission-none files";
+        }
+    }
     // act
     const auto result = xyce_csv_file_parser(path);
     // assert
