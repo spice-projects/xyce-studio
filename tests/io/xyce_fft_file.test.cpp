@@ -136,7 +136,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_no_files_match_pattern) {
     // arrange
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser("/nonexistent/path/*.fft*", step_info);
+    const auto result = xyce_fft_file_parser("/nonexistent/path/*.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -148,7 +148,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_data_line_has_wrong_column_count) {
     tmp.write_file("bad_cols.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "bad_cols.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "bad_cols.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -160,7 +160,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_data_line_index_is_out_of_order) {
     tmp.write_file("bad_idx.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "bad_idx.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "bad_idx.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -172,7 +172,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_index_header_appears_before_signal_he
     tmp.write_file("bad_order.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "bad_order.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "bad_order.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -183,7 +183,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_step_count_mismatches_step_informatio
     tmp.write_file("mismatch.fft0", make_fft_content());
     const StepInformation step_info = make_step_information(2);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "mismatch.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "mismatch.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -200,7 +200,7 @@ TEST(XyceFftFileTest, returns_nullopt_when_file_has_invalid_utf8_bytes) {
     tmp.write_bytes("bad_encoding.fft0", bytes);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "bad_encoding.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "bad_encoding.fft*", &step_info);
     // assert
     ASSERT_FALSE(result.has_value());
 }
@@ -215,7 +215,7 @@ TEST(XyceFftFileTest, parses_single_fft_file_with_one_signal) {
     tmp.write_file("test_sim.fft0", make_fft_content("V(OUT)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "1.000000e-02", "1.800000e+02", true, TWO_HARMONICS));
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "test_sim.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "test_sim.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -243,7 +243,7 @@ TEST(XyceFftFileTest, parses_multiple_files_and_accumulates_steps) {
     tmp.write_file("sim.fft1", make_fft_content("V(OUT)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "2.000000e-02", "0.000000e+00", true, {{"1", "1.000000e+02", "8.000000e-01", "-9.000000e+01"}}));
     const StepInformation step_info = make_step_information(2);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -272,7 +272,7 @@ TEST(XyceFftFileTest, parses_fft_metrics_and_stores_in_metadata) {
     tmp.write_file("metrics.fft0", make_fft_content("V(OUT)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "1.000000e-02", "1.800000e+02", true, {{"1", "1.000000e+02", "5.000000e-01", "9.000000e+01"}}, metrics));
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "metrics.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "metrics.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     auto* mag_expr = evaluate_real(result->front()->expression_manager(), "FFT(V(OUT))");
@@ -294,7 +294,7 @@ TEST(XyceFftFileTest, parses_multiple_signals_and_resets_header_flags) {
     tmp.write_file("multi_signals.fft0", speaker_block + "\n" + input_block);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "multi_signals.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "multi_signals.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
@@ -322,7 +322,7 @@ TEST(XyceFftFileTest, parses_two_signals_with_same_abscissa) {
     tmp.write_file("same_abscissa.fft0", first_block + "\n" + second_block);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "same_abscissa.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "same_abscissa.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -345,7 +345,7 @@ TEST(XyceFftFileTest, parses_file_with_multiple_abscissas) {
     tmp.write_file("multi_abscissa.fft0", first_block + "\n" + second_block);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "multi_abscissa.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "multi_abscissa.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
@@ -357,7 +357,7 @@ TEST(XyceFftFileTest, parses_file_without_fft_index_suffix) {
     tmp.write_file("sim.fft", make_fft_content());
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -372,7 +372,7 @@ TEST(XyceFftFileTest, file_without_trailing_newline_is_handled) {
     tmp.write_file("no_newline.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "no_newline.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "no_newline.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -385,7 +385,7 @@ TEST(XyceFftFileTest, parses_file_with_unexpected_line) {
     tmp.write_file("unexpected.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "unexpected.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "unexpected.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -397,7 +397,7 @@ TEST(XyceFftFileTest, parses_non_normalized_magnitude) {
     tmp.write_file("non_norm.fft0", make_fft_content("V(OUT)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "1.000000e-02", "1.800000e+02", false));
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "non_norm.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "non_norm.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->front()->metadata().at("Normalized"), "false");
@@ -422,7 +422,7 @@ TEST(XyceFftFileTest, parses_three_step_fft_files_generated) {
     }
     const StepInformation step_info = make_step_information(3);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "sim_step*.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "sim_step*.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -450,7 +450,7 @@ TEST(XyceFftFileTest, parses_synthetic_single_step_fft_file) {
     tmp.write_file("single_step.fft0", make_fft_content("I(L1)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "4.323973e-01", "1.800000e+02", true, {{"1", "1.000000e+02", "8.652246e-01", "9.000000e+01"}, {"2", "2.000000e+02", "1.234567e-01", "-9.000000e+01"}}, metrics));
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "single_step.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "single_step.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -467,6 +467,27 @@ TEST(XyceFftFileTest, parses_synthetic_single_step_fft_file) {
     ASSERT_EQ(step_metadata.at("SFDR"), "-1.257423e+00 dB at frequency 1.150000e+03");
 }
 
+TEST(XyceFftFileTest, parses_without_step_information) {
+    // arrange — a run without a .PRINT directive produces no analysis output,
+    // so there is no step information to map the FFT files onto; the files'
+    // own single step drives the parsing
+    const TempDirRAII tmp;
+    tmp.write_file("no_print.fft0", make_fft_content("I(L1)", "HANN", "1.000000e+02", "1.000000e+02", "1.000000e+03", "4.323973e-01", "1.800000e+02", true, {{"1", "1.000000e+02", "8.652246e-01", "9.000000e+01"}, {"2", "2.000000e+02", "1.234567e-01", "-9.000000e+01"}}, ""));
+    // act
+    const auto result = xyce_fft_file_parser(tmp.path() / "no_print.fft*");
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    auto* mag_expr = evaluate_real(result->front()->expression_manager(), "FFT(I(L1))");
+    ASSERT_NE(mag_expr, nullptr);
+    ASSERT_EQ(mag_expr->step_count(), 1);
+    ASSERT_DOUBLE_EQ(mag_expr->step_data(0)[0], 0.4323973);
+    ASSERT_DOUBLE_EQ(mag_expr->step_data(0)[1], 0.8652246);
+    // the step information carries no keys and no values (no .STEP run)
+    ASSERT_TRUE(result->front()->step_information().keys().empty());
+    ASSERT_TRUE(result->front()->step_information().values().empty());
+}
+
 // ========================================================================================
 // output file structure and unit inference
 // ========================================================================================
@@ -477,7 +498,7 @@ TEST(XyceFftFileTest, output_file_contains_abscissa_metadata) {
     tmp.write_file("sim.fft0", make_fft_content());
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     const auto& output_file = result->front();
@@ -500,7 +521,7 @@ TEST(XyceFftFileTest, phase_expression_uses_degree_unit) {
     tmp.write_file("sim.fft0", make_fft_content());
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "sim.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     auto* phase_expr = evaluate_real(result->front()->expression_manager(), "FFT(phase(V(OUT)))");
@@ -521,7 +542,7 @@ TEST(XyceFftFileTest, infers_magnitude_unit_from_expression_manager) {
     std::vector<std::pair<size_t, size_t>> raw_slices = {{0, 2}};
     ExpressionManager raw_manager(raw_expressions, raw_slices);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "infer_unit.fft*", step_info, &raw_manager);
+    const auto result = xyce_fft_file_parser(tmp.path() / "infer_unit.fft*", &step_info, &raw_manager);
     // assert
     ASSERT_TRUE(result.has_value());
     auto* mag_expr = evaluate_real(result->front()->expression_manager(), "FFT(V(OUT))");
@@ -542,7 +563,7 @@ TEST(XyceFftFileTest, strips_braces_before_unit_inference) {
     std::vector<std::pair<size_t, size_t>> raw_slices = {{0, 2}};
     ExpressionManager raw_manager(raw_expressions, raw_slices);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "strip_braces.fft*", step_info, &raw_manager);
+    const auto result = xyce_fft_file_parser(tmp.path() / "strip_braces.fft*", &step_info, &raw_manager);
     // assert
     ASSERT_TRUE(result.has_value());
     auto* mag_expr = evaluate_real(result->front()->expression_manager(), "FFT(V(OUT))");
@@ -561,7 +582,7 @@ TEST(XyceFftFileTest, suggests_magnitude_and_phase_plots_for_single_signal) {
     tmp.write_file("suggest.fft0", make_fft_content());
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "suggest.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "suggest.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     const auto& suggested_plots = result->front()->suggested_plots();
@@ -580,7 +601,7 @@ TEST(XyceFftFileTest, suggests_magnitude_and_phase_plots_for_each_signal) {
     tmp.write_file("suggest_multi.fft0", first_block + "\n" + second_block);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_multi.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_multi.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -602,7 +623,7 @@ TEST(XyceFftFileTest, caps_suggested_plots_at_three_signals) {
     tmp.write_file("suggest_cap.fft0", content);
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_cap.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_cap.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 1);
@@ -624,7 +645,7 @@ TEST(XyceFftFileTest, strips_braces_in_suggested_plot_names) {
     tmp.write_file("suggest_braces.fft0", make_fft_content("{V(OUT)}"));
     const StepInformation step_info = make_step_information(1);
     // act
-    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_braces.fft*", step_info);
+    const auto result = xyce_fft_file_parser(tmp.path() / "suggest_braces.fft*", &step_info);
     // assert
     ASSERT_TRUE(result.has_value());
     const auto& suggested_plots = result->front()->suggested_plots();

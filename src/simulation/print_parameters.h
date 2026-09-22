@@ -42,9 +42,9 @@ public:
 // tokenize a .PRINT statement respecting brace-enclosed expressions and quotes
 [[nodiscard]] std::vector<std::string> tokenize_print_statement(const std::string& print_statement);
 
-// remove the FILE= option from a .PRINT statement that produces RAW output
-// (FORMAT=RAW or no FORMAT option); any other statement is returned unchanged.
-// used to force Xyce to write the RAW file to its default netlist-derived
+// remove the FILE= option from a .PRINT statement that produces RAW or PROBE output
+// (FORMAT=RAW, FORMAT=PROBE or no FORMAT option); any other statement is returned unchanged.
+// used to force Xyce to write the output file to its default netlist-derived
 // location so the simulation never rewrites a file the application holds open
 [[nodiscard]] std::string strip_print_file_option(const std::string& print_statement);
 
@@ -63,3 +63,9 @@ public:
 // format a FILE= option value: values containing whitespace are quoted so the
 // statement survives tokenization; already-quoted values pass through as-is
 [[nodiscard]] std::string format_print_file_value(const std::string& file);
+
+// return the Xyce output file suffix for a .PRINT type per the reference guide:
+// AC/HB/FD → .FD.prn, AC_IC and HB time-domain subtypes → .TD.prn,
+// ES → .ES.prn, SENS → .SENS.prn, TRANADJOINT → .TRADJ.prn, PCE → .PCE.prn,
+// everything else (DC, TRAN, NOISE, HOMOTOPY, etc.) → .prn
+[[nodiscard]] std::string prn_output_suffix(const std::string& print_type);

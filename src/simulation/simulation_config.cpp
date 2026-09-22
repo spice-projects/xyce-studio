@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cctype>
 #include <set>
 #include <string>
@@ -332,6 +333,38 @@ std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destinati
     return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
 }
 
+std::optional<std::filesystem::path> SimulationConfig::csd_output_file_path(const std::filesystem::path& netlist_file_path) const {
+    // no analysis, no csd output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // a print configured without PROBE format produces no csd output file
+    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
+        return std::nullopt;
+    // AC_IC print produces .TD.csd
+    if (to_upper(print_parameters->print_type) == "AC_IC")
+        return std::optional<std::filesystem::path>(netlist_file_path.string() + ".TD.csd");
+    // DC, AC, and TRAN produce .csd
+    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".csd");
+}
+
+std::optional<std::filesystem::path> SimulationConfig::csd_output_copy_destination(const std::filesystem::path& working_directory) const {
+    // no analysis, no csd output
+    if (std::holds_alternative<std::monostate>(analysis))
+        return std::nullopt;
+    // analysis print parameters (structured or legacy-normalized)
+    const auto print_parameters = analysis_print_parameters();
+    // no print configured or a non-PROBE format produces no csd file to copy
+    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
+        return std::nullopt;
+    // no explicit file to copy to
+    if (print_parameters->print_file.empty())
+        return std::nullopt;
+    // resolve the user's print file against the working directory
+    return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
+}
+
 std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {
     // process simulation types
     auto l = []<typename T0>(T0& a) -> std::optional<PrintParameters> {
@@ -346,9 +379,7 @@ std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() con
             // structured print parameters when set
             if (a.print_parameters.has_value())
                 return a.print_parameters;
-            // legacy OP representation: derive the structured print from the
-            // print_dc_* fields (de-duplicated variables, matching the
-            // legacy directive emission)
+            // legacy OP representation: derive the structured print from the print_dc_* fields (de-duplicated variables, matching the legacy directive emission)
             if constexpr (std::is_same_v<TX, OpSimulationParameters>) {
                 if (a.print_dc_enabled) {
                     // de-duplicate the variables preserving order, matching the legacy emission
@@ -402,11 +433,36 @@ std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_patt
     return std::visit(FftPathVisitor{netlist_file_path}, analysis);
 }
 
-std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const {
-    struct TouchstonePathVisitor
+SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements() const {
+
+    struct ProducedMeasurementsVisitor
+    {
+        SimulationConfig::ProducedMeasurements operator()(const std::monostate&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const AcSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const DCSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const HbSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
+            // a .TRAN analysis with .FFT directives dumps the FFT calculation files
+            return {.fft = !params.fft_parameters.empty()};
+        }
+        SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {
+            // a .LIN run with a touchstone format dumps one s-parameter file
+            return {.s_parameters = params.format == "TOUCHSTONE" || params.format == "TOUCHSTONE2"};
+        }
+    };
+
+    return std::visit(ProducedMeasurementsVisitor{}, analysis);
+}
+
+std::optional<std::filesystem::path> SimulationConfig::s_parameter_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory, int num_ports) const {
+
+    struct SParameterPathVisitor
     {
         const std::filesystem::path& netlist_file_path;
         const std::filesystem::path& working_directory;
+        int num_ports;
 
         std::optional<std::filesystem::path> operator()(const std::monostate&) const { return std::nullopt; }
         std::optional<std::filesystem::path> operator()(const AcSimulationParameters&) const { return std::nullopt; }
@@ -417,22 +473,49 @@ std::optional<std::filesystem::path> SimulationConfig::touchstone_output_file_pa
         std::optional<std::filesystem::path> operator()(const TransientSimulationParameters&) const { return std::nullopt; }
         std::optional<std::filesystem::path> operator()(const LinSimulationParameters& params) const {
             // only touchstone output formats produce a touchstone file
-            if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE") {
+            if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE")
                 return std::nullopt;
-            }
-            // no FILE=/FILENAME= given: Xyce writes <netlist>.s2p next to the netlist
-            if (params.file.empty()) {
-                return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s2p");
-            }
-            // FILE= takes precedence over FILENAME= (already enforced at parse
-            // time); strip outer quotes and resolve relative values against the
-            // working directory, which is Xyce's process cwd for the run
+            // no FILE=/FILENAME= given: Xyce writes <netlist>.sNp next to the netlist, N being the port count (P devices in the netlist)
+            if (params.file.empty())
+                return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s" + std::to_string(num_ports) + "p");
+            // FILE= takes precedence over FILENAME= (already enforced at parse time); strip outer quotes and resolve relative values against the working directory, which is Xyce's process cwd for the run
             const auto file = strip_outer_quotes(params.file);
             if (std::filesystem::path(file).is_absolute())
                 return std::optional<std::filesystem::path>(file);
+            // resolve relative paths against the working directory
             return std::optional<std::filesystem::path>(working_directory / file);
         }
     };
 
-    return std::visit(TouchstonePathVisitor{netlist_file_path, working_directory}, analysis);
+    return std::visit(SParameterPathVisitor{netlist_file_path, working_directory, num_ports}, analysis);
+}
+
+std::vector<PrintParameters> SimulationConfig::prn_print_parameters() const {
+    // result vector for print parameters that produce .prn output
+    std::vector<PrintParameters> result;
+    // check the analysis print
+    const auto analysis_print = analysis_print_parameters();
+    // helper to check if a print format produces .prn output
+    auto is_prn_format = [](const std::string& fmt) -> bool {
+        // empty format means RAW output (handled separately)
+        if (fmt.empty()) {
+            return false;
+        }
+        // normalize to uppercase
+        std::string upper = fmt;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        // STD, NOINDEX, GNUPLOT, and SPLOT formats produce .prn files
+        return upper == "STD" || upper == "NOINDEX" || upper == "GNUPLOT" || upper == "SPLOT";
+    };
+    // add the analysis print if it produces .prn output
+    if (analysis_print.has_value() && is_prn_format(analysis_print->print_format)) {
+        result.push_back(*analysis_print);
+    }
+    // add unassociated prints that produce .prn output
+    for (const auto& print : unassociated_prints) {
+        if (is_prn_format(print.print_format)) {
+            result.push_back(print);
+        }
+    }
+    return result;
 }

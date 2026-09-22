@@ -68,9 +68,9 @@ public:
     // future change can persist the chart order
     void on_chart_moved(size_t from, size_t to) override;
 
-    // load an already-parsed raw file into this window and switch to the charts
+    // load the analysis output into this window and switch to the charts
     // view; used to seed windows spawned through App::new_window
-    void load_raw_file(std::shared_ptr<XyceOutputFile> raw_file);
+    void load_analysis_measurements(std::shared_ptr<XyceOutputFile> file);
 
     // simulation lifecycle events (forwarded by the view from the runner)
     void on_simulation_finished(int exit_code, bool was_canceled) override;
@@ -84,9 +84,9 @@ public:
     void on_extract_schematic_netlist() override;
 
     // accessors
-    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& raw_file() const;
-    [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_files() const;
-    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& touchstone_file() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& analysis_measurements() const;
+    [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_measurements() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& s_parameter_measurements() const;
     [[nodiscard]] size_t active_dataset_index() const { return m_active_dataset_index; }
 
 private:
@@ -103,6 +103,9 @@ private:
     // synchronize plot tab list and active index with the view
     void sync_plot_tabs_with_view();
 
+    // file backing the active plot dataset, nullptr when no dataset is active
+    [[nodiscard]] XyceOutputFile* active_dataset_file() const;
+
     // activate the dataset at the given index and update charts in the view
     void activate_plot_dataset(size_t index);
 
@@ -110,7 +113,7 @@ private:
     // result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
-    void show_raw_file_view();
+    void show_simulation_output_view();
 
     void set_base_title(const std::string& title);
 
@@ -125,7 +128,30 @@ private:
     // analysis print carries a file; the application maps the produced file
     // (which is never rewritten by a later run) while the copy keeps the
     // user-visible file up to date
-    void copy_raw_output_to_destination(const std::filesystem::path& raw_path);
+    void copy_simulation_output_to_destination(const std::filesystem::path& raw_path);
+
+    // resolve, parse and prepare the analysis print output file (.raw or .prn);
+    // the returned instance is ready for rendering: the tab plot type follows
+    // the configured analysis print, not the produced file, so the label is
+    // identical regardless of the .PRINT format
+    std::optional<std::shared_ptr<XyceOutputFile>> resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory);
+
+    // apply the analysis print metadata (tab plot type) to the analysis output;
+    // derived from the configured analysis print type, not from the produced
+    // file, so the tab label is identical regardless of the .PRINT format; the
+    // title keeps the circuit name provided by the parsers
+    void apply_analysis_print_metadata(XyceOutputFile& file) const;
+
+    // load the s-parameter file a .LIN run wrote and render its tabs (the LIN
+    // Analysis tab and the Smith Chart tab); the analysis output's step
+    // information is carried over when present so .STEP runs map into
+    // per-step slices
+    void load_s_parameter_measurements(const StepInformation* analysis_steps);
+
+    // load the FFT calculation files a .TRAN run with .FFT directives wrote
+    // and render one tab per file; the FFT data maps onto the analysis
+    // output's step slices
+    void load_fft_measurements();
 
     MainWindowViewDef& m_view;
 
@@ -139,11 +165,14 @@ private:
     size_t m_active_dataset_index = 0;
     int m_next_dataset_id = 1;
 
-    std::optional<std::shared_ptr<XyceOutputFile>> m_xyce_raw_file;
-    std::vector<std::shared_ptr<XyceOutputFile>> m_fft_files;
-    // touchstone output file produced by a .LIN run; a single run produces at
-    // most one file (a .STEP run concatenates all steps into the same file)
-    std::optional<std::shared_ptr<XyceOutputFile>> m_touchstone_file;
+    // analysis output of the last run or the loaded output file in this window;
+    // it is NOT the active tab, the active dataset file is resolved through
+    // active_dataset_file()
+    std::optional<std::shared_ptr<XyceOutputFile>> m_analysis_measurements;
+    std::vector<std::shared_ptr<XyceOutputFile>> m_fft_measurements;
+    // s-parameter measurements produced by a .LIN run; a single run produces
+    // at most one file (a .STEP run concatenates all steps into the same file)
+    std::optional<std::shared_ptr<XyceOutputFile>> m_s_parameter_measurements;
 
     SimulationConfig m_simulation_config;
     PluginConfig m_plugin_config;
