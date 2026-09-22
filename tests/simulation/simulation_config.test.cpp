@@ -956,7 +956,7 @@ TEST(SimulationConfigCsdOutputPathChecks, csd_path_is_nullopt_for_non_probe_form
 
 TEST(SimulationConfigCsdOutputPathChecks, csd_path_resolves_the_legacy_op_print) {
     // arrange — legacy OP print fields with a PROBE format normalize to a DC print
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "PROBE", "dc.csd", false, "NODESET", "", {}, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "PROBE", "dc.csd", false, "NODESET", "", {}, {}), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.csd_output_file_path("/tmp/net.cir");
     // assert
