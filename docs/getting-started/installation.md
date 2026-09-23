@@ -11,7 +11,7 @@ The packaged binaries are compiled against these minimum OS versions
 | Platform | Minimum version |
 |----------|-----------------|
 | macOS    | **macOS 13.3 Ventura** (Apple silicon and Intel) |
-| Windows  | *To be determined* |
+| Windows  | **Windows 10** or newer (64-bit) |
 | Linux    | **Ubuntu 24.04 LTS** or any distribution with glibc 2.39+, on X11 or Wayland |
 
 ### Software
