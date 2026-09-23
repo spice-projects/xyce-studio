@@ -288,12 +288,31 @@ set(XYCE_RUNTIME_DEPENDENCY_DIRS $<TARGET_FILE_DIR:xyce-studio> ${CMAKE_BINARY_D
 
 if(WIN32)
     # app-local c++ runtime: msvcp140/vcruntime140(_1) are neither inbox (like
-    # the api-ms-win-crt ucrt forwarders) nor part of vcpkg; they live next to
-    # link.exe inside the msvc toolchain dir, so add that dir and let the walk
-    # collect them next to the executable (app-local deployment of the c++
-    # runtime is explicitly permitted by the visual studio license)
-    get_filename_component(XYCE_MSVC_BIN_DIR "${CMAKE_LINKER}" DIRECTORY)
-    list(APPEND XYCE_RUNTIME_DEPENDENCY_DIRS "${XYCE_MSVC_BIN_DIR}")
+    # the api-ms-win-crt ucrt forwarders) nor part of vcpkg. the walk resolves
+    # them against the excluded system dirs (and drops them via the exclude
+    # regexes), so install them explicitly instead: search next to the
+    # compiler/linker (the toolchain bin dir ships them) and in the msvc
+    # redistributable. app-local deployment of the c++ runtime is explicitly
+    # permitted by the visual studio license.
+    set(XYCE_APPLOCAL_CRT_DLLS "")
+    foreach(XYCE_CRT_TOOL IN ITEMS "${CMAKE_CXX_COMPILER}" "${CMAKE_LINKER}")
+        get_filename_component(XYCE_CRT_TOOL_DIR "${XYCE_CRT_TOOL}" DIRECTORY)
+        if(XYCE_CRT_TOOL_DIR)
+            file(GLOB XYCE_CRT_TOOL_DLLS "${XYCE_CRT_TOOL_DIR}/msvcp140*.dll" "${XYCE_CRT_TOOL_DIR}/vcruntime140*.dll")
+            list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_TOOL_DLLS})
+        endif()
+    endforeach()
+    if(DEFINED ENV{VCToolsRedistDir})
+        file(GLOB XYCE_CRT_REDIST_DLLS "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/msvcp140*.dll" "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/vcruntime140*.dll")
+        list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_REDIST_DLLS})
+    endif()
+    list(REMOVE_DUPLICATES XYCE_APPLOCAL_CRT_DLLS)
+    # fail loudly instead of silently shipping a package that dies on a clean
+    # machine with "vcruntime140.dll was not found"
+    if(NOT XYCE_APPLOCAL_CRT_DLLS)
+        message(FATAL_ERROR "windows: app-local c++ runtime dlls (msvcp140/vcruntime140) not found next to the compiler/linker or in VCToolsRedistDir; the packaged app would not run without the vc++ redistributable")
+    endif()
+    install(FILES ${XYCE_APPLOCAL_CRT_DLLS} DESTINATION artifacts COMPONENT RuntimeDeps)
 endif()
 
 install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
@@ -301,6 +320,8 @@ install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
   PRE_EXCLUDE_REGEXES
     [[api-ms-.*]]
     [[ext-ms-.*]]
+    [[vcruntime.*]]
+    [[msvcp.*]]
     [[ucrtbase.*]]
   POST_EXCLUDE_REGEXES
     [[^/usr/lib]]
