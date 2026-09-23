@@ -277,12 +277,17 @@ jobs:
           # ad-hoc sign every Mach-O in the bundle. These commands must be able
           # to fail the job: a previous "2>/dev/null || true" hid a signing
           # failure and shipped an unsigned x86_64 slice.
-          codesign --force --sign - --verbose "$EXE"
-          codesign --verify --strict --verbose=2 "$EXE"
+          # Order matters: --strict verification of the executable also verifies
+          # the dylibs it loads from the bundle as subcomponents, so those get
+          # signed first and everything is verified last.
           for lib in "$APP_BUNDLE/Contents/MacOS"/*.dylib; do
             [ -e "$lib" ] || continue
             codesign --force --sign - --verbose "$lib"
-            codesign --verify --strict --verbose=2 "$lib"
+          done
+          codesign --force --sign - --verbose "$EXE"
+          for macho in "$APP_BUNDLE/Contents/MacOS"/*.dylib "$EXE"; do
+            [ -e "$macho" ] || continue
+            codesign --verify --strict --verbose=2 "$macho"
           done
 
       - name: Stage macOS app bundle for upload
