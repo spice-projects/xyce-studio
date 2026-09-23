@@ -10,4 +10,3 @@ set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 if(PORT STREQUAL "skia")
     set(VCPKG_LIBRARY_LINKAGE dynamic)
 endif()
-

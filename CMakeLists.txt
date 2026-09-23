@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.25)
 set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets" FORCE)
 
 if(APPLE)
+    # minimum os version for the apple binaries
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS version" FORCE)
     # enable objective-c++ language for .mm files
     project(xyce-studio LANGUAGES CXX OBJCXX)
 else()
@@ -137,22 +139,18 @@ include_directories("src")
 if(APPLE)
     # gather objective-c++ sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.osx.mm")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 elseif (WIN32)
     # gather win32 sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.win32.c++")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 elseif (LINUX)
     # opengl is required on linux
     find_package(OpenGL REQUIRED)
     # gather linux sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.linux.c++")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 endif()
 
+# combine remaining cpp sources with .mm sources
+set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 # remove platform-specific main() sources from the shared library, they are compiled into the executable only
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.osx.mm" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.win32.c++" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.linux.c++")
 
@@ -231,17 +229,6 @@ if(APPLE)
 endif()
 
 if(APPLE)
-    # # resources
-    # set(APP_RESOURCES plugin-icon-64x64.png)
-    # # create bundle
-    # add_executable(xyce-studio MACOSX_BUNDLE src/main.osx.mm ${APP_RESOURCES})
-    # # boundle properties
-    # set_target_properties(xyce-studio PROPERTIES 
-    #     MACOSX_BUNDLE_BUNDLE_NAME "Xyce Studio" 
-    #     MACOSX_BUNDLE_GUI_IDENTIFIER "com.github.spice-projects.xyce-studio"
-    #     RESOURCE "${APP_RESOURCES}"
-    #     MACOSX_BUNDLE_ICON_FILE "plugin-icon-64x64.png"
-    # )
     # declare application
     add_executable(xyce-studio src/main.osx.mm)
 elseif(WIN32)
