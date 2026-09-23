@@ -176,12 +176,14 @@ jobs:
 
   coverage:
     name: C++ Coverage
-    needs: [check-pr]
+    # PR-only: this job exists to publish coverage for the PR under review, so a
+    # push event (e.g. the merge commit on main) has no PR to update and must not
+    # run it. Fork PRs are excluded: the code-quality: write token must not be
+    # exposed to untrusted code.
     if: |-
-      !cancelled() &&
       github.repository == 'spice-projects/xyce-studio' &&
-      (github.event_name != 'push' || needs.check-pr.outputs.has_pr != 'true') &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
       pull-requests: read
