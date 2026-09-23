@@ -31,10 +31,14 @@ steps.
 
 ## Which operating systems are supported?
 
-- The **KiCad plugin** ships as macOS and Windows packages
-  (`kicad-xyce-plugin-macos.zip`, `kicad-xyce-plugin-windows.zip`).
-- The **standalone application** currently ships only for macOS
-  (`xyce-studio-macos.zip`).
+- The **KiCad plugin** ships for macOS, Windows and Linux
+  (`kicad-xyce-plugin-macos.zip`, `kicad-xyce-plugin-windows.zip`,
+  `kicad-xyce-plugin-linux.zip`).
+- The **standalone application** ships for macOS and Linux
+  (`xyce-studio-macos.zip`, `xyce-studio-linux.zip`).
+- Minimum versions: **macOS 13.3 Ventura** (Apple silicon and Intel);
+  **Ubuntu 24.04 LTS or any distribution with glibc 2.39+**, on X11 or
+  Wayland — see [Installation](getting-started/installation.md).
 
 ## Which Xyce versions are supported?
 

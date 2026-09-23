@@ -12,16 +12,7 @@ The packaged binaries are compiled against these minimum OS versions
 |----------|-----------------|
 | macOS    | **macOS 13.3 Ventura** (Apple silicon and Intel) |
 | Windows  | *To be determined* |
-| Linux    | **Ubuntu 24.04 LTS** or newer (glibc 2.39+) |
-
-Linux builds need **glibc 2.39** or newer. glibc keeps every older symbol
-version, so the requirement only has a floor, never a ceiling: any
-distribution at or above it works — Fedora 40 or newer, Debian 13, Arch —
-while older ones (Ubuntu 22.04, Debian 12) refuse to start the binaries with
-``version `GLIBC_2.39' not found``. The package bundles fontconfig, freetype
-and the rest of its own libraries (resolved through the executable's rpath);
-the host must provide glibc, libstdc++/libgcc (or newer), and a graphical
-X11 or Wayland session.
+| Linux    | **Ubuntu 24.04 LTS** or any distribution with glibc 2.39+, on X11 or Wayland |
 
 ### Software
 
