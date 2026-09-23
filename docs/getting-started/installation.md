@@ -2,6 +2,20 @@
 
 ## Requirements
 
+### Minimum operating system
+
+The packaged binaries are compiled against these minimum OS versions
+(macOS: the deployment target is set at build time, see
+`CMAKE_OSX_DEPLOYMENT_TARGET` in `CMakeLists.txt`):
+
+| Platform | Minimum version |
+|----------|-----------------|
+| macOS    | **macOS 13.3 Ventura** (Apple silicon and Intel) |
+| Windows  | *To be determined* |
+| Linux    | *To be determined* |
+
+### Software
+
 - **KiCad 10.0 or newer** (only needed for the KiCad plugin mode)
 - **Xyce** installed somewhere on disk — Xyce Studio drives the Xyce
   executable; it does not bundle a simulator. The path is configured on
