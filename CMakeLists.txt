@@ -283,6 +283,15 @@ endif()
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
+# artifacts/ lives inside the build tree that CI restores from actions/cache.
+# install() only ever writes, so a file that a new exclusion rule stops
+# producing still ships as a leftover from the cached run before it -- this is
+# exactly how libc.so.6/libm.so.6/ld-linux-x86-64.so.2 kept appearing after the
+# glibc PRE_EXCLUDE below was added (the exclusion itself verified working).
+# Wipe the destination first so the packaged artifact is exactly what this run
+# produced and nothing else.
+install(CODE [[file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/artifacts")]] COMPONENT RuntimeDeps)
+
 install(TARGETS xyce-studio RUNTIME_DEPENDENCY_SET xyce-studio-deps RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps BUNDLE DESTINATION artifacts COMPONENT RuntimeDeps)
 
 # directories searched by the runtime dependency walk below
