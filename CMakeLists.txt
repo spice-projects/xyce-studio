@@ -254,6 +254,17 @@ if(APPLE)
     set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "@loader_path")
 elseif(UNIX)
     set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "$ORIGIN")
+    # legacy DT_RPATH instead of DT_RUNPATH (--disable-new-dtags): an
+    # executable's RPATH is consulted for transitive lookups too, while its
+    # RUNPATH is not. libslint_cpp.so is built by cargo and carries no rpath
+    # of its own, so without this its deps (libfontconfig, libfreetype) are
+    # resolved from the host instead of from the copies shipped next to the
+    # executable -- the package then fails to start on any host that does not
+    # happen to have them installed. BUILD_RPATH additionally keeps the
+    # automatic build-tree entries (vcpkg/slint dirs) so in-tree tests still
+    # resolve; only the DT_RPATH tag matters, verified to survive install().
+    set_target_properties(xyce-studio PROPERTIES BUILD_RPATH "$ORIGIN")
+    target_link_options(xyce-studio PRIVATE "LINKER:--disable-new-dtags")
 endif()
 
 # profile build type, activate with `cmake --preset debug -DCMAKE_BUILD_TYPE=Profile` && `cmake --build --preset debug`
@@ -314,6 +325,20 @@ install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
     [[vcruntime.*]]
     [[msvcp.*]]
     [[ucrtbase.*]]
+    # glibc belongs to the host: the dynamic loader (/lib64/ld-linux-*.so.2)
+    # is always taken from the host, so shipping libc/libm next to it pairs
+    # two different glibc builds and breaks startup on hosts both OLDER and
+    # NEWER than the build machine (verified: ubuntu 22.04 dies with a
+    # GLIBC_PRIVATE symbol error, fedora 44 with "version `GLIBC_2.43' not
+    # found (required by /lib64/libglib-2.0.so.0)"). libgcc/libstdc++ are not
+    # glibc and stay bundled.
+    [[libc\.so\..*]]
+    [[libm\.so\..*]]
+    [[ld-linux-.*\.so\..*]]
+    [[libpthread\.so\..*]]
+    [[libdl\.so\..*]]
+    [[librt\.so\..*]]
+    [[libresolv\.so\..*]]
   POST_EXCLUDE_REGEXES
     [[^/usr/lib]]
     [[^/System]]
