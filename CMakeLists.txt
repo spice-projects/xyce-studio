@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.25)
 # build skia as a dynamic library (its static archive corrupts __unwind_info
 # tables on arm64, breaking C++ exception unwinding);
 set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets" FORCE)
+# overlay ports: .ports/skia floors skia's hardcoded macOS target triple at 13.3
+# (gn/skia/BUILD.gn passes -target <cpu>-apple-macos11, which otherwise makes
+# libskia.dylib ship minos 11.0 instead of 13.3) -- see .ports/skia/portfile.cmake
+set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports" FORCE)
 
 if(APPLE)
     # minimum os version for the apple binaries

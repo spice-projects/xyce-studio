@@ -1,0 +1,37 @@
+--- a/gn/skia/BUILD.gn
++++ b/gn/skia/BUILD.gn
+@@ -274,28 +274,28 @@
+     if (current_cpu == "arm64") {
+       asmflags += [
+         "-target",
+-        "arm64-apple-macos11",
++        "arm64-apple-macos13.3",
+       ]
+       cflags += [
+         "-target",
+-        "arm64-apple-macos11",
++        "arm64-apple-macos13.3",
+       ]
+       ldflags += [
+         "-target",
+-        "arm64-apple-macos11",
++        "arm64-apple-macos13.3",
+       ]
+     } else {
+       asmflags += [
+         "-target",
+-        "x86_64-apple-macos11",
++        "x86_64-apple-macos13.3",
+       ]
+       cflags += [
+         "-target",
+-        "x86_64-apple-macos11",
++        "x86_64-apple-macos13.3",
+       ]
+       ldflags += [
+         "-target",
+-        "x86_64-apple-macos11",
++        "x86_64-apple-macos13.3",
+       ]
+     }
+   }
