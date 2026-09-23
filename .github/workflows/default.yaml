@@ -98,7 +98,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-${{ matrix.os }}-build-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('vcpkg-configuration.json') }}
+          key: vcpkg-${{ matrix.os }}-build-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('.triplets/**', '.ports/**') }}
           restore-keys: |
             vcpkg-${{ matrix.os }}-build-
 
@@ -259,13 +259,31 @@ jobs:
               <string>1.0</string>
               <key>CFBundleVersion</key>
               <string>1</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>13.3</string>
           </dict>
           </plist>
           EOF
 
           chmod +x "$APP_BUNDLE/Contents/MacOS/xyce-studio"
-          install_name_tool -add_rpath @executable_path "$APP_BUNDLE/Contents/MacOS/xyce-studio" 2>/dev/null || true
-          codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/xyce-studio" 2>/dev/null || true
+          EXE="$APP_BUNDLE/Contents/MacOS/xyce-studio"
+
+          # @executable_path is what makes @rpath/lib*.dylib resolve inside the
+          # bundle; skip when the input already carries it so a rerun can't fail
+          if ! otool -l "$EXE" | grep -q "path @executable_path"; then
+            install_name_tool -add_rpath @executable_path "$EXE"
+          fi
+
+          # ad-hoc sign every Mach-O in the bundle. These commands must be able
+          # to fail the job: a previous "2>/dev/null || true" hid a signing
+          # failure and shipped an unsigned x86_64 slice.
+          codesign --force --sign - --verbose "$EXE"
+          codesign --verify --strict --verbose=2 "$EXE"
+          for lib in "$APP_BUNDLE/Contents/MacOS"/*.dylib; do
+            [ -e "$lib" ] || continue
+            codesign --force --sign - --verbose "$lib"
+            codesign --verify --strict --verbose=2 "$lib"
+          done
 
       - name: Stage macOS app bundle for upload
         run: |
