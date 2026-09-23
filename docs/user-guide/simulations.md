@@ -431,4 +431,4 @@ and expressions may reference `.PARAM` variables. The full syntax —
 including `FRAC_MAX`, `TD`, error measures, and `WHEN` crossing
 variants — is in the [Xyce reference guide][rg].
 
-[rg]: https://xyce.sandia.gov/documentation/XyceRG.pdf
+[rg]: https://xyce.sandia.gov/documentation-tutorials/

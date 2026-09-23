@@ -4,8 +4,14 @@ cmake_minimum_required(VERSION 3.25)
 # build skia as a dynamic library (its static archive corrupts __unwind_info
 # tables on arm64, breaking C++ exception unwinding);
 set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets" FORCE)
+# overlay ports: .ports/skia floors skia's hardcoded macOS target triple at 13.3
+# (gn/skia/BUILD.gn passes -target <cpu>-apple-macos11, which otherwise makes
+# libskia.dylib ship minos 11.0 instead of 13.3) -- see .ports/skia/portfile.cmake
+set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports" FORCE)
 
 if(APPLE)
+    # minimum os version for the apple binaries
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS version" FORCE)
     # enable objective-c++ language for .mm files
     project(xyce-studio LANGUAGES CXX OBJCXX)
 else()
@@ -137,22 +143,18 @@ include_directories("src")
 if(APPLE)
     # gather objective-c++ sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.osx.mm")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 elseif (WIN32)
     # gather win32 sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.win32.c++")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 elseif (LINUX)
     # opengl is required on linux
     find_package(OpenGL REQUIRED)
     # gather linux sources
     file(GLOB_RECURSE PLATFORM_SOURCES "src/*.linux.c++")
-    # combine remaining cpp sources with .mm sources
-    set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 endif()
 
+# combine remaining cpp sources with .mm sources
+set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 # remove platform-specific main() sources from the shared library, they are compiled into the executable only
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.osx.mm" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.win32.c++" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.linux.c++")
 
@@ -231,17 +233,6 @@ if(APPLE)
 endif()
 
 if(APPLE)
-    # # resources
-    # set(APP_RESOURCES plugin-icon-64x64.png)
-    # # create bundle
-    # add_executable(xyce-studio MACOSX_BUNDLE src/main.osx.mm ${APP_RESOURCES})
-    # # boundle properties
-    # set_target_properties(xyce-studio PROPERTIES 
-    #     MACOSX_BUNDLE_BUNDLE_NAME "Xyce Studio" 
-    #     MACOSX_BUNDLE_GUI_IDENTIFIER "com.github.spice-projects.xyce-studio"
-    #     RESOURCE "${APP_RESOURCES}"
-    #     MACOSX_BUNDLE_ICON_FILE "plugin-icon-64x64.png"
-    # )
     # declare application
     add_executable(xyce-studio src/main.osx.mm)
 elseif(WIN32)
@@ -263,6 +254,17 @@ if(APPLE)
     set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "@loader_path")
 elseif(UNIX)
     set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "$ORIGIN")
+    # legacy DT_RPATH instead of DT_RUNPATH (--disable-new-dtags): an
+    # executable's RPATH is consulted for transitive lookups too, while its
+    # RUNPATH is not. libslint_cpp.so is built by cargo and carries no rpath
+    # of its own, so without this its deps (libfontconfig, libfreetype) are
+    # resolved from the host instead of from the copies shipped next to the
+    # executable -- the package then fails to start on any host that does not
+    # happen to have them installed. BUILD_RPATH additionally keeps the
+    # automatic build-tree entries (vcpkg/slint dirs) so in-tree tests still
+    # resolve; only the DT_RPATH tag matters, verified to survive install().
+    set_target_properties(xyce-studio PROPERTIES BUILD_RPATH "$ORIGIN")
+    target_link_options(xyce-studio PRIVATE "LINKER:--disable-new-dtags")
 endif()
 
 # profile build type, activate with `cmake --preset debug -DCMAKE_BUILD_TYPE=Profile` && `cmake --build --preset debug`
@@ -281,19 +283,71 @@ endif()
 if(POLICY CMP0207)
     cmake_policy(SET CMP0207 NEW)
 endif()
+# artifacts/ lives inside the build tree that CI restores from actions/cache.
+# install() only ever writes, so a file that a new exclusion rule stops
+# producing still ships as a leftover from the cached run before it -- this is
+# exactly how libc.so.6/libm.so.6/ld-linux-x86-64.so.2 kept appearing after the
+# glibc PRE_EXCLUDE below was added (the exclusion itself verified working).
+# Wipe the destination first so the packaged artifact is exactly what this run
+# produced and nothing else.
+install(CODE [[file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/artifacts")]] COMPONENT RuntimeDeps)
+
 install(TARGETS xyce-studio RUNTIME_DEPENDENCY_SET xyce-studio-deps RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps BUNDLE DESTINATION artifacts COMPONENT RuntimeDeps)
+
+# directories searched by the runtime dependency walk below
+set(XYCE_RUNTIME_DEPENDENCY_DIRS $<TARGET_FILE_DIR:xyce-studio> ${CMAKE_BINARY_DIR}/_deps/slint-build ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
+
+if(WIN32)
+    # app-local c++ runtime: msvcp140/vcruntime140(_1) are neither inbox (like
+    # the api-ms-win-crt ucrt forwarders) nor part of vcpkg. the walk resolves
+    # them against the excluded system dirs (and drops them via the exclude
+    # regexes), so install them explicitly instead: search next to the
+    # compiler/linker (the toolchain bin dir ships them) and in the msvc
+    # redistributable. app-local deployment of the c++ runtime is explicitly
+    # permitted by the visual studio license.
+    set(XYCE_APPLOCAL_CRT_DLLS "")
+    foreach(XYCE_CRT_TOOL IN ITEMS "${CMAKE_CXX_COMPILER}" "${CMAKE_LINKER}")
+        get_filename_component(XYCE_CRT_TOOL_DIR "${XYCE_CRT_TOOL}" DIRECTORY)
+        if(XYCE_CRT_TOOL_DIR)
+            file(GLOB XYCE_CRT_TOOL_DLLS "${XYCE_CRT_TOOL_DIR}/msvcp140*.dll" "${XYCE_CRT_TOOL_DIR}/vcruntime140*.dll")
+            list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_TOOL_DLLS})
+        endif()
+    endforeach()
+    if(DEFINED ENV{VCToolsRedistDir})
+        file(GLOB XYCE_CRT_REDIST_DLLS "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/msvcp140*.dll" "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/vcruntime140*.dll")
+        list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_REDIST_DLLS})
+    endif()
+    list(REMOVE_DUPLICATES XYCE_APPLOCAL_CRT_DLLS)
+    # fail loudly instead of silently shipping a package that dies on a clean
+    # machine with "vcruntime140.dll was not found"
+    if(NOT XYCE_APPLOCAL_CRT_DLLS)
+        message(FATAL_ERROR "windows: app-local c++ runtime dlls (msvcp140/vcruntime140) not found next to the compiler/linker or in VCToolsRedistDir; the packaged app would not run without the vc++ redistributable")
+    endif()
+    install(FILES ${XYCE_APPLOCAL_CRT_DLLS} DESTINATION artifacts COMPONENT RuntimeDeps)
+endif()
+
 install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
-  DIRECTORIES
-    $<TARGET_FILE_DIR:xyce-studio>
-    ${CMAKE_BINARY_DIR}/_deps/slint-build
-    ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
-    ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+  DIRECTORIES ${XYCE_RUNTIME_DEPENDENCY_DIRS}
   PRE_EXCLUDE_REGEXES
     [[api-ms-.*]]
     [[ext-ms-.*]]
     [[vcruntime.*]]
     [[msvcp.*]]
     [[ucrtbase.*]]
+    # glibc belongs to the host: the dynamic loader (/lib64/ld-linux-*.so.2)
+    # is always taken from the host, so shipping libc/libm next to it pairs
+    # two different glibc builds and breaks startup on hosts both OLDER and
+    # NEWER than the build machine (verified: ubuntu 22.04 dies with a
+    # GLIBC_PRIVATE symbol error, fedora 44 with "version `GLIBC_2.43' not
+    # found (required by /lib64/libglib-2.0.so.0)"). libgcc/libstdc++ are not
+    # glibc and stay bundled.
+    [[libc\.so\..*]]
+    [[libm\.so\..*]]
+    [[ld-linux-.*\.so\..*]]
+    [[libpthread\.so\..*]]
+    [[libdl\.so\..*]]
+    [[librt\.so\..*]]
+    [[libresolv\.so\..*]]
   POST_EXCLUDE_REGEXES
     [[^/usr/lib]]
     [[^/System]]

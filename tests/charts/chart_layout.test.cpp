@@ -208,9 +208,12 @@ TEST(ChartLayoutTicksTest, linear_locator_major_grid_is_unconditional_and_inside
     const ChartFrame frame = layout.build(engine, 800.0f, 600.0f);
     // assert — every major grid line keeps full alpha and stays in the plot
     ASSERT_FALSE(frame.x_grid.empty());
-    for (const auto& line : frame.x_grid)
-        if (line.major)
+    for (const auto& line : frame.x_grid) {
+        // check that major grid lines have full alpha
+        if (line.major) {
             ASSERT_NEAR(line.alpha, 1.0f, 1e-6);
+        }
+    }
     // grid pixel positions are relative to the frame origin
     const ChartGridLine& first = frame.x_grid.front();
     ASSERT_NEAR(first.pixel_pos, frame.plot_x, 1e-3);

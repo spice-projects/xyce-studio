@@ -440,36 +440,6 @@ namespace simulation_parameters_dialog_view
             return entries;
         }
 
-        // parse IC text into IcEntry objects; accepts V(node)=val, node=val, and bare pairs
-        [[nodiscard]] std::vector<IcEntry> parse_ic_entries(std::string_view text) {
-            std::vector<IcEntry> entries;
-            const auto tokens = tokenize(text);
-            for (size_t i = 0; i < tokens.size();) {
-                const auto& tok = tokens[i];
-                const auto eq_pos = tok.find('=');
-                if (eq_pos != std::string::npos) {
-                    std::string_view lhs = tok.substr(0, eq_pos);
-                    std::string_view rhs = tok.substr(eq_pos + 1);
-                    std::string_view node;
-                    if (lhs.starts_with("V(") && lhs.ends_with(")"))
-                        node = lhs.substr(2, lhs.size() - 3);
-                    else
-                        node = lhs;
-                    if (!node.empty() && !rhs.empty())
-                        entries.emplace_back(std::string(node), std::string(rhs));
-                    ++i;
-                }
-                else if (i + 1 < tokens.size()) {
-                    entries.emplace_back(std::string(tokens[i]), std::string(tokens[i + 1]));
-                    i += 2;
-                }
-                else {
-                    ++i;
-                }
-            }
-            return entries;
-        }
-
         // push the saved operating point parameters into the dialog root's op-* fields
         void apply_op_parameters(const WindowHandle& dialog, const OpSimulationParameters& params) {
             // print section (no print-type combo; the type is always DC)
