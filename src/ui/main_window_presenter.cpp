@@ -61,6 +61,8 @@ namespace
             return "DC Operating Point";
         case PlotType::NOISE:
             return "Noise Analysis";
+        case PlotType::PCE:
+            return "PCE Analysis";
         case PlotType::FFT:
         case PlotType::UNKNOWN:
         default:
@@ -335,6 +337,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     }
     // clear the parsed FFT calculation files, they belong to the previous run
     m_fft_measurements.clear();
+    // clear the parsed PCE output file, it belongs to the previous run
+    m_pce_measurements = std::nullopt;
     // clear the parsed touchstone file, it belongs to the previous run
     m_s_parameter_measurements = std::nullopt;
     // remember the run paths for the finished handler; the view owns the runner
@@ -679,6 +683,7 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
         return;
     // drop existing datasets and chart state before loading a new raw file
     m_fft_measurements.clear();
+    m_pce_measurements = std::nullopt;
     m_s_parameter_measurements = std::nullopt;
     m_analysis_measurements = std::nullopt;
     m_view.release_all_charts();
@@ -718,7 +723,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // 2. the analysis type owns the knowledge of what companion data the
         // run dumps besides the analysis output: a .LIN analysis with a
         // touchstone format dumps one s-parameter file, a .TRAN analysis with
-        // .FFT directives dumps the FFT calculation files
+        // .FFT directives dumps the FFT calculation files and a .TRAN or .DC
+        // analysis with .PCE parameters and a .PCE companion print dumps the
+        // PCE statistics output
         const auto produced = m_simulation_config.produced_measurements();
         // step slices source for the companion loaders, taken from the
         // analysis output before it is moved into the dataset
@@ -745,6 +752,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         }
         // clear any previously loaded companion measurements
         m_fft_measurements.clear();
+        m_pce_measurements = std::nullopt;
         m_s_parameter_measurements = std::nullopt;
         m_analysis_measurements = std::nullopt;
         // 4. render the main simulation tab when the run produced analysis output
@@ -770,8 +778,10 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             load_s_parameter_measurements(analysis_steps);
         if (produced.fft)
             load_fft_measurements();
+        if (produced.pce)
+            load_pce_measurements(*m_simulation_config.pce_print_parameters());
         // 6. the run produced no data at all
-        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty()) {
+        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && !m_pce_measurements.has_value()) {
             // update the statusbar and show the output panel so the user can inspect the log
             m_view.set_status_text("Simulation finished but output file could not be found");
             m_view.show_simulation_output_panel();
@@ -1008,6 +1018,32 @@ void SlintMainWindowPresenter::load_fft_measurements() {
     spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_measurements.size());
 }
 
+void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_print) {
+    // resolve the produced PCE output file path from the .PCE companion print
+    const auto pce_path = m_simulation_config.pce_output_file_path(m_simulation_netlist_path, m_simulation_working_directory);
+    // the run produced no PCE output file next to the netlist
+    if (!pce_path.has_value() || !std::filesystem::exists(*pce_path))
+        return;
+    // parse the produced file with the parser matching the configured print format; the default format (empty) writes the prn table
+    const auto format = to_upper(pce_print.print_format);
+    if (auto measurements = format == "CSV" ? xyce_csv_file_parser(*pce_path) : format == "TECPLOT" ? xyce_tecplot_file_parser(*pce_path) : xyce_prn_file_parser(*pce_path)) {
+        // stamp the dedicated PCE plot type: the analysis print metadata would mislabel the tab as the analysis and the parsers classify by filename, which carries no PCE marker
+        (*measurements)->set_plot_type(PlotType::PCE);
+        // store the parsed PCE output file
+        m_pce_measurements = *measurements;
+        // render the PCE output as a non-closable tab
+        m_plot_datasets.push_back(PlotDataset{.id = m_next_dataset_id++, .file = *measurements, .closable = false});
+        // synchronize plot tabs with view
+        sync_plot_tabs_with_view();
+        // log the loaded PCE file
+        spdlog::info("Loaded Xyce PCE output file '{}'", pce_path->string());
+    }
+    else {
+        // the produced file could not be parsed
+        spdlog::warn("Failed to parse PCE output file '{}'", pce_path->string());
+    }
+}
+
 void SlintMainWindowPresenter::on_simulation_stdout(const std::string& line) {
     // forward the stdout line to the view for display
     m_view.append_simulation_output_line(line);
@@ -1052,6 +1088,11 @@ const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::
 const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::fft_measurements() const {
     // return the parsed FFT calculation output files
     return m_fft_measurements;
+}
+
+const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::pce_measurements() const {
+    // return the parsed PCE output file
+    return m_pce_measurements;
 }
 
 const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::s_parameter_measurements() const {

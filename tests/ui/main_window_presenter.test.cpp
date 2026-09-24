@@ -2386,3 +2386,192 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     std::filesystem::remove(raw_path, ec);
     std::filesystem::remove(fft0_path, ec);
 }
+
+// ========================================================================================
+// PCE companion output loading
+// ========================================================================================
+
+TEST(SlintMainWindowPresenterChecks, pce_run_without_analysis_print_loads_pce_tab) {
+    // arrange — a transient run with .PCE parameters and its companion print
+    // but no .PRINT TRAN: Xyce produces only the PCE statistics file
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the PCE output file the run produces next to the netlist
+    const auto pce_path = view.m_started_netlist_path.string() + ".PCE.prn";
+    {
+        std::ofstream pce_file(pce_path, std::ios::out | std::ios::trunc);
+        pce_file << "Index TIME V(IN) {V(IN)}_mean {V(IN)}_stddev\n";
+        pce_file << "0 0.0 0.0 0.0 0.0\n";
+        pce_file << "1 1e-6 5.0 4.9 0.1\n";
+        pce_file << ".\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the pce tab renders even though no analysis output exists
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(presenter.pce_measurements().has_value());
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "PCE Analysis");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(pce_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, tran_and_pce_prints_render_transient_and_pce_tabs) {
+    // arrange — a transient run carrying both the analysis print and the .PCE companion print
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PRINT TRAN V(IN)\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the transient output file the run produces
+    const auto tran_path = view.m_started_netlist_path.string() + ".prn";
+    {
+        std::ofstream tran_file(tran_path, std::ios::out | std::ios::trunc);
+        tran_file << "INDEX TIME V(IN)\n";
+        tran_file << "0 0.0 0.0\n";
+        tran_file << "1 1e-6 5.0\n";
+        tran_file << ".\n";
+    }
+    // arrange — write the PCE output file the run produces
+    const auto pce_path = view.m_started_netlist_path.string() + ".PCE.prn";
+    {
+        std::ofstream pce_file(pce_path, std::ios::out | std::ios::trunc);
+        pce_file << "Index TIME V(IN) {V(IN)}_mean {V(IN)}_stddev\n";
+        pce_file << "0 0.0 0.0 0.0 0.0\n";
+        pce_file << "1 1e-6 5.0 4.9 0.1\n";
+        pce_file << ".\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the analysis tab and the pce tab render side by side
+    EXPECT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_TRUE(presenter.pce_measurements().has_value());
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_plot_tabs[1].title, "PCE Analysis");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(tran_path, ec);
+    std::filesystem::remove(pce_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, pce_run_without_produced_file_reports_missing_output) {
+    // arrange — a transient run configured with .PCE and its companion print
+    // but no .PRINT TRAN; the produced pce file is never written
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — finish the simulation successfully without the produced file
+    presenter.on_simulation_finished(0, false);
+    // assert — no data could be loaded, the output panel explains it
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_FALSE(view.m_output_panel_hidden);
+    EXPECT_FALSE(presenter.pce_measurements().has_value());
+    EXPECT_TRUE(view.m_plot_tabs.empty());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, pce_run_with_unparsable_file_reports_missing_output) {
+    // arrange — a transient run configured with .PCE and its companion print
+    // but no .PRINT TRAN
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — create an empty pce file the parsers reject
+    const auto pce_path = view.m_started_netlist_path.string() + ".PCE.prn";
+    {
+        std::ofstream pce_file(pce_path, std::ios::out | std::ios::trunc);
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the unparsable file yields no pce tab
+    EXPECT_FALSE(presenter.pce_measurements().has_value());
+    EXPECT_TRUE(view.m_plot_tabs.empty());
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(pce_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, rerun_without_pce_print_drops_stale_pce_tab) {
+    // arrange — a transient run carrying both the analysis print and the .PCE companion print
+    RecordingView view;
+    auto netlist_source = std::make_unique<StubNetlistSource>("V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PRINT TRAN V(IN)\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n", std::filesystem::temp_directory_path());
+    StubNetlistSource* source = netlist_source.get();
+    SlintMainWindowPresenter presenter(view, std::move(netlist_source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the transient and pce output files the run produces
+    const auto tran_path = view.m_started_netlist_path.string() + ".prn";
+    {
+        std::ofstream tran_file(tran_path, std::ios::out | std::ios::trunc);
+        tran_file << "INDEX TIME V(IN)\n";
+        tran_file << "0 0.0 0.0\n";
+        tran_file << "1 1e-6 5.0\n";
+        tran_file << ".\n";
+    }
+    const auto pce_path = view.m_started_netlist_path.string() + ".PCE.prn";
+    {
+        std::ofstream pce_file(pce_path, std::ios::out | std::ios::trunc);
+        pce_file << "Index TIME V(IN) {V(IN)}_mean {V(IN)}_stddev\n";
+        pce_file << "0 0.0 0.0 0.0 0.0\n";
+        pce_file << "1 1e-6 5.0 4.9 0.1\n";
+        pce_file << ".\n";
+    }
+    // act — finish the first run
+    presenter.on_simulation_finished(0, false);
+    // assert — the transient tab and the pce tab are rendered
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_plot_tabs[1].title, "PCE Analysis");
+    const int pce_id = view.m_plot_tabs[1].id;
+    // arrange — the netlist is edited and the pce directives removed, then the
+    // simulation runs again
+    source->m_reloaded = true;
+    source->m_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PRINT TRAN V(IN)\n.END\n";
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the transient output file the second run produces at its own output location
+    const auto tran_path_second_run = view.m_started_netlist_path.string() + ".prn";
+    {
+        std::ofstream tran_file(tran_path_second_run, std::ios::out | std::ios::trunc);
+        tran_file << "INDEX TIME V(IN)\n";
+        tran_file << "0 0.0 0.0\n";
+        tran_file << "1 1e-6 5.0\n";
+        tran_file << ".\n";
+    }
+    // act — finish the second run
+    presenter.on_simulation_finished(0, false);
+    // assert — the stale pce tab was released, only the fresh transient tab remains
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_FALSE(presenter.pce_measurements().has_value());
+    ASSERT_EQ(view.m_released_dataset_ids.size(), 1u);
+    EXPECT_EQ(view.m_released_dataset_ids[0], pce_id);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(tran_path_second_run, ec);
+    std::filesystem::remove(tran_path, ec);
+    std::filesystem::remove(pce_path, ec);
+}

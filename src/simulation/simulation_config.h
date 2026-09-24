@@ -77,6 +77,18 @@ public:
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 
+    // extract the .PRINT PCE parameters of the configured analysis (the
+    // companion print of the DC or TRAN .PCE directive); nullopt when no
+    // analysis is configured or no .PCE companion print is configured
+    [[nodiscard]] std::optional<PrintParameters> pce_print_parameters() const;
+
+    // compute the produced PCE statistics output file path for the configured
+    // analysis; without FILE= Xyce appends the PCE suffix (.PCE.prn, .PCE.csv
+    // or .PCE.dat) to the netlist name, with FILE= the value is resolved
+    // against the working directory (Xyce's process cwd); nullopt when the run
+    // produces no PCE output
+    [[nodiscard]] std::optional<std::filesystem::path> pce_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const;
+
     // the companion measurement data a finished run produces besides the
     // analysis output; which entries are set depends on the configured
     // analysis type — the analysis parameters own the knowledge of what data
@@ -87,6 +99,9 @@ public:
         bool s_parameters = false;
         // a .TRAN analysis with .FFT directives dumps the FFT calculation files
         bool fft = false;
+        // a .TRAN or .DC analysis with .PCE parameters and a .PCE companion
+        // print dumps the PCE statistics output
+        bool pce = false;
     };
 
     // report the companion measurement data the configured analysis produces

@@ -26,7 +26,8 @@ enum class PlotType
     DC,
     NOISE,
     DC_OPERATING_POINT,
-    FFT
+    FFT,
+    PCE
 };
 
 class XyceOutputFile
