@@ -57,7 +57,7 @@ The UI is built with Slint and lives under `src/ui`:
 - Only `src/ui/widgets/*.slint` are compiled via `slint_target_sources(... NAMESPACE <file-stem>)`. Components under `src/ui/components/` are imported by roots only; never register them standalone.
 - Each root widget becomes a C++ namespace named after its file stem (e.g. `main_window::MainWindow`); its generated header is included with angle brackets: `#include <main_window.h>`.
 - Slint names are kebab-case; generated C++ accessors/callbacks are camelCase: property `charts-visible` → `get_charts_visible()`/`set_charts_visible()`; callback `show-charts` → `on_show_charts()`.
-- `SLINT_STYLE=cupertino`, `SLINT_FEATURE_RENDERER_SKIA=ON`, Slint pinned to `release/1` via FetchContent.
+- `SLINT_STYLE=cupertino`, `SLINT_FEATURE_RENDERER_SKIA=ON`, Slint pinned to the immutable `v1.18.1` tag via FetchContent.
 - `@image-url()` assets are embedded with `SLINT_EMBED_RESOURCES embed-files`; image paths resolve relative to the `.slint` file (`../kicad-icons/..._48.png`).
 - Platform host code uses the suffixes `.osx.mm` / `.win32.c++` / `.linux.c++`; UI colors come from `Palette` in `std-widgets.slint`.
 
