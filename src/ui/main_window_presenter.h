@@ -86,6 +86,7 @@ public:
     // accessors
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& analysis_measurements() const;
     [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_measurements() const;
+    [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& pce_measurements() const;
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& s_parameter_measurements() const;
     [[nodiscard]] size_t active_dataset_index() const { return m_active_dataset_index; }
 
@@ -153,6 +154,11 @@ private:
     // output's step slices
     void load_fft_measurements();
 
+    // load the PCE statistics file a DC or transient run with .PCE parameters
+    // and a .PCE companion print wrote and render its tab; pce_print carries
+    // the configured print so the parser matches the output format
+    void load_pce_measurements(const PrintParameters& pce_print);
+
     MainWindowViewDef& m_view;
 
     std::shared_ptr<KiCadSession> m_kicad_session;
@@ -170,6 +176,9 @@ private:
     // active_dataset_file()
     std::optional<std::shared_ptr<XyceOutputFile>> m_analysis_measurements;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_measurements;
+    // pce measurements produced by a DC or transient run; a single run
+    // produces at most one .PCE companion output file
+    std::optional<std::shared_ptr<XyceOutputFile>> m_pce_measurements;
     // s-parameter measurements produced by a .LIN run; a single run produces
     // at most one file (a .STEP run concatenates all steps into the same file)
     std::optional<std::shared_ptr<XyceOutputFile>> m_s_parameter_measurements;

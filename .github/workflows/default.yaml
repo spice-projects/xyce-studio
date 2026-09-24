@@ -176,11 +176,18 @@ jobs:
 
   coverage:
     name: C++ Coverage
-    # PR-only: this job exists to publish coverage for the PR under review, so a
-    # push event (e.g. the merge commit on main) has no PR to update and must not
-    # run it. Fork PRs are excluded: the code-quality: write token must not be
-    # exposed to untrusted code.
+    needs: [check-pr]
+    # Coverage is a pull-request signal only: a `push` never runs it, on any
+    # branch. That covers both failure modes seen so far:
+    #   - pushing to a branch that HAS an open PR used to run coverage twice
+    #     (once for the push, once for the pull_request event) because the push
+    #     arm asked for has_pr == 'true'
+    #   - inverting that arm then turned on plain branch pushes with no PR at
+    #     all (e.g. pce-output), burning a macOS runner for a number nobody can
+    #     read (there is no PR page to attach it to)
+    # Fork PRs stay excluded (head.repo check below).
     if: |-
+      !cancelled() &&
       github.repository == 'spice-projects/xyce-studio' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository

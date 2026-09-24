@@ -433,19 +433,56 @@ std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_patt
     return std::visit(FftPathVisitor{netlist_file_path}, analysis);
 }
 
+std::optional<PrintParameters> SimulationConfig::pce_print_parameters() const {
+    // the DC analysis carries the companion print inside its .PCE parameters
+    if (const auto* dc = std::get_if<DCSimulationParameters>(&analysis); dc && dc->pce.has_value())
+        return dc->pce->print_parameters;
+    // the transient analysis carries the same companion print
+    if (const auto* tran = std::get_if<TransientSimulationParameters>(&analysis); tran && tran->pce.has_value())
+        return tran->pce->print_parameters;
+    // every other analysis has no .PCE companion directive
+    return std::nullopt;
+}
+
+std::optional<std::filesystem::path> SimulationConfig::pce_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const {
+    // no .PCE companion print, no PCE output file
+    const auto pce_print = pce_print_parameters();
+    if (!pce_print.has_value())
+        return std::nullopt;
+    // FILE= is preserved for the .PCE companion print: Xyce writes the named file, a relative value resolves against the working directory (its process cwd)
+    if (!pce_print->print_file.empty()) {
+        const auto file = strip_outer_quotes(pce_print->print_file);
+        if (std::filesystem::path(file).is_absolute())
+            return std::optional<std::filesystem::path>(file);
+        return std::optional<std::filesystem::path>(working_directory / file);
+    }
+    // without FILE= Xyce appends the analysis-specific suffix to the netlist name; only CSV and TECPLOT carry their own suffix, every other format writes the prn table
+    const auto format = to_upper(pce_print->print_format);
+    if (format == "CSV")
+        return std::optional<std::filesystem::path>(netlist_file_path.string() + csv_output_suffix("PCE"));
+    if (format == "TECPLOT")
+        return std::optional<std::filesystem::path>(netlist_file_path.string() + tecplot_output_suffix("PCE"));
+    return std::optional<std::filesystem::path>(netlist_file_path.string() + prn_output_suffix("PCE"));
+}
+
 SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements() const {
 
     struct ProducedMeasurementsVisitor
     {
         SimulationConfig::ProducedMeasurements operator()(const std::monostate&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const AcSimulationParameters&) const { return {}; }
-        SimulationConfig::ProducedMeasurements operator()(const DCSimulationParameters&) const { return {}; }
+        SimulationConfig::ProducedMeasurements operator()(const DCSimulationParameters& params) const {
+            // a .DC analysis with .PCE parameters and a companion print dumps the PCE statistics output
+            return {.pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
+        }
         SimulationConfig::ProducedMeasurements operator()(const HbSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
             // a .TRAN analysis with .FFT directives dumps the FFT calculation files
-            return {.fft = !params.fft_parameters.empty()};
+            // and a .TRAN analysis with .PCE parameters and a companion print
+            // dumps the PCE statistics output
+            return {.fft = !params.fft_parameters.empty(), .pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
         }
         SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {
             // a .LIN run with a touchstone format dumps one s-parameter file

@@ -482,6 +482,128 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_is_absent_for_other_analyses) {
 }
 
 // ========================================================================================
+// PCE print parameter extraction
+// ========================================================================================
+
+TEST(SimulationConfigPcePrintChecks, no_analysis_yields_no_pce_print) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act / assert
+    EXPECT_FALSE(config.pce_print_parameters().has_value());
+}
+
+TEST(SimulationConfigPcePrintChecks, analysis_without_pce_yields_no_pce_print) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u"});
+    // act / assert
+    EXPECT_FALSE(config.pce_print_parameters().has_value());
+}
+
+TEST(SimulationConfigPcePrintChecks, pce_without_companion_print_yields_nothing) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K"});
+    // act / assert
+    EXPECT_FALSE(config.pce_print_parameters().has_value());
+}
+
+TEST(SimulationConfigPcePrintChecks, tran_with_pce_and_print_yields_the_print) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FORMAT=CSV FILE=out.csv V(1)"});
+    // act
+    const auto print = config.pce_print_parameters();
+    // assert
+    ASSERT_TRUE(print.has_value());
+    EXPECT_EQ(print->print_type, "PCE");
+    EXPECT_EQ(print->print_format, "CSV");
+    EXPECT_EQ(print->print_file, "out.csv");
+    ASSERT_EQ(print->output_variables.size(), 1u);
+    EXPECT_EQ(print->output_variables[0], "V(1)");
+}
+
+TEST(SimulationConfigPcePrintChecks, dc_with_pce_and_print_yields_the_print) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
+    // act
+    const auto print = config.pce_print_parameters();
+    // assert
+    ASSERT_TRUE(print.has_value());
+    EXPECT_EQ(print->print_type, "PCE");
+}
+
+// ========================================================================================
+// PCE output file path computation
+// ========================================================================================
+
+TEST(SimulationConfigPcePathChecks, pce_path_requires_a_companion_print) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    EXPECT_FALSE(path.has_value());
+}
+
+TEST(SimulationConfigPcePathChecks, default_format_resolves_next_to_the_netlist) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
+}
+
+TEST(SimulationConfigPcePathChecks, dc_print_resolves_next_to_the_netlist) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
+}
+
+TEST(SimulationConfigPcePathChecks, csv_format_resolves_the_csv_suffix) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FORMAT=CSV V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.csv");
+}
+
+TEST(SimulationConfigPcePathChecks, tecplot_format_resolves_the_dat_suffix) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FORMAT=TECPLOT V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.dat");
+}
+
+TEST(SimulationConfigPcePathChecks, relative_file_resolves_against_the_working_directory) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FILE=out.prn V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/tmp/run/out.prn");
+}
+
+TEST(SimulationConfigPcePathChecks, absolute_file_is_returned_verbatim) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FILE=/var/results/out.prn V(1)"});
+    // act
+    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    // assert
+    ASSERT_TRUE(path.has_value());
+    EXPECT_EQ(path->generic_string(), "/var/results/out.prn");
+}
+
+// ========================================================================================
 // s-parameter output file path computation
 // ========================================================================================
 
@@ -606,6 +728,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, no_analysis_produces_nothing) {
     // assert
     EXPECT_FALSE(produced.s_parameters);
     EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.pce);
 }
 
 TEST(SimulationConfigProducedMeasurementsChecks, lin_with_touchstone_format_produces_s_parameters) {
@@ -616,6 +739,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, lin_with_touchstone_format_prod
     // assert
     EXPECT_TRUE(produced.s_parameters);
     EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.pce);
 }
 
 TEST(SimulationConfigProducedMeasurementsChecks, lin_without_touchstone_format_produces_no_s_parameters) {
@@ -626,6 +750,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, lin_without_touchstone_format_p
     // assert
     EXPECT_FALSE(produced.s_parameters);
     EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.pce);
 }
 
 TEST(SimulationConfigProducedMeasurementsChecks, tran_with_fft_directives_produces_fft) {
@@ -636,6 +761,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_with_fft_directives_produc
     // assert
     EXPECT_TRUE(produced.fft);
     EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.pce);
 }
 
 TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_produces_no_fft) {
@@ -646,6 +772,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_pro
     // assert
     EXPECT_FALSE(produced.fft);
     EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.pce);
 }
 
 TEST(SimulationConfigProducedMeasurementsChecks, other_analyses_produce_nothing) {
@@ -656,6 +783,36 @@ TEST(SimulationConfigProducedMeasurementsChecks, other_analyses_produce_nothing)
     // assert
     EXPECT_FALSE(produced.s_parameters);
     EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.pce);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, tran_with_pce_print_produces_pce) {
+    // arrange — a transient analysis with the .PCE directive and its companion print
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_TRUE(produced.pce);
+    EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.s_parameters);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, tran_with_pce_without_print_produces_no_pce) {
+    // arrange — a transient analysis with the .PCE directive but no companion print
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K"});
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_FALSE(produced.pce);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, dc_with_pce_print_produces_pce) {
+    // arrange — a dc analysis with the .PCE directive and its companion print
+    const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_TRUE(produced.pce);
 }
 
 // ========================================================================================
