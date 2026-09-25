@@ -369,6 +369,88 @@ TEST(SlintMainWindowPresenterChecks, rerun_with_saved_config_does_not_show_empty
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, run_keeps_an_unsaved_netlist_savable_when_the_rewrite_reproduces_the_text) {
+    // arrange — this netlist is a fixed point of the parse/rebuild cycle, so a run rewrites the editor with the identical text
+    RecordingView view;
+    const std::string netlist = "* Simple RLC Series Circuit - AC Analysis Test\nV1 IN 0 AC 1\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n\n.PREPROCESS REPLACEGROUND TRUE\n.AC LIN 20 1 100k\n.PRINT AC FORMAT=RAW V(*) I(*)\n\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — the user types the netlist into the editor, which marks it unsaved
+    view.m_editor_content = netlist;
+    presenter.on_netlist_editor_modified();
+    ASSERT_TRUE(view.m_last_enablement.save);
+    // act — run the simulation
+    presenter.on_run_simulation();
+    // assert — the run rewrote the editor with the text the user typed
+    ASSERT_TRUE(view.m_started);
+    EXPECT_EQ(view.m_editor_content, netlist);
+    // act — the simulation process finishes
+    presenter.on_simulation_finished(0, false);
+    // assert — nothing was ever written to disk, so the netlist is still unsaved and the save tool stays enabled
+    EXPECT_TRUE(view.m_last_enablement.save);
+    EXPECT_EQ(view.m_title, "* ");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_leaves_a_clean_netlist_clean_when_the_rewrite_reproduces_the_text) {
+    // arrange — the canonical netlist as it sits on disk: the rebuild reproduces it verbatim
+    RecordingView view;
+    const std::string netlist = "* Simple RLC Series Circuit - AC Analysis Test\nV1 IN 0 AC 1\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n\n.PREPROCESS REPLACEGROUND TRUE\n.AC LIN 20 1 100k\n.PRINT AC FORMAT=RAW V(*) I(*)\n\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — run the simulation on the loaded netlist without touching the editor
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // assert — the run rewrote the editor with the text the file already holds
+    EXPECT_EQ(view.m_editor_content, netlist);
+    // act — the simulation process finishes
+    presenter.on_simulation_finished(0, false);
+    // assert — nothing changed, so the netlist stays clean and the save tool stays disabled
+    EXPECT_FALSE(view.m_last_enablement.save);
+    EXPECT_EQ(view.m_title, "");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_after_an_editor_edit_simulates_the_edited_netlist) {
+    // arrange — a netlist parsed by the first run
+    RecordingView view;
+    auto source = std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", std::filesystem::temp_directory_path());
+    auto* live_source = source.get();
+    SlintMainWindowPresenter presenter(view, std::move(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // cleanup the temp netlist from the first run
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    view.m_started = false;
+    // act — the user edits the netlist; the live source reports the edit without a reload flag
+    live_source->m_content = "V1 1 0 5\nR1 1 0 2K\n.TRAN 1u 2m\n.END\n";
+    view.m_editor_content = live_source->m_content;
+    presenter.on_netlist_editor_modified();
+    presenter.on_run_simulation();
+    // assert — the second run simulates the edited netlist instead of the cached first-run content
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream second_run(view.m_started_netlist_path);
+        const std::string second_content((std::istreambuf_iterator<char>(second_run)), std::istreambuf_iterator<char>());
+        EXPECT_NE(second_content.find("R1 1 0 2K"), std::string::npos);
+        EXPECT_EQ(second_content.find("R1 1 0 1K"), std::string::npos);
+        EXPECT_NE(second_content.find(".TRAN 1u 2m"), std::string::npos);
+        EXPECT_EQ(second_content.find(".TRAN 1u 1m"), std::string::npos);
+    }
+    // assert — the editor keeps the edited text instead of reverting to the pre-edit content
+    EXPECT_NE(view.m_editor_content.find("R1 1 0 2K"), std::string::npos);
+    EXPECT_EQ(view.m_editor_content.find("R1 1 0 1K"), std::string::npos);
+    // cleanup
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+// ========================================================================================
+// raw print and copy-on-finish handling
+// ========================================================================================
+
 TEST(SlintMainWindowPresenterChecks, raw_print_file_is_stripped_for_xyce_and_copied_on_finish) {
     // arrange — netlist with a transient analysis whose RAW print carries an output file
     RecordingView view;
@@ -1606,6 +1688,49 @@ TEST(SlintMainWindowPresenterChecks, save_untitled_netlist_requests_a_path_and_p
     // cleanup
     std::error_code ec;
     std::filesystem::remove_all(save_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, configure_result_keeps_an_unsaved_netlist_savable) {
+    // arrange — a netlist file holding the canonical transient netlist
+    const auto netlist_dir = std::filesystem::temp_directory_path() / "kicad_xyce_presenter_configure_dirty";
+    std::filesystem::create_directories(netlist_dir);
+    const auto netlist_path = netlist_dir / "demo.cir";
+    write_file(netlist_path, "* Simple RLC Series Circuit - AC Analysis Test\nV1 IN 0 AC 1\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n\n.PREPROCESS REPLACEGROUND TRUE\n.AC LIN 20 1 100k\n.PRINT AC FORMAT=RAW V(*) I(*)\n\n.END\n");
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", netlist_dir), PluginConfig(""), nullptr);
+    presenter.on_open_xyce_file(netlist_path);
+    // act — the user edits the resistor value in the editor, which marks it unsaved
+    view.m_editor_content = "* Simple RLC Series Circuit - AC Analysis Test\nV1 IN 0 AC 1\nR1 IN N1 200\nL1 N1 N2 10mH\nC1 N2 0 1uF\n\n.PREPROCESS REPLACEGROUND TRUE\n.AC LIN 20 1 100k\n.PRINT AC FORMAT=RAW V(*) I(*)\n\n.END\n";
+    presenter.on_netlist_editor_modified();
+    ASSERT_TRUE(view.m_last_enablement.save);
+    const std::string edited = view.m_editor_content;
+    // act — open the configure dialog and accept it without touching the parameters
+    presenter.on_configure_simulation();
+    ASSERT_TRUE(view.m_last_simulation_config_seed.has_value());
+    presenter.on_simulation_parameters_dialog_result(*view.m_last_simulation_config_seed);
+    // assert — accepting the unchanged configuration rewrites the editor with the identical text
+    EXPECT_EQ(view.m_editor_content, edited);
+    // assert — the unsaved edit is still there to save and the dirty marker survives the rewrite
+    EXPECT_EQ(view.m_title, "* demo.cir");
+    EXPECT_TRUE(view.m_last_enablement.save);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove_all(netlist_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, configure_result_leaves_a_clean_netlist_clean) {
+    // arrange — the canonical netlist as it sits on disk: the rebuild reproduces it verbatim
+    RecordingView view;
+    const std::string netlist = "* Simple RLC Series Circuit - AC Analysis Test\nV1 IN 0 AC 1\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n\n.PREPROCESS REPLACEGROUND TRUE\n.AC LIN 20 1 100k\n.PRINT AC FORMAT=RAW V(*) I(*)\n\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist, std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act — open the configure dialog and accept it without touching the parameters
+    presenter.on_configure_simulation();
+    ASSERT_TRUE(view.m_last_simulation_config_seed.has_value());
+    presenter.on_simulation_parameters_dialog_result(*view.m_last_simulation_config_seed);
+    // assert — accepting the unchanged configuration rewrites the editor with the identical text
+    EXPECT_EQ(view.m_editor_content, netlist);
+    // assert — nothing changed, so there is nothing to save
+    EXPECT_FALSE(view.m_last_enablement.save);
 }
 
 TEST(SlintMainWindowPresenterChecks, extract_schematic_netlist_loads_readonly_editor) {
