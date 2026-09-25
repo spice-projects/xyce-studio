@@ -30,8 +30,7 @@ static bool is_valid_key_char(char c, bool is_first) {
     return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
 }
 
-// attempt to split a token into a key=value option pair;
-// returns empty string pair when the token is not a valid option
+// attempt to split a token into a key=value option pair, returns an empty pair when the token is not a valid option
 static std::pair<std::string, std::string> split_option_token(const std::string& token) {
     // check for equals sign
     const auto eq_pos = token.find('=');
@@ -177,11 +176,7 @@ PrintParameters::PrintParameters(std::string print_type, std::string print_forma
     print_type(std::move(print_type)), print_format(std::move(print_format)), print_file(std::move(print_file)), output_variables(sanitize_print_output_variables(this->print_type, output_variables)), extra_options(std::move(extra_options)) {}
 
 std::vector<std::string> sanitize_print_output_variables(const std::string& print_type, const std::vector<std::string>& output_variables) {
-    // wildcard tokens unsupported by the linear frequency-domain analyses per
-    // the Xyce reference guide: power (P(*)/W(*)) and device lead currents
-    // (IB/IC/IE/IS/ID/IG) are unsupported for AC, NOISE and HB prints, which
-    // only carry voltages and branch currents (V, E, H, L devices, voltage
-    // form B device)
+    // wildcard tokens unsupported by the linear frequency-domain analyses per the Xyce reference guide (power P(*)/W(*) and device lead currents), AC, NOISE and HB prints only carry voltages and branch currents (V, E, H, L devices, voltage form B device)
     static const std::set<std::string> UNSUPPORTED_WILDCARDS = {"P(*)", "W(*)", "IB(*)", "IC(*)", "IE(*)", "IS(*)", "ID(*)", "IG(*)"};
     // print types restricted by the reference guide statements
     static const std::set<std::string> LINEAR_PRINT_TYPES = {"AC", "NOISE", "HB", "HB_FD", "HB_TD"};
@@ -252,8 +247,7 @@ std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::s
             }
             // map file option
             if (option_key == "FILE") {
-                // store file (normalize a quoted value so the dialog and the
-                // copy destination see the actual filename without quotes)
+                // store file, a quoted value is normalized so the dialog and the copy destination see the actual filename without quotes
                 print_file = strip_outer_quotes(option_value);
                 // next
                 continue;
@@ -289,9 +283,7 @@ std::string strip_outer_quotes(std::string value) {
     return value;
 }
 
-// format a FILE= option value: the model always carries the bare filename, so
-// any outer quotes are stripped and the value is quoted again only when it
-// contains whitespace (so the statement survives tokenization)
+// format a FILE= option value, outer quotes are stripped and the value is quoted again only when it contains whitespace so the statement survives tokenization
 std::string format_print_file_value(const std::string& file) {
     // normalize the value: the model must not carry outer quotes
     const std::string value = strip_outer_quotes(file);
@@ -312,33 +304,11 @@ std::string strip_print_file_option(const std::string& print_statement) {
         // return unchanged
         return print_statement;
     }
-    // first pass: scan the option section (before the first output variable) for
-    // the format option; only RAW and PROBE output (or an unspecified format) are redirected
-    bool is_redirected = true;
-    bool in_output_variables = false;
-    for (size_t i = 2; i < tokens.size() && !in_output_variables; ++i) {
-        // parse option token
-        const auto option_pair = split_option_token(tokens[i]);
-        // check for the format option
-        if (option_pair.first == "FORMAT") {
-            // only RAW and PROBE output are redirected to the netlist-derived file
-            const std::string fmt = to_upper(option_pair.second);
-            is_redirected = fmt == "RAW" || fmt == "PROBE";
-        }
-        // check for the start of the output-variable section
-        else if (option_pair.first.empty()) {
-            // mark output-variable section
-            in_output_variables = true;
-        }
-    }
-    // return non-redirected statements unchanged
-    if (!is_redirected)
-        return print_statement;
-    // second pass: rebuild the statement without the file option
+    // rebuild the statement without the file option, whatever the configured format is
     std::vector<std::string> result;
     result.reserve(tokens.size());
     bool removed_file = false;
-    in_output_variables = false;
+    bool in_output_variables = false;
     // the option section starts after the statement name and print type tokens
     result.push_back(tokens[0]);
     result.push_back(tokens[1]);
@@ -369,6 +339,23 @@ std::string strip_print_file_option(const std::string& print_statement) {
     return join_tokens(result);
 }
 
+std::vector<PrintOutputCopy> collect_print_file_copies(const std::vector<std::string>& directives, const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) {
+    // init recorded copies
+    std::vector<PrintOutputCopy> copies;
+    // iterate every directive the run netlist carries
+    for (const auto& directive : directives) {
+        // parse the directive, non-print statements yield no value
+        const auto print_parameters = PrintParameters::from_xyce_statement(directive);
+        // skip non-print directives and prints without a FILE= destination
+        if (!print_parameters.has_value() || print_parameters->print_file.empty())
+            continue;
+        // record the default produced file and the FILE= destination resolved against the working directory
+        copies.push_back({default_print_output_file(*print_parameters, netlist_file_path), working_directory / print_parameters->print_file});
+    }
+    // return the recorded copies
+    return copies;
+}
+
 std::string PrintParameters::to_xyce_statement() const {
     // init token list
     std::vector<std::string> tokens = {".PRINT", print_type};
@@ -389,8 +376,7 @@ std::string PrintParameters::to_xyce_statement() const {
 }
 
 std::string PrintParameters::to_xyce_statement(const NetlistTopology* topology) const {
-    // topology-based wildcard expansion is removed; V(*)/I(*)/P(*) pass
-    // through verbatim and are expanded natively by Xyce
+    // topology-based wildcard expansion is removed, V(*)/I(*)/P(*) pass through verbatim and are expanded natively by Xyce
     (void)topology;
     return to_xyce_statement();
 }
@@ -407,8 +393,7 @@ std::string prn_output_suffix(const std::string& print_type) {
     // frequency-domain subtypes with their own suffixes: HB writes .HB.FD.prn
     if (u == "HB" || u == "HB_FD")
         return ".HB.FD.prn";
-    // time-domain HB subtypes: HB_TD writes .HB.TD.prn, HB_IC writes
-    // .hb_ic.prn and HB_STARTUP writes .startup.prn
+    // time-domain HB subtypes: HB_TD writes .HB.TD.prn, HB_IC writes .hb_ic.prn and HB_STARTUP writes .startup.prn
     if (u == "HB_TD")
         return ".HB.TD.prn";
     if (u == "HB_IC")
@@ -498,4 +483,23 @@ std::string tecplot_output_suffix(const std::string& print_type) {
         return ".PCE.dat";
     // default suffix for all other types (DC, TRAN, ...): appended straight to the netlist name
     return ".dat";
+}
+
+std::filesystem::path default_print_output_file(const PrintParameters& print_parameters, const std::filesystem::path& netlist_file_path) {
+    // normalize the configured format, an unspecified format writes the prn table
+    const auto format = to_upper(print_parameters.print_format);
+    // RAW output is always the netlist-derived raw file
+    if (format == "RAW")
+        return std::filesystem::path(netlist_file_path.string() + ".raw");
+    // PROBE output is the netlist-derived csd file, the AC_IC print type produces time-domain output in a .TD.csd file
+    if (format == "PROBE")
+        return std::filesystem::path(netlist_file_path.string() + (to_upper(print_parameters.print_type) == "AC_IC" ? ".TD.csd" : ".csd"));
+    // CSV output appends the csv suffix for the print type
+    if (format == "CSV")
+        return std::filesystem::path(netlist_file_path.string() + csv_output_suffix(print_parameters.print_type));
+    // TECPLOT output appends the dat suffix for the print type
+    if (format == "TECPLOT")
+        return std::filesystem::path(netlist_file_path.string() + tecplot_output_suffix(print_parameters.print_type));
+    // every other format including the unspecified default writes the prn table for the print type
+    return std::filesystem::path(netlist_file_path.string() + prn_output_suffix(print_parameters.print_type));
 }
