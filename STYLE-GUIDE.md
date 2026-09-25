@@ -17,7 +17,7 @@ This document defines the code style preferences for this project.
 
 ### Line Length
 
-- No hard limit; prefer readability over strict wrapping
+- No hard limit; never wrap — statements and comments always stay on one physical line, however long they get
 
 ### Braces
 
@@ -53,7 +53,10 @@ This document defines the code style preferences for this project.
 ### Comments
 
 - Comments are placed **above** the code they describe, not inline
-- Format: `// comment text` (starts with lowercase letter, no period), single line
+- Format: `// comment text` — a single short line that starts with a lowercase word and has no period
+- Action oriented: the comment states what the next line does (e.g. `// resolve the executable from the environment`)
+- One short line per comment; never a paragraph of consecutive comment lines
+- Never wrap a comment: it stays on one physical line, however long it gets
 - Every non-trivial statement gets its own comment line above it — including statements inside `if` blocks, loops, and other control structures
 - No docstring format; use plain `//` comments
 
@@ -89,7 +92,7 @@ This document defines the code style preferences for this project.
 
 ### Line Length
 
-- No hard limit; prefer readability over strict wrapping
+- No hard limit; never wrap — statements and comments always stay on one physical line, however long they get
 
 ### Naming
 
@@ -108,7 +111,10 @@ This document defines the code style preferences for this project.
 ### Comments
 
 - Comments are placed **above** the code they describe, not inline
-- Format: `# comment text` (starts with lowercase letter, no period), single line
+- Format: `# comment text` — a single short line that starts with a lowercase word and has no period
+- Action oriented: the comment states what the next line does (e.g. `# resolve the executable from the environment`)
+- One short line per comment; never a paragraph of consecutive comment lines
+- Never wrap a comment: it stays on one physical line, however long it gets
 - Every non-trivial statement gets its own comment line above it — including statements inside `if` blocks, loops, and other control structures
 - No docstring comments, including for files (no module-level docstrings)
 

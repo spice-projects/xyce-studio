@@ -70,6 +70,7 @@ public:
     void show_step_tool_dialog(size_t chart_index) override;
     std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig& current) override;
     std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig& current) override;
+    std::optional<std::filesystem::path> request_netlist_save_path() override;
     void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override;
     void cancel_simulation_process() override;
     void spawn_raw_file_window(std::shared_ptr<XyceOutputFile> raw_file) override;
@@ -115,6 +116,8 @@ private:
 
     // track whether a modal dialog is currently open
     bool m_modal_dialog_open = false;
+
+    std::optional<std::filesystem::path> m_primed_save_as_path;
 
     slint::ComponentHandle<main_window::MainWindow> m_window;
     MainWindowViewDefEvents* m_event_handler = nullptr;

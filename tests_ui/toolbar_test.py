@@ -47,7 +47,7 @@ class ToolbarSimulationChecks(unittest.TestCase):
             tools.nth(5).click()
             # step 2: wait for the simulation to finish and the charts view to open
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=10.0)
-            # assert: the toolbar reflects the chart state after a successful run
+            # assert
             expected_states = [True, False, True, False, True, True, True, True, True]
             for index, expected_enabled in enumerate(expected_states):
                 icon = tools.nth(index).child("Image")

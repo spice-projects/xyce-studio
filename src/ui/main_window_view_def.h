@@ -83,6 +83,9 @@ public:
     [[nodiscard]] virtual std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig& current) = 0;
     [[nodiscard]] virtual std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig& current) = 0;
 
+    // ask the user for the save location and filename of an untitled netlist
+    [[nodiscard]] virtual std::optional<std::filesystem::path> request_netlist_save_path() = 0;
+
     // simulation process lifecycle (presenter decides when, the view wires the process events)
     virtual void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) = 0;
 

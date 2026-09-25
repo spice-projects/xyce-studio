@@ -93,7 +93,7 @@ namespace
 } // namespace
 
 SlintMainWindowPresenter::SlintMainWindowPresenter(MainWindowViewDef& view, std::unique_ptr<NetlistSource> netlist_source, PluginConfig plugin_config, std::shared_ptr<KiCadSession> kicad_session) :
-    m_view(view), m_kicad_session(std::move(kicad_session)), m_netlist_source(std::move(netlist_source)), m_simulation_config(SimulationConfig::from_xyce_directives({})), m_plugin_config(std::move(plugin_config)) {
+    m_view(view), m_kicad_session(std::move(kicad_session)), m_netlist_source(netlist_source != nullptr ? std::move(netlist_source) : std::make_unique<EditorNetlistSource>([this]() { return m_view.netlist_editor_content(); }, std::filesystem::path{})), m_simulation_config(SimulationConfig::from_xyce_directives({})), m_plugin_config(std::move(plugin_config)) {
     // initialize the toolbar action states before the window is shown
     refresh_action_states();
 }
@@ -203,11 +203,29 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
 }
 
 void SlintMainWindowPresenter::on_save_netlist() {
+    // an untitled netlist has no file behind it: ask the user for a location and filename before anything can be written
+    if (!m_netlist_source->has_backing_file()) {
+        // run the save-as flow through the view (native dialog)
+        const auto path = m_view.request_netlist_save_path();
+        // user canceled: the netlist stays dirty for the next save attempt
+        if (!path.has_value())
+            return;
+        // default to the netlist format when the chosen name carries no extension
+        std::filesystem::path target = path.value();
+        if (target.extension().empty())
+            target += ".cir";
+        // rebind the source to the chosen file so later saves write in place
+        m_netlist_source = std::make_unique<EditorNetlistSource>([this]() { return m_view.netlist_editor_content(); }, target);
+        // the chosen file becomes the window title (clears the dirty marker)
+        set_base_title(m_netlist_source->title());
+        // consume the file seed now: the just-created source would otherwise read the file on its first load and miss later editor edits
+        static_cast<void>(m_netlist_source->load_netlist());
+    }
     // save content in the netlist source
     m_netlist_source->save_netlist();
-    // reset the dirty flag and refresh states when it changed
-    if (set_netlist_editor_dirty(false))
-        refresh_action_states();
+    // reset the dirty flag and refresh states (set_base_title may have cleared the flag already, so the refresh is unconditional)
+    set_netlist_editor_dirty(false);
+    refresh_action_states();
 }
 
 void SlintMainWindowPresenter::on_show_netlist() {
@@ -498,15 +516,21 @@ void SlintMainWindowPresenter::on_fft_dialog_result(std::vector<AnyExpression*> 
             fft_abscissa_value_ranges.emplace_back(first_frequency, last_frequency);
         }
         catch (const std::exception& e) {
+            // log information
             spdlog::error("FFT computation failed for step {}: {}", step, e.what());
+            // update the statusbar
             m_view.set_status_text("FFT computation failed");
+            // exit
             return;
         }
     }
     // require at least one processed step
     if (fft_steps.empty()) {
+        // log information
         spdlog::warn("FFT computation skipped: no step has at least 2 samples in the selected range");
+        // update the statusbar
         m_view.set_status_text("FFT computation skipped: no data in the selected range");
+        // exit
         return;
     }
     // build title from the FFT parameters (window and output frequency range)
@@ -1196,8 +1220,8 @@ void SlintMainWindowPresenter::show_simulation_output_view() {
 void SlintMainWindowPresenter::set_base_title(const std::string& title) {
     // store the clean base title
     m_base_title = title;
-    // reset the dirty marker
-    set_netlist_editor_dirty(false);
+    // re-render the title with the current dirty marker preserved
+    set_netlist_editor_dirty(m_netlist_editor_dirty);
 }
 
 bool SlintMainWindowPresenter::set_netlist_editor_dirty(bool flag) {

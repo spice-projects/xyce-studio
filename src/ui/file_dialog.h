@@ -20,4 +20,9 @@ public:
     // show a native dialog to select the Xyce executable; returns the selected
     // path or std::nullopt when the user cancels
     [[nodiscard]] static std::optional<std::filesystem::path> open_xyce_executable();
+
+    // show a native dialog to choose the location and filename for saving an
+    // untitled netlist; returns the selected path or std::nullopt when the
+    // user cancels
+    [[nodiscard]] static std::optional<std::filesystem::path> save_netlist_file();
 };

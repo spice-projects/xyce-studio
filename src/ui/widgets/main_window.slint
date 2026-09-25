@@ -39,6 +39,7 @@ export {
 export global MainWindowActions {
     callback open-xyce-file();
     callback save-netlist();
+    callback prime-save-as-path(path: string);
     callback show-netlist();
     callback show-charts();
     callback show-simulation-output();
@@ -901,10 +902,8 @@ export component MainWindow inherits Window {
         filter-changed(query) => { root.fft-filter-changed(query); }
     }
 
-    // step tool panel rendered as an inline modal overlay (no separate OS
-        // window); modality is enforced by the guard_modal gate and the panel's
-        // dimmed backdrop
-        if root.step-tool-panel-visible: StepToolPanel {
+    // step tool panel rendered as an inline modal overlay (no separate OS window)
+    if root.step-tool-panel-visible: StepToolPanel {
         x: 0;
         y: 0;
         width: 100%;
@@ -918,5 +917,18 @@ export component MainWindow inherits Window {
         clear-all => { root.step-tool-clear-all(); }
         invert-selection => { root.step-tool-invert-selection(); }
         step-toggled(index) => { root.step-tool-step-toggled(index); }
+    }
+
+    // debug only: automation trigger for the save-as flow; the native save
+    // dialog is rendered by the platform and unreachable for the automation,
+    // so the trigger primes the path the dialog would return through
+    // set_element_value; zero size keeps it out of the layout while it stays
+    // in the element tree
+    if root.debug-tools-enabled: test-save-as := TouchArea {
+        width: 0px;
+        height: 0px;
+        accessible-role: button;
+        accessible-label: "save as";
+        accessible-action-set-value(path) => { MainWindowActions.prime-save-as-path(path); }
     }
 }
