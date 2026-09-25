@@ -256,8 +256,8 @@ void SlintMainWindowPresenter::on_run_simulation() {
     }
     // load the netlist source content
     const auto [reloaded, content] = m_netlist_source->load_netlist();
-    // re-parse when the schematic changed or when no cached state exists yet (e.g. the first run exited early on an empty netlist)
-    if (reloaded || m_pending_sanitized_netlist.empty()) {
+    // re-parse when the schematic changed, when no cached state exists yet (e.g. the first run exited early on an empty netlist) or when the editor content changed since the last parse — an edit made after a run must be simulated instead of being overwritten by the stale cache
+    if (reloaded || m_pending_sanitized_netlist.empty() || content != m_pending_original_netlist) {
         // parse the netlist and extract the topology
         const auto [sanitized_netlist, topology] = parse_netlist(content);
         // guard against an empty netlist (parse_netlist always produces at least "\n" even for empty input, so check for that sentinel too)
@@ -310,8 +310,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     for (const auto& directive : directives)
         simulation_directives.push_back(strip_print_file_option(directive));
     const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
-    // update the editor with the final netlist
-    if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))
+    // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker (an unsaved netlist still needs Save even when the rewrite reproduces the typed text verbatim) and marks the editor dirty when the merged directives changed the content
+    if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
         refresh_action_states();
     // working directory for the netlist source
     const auto working_directory = m_netlist_source->working_directory();
@@ -395,8 +395,8 @@ void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const Simu
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END
     const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
-    // update the editor with the final netlist
-    if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))
+    // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker (an unsaved netlist still needs Save even when the rewrite reproduces the typed text verbatim) and marks the editor dirty when the merged directives changed the content
+    if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
         refresh_action_states();
 }
 
