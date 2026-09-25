@@ -133,8 +133,8 @@ int App::run() {
     // share the session with the app when present
     if (session)
         m_kicad_session = std::make_shared<KiCadSession>(std::move(*session));
-    // the main window's netlist source: the schematic-backed source when running as a KiCad plugin (taken from the session), or an editable editor source standalone
-    std::unique_ptr<NetlistSource> netlist_source = m_kicad_session != nullptr ? m_kicad_session->take_netlist_source() : std::make_unique<EditorNetlistSource>([]() -> std::string { return std::string{}; }, std::filesystem::path{});
+    // the main window's netlist source: the schematic-backed source when running as a KiCad plugin (taken from the session); standalone the presenter binds its own editor-backed source for the untitled netlist the user starts with
+    std::unique_ptr<NetlistSource> netlist_source = m_kicad_session != nullptr ? m_kicad_session->take_netlist_source() : nullptr;
     // the main window goes through the same creation path as any spawned window
     auto* main_presenter = create_window(std::move(netlist_source), m_kicad_session);
     // extract the schematic netlist before the first frame (KiCad plugin mode)
@@ -172,8 +172,9 @@ int App::run() {
 
 void App::new_window(std::shared_ptr<XyceOutputFile> raw_file) {
     // spawned windows are standalone (no kicad session); the window is wired
-    // and shown by create_window
-    auto* presenter = create_window(std::make_unique<EditorNetlistSource>([]() -> std::string { return std::string{}; }, std::filesystem::path{}), nullptr);
+    // and shown by create_window, and the presenter binds its own editor-backed
+    // netlist source for the untitled netlist
+    auto* presenter = create_window(nullptr, nullptr);
     // seed the new window with the raw file, switching to the charts view; the
     // window was shown by create_window, so the native content view exists when
     // the charts renderer attaches

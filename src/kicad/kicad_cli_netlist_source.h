@@ -16,6 +16,8 @@ public:
 
     [[nodiscard]] bool is_read_only() const override;
 
+    [[nodiscard]] bool has_backing_file() const override;
+
     [[nodiscard]] virtual std::filesystem::path working_directory() const override;
 
     [[nodiscard]] std::tuple<bool, std::string> load_netlist() override;

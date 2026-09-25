@@ -20,6 +20,11 @@ bool EditorNetlistSource::is_read_only() const {
     return false;
 }
 
+bool EditorNetlistSource::has_backing_file() const {
+    // delegate to the file source: an empty path means the netlist is untitled
+    return m_file_source->has_backing_file();
+}
+
 std::filesystem::path EditorNetlistSource::working_directory() const {
     // delegate the working directory to the file source
     return m_file_source->working_directory();
@@ -28,12 +33,16 @@ std::filesystem::path EditorNetlistSource::working_directory() const {
 std::tuple<bool, std::string> EditorNetlistSource::load_netlist() {
     // first load reads the file content into the live text source
     if (!m_initialized) {
-        // load the netlist from the file source
-        const auto result = m_file_source->load_netlist();
         // mark as initialized
         m_initialized = true;
+        // load the netlist from the file source
+        const auto [reloaded, content] = m_file_source->load_netlist();
+        // an untitled source has no file to read (the file open failed): serve
+        // the live editor text so a netlist typed from scratch is never lost
+        if (!reloaded)
+            return {false, m_get_editor_text()};
         // return the result of loading from the file source
-        return result;
+        return {reloaded, content};
     }
     // subsequent loads reflect the live editor text
     return {false, m_get_editor_text()};

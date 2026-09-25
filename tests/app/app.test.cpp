@@ -42,6 +42,7 @@ namespace
         void show_step_tool_dialog(size_t) override {}
         std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig&) override { return std::nullopt; }
         std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig&) override { return std::nullopt; }
+        std::optional<std::filesystem::path> request_netlist_save_path() override { return std::nullopt; }
         void start_simulation_process(const std::string&, const std::filesystem::path&, const std::filesystem::path&) override {}
         void cancel_simulation_process() override {}
         void spawn_raw_file_window(std::shared_ptr<XyceOutputFile>) override {}

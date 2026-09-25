@@ -100,3 +100,35 @@ std::optional<std::filesystem::path> FileDialog::open_xyce_executable() {
     NFD::UniquePathU8 pathGuard(outPath);
     return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(outPath)));
 }
+
+std::optional<std::filesystem::path> FileDialog::save_netlist_file() {
+    // ensure the native file dialog library is initialized
+    ensure_nfd();
+
+    // filter for the netlist format the application saves
+    static const std::string extensions = "cir";
+    static const std::array<nfdu8filteritem_t, 1> filters{{nfdu8filteritem_t{"Xyce Netlist", extensions.c_str()}}};
+
+    // open the native save dialog with the filter applied and a suggested name
+    nfdu8char_t* outPath = nullptr;
+    nfdsavedialogu8args_t args{};
+    args.filterList = filters.data();
+    args.filterCount = static_cast<nfdfiltersize_t>(filters.size());
+    args.defaultName = "untitled.cir";
+    const auto result = ::NFD_SaveDialogU8_With(&outPath, &args);
+    // user canceled or an error occurred
+    if (result != NFD_OKAY) {
+        // log the error when the dialog failed programmatically
+        if (result == NFD_ERROR) {
+            // log information
+            spdlog::error("save-netlist: NFD error: {}", NFD::GetError());
+        }
+        // no path to return
+        return std::nullopt;
+    }
+
+    // NFD returns UTF-8 paths; construct a path from char8_t so the
+    // platform-native encoding is UTF-8 on all platforms including Windows
+    NFD::UniquePathU8 pathGuard(outPath);
+    return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(outPath)));
+}

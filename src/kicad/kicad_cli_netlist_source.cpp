@@ -238,6 +238,11 @@ KicadCliNetlistSource::KicadCliNetlistSource(std::filesystem::path project_dir, 
 
 [[nodiscard]] bool KicadCliNetlistSource::is_read_only() const { return true; }
 
+bool KicadCliNetlistSource::has_backing_file() const {
+    // the schematic backs the netlist; saving is disabled in plugin mode
+    return true;
+}
+
 [[nodiscard]] std::filesystem::path KicadCliNetlistSource::working_directory() const { return m_project_dir; }
 
 std::tuple<bool, std::string> KicadCliNetlistSource::load_netlist() {

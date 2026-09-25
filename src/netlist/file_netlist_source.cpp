@@ -11,6 +11,8 @@ std::string FileNetlistSource::title() const { return m_file_path.filename().str
 
 bool FileNetlistSource::is_read_only() const { return false; }
 
+bool FileNetlistSource::has_backing_file() const { return !m_file_path.empty(); }
+
 [[nodiscard]] std::filesystem::path FileNetlistSource::working_directory() const { return m_file_path.parent_path(); }
 
 std::tuple<bool, std::string> FileNetlistSource::load_netlist() {

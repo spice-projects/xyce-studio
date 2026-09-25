@@ -225,6 +225,8 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     // file group
     actions.on_open_xyce_file([this] { handle_open(); });
     actions.on_save_netlist([this] { guard_modal([this] { m_event_handler->on_save_netlist(); }); });
+    // debug builds: the save-as trigger primes the path the native save dialog would return
+    actions.on_prime_save_as_path([this](slint::SharedString path) { m_primed_save_as_path = std::filesystem::path(std::string(path)); });
     // content view group
     actions.on_show_netlist([this] { guard_modal([this] { m_event_handler->on_show_netlist(); }); });
     actions.on_show_charts([this] { guard_modal([this] { m_event_handler->on_show_charts(); }); });
@@ -719,6 +721,19 @@ void SlintMainWindowView::handle_open() {
         return;
     // forward the selected file to the event handler (presenter)
     m_event_handler->on_open_xyce_file(filepath.value());
+}
+
+std::optional<std::filesystem::path> SlintMainWindowView::request_netlist_save_path() {
+    // debug builds: consume the path primed by the save-as trigger instead of
+    // opening the native dialog, which the automation cannot reach
+    if (m_primed_save_as_path.has_value()) {
+        // copy the primed path and clear it so it is consumed exactly once
+        const auto path = m_primed_save_as_path;
+        m_primed_save_as_path.reset();
+        return path;
+    }
+    // run the native save dialog; std::nullopt when the user cancels
+    return FileDialog::save_netlist_file();
 }
 
 void SlintMainWindowView::ensure_charts_renderer() {

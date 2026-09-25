@@ -108,6 +108,8 @@ namespace
 
         [[nodiscard]] std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig&) override { return m_plugin_config_result; }
 
+        [[nodiscard]] std::optional<std::filesystem::path> request_netlist_save_path() override { return m_save_path_result; }
+
         // simulation process lifecycle (presenter decides when, the view wires the process events)
         void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override {
             m_started = true;
@@ -151,6 +153,7 @@ namespace
         int m_simulation_dialog_requests = 0;
         std::optional<SimulationConfig> m_last_simulation_config_seed;
         std::optional<PluginConfig> m_plugin_config_result;
+        std::optional<std::filesystem::path> m_save_path_result;
         bool m_started = false;
         std::string m_started_program;
         std::filesystem::path m_started_netlist_path;
@@ -170,6 +173,8 @@ namespace
 
         [[nodiscard]] bool is_read_only() const override { return false; }
 
+        [[nodiscard]] bool has_backing_file() const override { return m_has_backing_file; }
+
         [[nodiscard]] std::filesystem::path working_directory() const override { return m_working_directory; }
 
         [[nodiscard]] std::tuple<bool, std::string> load_netlist() override { return {m_reloaded, m_content}; }
@@ -182,6 +187,7 @@ namespace
         std::string m_content;
         std::filesystem::path m_working_directory;
         bool m_reloaded = false;
+        bool m_has_backing_file = true;
         int m_save_count = 0;
         std::string m_saved_content;
     };
@@ -844,9 +850,9 @@ TEST(SlintMainWindowPresenterChecks, simulation_finished_success_loads_raw_file)
     view.m_output_panel_hidden = false;
     // act
     presenter.on_simulation_finished(0, false);
-    // assert — charts are shown with the parsed data and the title comes from the raw file
+    // assert — charts are shown with the parsed data and the title comes from the raw file; the run rewrote the editor netlist, so the unsaved-changes marker stays
     EXPECT_TRUE(view.m_charts_view_shown);
-    EXPECT_EQ(view.m_title, "Presenter Test Circuit");
+    EXPECT_EQ(view.m_title, "* Presenter Test Circuit");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     EXPECT_TRUE(view.m_output_panel_hidden);
     ASSERT_TRUE(presenter.analysis_measurements().has_value());
@@ -884,9 +890,9 @@ TEST(SlintMainWindowPresenterChecks, simulation_finished_success_loads_csd_file)
     }
     // act
     presenter.on_simulation_finished(0, false);
-    // assert — charts are shown with the parsed csd data and the title comes from the csd file
+    // assert — charts are shown with the parsed csd data and the title comes from the csd file; the run rewrote the editor netlist, so the unsaved-changes marker stays
     EXPECT_TRUE(view.m_charts_view_shown);
-    EXPECT_EQ(view.m_title, "Presenter Probe Circuit");
+    EXPECT_EQ(view.m_title, "* Presenter Probe Circuit");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     ASSERT_TRUE(presenter.analysis_measurements().has_value());
     EXPECT_GT(view.m_update_charts_count, 0);
@@ -1602,6 +1608,32 @@ TEST(SlintMainWindowPresenterChecks, save_netlist_clears_dirty_state_and_writes_
     // cleanup
     std::error_code ec;
     std::filesystem::remove_all(netlist_dir, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, save_untitled_netlist_requests_a_path_and_persists) {
+    // arrange — an untitled source (no backing file) with typed editor content
+    const auto save_dir = std::filesystem::temp_directory_path() / "xyce_presenter_save_as";
+    std::filesystem::create_directories(save_dir);
+    const auto target = save_dir / "typed-from-scratch.cir";
+    RecordingView view;
+    auto source = std::make_unique<StubNetlistSource>("", save_dir);
+    source->m_has_backing_file = false;
+    SlintMainWindowPresenter presenter(view, std::move(source), PluginConfig(""), nullptr);
+    view.m_editor_content = "V1 1 0 5\nR1 1 0 1K\n.END\n";
+    presenter.on_netlist_editor_modified();
+    view.m_save_path_result = target;
+    // act
+    presenter.on_save_netlist();
+    // assert — the netlist was persisted at the chosen location
+    std::ifstream saved(target);
+    const std::string saved_content((std::istreambuf_iterator<char>(saved)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(saved_content, view.m_editor_content);
+    // assert — the chosen file became the window title and save is clean
+    EXPECT_EQ(view.m_title, "typed-from-scratch.cir");
+    EXPECT_FALSE(view.m_last_enablement.save);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove_all(save_dir, ec);
 }
 
 TEST(SlintMainWindowPresenterChecks, extract_schematic_netlist_loads_readonly_editor) {
