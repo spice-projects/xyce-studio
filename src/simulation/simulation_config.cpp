@@ -14,7 +14,6 @@
 #include "lin_simulation_parameters.h"
 #include "noise_simulation_parameters.h"
 #include "op_simulation_parameters.h"
-#include "simulation_config.h"
 #include "transient_simulation_parameters.h"
 
 SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters) :
@@ -51,10 +50,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis = std::monostate{};
     std::string analysis_type;
 
-    // list of simulation parameter types in order of precedence
-    // LinSimulationParameters MUST appear before AcSimulationParameters because
-    // .LIN netlists also contain a .AC directive; the Lin class embeds the AC
-    // sweep so it must claim the match first.
+    // list of simulation parameter types in order of precedence, LinSimulationParameters MUST appear before AcSimulationParameters because .LIN netlists also contain a .AC directive and the Lin class embeds the AC sweep so it must claim the match first
     const std::vector<std::string> simulation_types = {"LIN", "AC", "HB", "NOISE", "DC", "OP", "TRAN"};
 
     // iterate all registered simulation types to find a match
@@ -124,9 +120,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     // parse the structured option directives
     const auto options = OptionParameters::from_xyce_directives(directives);
 
-    // parse the replace-ground preprocessing directive
-    // the RG gives .PREPROCESS REPLACEGROUND no default, so a netlist without the
-    // statement preserves its baseline semantics on round-trip
+    // parse the replace-ground preprocessing directive, the RG gives .PREPROCESS REPLACEGROUND no default so a netlist without the statement preserves its baseline semantics on round-trip
     bool replace_ground = true;
     for (const auto& directive : directives) {
         // tokenize the directive
@@ -149,9 +143,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
 
     // check if the analysis has print parameters already handled
     if (std::holds_alternative<std::monostate>(analysis) == false) {
-        // For now, we'll check the analysis type and mark the appropriate print type
-        // This is a simplified version - in the full implementation, we'd need to
-        // access the analysis object's print_parameters field
+        // mark the print types the analysis parser claims into its structured parameters
         if (analysis_type == "AC" || analysis_type == "LIN") {
             handled_print_types.insert("AC");
             handled_print_types.insert("AC_IC");
@@ -159,17 +151,13 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
         else if (analysis_type == "DC") {
             handled_print_types.insert("DC");
             handled_print_types.insert("HOMOTOPY");
-            // the DC parser claims .PRINT PCE into its structured PCE
-            // parameters; without this the same directive would also be
-            // appended to the unassociated prints
+            // the DC parser claims .PRINT PCE into its structured PCE parameters, without this the same directive would also be appended to the unassociated prints
             handled_print_types.insert("PCE");
         }
         else if (analysis_type == "TRAN") {
             handled_print_types.insert("TRAN");
             handled_print_types.insert("TRANADJOINT");
-            // the TRAN parser claims .PRINT PCE into its structured PCE
-            // parameters; without this the same directive would also be
-            // appended to the unassociated prints
+            // the TRAN parser claims .PRINT PCE into its structured PCE parameters, without this the same directive would also be appended to the unassociated prints
             handled_print_types.insert("PCE");
         }
         else if (analysis_type == "HB") {
@@ -183,11 +171,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
             handled_print_types.insert("NOISE");
         }
         else if (analysis_type == "OP") {
-            // the OP parser claims .PRINT DC into its structured print
-            // parameters; without this the same directive would also be
-            // appended to the unassociated prints, duplicating it in the
-            // Xyce netlist and splitting its output between the produced RAW
-            // file (stripped FILE=) and the user file (unstripped)
+            // the OP parser claims .PRINT DC into its structured print parameters, without this the same directive would also be appended to the unassociated prints and duplicated in the Xyce netlist
             handled_print_types.insert("DC");
         }
     }
@@ -245,16 +229,14 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
     const auto option_directives = options.to_xyce_directives(topology);
     directives.insert(directives.end(), option_directives.begin(), option_directives.end());
 
-    // emit the replace-ground preprocessing directive at most once for the whole netlist
-    // the state is always emitted explicitly so that a disabled replacement round-trips
+    // emit the replace-ground preprocessing directive at most once for the whole netlist, the state is always emitted explicitly so that a disabled replacement round-trips
     directives.push_back(replace_ground ? ".PREPROCESS REPLACEGROUND TRUE" : ".PREPROCESS REPLACEGROUND FALSE");
 
     // emit the initial condition directives (independent of analysis type)
     const auto ic_directives = ic_parameters.to_xyce_directives(topology);
     directives.insert(directives.end(), ic_directives.begin(), ic_directives.end());
 
-    // check if an analysis is configured
-    // Use std::visit to call to_xyce_directives on the active variant member
+    // check if an analysis is configured and use std::visit to call to_xyce_directives on the active variant member
     struct DirectiveVisitor
     {
         const NetlistTopology& topology;
@@ -299,70 +281,6 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
 bool SimulationConfig::operator==(const SimulationConfig& other) const {
     // compare all fields for equality
     return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground;
-}
-
-std::optional<std::filesystem::path> SimulationConfig::raw_output_file_path(const std::filesystem::path& netlist_file_path) const {
-    // no analysis, no raw output
-    if (std::holds_alternative<std::monostate>(analysis))
-        return std::nullopt;
-    // analysis print parameters (structured or legacy-normalized)
-    const auto print_parameters = analysis_print_parameters();
-    // a print configured with a non-RAW format produces no raw output file
-    if (print_parameters.has_value() && !print_parameters->print_format.empty() && to_upper(print_parameters->print_format) != "RAW")
-        return std::nullopt;
-    // the FILE= option is stripped for the Xyce run, so the RAW file is always
-    // produced next to the netlist under Xyce's default name regardless of the
-    // user's print file
-    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".raw");
-}
-
-std::optional<std::filesystem::path> SimulationConfig::raw_output_copy_destination(const std::filesystem::path& working_directory) const {
-    // no analysis, no raw output
-    if (std::holds_alternative<std::monostate>(analysis))
-        return std::nullopt;
-    // analysis print parameters (structured or legacy-normalized)
-    const auto print_parameters = analysis_print_parameters();
-    // no print configured or a non-RAW format produces no raw file to copy
-    if (!print_parameters.has_value() || (!print_parameters->print_format.empty() && to_upper(print_parameters->print_format) != "RAW"))
-        return std::nullopt;
-    // no explicit file to copy to
-    if (print_parameters->print_file.empty())
-        return std::nullopt;
-    // resolve the user's print file against the working directory (the model
-    // always carries the bare filename; strip any outer quotes for consistency)
-    return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
-}
-
-std::optional<std::filesystem::path> SimulationConfig::csd_output_file_path(const std::filesystem::path& netlist_file_path) const {
-    // no analysis, no csd output
-    if (std::holds_alternative<std::monostate>(analysis))
-        return std::nullopt;
-    // analysis print parameters (structured or legacy-normalized)
-    const auto print_parameters = analysis_print_parameters();
-    // a print configured without PROBE format produces no csd output file
-    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
-        return std::nullopt;
-    // AC_IC print produces .TD.csd
-    if (to_upper(print_parameters->print_type) == "AC_IC")
-        return std::optional<std::filesystem::path>(netlist_file_path.string() + ".TD.csd");
-    // DC, AC, and TRAN produce .csd
-    return std::optional<std::filesystem::path>(netlist_file_path.string() + ".csd");
-}
-
-std::optional<std::filesystem::path> SimulationConfig::csd_output_copy_destination(const std::filesystem::path& working_directory) const {
-    // no analysis, no csd output
-    if (std::holds_alternative<std::monostate>(analysis))
-        return std::nullopt;
-    // analysis print parameters (structured or legacy-normalized)
-    const auto print_parameters = analysis_print_parameters();
-    // no print configured or a non-PROBE format produces no csd file to copy
-    if (!print_parameters.has_value() || to_upper(print_parameters->print_format) != "PROBE")
-        return std::nullopt;
-    // no explicit file to copy to
-    if (print_parameters->print_file.empty())
-        return std::nullopt;
-    // resolve the user's print file against the working directory
-    return std::optional<std::filesystem::path>(working_directory / strip_outer_quotes(print_parameters->print_file));
 }
 
 std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {
@@ -444,25 +362,13 @@ std::optional<PrintParameters> SimulationConfig::pce_print_parameters() const {
     return std::nullopt;
 }
 
-std::optional<std::filesystem::path> SimulationConfig::pce_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory) const {
+std::optional<std::filesystem::path> SimulationConfig::pce_output_file_path(const std::filesystem::path& netlist_file_path) const {
     // no .PCE companion print, no PCE output file
     const auto pce_print = pce_print_parameters();
     if (!pce_print.has_value())
         return std::nullopt;
-    // FILE= is preserved for the .PCE companion print: Xyce writes the named file, a relative value resolves against the working directory (its process cwd)
-    if (!pce_print->print_file.empty()) {
-        const auto file = strip_outer_quotes(pce_print->print_file);
-        if (std::filesystem::path(file).is_absolute())
-            return std::optional<std::filesystem::path>(file);
-        return std::optional<std::filesystem::path>(working_directory / file);
-    }
-    // without FILE= Xyce appends the analysis-specific suffix to the netlist name; only CSV and TECPLOT carry their own suffix, every other format writes the prn table
-    const auto format = to_upper(pce_print->print_format);
-    if (format == "CSV")
-        return std::optional<std::filesystem::path>(netlist_file_path.string() + csv_output_suffix("PCE"));
-    if (format == "TECPLOT")
-        return std::optional<std::filesystem::path>(netlist_file_path.string() + tecplot_output_suffix("PCE"));
-    return std::optional<std::filesystem::path>(netlist_file_path.string() + prn_output_suffix("PCE"));
+    // FILE= is removed from every .PRINT statement for the run, so Xyce writes the default file for the print type and format next to the netlist
+    return default_print_output_file(*pce_print, netlist_file_path);
 }
 
 SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements() const {
@@ -479,9 +385,7 @@ SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements()
         SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
-            // a .TRAN analysis with .FFT directives dumps the FFT calculation files
-            // and a .TRAN analysis with .PCE parameters and a companion print
-            // dumps the PCE statistics output
+            // a .TRAN analysis with .FFT directives dumps the FFT calculation files and a .TRAN analysis with .PCE parameters and a companion print dumps the PCE statistics output
             return {.fft = !params.fft_parameters.empty(), .pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
         }
         SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {

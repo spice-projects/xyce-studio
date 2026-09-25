@@ -77,8 +77,7 @@ TEST(PrintParametersChecks, to_xyce_statement_does_not_quote_simple_file) {
 }
 
 TEST(PrintParametersChecks, to_xyce_statement_normalizes_quoted_file) {
-    // arrange: a value carrying outer quotes is normalized — the model always
-    // holds the bare filename, so the emitted directive is unquoted here
+    // arrange: a value carrying outer quotes is normalized — the model always holds the bare filename, so the emitted directive is unquoted here
     const PrintParameters params("TRAN", "RAW", R"("waves.raw")", {"V(OUT)"}, {});
     // act
     const std::string statement = params.to_xyce_statement();
@@ -298,8 +297,7 @@ TEST(PrintParametersChecks, passes_through_V_star_with_topology) {
     const PrintParameters params("DC", "", "", {"V(*)"}, {});
     // act
     const std::string statement = params.to_xyce_statement(&topology);
-    // assert
-    // V(*) passes through verbatim for native Xyce expansion
+    // assert V(*) passes through verbatim for native Xyce expansion
     ASSERT_NE(statement.find("V(*)"), std::string::npos);
     // topology nodes are NOT injected by the plugin
     ASSERT_EQ(statement.find("V(0)"), std::string::npos);
@@ -313,8 +311,7 @@ TEST(PrintParametersChecks, passes_through_I_star_with_topology) {
     const PrintParameters params("DC", "", "", {"I(*)"}, {});
     // act
     const std::string statement = params.to_xyce_statement(&topology);
-    // assert
-    // I(*) passes through verbatim for native Xyce expansion
+    // assert I(*) passes through verbatim for native Xyce expansion
     ASSERT_NE(statement.find("I(*)"), std::string::npos);
     // device currents are NOT injected by the plugin
     ASSERT_EQ(statement.find("I(R1)"), std::string::npos);
@@ -327,8 +324,7 @@ TEST(PrintParametersChecks, passes_through_P_star_with_topology) {
     const PrintParameters params("DC", "", "", {"P(*)"}, {});
     // act
     const std::string statement = params.to_xyce_statement(&topology);
-    // assert
-    // P(*) passes through verbatim for native Xyce expansion
+    // assert P(*) passes through verbatim for native Xyce expansion
     ASSERT_NE(statement.find("P(*)"), std::string::npos);
     // device powers are NOT injected by the plugin
     ASSERT_EQ(statement.find("P(R1)"), std::string::npos);
@@ -340,8 +336,7 @@ TEST(PrintParametersChecks, passes_through_mixed_wildcards_and_explicit_with_top
     const PrintParameters params("DC", "", "", {"V(1)", "V(*)", "I(*)"}, {});
     // act
     const std::string statement = params.to_xyce_statement(&topology);
-    // assert
-    // explicit V(1) preserved
+    // assert explicit V(1) preserved
     ASSERT_NE(statement.find("V(1)"), std::string::npos);
     // wildcards pass through verbatim
     ASSERT_NE(statement.find("V(*)"), std::string::npos);
@@ -353,8 +348,7 @@ TEST(PrintParametersChecks, passes_through_wildcards_without_topology) {
     const PrintParameters params("DC", "", "", {"V(*)", "I(*)", "P(*)"}, {});
     // act
     const std::string statement = params.to_xyce_statement(nullptr);
-    // assert
-    // all wildcards pass through verbatim when no topology is given
+    // assert all wildcards pass through verbatim when no topology is given
     ASSERT_NE(statement.find("V(*)"), std::string::npos);
     ASSERT_NE(statement.find("I(*)"), std::string::npos);
     ASSERT_NE(statement.find("P(*)"), std::string::npos);
@@ -366,8 +360,7 @@ TEST(PrintParametersChecks, passes_through_non_wildcard_variables_with_topology)
     const PrintParameters params("DC", "", "", {"V(OUT)", "ID(M1)", "{V(OUT)*I(V1)}"}, {});
     // act
     const std::string statement = params.to_xyce_statement(&topology);
-    // assert
-    // non-wildcard variables pass through unchanged
+    // assert non-wildcard variables pass through unchanged
     ASSERT_NE(statement.find("V(OUT)"), std::string::npos);
     ASSERT_NE(statement.find("ID(M1)"), std::string::npos);
     ASSERT_NE(statement.find("{V(OUT)*I(V1)}"), std::string::npos);
@@ -434,8 +427,7 @@ TEST(PrintParametersChecks, equality_operator_different_extra_options) {
 }
 
 TEST(PrintParametersChecks, s_parameter_variable_list_survives_dialog_round_trip_shape) {
-    // arrange: the variable list from netlists/lin-simple-01.cir as the
-    // dialog's additional-variables field would carry it
+    // arrange: the variable list from netlists/lin-simple-01.cir as the dialog's additional-variables field would carry it
     const std::string line_edit_text = "SR(1,1) SI(1,1) SM(1,1) SP(1,1) SDB(1,1) SR(2,1) SI(2,1) SM(2,1) SP(2,1) SDB(2,1) SR(1,2) SI(1,2) SM(1,2) SP(1,2) SDB(1,2) SR(2,2) SI(2,2) SM(2,2) SP(2,2) SDB(2,2)";
     PrintParameters params("AC", "RAW", "lin-simple-01.raw", tokenize_owned(line_edit_text), {});
     // act
@@ -468,8 +460,7 @@ TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_probe_stat
 }
 
 TEST(PrintParametersChecks, strip_print_file_removes_probe_file_before_format) {
-    // arrange: the FILE option appearing before the FORMAT option must be
-    // stripped as well (the format is discovered in a first pass)
+    // arrange: the FILE option appearing before the FORMAT option must be stripped as well (the format is discovered in a first pass)
     const std::string statement = ".PRINT TRAN FILE=waves.csd FORMAT=PROBE V(OUT)";
     // act
     const std::string stripped = strip_print_file_option(statement);
@@ -478,8 +469,7 @@ TEST(PrintParametersChecks, strip_print_file_removes_probe_file_before_format) {
 }
 
 TEST(PrintParametersChecks, strip_print_file_removes_file_option_before_format) {
-    // arrange: the FILE option appearing before the FORMAT option must be
-    // stripped as well (the format is discovered in a first pass)
+    // arrange: the FILE option appearing before the FORMAT option must be stripped as well (the format is discovered in a first pass)
     const std::string statement = ".PRINT TRAN FILE=waves.raw FORMAT=RAW V(OUT)";
     // act
     const std::string stripped = strip_print_file_option(statement);
@@ -488,7 +478,7 @@ TEST(PrintParametersChecks, strip_print_file_removes_file_option_before_format) 
 }
 
 TEST(PrintParametersChecks, strip_print_file_removes_file_option_without_format) {
-    // arrange: an unspecified format defaults to RAW output
+    // arrange: FILE= is removed from every .PRINT statement so the run writes the default file for the format
     const std::string statement = ".PRINT TRAN FILE=waves.raw V(OUT)";
     // act
     const std::string stripped = strip_print_file_option(statement);
@@ -496,13 +486,22 @@ TEST(PrintParametersChecks, strip_print_file_removes_file_option_without_format)
     ASSERT_EQ(stripped, ".PRINT TRAN V(OUT)");
 }
 
-TEST(PrintParametersChecks, strip_print_file_keeps_file_option_for_non_raw_format) {
-    // arrange: a CSV print keeps its explicit output file
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_csv_statement) {
+    // arrange: a CSV print loses its explicit output file so the run writes the default file for the format
     const std::string statement = ".PRINT TRAN FORMAT=CSV FILE=out.csv V(OUT)";
     // act
     const std::string stripped = strip_print_file_option(statement);
     // assert
-    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=CSV FILE=out.csv V(OUT)");
+    ASSERT_EQ(stripped, ".PRINT TRAN FORMAT=CSV V(OUT)");
+}
+
+TEST(PrintParametersChecks, strip_print_file_removes_file_option_from_std_statement) {
+    // arrange: a STD print loses its explicit output file so the run writes the default file for the format
+    const std::string statement = ".PRINT DC FORMAT=STD FILE=dc.prn V(1)";
+    // act
+    const std::string stripped = strip_print_file_option(statement);
+    // assert
+    ASSERT_EQ(stripped, ".PRINT DC FORMAT=STD V(1)");
 }
 
 TEST(PrintParametersChecks, strip_print_file_keeps_statement_without_file_option) {
@@ -555,8 +554,7 @@ TEST(PrintParametersChecks, strip_print_file_result_reparses_without_file) {
 }
 
 TEST(PrintParametersChecks, ac_print_strips_power_and_lead_wildcards) {
-    // arrange — an AC print carrying the power and device lead wildcards the
-    // AC analysis cannot produce per the Xyce reference guide
+    // arrange — an AC print carrying the power and device lead wildcards the AC analysis cannot produce per the Xyce reference guide
     // act
     const auto result = PrintParameters::from_xyce_statement(".PRINT AC V(*) I(*) P(*) W(*) IB(*) IC(*) IE(*) IS(*) ID(*) IG(*)");
     // assert — only the supported wildcards survive
@@ -621,8 +619,7 @@ TEST(PrintParametersChecks, dc_print_keeps_power_and_lead_wildcards) {
     // arrange — a DC print with the full wildcard set
     // act
     const auto result = PrintParameters::from_xyce_statement(".PRINT DC V(*) P(*) W(*) IC(*)");
-    // assert — DC prints support power and lead currents; W(*) is a power
-    // synonym and parses as P(*)
+    // assert — DC prints support power and lead currents; W(*) is a power synonym and parses as P(*)
     ASSERT_TRUE(result.has_value());
     const std::vector<std::string> expected = {"V(*)", "P(*)", "P(*)", "IC(*)"};
     ASSERT_EQ(result->output_variables, expected);
@@ -636,4 +633,172 @@ TEST(PrintParametersChecks, ac_print_round_trip_drops_unsupported_wildcards) {
     // assert — the serialized statement never carries the unsupported tokens
     ASSERT_TRUE(reparsed.has_value());
     ASSERT_EQ(reparsed->output_variables, std::vector<std::string>{"V(*)"});
+}
+
+// ========================================================================================
+// default_print_output_file
+// ========================================================================================
+
+TEST(DefaultPrintOutputFileChecks, unspecified_format_resolves_the_fd_prn_for_ac) {
+    // arrange — the default format writes the prn table and the AC print type carries the frequency-domain suffix
+    const PrintParameters print("AC", "", "ac-simple-01.raw", {"V(*)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/ac-simple-01.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/ac-simple-01.cir.FD.prn");
+}
+
+TEST(DefaultPrintOutputFileChecks, unspecified_format_resolves_the_prn_for_tran) {
+    // arrange — the default format writes the prn table next to the netlist
+    const PrintParameters print("TRAN", "", "waves.raw", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.prn");
+}
+
+TEST(DefaultPrintOutputFileChecks, std_format_resolves_the_prn_default) {
+    // arrange
+    const PrintParameters print("DC", "STD", "dc.prn", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.prn");
+}
+
+TEST(DefaultPrintOutputFileChecks, prn_table_formats_resolve_the_prn_default) {
+    // arrange — NOINDEX, GNUPLOT and SPLOT write the prn table like STD does
+    const PrintParameters noindex("DC", "NOINDEX", "", {"V(1)"}, {});
+    const PrintParameters gnuplot("DC", "GNUPLOT", "", {"V(1)"}, {});
+    const PrintParameters splot("DC", "SPLOT", "", {"V(1)"}, {});
+    // act
+    const auto noindex_path = default_print_output_file(noindex, "/tmp/net.cir");
+    const auto gnuplot_path = default_print_output_file(gnuplot, "/tmp/net.cir");
+    const auto splot_path = default_print_output_file(splot, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(noindex_path.generic_string(), "/tmp/net.cir.prn");
+    EXPECT_EQ(gnuplot_path.generic_string(), "/tmp/net.cir.prn");
+    EXPECT_EQ(splot_path.generic_string(), "/tmp/net.cir.prn");
+}
+
+TEST(DefaultPrintOutputFileChecks, raw_format_resolves_the_netlist_raw_file) {
+    // arrange — the format reaches the model in its original case and must compare normalized
+    const PrintParameters print("TRAN", "raw", "waves.raw", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.raw");
+}
+
+TEST(DefaultPrintOutputFileChecks, probe_format_resolves_the_netlist_csd_file) {
+    // arrange
+    const PrintParameters print("TRAN", "PROBE", "waves.csd", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.csd");
+}
+
+TEST(DefaultPrintOutputFileChecks, probe_format_carries_the_td_suffix_for_ac_ic) {
+    // arrange — the AC_IC print type produces time-domain output in a .TD.csd file
+    const PrintParameters print("AC_IC", "PROBE", "", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.TD.csd");
+}
+
+TEST(DefaultPrintOutputFileChecks, csv_format_resolves_the_csv_suffix) {
+    // arrange — the AC print type carries the frequency-domain csv suffix
+    const PrintParameters print("AC", "CSV", "", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.FD.csv");
+}
+
+TEST(DefaultPrintOutputFileChecks, tecplot_format_resolves_the_dat_suffix) {
+    // arrange
+    const PrintParameters print("TRAN", "TECPLOT", "", {"V(1)"}, {});
+    // act
+    const auto path = default_print_output_file(print, "/tmp/net.cir");
+    // assert
+    EXPECT_EQ(path.generic_string(), "/tmp/net.cir.dat");
+}
+
+// ========================================================================================
+// collect_print_file_copies
+// ========================================================================================
+
+TEST(CollectPrintFileCopiesChecks, print_with_file_records_the_default_produced_file) {
+    // arrange — the reported netlist: an AC print with a FILE= destination and no explicit format
+    const std::vector<std::string> directives = {".AC LIN 20 1 100k", ".PRINT AC FILE=ac-simple-01.raw V(*) I(*)"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    ASSERT_EQ(copies.size(), 1u);
+    EXPECT_EQ(copies[0].produced_file.generic_string(), "/tmp/work/xyce_0.cir.FD.prn");
+    EXPECT_EQ(copies[0].destination_file.generic_string(), "/tmp/work/ac-simple-01.raw");
+}
+
+TEST(CollectPrintFileCopiesChecks, print_without_file_records_no_copy) {
+    // arrange
+    const std::vector<std::string> directives = {".PRINT AC V(*) I(*)"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    EXPECT_TRUE(copies.empty());
+}
+
+TEST(CollectPrintFileCopiesChecks, non_print_directives_record_nothing) {
+    // arrange
+    const std::vector<std::string> directives = {".AC LIN 20 1 100k", ".PREPROCESS REPLACEGROUND TRUE", ".END"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    EXPECT_TRUE(copies.empty());
+}
+
+TEST(CollectPrintFileCopiesChecks, every_print_records_its_own_copy) {
+    // arrange — the analysis print plus an unassociated print, each with its own FILE=
+    const std::vector<std::string> directives = {".TRAN 1u 1m", ".PRINT TRAN FORMAT=RAW FILE=tran.raw V(1)", ".PRINT DC FORMAT=CSV FILE=dc.csv V(1)"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    ASSERT_EQ(copies.size(), 2u);
+    EXPECT_EQ(copies[0].produced_file.generic_string(), "/tmp/work/xyce_0.cir.raw");
+    EXPECT_EQ(copies[0].destination_file.generic_string(), "/tmp/work/tran.raw");
+    EXPECT_EQ(copies[1].produced_file.generic_string(), "/tmp/work/xyce_0.cir.csv");
+    EXPECT_EQ(copies[1].destination_file.generic_string(), "/tmp/work/dc.csv");
+}
+
+TEST(CollectPrintFileCopiesChecks, pce_companion_print_records_its_statistics_file) {
+    // arrange — the .PCE companion print without an explicit format writes the PCE prn table
+    const std::vector<std::string> directives = {".TRAN 10u 1m", ".PRINT PCE FILE=pce.csv V(IN)"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    ASSERT_EQ(copies.size(), 1u);
+    EXPECT_EQ(copies[0].produced_file.generic_string(), "/tmp/work/xyce_0.cir.PCE.prn");
+    EXPECT_EQ(copies[0].destination_file.generic_string(), "/tmp/work/pce.csv");
+}
+
+TEST(CollectPrintFileCopiesChecks, quoted_file_records_the_unquoted_destination) {
+    // arrange — a quoted FILE= value carrying whitespace
+    const std::vector<std::string> directives = {R"(.PRINT TRAN FILE="file with space.raw" V(1))"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    ASSERT_EQ(copies.size(), 1u);
+    EXPECT_EQ(copies[0].destination_file.generic_string(), "/tmp/work/file with space.raw");
+}
+
+TEST(CollectPrintFileCopiesChecks, absolute_file_stays_absolute) {
+    // arrange — an absolute FILE= value
+    const std::vector<std::string> directives = {".PRINT TRAN FILE=/var/results/out.raw V(1)"};
+    // act
+    const auto copies = collect_print_file_copies(directives, "/tmp/work/xyce_0.cir", "/tmp/work");
+    // assert
+    ASSERT_EQ(copies.size(), 1u);
+    EXPECT_EQ(copies[0].destination_file.generic_string(), "/var/results/out.raw");
 }

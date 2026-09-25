@@ -96,8 +96,7 @@ TEST(SimulationConfigAnalysisChecks, from_xyce_directives_identifies_noise) {
 }
 
 TEST(SimulationConfigAnalysisChecks, lin_claims_the_match_before_ac) {
-    // arrange — .LIN netlists also contain a .AC directive; the LIN parser
-    // embeds the AC sweep so it must win the precedence order
+    // arrange — .LIN netlists also contain a .AC directive; the LIN parser embeds the AC sweep so it must win the precedence order
     const std::vector<std::string> directives = {".AC DEC 10 1 1MEG", ".LIN"};
     // act
     const auto config = SimulationConfig::from_xyce_directives(directives);
@@ -189,109 +188,11 @@ TEST(SimulationConfigUnassociatedPrintChecks, unassociated_prints_round_trip_thr
 }
 
 // ========================================================================================
-// raw output file path computation
-// ========================================================================================
-
-TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_missing_analysis) {
-    // arrange
-    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
-    // assert
-    EXPECT_FALSE(path.has_value());
-}
-
-TEST(SimulationConfigOutputPathChecks, raw_path_defaults_to_netlist_plus_raw) {
-    // arrange — an OP analysis without print directives
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.raw");
-}
-
-TEST(SimulationConfigOutputPathChecks, raw_path_ignores_print_file_uses_netlist_plus_raw) {
-    // arrange — a RAW print with an explicit output file: the FILE= option is
-    // stripped for the Xyce run, so the produced file is always netlist-derived
-    // and the user's file only serves as the copy destination (issue: Xyce must
-    // never rewrite a file the application holds mapped)
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.raw");
-}
-
-TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_non_raw_format) {
-    // arrange — a CSV print produces no raw output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
-    // assert
-    EXPECT_FALSE(path.has_value());
-}
-
-// ========================================================================================
-// raw output copy destination computation
-// ========================================================================================
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_missing_analysis) {
-    // arrange
-    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_print_file_against_working_directory) {
-    // arrange — a RAW print with an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "out.raw", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    ASSERT_TRUE(destination.has_value());
-    EXPECT_EQ(destination->generic_string(), "/tmp/work/out.raw");
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_without_print_file) {
-    // arrange — a RAW print without an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", "", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_non_raw_format) {
-    // arrange — a CSV print produces no raw output file to copy
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "CSV", "out.csv", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_strips_quoted_file) {
-    // arrange — the model always carries the bare filename; a quote-carrying
-    // value (direct construction) is normalized when composing the destination
-    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, PrintParameters("OP", "RAW", R"("out raw.raw")", {"V(1)"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    ASSERT_TRUE(destination.has_value());
-    EXPECT_EQ(destination->generic_string(), "/tmp/work/out raw.raw");
-}
-
-// ========================================================================================
 // legacy OP print normalization
 // ========================================================================================
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_the_legacy_op_print) {
-    // arrange — an OP analysis built from the legacy print_dc_* fields with a
-    // duplicated variable; the normalized print must match the legacy emission
+    // arrange — an OP analysis built from the legacy print_dc_* fields with a duplicated variable; the normalized print must match the legacy emission
     const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)", "V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -301,8 +202,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_th
 }
 
 TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_emitted_directive) {
-    // arrange — legacy OP print fields; the emitted directive must equal the
-    // analysis print statement so the presenter strips its FILE= option
+    // arrange — legacy OP print fields; the emitted directive must equal the analysis print statement so the presenter strips its FILE= option
     const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -314,51 +214,24 @@ TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_
     EXPECT_EQ(*emitted, *statement);
 }
 
-TEST(SimulationConfigOutputPathChecks, raw_path_resolves_the_legacy_op_print) {
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_parameters_normalizes_the_legacy_op_print) {
     // arrange — legacy OP print fields with a RAW format
     const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
+    const auto print_parameters = config.analysis_print_parameters();
     // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.raw");
+    ASSERT_TRUE(print_parameters.has_value());
+    EXPECT_EQ(print_parameters->print_type, "DC");
+    EXPECT_EQ(print_parameters->print_format, "RAW");
+    EXPECT_EQ(print_parameters->print_file, "dc.raw");
+    EXPECT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(1)"}));
 }
 
-TEST(SimulationConfigOutputPathChecks, raw_path_is_nullopt_for_legacy_op_print_with_non_raw_format) {
-    // arrange — legacy OP print fields with a CSV format produce no raw file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.raw_output_file_path("/tmp/net.cir");
-    // assert
-    EXPECT_FALSE(path.has_value());
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_resolves_the_legacy_op_print) {
-    // arrange — legacy OP print fields with an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    ASSERT_TRUE(destination.has_value());
-    EXPECT_EQ(destination->generic_string(), "/tmp/work/dc.raw");
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_without_file) {
-    // arrange — legacy OP print fields without an explicit output file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_legacy_op_print_with_non_raw_format) {
-    // arrange — legacy OP print fields with a CSV format produce no raw file
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "CSV", "dc.csv", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.raw_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
+TEST(SimulationConfigAnalysisPrintChecks, analysis_print_parameters_is_nullopt_for_the_disabled_legacy_op_print) {
+    // arrange — legacy OP print fields with the print disabled
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "CSV", "dc.csv", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act / assert
+    EXPECT_FALSE(config.analysis_print_parameters().has_value());
 }
 
 // ========================================================================================
@@ -366,9 +239,7 @@ TEST(SimulationConfigCopyDestinationChecks, copy_destination_is_nullopt_for_lega
 // ========================================================================================
 
 TEST(SimulationConfigUnassociatedPrintChecks, op_analysis_does_not_duplicate_its_dc_print) {
-    // arrange — a netlist with an .OP analysis and a .PRINT DC directive; the
-    // OP parser claims the print into its structured print parameters, so the
-    // directive must not be appended to the unassociated prints as well
+    // arrange — a netlist with an .OP analysis and a .PRINT DC directive; the OP parser claims the print into its structured print parameters, so the directive must not be appended to the unassociated prints as well
     const auto config = SimulationConfig::from_xyce_directives({".OP", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
     // assert
     ASSERT_EQ(config.analysis_type, "OP");
@@ -379,8 +250,7 @@ TEST(SimulationConfigUnassociatedPrintChecks, op_analysis_does_not_duplicate_its
 }
 
 TEST(SimulationConfigUnassociatedPrintChecks, dc_print_stays_unassociated_for_other_analyses) {
-    // arrange — a .PRINT DC under a transient analysis is not claimed by the
-    // analysis and must remain in the unassociated prints
+    // arrange — a .PRINT DC under a transient analysis is not claimed by the analysis and must remain in the unassociated prints
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
     // assert
     ASSERT_EQ(config.analysis_type, "TRAN");
@@ -422,10 +292,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_wi
 }
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_a_prefix_of_the_expanded_noise_print) {
-    // arrange — a NOISE analysis carrying device noise operators; the Xyce
-    // reference guide documents DNI()/DNO() as output variables on the
-    // .PRINT NOISE line, and the noise serializer appends them after the
-    // base print statement
+    // arrange — a NOISE analysis carrying device noise operators; the Xyce reference guide documents DNI()/DNO() as output variables on the .PRINT NOISE line, and the noise serializer appends them after the base print statement
     const SimulationConfig config("NOISE", NoiseSimulationParameters("out", "", "V1", "1", "100MEG", "10", "DEC", {DeviceNoiseOperator("DNI", "R1", "")}, "", PrintParameters("NOISE", "RAW", "out.raw", {"INOISE"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -538,7 +405,7 @@ TEST(SimulationConfigPcePathChecks, pce_path_requires_a_companion_print) {
     // arrange
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     EXPECT_FALSE(path.has_value());
 }
@@ -547,7 +414,7 @@ TEST(SimulationConfigPcePathChecks, default_format_resolves_next_to_the_netlist)
     // arrange
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
@@ -557,7 +424,7 @@ TEST(SimulationConfigPcePathChecks, dc_print_resolves_next_to_the_netlist) {
     // arrange
     const auto config = SimulationConfig::from_xyce_directives({".DC V1 0 5 0.5", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE V(1)"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
@@ -567,7 +434,7 @@ TEST(SimulationConfigPcePathChecks, csv_format_resolves_the_csv_suffix) {
     // arrange
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FORMAT=CSV V(1)"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.csv");
@@ -577,30 +444,20 @@ TEST(SimulationConfigPcePathChecks, tecplot_format_resolves_the_dat_suffix) {
     // arrange
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FORMAT=TECPLOT V(1)"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     ASSERT_TRUE(path.has_value());
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.dat");
 }
 
-TEST(SimulationConfigPcePathChecks, relative_file_resolves_against_the_working_directory) {
-    // arrange
+TEST(SimulationConfigPcePathChecks, file_option_does_not_change_the_produced_default_file) {
+    // arrange — FILE= is removed from every .PRINT statement for the run, the destination is copied after the run instead
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FILE=out.prn V(1)"});
     // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
+    const auto path = config.pce_output_file_path("/tmp/net.cir");
     // assert
     ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/run/out.prn");
-}
-
-TEST(SimulationConfigPcePathChecks, absolute_file_is_returned_verbatim) {
-    // arrange
-    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1n 10u", ".PCE param=R1 type=normal means=3K std_deviations=1K", ".PRINT PCE FILE=/var/results/out.prn V(1)"});
-    // act
-    const auto path = config.pce_output_file_path("/tmp/net.cir", "/tmp/run");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/var/results/out.prn");
+    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
 }
 
 // ========================================================================================
@@ -628,8 +485,7 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_is_absent_for_other_
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_defaults_to_netlist_plus_s2p_without_file) {
     // arrange — a LIN analysis with the default touchstone format and no FILE=
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act — without FILE= Xyce writes <netlist>.sNp next to the netlist, N being
-    // the port count (2 here), so the working directory plays no role
+    // act — without FILE= Xyce writes <netlist>.sNp next to the netlist, N being the port count (2 here), so the working directory plays no role
     const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
@@ -647,8 +503,7 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_uses_port_count_for_
 }
 
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_resolves_file_against_working_directory) {
-    // arrange — a LIN analysis with an explicit FILE=; Xyce resolves the value
-    // against its process cwd, which is the run's working directory
+    // arrange — a LIN analysis with an explicit FILE=; Xyce resolves the value against its process cwd, which is the run's working directory
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "out.s2p", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
@@ -863,9 +718,7 @@ TEST(SimulationConfigValidationChecks, validate_passes_with_enabled_step_and_ana
 }
 
 TEST(SimulationConfigPrintSanitizeChecks, ac_analysis_print_drops_unsupported_wildcards) {
-    // arrange — a netlist directive set with an AC analysis and a print
-    // carrying the power and device lead wildcards the AC analysis cannot
-    // produce
+    // arrange — a netlist directive set with an AC analysis and a print carrying the power and device lead wildcards the AC analysis cannot produce
     // act
     const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".PRINT AC FORMAT=RAW V(*) I(*) P(*) IC(*) ID(*)"});
     // assert — the analysis print keeps only the supported wildcards
@@ -875,8 +728,7 @@ TEST(SimulationConfigPrintSanitizeChecks, ac_analysis_print_drops_unsupported_wi
 }
 
 TEST(SimulationConfigPrintSanitizeChecks, lin_analysis_print_keeps_the_ac_restriction) {
-    // arrange — a LIN directive set whose associated AC print carries the
-    // power and lead wildcards
+    // arrange — a LIN directive set whose associated AC print carries the power and lead wildcards
     // act
     const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin.s2p", ".PRINT AC FORMAT=RAW V(*) P(*) IC(*)"});
     // assert — the LIN analysis print is an AC print, sanitized the same way
@@ -1261,120 +1113,4 @@ TEST(TecplotOutputSuffixChecks, unknown_type_falls_back_to_dot_dat) {
     EXPECT_EQ(unknown_suffix, ".dat");
     EXPECT_EQ(empty_suffix, ".dat");
     EXPECT_EQ(lower_suffix, ".FD.dat");
-}
-
-// ========================================================================================
-// csd output file path computation
-// ========================================================================================
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_is_nullopt_for_missing_analysis) {
-    // arrange
-    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    EXPECT_FALSE(path.has_value());
-}
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_defaults_to_netlist_plus_csd) {
-    // arrange — a transient PROBE print produces the plain .csd file
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
-}
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_ignores_print_file_uses_netlist_plus_csd) {
-    // arrange — a PROBE print with an explicit output file: the FILE= option is
-    // stripped for the Xyce run, so the produced file is always netlist-derived
-    // and the user's file only serves as the copy destination
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
-}
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_carries_the_td_suffix_for_ac_ic_prints) {
-    // arrange — the AC_IC print type writes time-domain output to a .TD.csd file
-    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", PrintParameters("AC_IC", "PROBE", "out.csd", {"V(1)"}, {}), {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.TD.csd");
-}
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_is_nullopt_for_non_probe_format) {
-    // arrange — a CSV print produces no csd output file
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "CSV", "out.csv", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    EXPECT_FALSE(path.has_value());
-}
-
-TEST(SimulationConfigCsdOutputPathChecks, csd_path_resolves_the_legacy_op_print) {
-    // arrange — legacy OP print fields with a PROBE format normalize to a DC print
-    const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "PROBE", "dc.csd", false, "NODESET", "", {}, {}), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto path = config.csd_output_file_path("/tmp/net.cir");
-    // assert
-    ASSERT_TRUE(path.has_value());
-    EXPECT_EQ(path->generic_string(), "/tmp/net.cir.csd");
-}
-
-// ========================================================================================
-// csd output copy destination computation
-// ========================================================================================
-
-TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_for_missing_analysis) {
-    // arrange
-    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.csd_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_resolves_print_file_against_working_directory) {
-    // arrange — a PROBE print with an explicit output file
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "out.csd", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.csd_output_copy_destination("/tmp/work");
-    // assert
-    ASSERT_TRUE(destination.has_value());
-    EXPECT_EQ(destination->generic_string(), "/tmp/work/out.csd");
-}
-
-TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_without_print_file) {
-    // arrange — a PROBE print without an explicit output file
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", "", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.csd_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_is_nullopt_for_non_probe_format) {
-    // arrange — a CSV print produces no csd output file to copy
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "CSV", "out.csv", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.csd_output_copy_destination("/tmp/work");
-    // assert
-    EXPECT_FALSE(destination.has_value());
-}
-
-TEST(SimulationConfigCsdCopyDestinationChecks, copy_destination_strips_quoted_file) {
-    // arrange — the model always carries the bare filename; a quote-carrying
-    // value (direct construction) is normalized when composing the destination
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "PROBE", R"("out probe.csd")", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act
-    const auto destination = config.csd_output_copy_destination("/tmp/work");
-    // assert
-    ASSERT_TRUE(destination.has_value());
-    EXPECT_EQ(destination->generic_string(), "/tmp/work/out probe.csd");
 }

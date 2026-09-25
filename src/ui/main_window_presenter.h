@@ -16,10 +16,7 @@
 
 class KiCadSession;
 
-// business/orchestration logic for the slint main window, decoupled from the
-// ui through MainWindowViewDef and MainWindowViewDefEvents; the presenter
-// implements the event handler interface and receives user-interaction
-// callbacks from the view without the view knowing the presenter exists
+// business/orchestration logic for the slint main window, decoupled from the ui through MainWindowViewDef and MainWindowViewDefEvents; the presenter implements the event handler interface and receives user-interaction callbacks from the view without the view knowing the presenter exists
 class SlintMainWindowPresenter : public MainWindowViewDefEvents
 {
 public:
@@ -64,12 +61,10 @@ public:
     void on_chart_step_tool(size_t chart_index) override;
     void on_chart_new_window(size_t chart_index) override;
 
-    // chart reordering through the drag handle; the presenter mediates so a
-    // future change can persist the chart order
+    // chart reordering through the drag handle; the presenter mediates so a future change can persist the chart order
     void on_chart_moved(size_t from, size_t to) override;
 
-    // load the analysis output into this window and switch to the charts
-    // view; used to seed windows spawned through App::new_window
+    // load the analysis output into this window and switch to the charts view; used to seed windows spawned through App::new_window
     void load_analysis_measurements(std::shared_ptr<XyceOutputFile> file);
 
     // simulation lifecycle events (forwarded by the view from the runner)
@@ -110,8 +105,7 @@ private:
     // activate the dataset at the given index and update charts in the view
     void activate_plot_dataset(size_t index);
 
-    // launch the simulation with the configured analysis and the stored parse
-    // result; used by on_run_simulation and by the pending dialog result
+    // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
     void show_simulation_output_view();
@@ -125,38 +119,22 @@ private:
     // recompute and forward the action enablement to the view
     void refresh_action_states();
 
-    // copy the produced raw output file to the user-indicated location when the
-    // analysis print carries a file; the application maps the produced file
-    // (which is never rewritten by a later run) while the copy keeps the
-    // user-visible file up to date
-    void copy_simulation_output_to_destination(const std::filesystem::path& raw_path);
+    // copy the produced default output file of a recorded .PRINT FILE= destination, the application maps the produced file (which is never rewritten by a later run) while the copy keeps the user-visible file up to date
+    void copy_simulation_output_to_destination(const PrintOutputCopy& copy);
 
-    // resolve, parse and prepare the analysis print output file (.raw or .prn);
-    // the returned instance is ready for rendering: the tab plot type follows
-    // the configured analysis print, not the produced file, so the label is
-    // identical regardless of the .PRINT format
-    std::optional<std::shared_ptr<XyceOutputFile>> resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory);
+    // resolve, parse and prepare the analysis print output file for the configured format; the returned instance is ready for rendering: the tab plot type follows the configured analysis print, not the produced file, so the label is identical regardless of the .PRINT format
+    [[nodiscard]] std::optional<std::shared_ptr<XyceOutputFile>> resolve_analysis_output(const std::filesystem::path& netlist_path);
 
-    // apply the analysis print metadata (tab plot type) to the analysis output;
-    // derived from the configured analysis print type, not from the produced
-    // file, so the tab label is identical regardless of the .PRINT format; the
-    // title keeps the circuit name provided by the parsers
+    // apply the analysis print metadata (tab plot type) to the analysis output; derived from the configured analysis print type, not from the produced file, so the tab label is identical regardless of the .PRINT format; the title keeps the circuit name provided by the parsers
     void apply_analysis_print_metadata(XyceOutputFile& file) const;
 
-    // load the s-parameter file a .LIN run wrote and render its tabs (the LIN
-    // Analysis tab and the Smith Chart tab); the analysis output's step
-    // information is carried over when present so .STEP runs map into
-    // per-step slices
+    // load the s-parameter file a .LIN run wrote and render its tabs (the LIN Analysis tab and the Smith Chart tab); the analysis output's step information is carried over when present so .STEP runs map into per-step slices
     void load_s_parameter_measurements(const StepInformation* analysis_steps);
 
-    // load the FFT calculation files a .TRAN run with .FFT directives wrote
-    // and render one tab per file; the FFT data maps onto the analysis
-    // output's step slices
+    // load the FFT calculation files a .TRAN run with .FFT directives wrote and render one tab per file; the FFT data maps onto the analysis output's step slices
     void load_fft_measurements();
 
-    // load the PCE statistics file a DC or transient run with .PCE parameters
-    // and a .PCE companion print wrote and render its tab; pce_print carries
-    // the configured print so the parser matches the output format
+    // load the PCE statistics file a DC or transient run with .PCE parameters and a .PCE companion print wrote and render its tab; pce_print carries the configured print so the parser matches the output format
     void load_pce_measurements(const PrintParameters& pce_print);
 
     MainWindowViewDef& m_view;
@@ -171,16 +149,12 @@ private:
     size_t m_active_dataset_index = 0;
     int m_next_dataset_id = 1;
 
-    // analysis output of the last run or the loaded output file in this window;
-    // it is NOT the active tab, the active dataset file is resolved through
-    // active_dataset_file()
+    // analysis output of the last run or the loaded output file in this window; it is NOT the active tab, the active dataset file is resolved through active_dataset_file()
     std::optional<std::shared_ptr<XyceOutputFile>> m_analysis_measurements;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_measurements;
-    // pce measurements produced by a DC or transient run; a single run
-    // produces at most one .PCE companion output file
+    // pce measurements produced by a DC or transient run; a single run produces at most one .PCE companion output file
     std::optional<std::shared_ptr<XyceOutputFile>> m_pce_measurements;
-    // s-parameter measurements produced by a .LIN run; a single run produces
-    // at most one file (a .STEP run concatenates all steps into the same file)
+    // s-parameter measurements produced by a .LIN run; a single run produces at most one file (a .STEP run concatenates all steps into the same file)
     std::optional<std::shared_ptr<XyceOutputFile>> m_s_parameter_measurements;
 
     SimulationConfig m_simulation_config;
@@ -188,17 +162,15 @@ private:
 
     std::string m_base_title;
 
-    // parse result of the netlist shown in the editor, kept while a modal
-    // simulation parameters dialog is open so the accepted configuration can
-    // rebuild the netlist (configure flow) or launch the simulation (run flow)
+    // parse result of the netlist shown in the editor, kept while a modal simulation parameters dialog is open so the accepted configuration can rebuild the netlist (configure flow) or launch the simulation (run flow)
     std::string m_pending_sanitized_netlist;
     NetlistTopology m_pending_topology;
     std::string m_pending_original_netlist;
 
-    // simulation run state; the view owns the platform runner, the presenter
-    // keeps the paths it needs once the run finishes
+    // simulation run state; the view owns the platform runner, the presenter keeps the paths and the recorded .PRINT FILE= copies it needs once the run finishes
     bool m_simulation_running = false;
     bool m_run_pending = false;
     std::filesystem::path m_simulation_working_directory;
     std::filesystem::path m_simulation_netlist_path;
+    std::vector<PrintOutputCopy> m_simulation_output_copies;
 };

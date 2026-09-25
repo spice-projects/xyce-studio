@@ -277,9 +277,7 @@ TEST(SlintMainWindowPresenterChecks, opening_new_netlist_clears_stale_pending_st
     ASSERT_EQ(view.m_editor_content, "V1 1 0 5\nR1 1 0 1K\n.END\n");
     // run simulation on the second netlist
     presenter.on_run_simulation();
-    // assert — the config dialog was shown because the new file has no analysis
-    // directives; before the fix the stale TRAN config from the first netlist
-    // would have launched the simulation directly without showing the dialog
+    // assert — the config dialog was shown because the new file has no analysis directives; before the fix the stale TRAN config from the first netlist would have launched the simulation directly without showing the dialog
     EXPECT_EQ(view.m_simulation_dialog_requests, 1);
     EXPECT_FALSE(view.m_started);
     // cleanup
@@ -426,8 +424,7 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
     SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_FALSE(view.m_started);
-    // accept a transient configuration whose print file name carries spaces,
-    // entered in the dialog without quotes
+    // accept a transient configuration whose print file name carries spaces, entered in the dialog without quotes
     const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, PrintParameters("TRAN", "RAW", "file with space.raw", {"V(1)"}, {}), {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(config);
     ASSERT_TRUE(view.m_started);
@@ -465,10 +462,7 @@ TEST(SlintMainWindowPresenterChecks, dialog_file_with_spaces_is_quoted_in_netlis
 }
 
 TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_xyce_and_copied_on_finish) {
-    // arrange — netlist with a noise analysis whose RAW print carries an output
-    // file and device noise operators; the emitted .PRINT NOISE statement
-    // appends the DNI()/DNO() operators after the base print serialization, so
-    // the stripping must match the analysis print statement by prefix
+    // arrange — netlist with a noise analysis whose RAW print carries an output file and device noise operators, the emitted .PRINT NOISE statement appends the DNI()/DNO() operators after the base print serialization and they must survive the FILE= removal
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_noise_copy_test";
     std::filesystem::remove_all(working_directory);
@@ -513,15 +507,12 @@ TEST(SlintMainWindowPresenterChecks, noise_print_with_operators_is_stripped_for_
 }
 
 TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_primary_dataset) {
-    // arrange — the user opened a raw file that is also the simulation print
-    // destination; the copy must run after the dataset swap released the
-    // reference holding its mapping open (a sharing violation on Windows)
+    // arrange — the user opened a raw file that is also the simulation print destination; the copy must run after the dataset swap released the reference holding its mapping open (a sharing violation on Windows)
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_open_copy_test";
     std::filesystem::remove_all(working_directory);
     std::filesystem::create_directories(working_directory);
-    // write a parseable raw file at the destination path and open it through
-    // the real parser so the dataset holds a live memory mapping over it
+    // write a parseable raw file at the destination path and open it through the real parser so the dataset holds a live memory mapping over it
     const std::string opened_payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
     {
         std::ofstream opened(working_directory / "user_out.raw", std::ios::binary);
@@ -545,8 +536,7 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
-    // assert — the copy overwrote the destination even though it was open as
-    // the primary dataset when the simulation finished
+    // assert — the copy overwrote the destination even though it was open as the primary dataset when the simulation finished
     const auto copied_path = working_directory / "user_out.raw";
     ASSERT_TRUE(std::filesystem::exists(copied_path));
     {
@@ -554,8 +544,7 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
         const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
         EXPECT_EQ(copied_content, opened_payload + std::string(32, '\0'));
     }
-    // the active dataset was re-pointed at the produced file, preserving the
-    // opened dataset's identity (the primary dataset id is kept on a re-run)
+    // the active dataset was re-pointed at the produced file, preserving the opened dataset's identity (the primary dataset id is kept on a re-run)
     ASSERT_GE(view.m_updated_dataset_ids.size(), 2u);
     EXPECT_EQ(view.m_updated_dataset_ids.front(), view.m_updated_dataset_ids.back());
     // cleanup
@@ -565,8 +554,7 @@ TEST(SlintMainWindowPresenterChecks, copy_overwrites_a_destination_opened_as_pri
 }
 
 TEST(SlintMainWindowPresenterChecks, failed_parse_does_not_overwrite_the_user_destination) {
-    // arrange — the produced raw file exists but is not parseable; the copy is
-    // confined to successful runs so the user's last valid copy is preserved
+    // arrange — the produced raw file exists but is not parseable; the copy is confined to successful runs so the user's last valid copy is preserved
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_failed_parse_test";
     std::filesystem::remove_all(working_directory);
@@ -588,8 +576,7 @@ TEST(SlintMainWindowPresenterChecks, failed_parse_does_not_overwrite_the_user_de
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
-    // assert — the unparseable produced file was NOT copied over the
-    // destination, which keeps the last valid copy
+    // assert — the unparseable produced file was NOT copied over the destination, which keeps the last valid copy
     const auto copied_path = working_directory / "user_out.raw";
     ASSERT_TRUE(std::filesystem::exists(copied_path));
     {
@@ -661,13 +648,11 @@ TEST(SlintMainWindowPresenterChecks, schematic_reexport_with_identical_content_k
     presenter.on_simulation_parameters_dialog_result(edited);
     // assert — the editor reflects the edited parameters
     EXPECT_NE(view.m_editor_content.find(".TRAN 1u 25m"), std::string::npos);
-    // arrange — KiCad autosaves the schematic and re-exports it; the exported
-    // content is identical because the schematic still holds the old directives
+    // arrange — KiCad autosaves the schematic and re-exports it; the exported content is identical because the schematic still holds the old directives
     source->m_reloaded = true;
     // act — run the simulation again
     presenter.on_run_simulation();
-    // assert — the second run keeps the edited parameters, the re-export must
-    // not resurrect the schematic directives over the accepted dialog config
+    // assert — the second run keeps the edited parameters, the re-export must not resurrect the schematic directives over the accepted dialog config
     ASSERT_TRUE(view.m_started);
     EXPECT_NE(view.m_started_netlist_path, first_netlist_path);
     {
@@ -698,8 +683,7 @@ TEST(SlintMainWindowPresenterChecks, schematic_reexport_with_identical_content_d
     ASSERT_EQ(view.m_simulation_dialog_requests, 1);
     const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     presenter.on_simulation_parameters_dialog_result(edited);
-    // arrange — KiCad autosaves the schematic and re-exports it; the exported
-    // content is identical because the schematic still holds the old directives
+    // arrange — KiCad autosaves the schematic and re-exports it; the exported content is identical because the schematic still holds the old directives
     source->m_reloaded = true;
     // act — reopen the configure dialog
     presenter.on_configure_simulation();
@@ -729,14 +713,12 @@ TEST(SlintMainWindowPresenterChecks, schematic_change_with_directives_overwrites
     presenter.on_simulation_parameters_dialog_result(edited);
     presenter.on_simulation_finished(0, false);
     view.m_started = false;
-    // arrange — the schematic itself changed (a real directive edit in KiCad);
-    // the re-export now carries a different transient end time
+    // arrange — the schematic itself changed (a real directive edit in KiCad); the re-export now carries a different transient end time
     source->m_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 50m\n.END\n";
     source->m_reloaded = true;
     // act — run the simulation again
     presenter.on_run_simulation();
-    // assert — the changed schematic directives win over the saved dialog config,
-    // the next run and the reopened dialog both use the new schematic value
+    // assert — the changed schematic directives win over the saved dialog config, the next run and the reopened dialog both use the new schematic value
     ASSERT_TRUE(view.m_started);
     EXPECT_NE(view.m_started_netlist_path, first_netlist_path);
     {
@@ -1028,8 +1010,7 @@ TEST(SlintMainWindowPresenterChecks, lin_run_appends_touchstone_tab_and_keeps_pr
         raw_file << " 1  0.001  2.0\n";
         raw_file << " 2  0.002  3.0\n";
     }
-    // arrange — write the touchstone output the LIN run produces (FILE= resolves
-    // against the working directory)
+    // arrange — write the touchstone output the LIN run produces (FILE= resolves against the working directory)
     const auto s2p_path = view.m_started_working_directory / "lin-presenter-test.s2p";
     {
         std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
@@ -1039,9 +1020,7 @@ TEST(SlintMainWindowPresenterChecks, lin_run_appends_touchstone_tab_and_keeps_pr
     }
     // act
     presenter.on_simulation_finished(0, false);
-    // assert — the raw file stays the primary dataset, the touchstone file
-    // opens as a non-closable tab and the smith chart tab follows it; the
-    // primary tab is active
+    // assert — the raw file stays the primary dataset, the touchstone file opens as a non-closable tab and the smith chart tab follows it; the primary tab is active
     EXPECT_TRUE(view.m_charts_view_shown);
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     ASSERT_TRUE(presenter.analysis_measurements().has_value());
@@ -1064,8 +1043,7 @@ TEST(SlintMainWindowPresenterChecks, lin_run_appends_touchstone_tab_and_keeps_pr
 }
 
 TEST(SlintMainWindowPresenterChecks, lin_run_without_raw_file_loads_touchstone_as_primary) {
-    // arrange — launch a LIN simulation whose netlist carries no .PRINT AC,
-    // so the run produces no raw output at all
+    // arrange — launch a LIN simulation whose netlist carries no .PRINT AC, so the run produces no raw output at all
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.AC DEC 10 1 100k\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin-presenter-test.s2p\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
@@ -1080,8 +1058,7 @@ TEST(SlintMainWindowPresenterChecks, lin_run_without_raw_file_loads_touchstone_a
     }
     // act
     presenter.on_simulation_finished(0, false);
-    // assert — the touchstone file alone becomes the primary (non-closable)
-    // dataset followed by the smith chart tab, and the run reports success
+    // assert — the touchstone file alone becomes the primary (non-closable) dataset followed by the smith chart tab, and the run reports success
     EXPECT_TRUE(view.m_charts_view_shown);
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
     EXPECT_TRUE(view.m_output_panel_hidden);
@@ -1133,13 +1110,11 @@ TEST(SlintMainWindowPresenterChecks, lin_smith_tab_builds_smith_charts_with_diag
     ASSERT_EQ(view.m_plot_tabs.size(), 3u);
     const int smith_dataset_id = view.m_plot_tabs[2].id;
     presenter.on_select_plot_tab(2);
-    // assert — the last update targeted the smith dataset with the smith flag
-    // set so the renderer creates smith-kind charts
+    // assert — the last update targeted the smith dataset with the smith flag set so the renderer creates smith-kind charts
     EXPECT_EQ(view.m_updated_dataset_ids.back(), smith_dataset_id);
     ASSERT_FALSE(view.m_updated_smith_datasets.empty());
     EXPECT_TRUE(view.m_updated_smith_datasets.back());
-    // assert — the smith tab is active so the cartesian-only chart tools are
-    // hidden in the panel (zoom, chart management, new window)
+    // assert — the smith tab is active so the cartesian-only chart tools are hidden in the panel (zoom, chart management, new window)
     EXPECT_TRUE(view.m_last_enablement.charts_smith);
     // act — switch back to the LIN Analysis (xy) tab
     presenter.on_select_plot_tab(1);
@@ -1188,9 +1163,7 @@ TEST(SlintMainWindowPresenterChecks, lin_rerun_replaces_the_touchstone_dataset) 
     const int smith_tab_id = view.m_plot_tabs[2].id;
     // act — finish a second run of the same netlist (files still in place)
     presenter.on_simulation_finished(0, false);
-    // assert — the touchstone and smith datasets of the first run were
-    // released and fresh ones appended, while the primary dataset kept its
-    // identity
+    // assert — the touchstone and smith datasets of the first run were released and fresh ones appended, while the primary dataset kept its identity
     ASSERT_EQ(view.m_plot_tabs.size(), 3u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
     EXPECT_EQ(view.m_plot_tabs[1].title, "LIN Analysis");
@@ -1240,8 +1213,7 @@ TEST(SlintMainWindowPresenterChecks, simulation_rerun_keeps_primary_dataset_iden
     EXPECT_TRUE(view.m_output_panel_hidden);
     // act — finish a second run of the same netlist
     presenter.on_simulation_finished(0, false);
-    // assert — the primary dataset kept its identity so the renderer re-points
-    // its charts instead of rebuilding, and no chart state was released
+    // assert — the primary dataset kept its identity so the renderer re-points its charts instead of rebuilding, and no chart state was released
     EXPECT_EQ(view.m_updated_dataset_ids.back(), primary_id);
     EXPECT_TRUE(view.m_released_dataset_ids.empty());
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
@@ -1872,8 +1844,7 @@ TEST(SlintMainWindowPresenterChecks, prn_output_tab_label_matches_analysis_type)
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
-    // assert — the plot tab shows the analysis type name (dc sweep), same as
-    // the .raw behaviour, and the tab is not closable
+    // assert — the plot tab shows the analysis type name (dc sweep), same as the .raw behaviour, and the tab is not closable
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "DC Sweep");
     EXPECT_FALSE(view.m_plot_tabs[0].closable);
@@ -1886,8 +1857,7 @@ TEST(SlintMainWindowPresenterChecks, prn_output_tab_label_matches_analysis_type)
 }
 
 TEST(SlintMainWindowPresenterChecks, prn_default_format_produces_prn_file) {
-    // arrange — launch a dc sweep with a print directive that has no explicit
-    // format; the default is STD which produces a .prn file
+    // arrange — launch a dc sweep with a print directive that has no explicit format; the default is STD which produces a .prn file
     RecordingView view;
     const std::string netlist_content = "V1 1 0 DC 0V\nR1 1 2 1k\nR2 2 0 2k\n.DC V1 0 5 0.5\n.PRINT DC V(1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -1919,8 +1889,7 @@ TEST(SlintMainWindowPresenterChecks, prn_default_format_produces_prn_file) {
 }
 
 TEST(SlintMainWindowPresenterChecks, prn_ac_default_format_looks_for_fd_prn) {
-    // arrange — launch an ac sweep with default-format print; Xyce produces
-    // <netlist>.FD.prn for AC analysis
+    // arrange — launch an ac sweep with default-format print; Xyce produces <netlist>.FD.prn for AC analysis
     RecordingView view;
     const std::string netlist_content = "V1 1 0 AC 1\nR1 1 0 1K\n.AC DEC 10 1 100MEG\n.PRINT AC V(1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -1947,6 +1916,57 @@ TEST(SlintMainWindowPresenterChecks, prn_ac_default_format_looks_for_fd_prn) {
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
     std::filesystem::remove(prn_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, default_format_print_file_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — netlist with an AC analysis whose default-format print carries an output file
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_default_format_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    StubNetlistSource* source = new StubNetlistSource("V1 IN 0 AC 1\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.AC LIN 20 1 100k\n.PRINT AC FILE=ac-simple-01.raw V(*) I(*)\n.END\n", working_directory);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — launch the simulation
+    presenter.on_run_simulation();
+    // assert — the netlist handed to Xyce does not carry the FILE= option
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find("FILE=ac-simple-01.raw"), std::string::npos);
+        EXPECT_NE(content.find(".PRINT AC V(*) I(*)"), std::string::npos);
+    }
+    // the editor keeps the user-facing directive with the FILE= option intact
+    EXPECT_NE(view.m_editor_content.find("FILE=ac-simple-01.raw"), std::string::npos);
+    // simulate Xyce producing the default frequency-domain prn file next to the temporary netlist
+    const auto produced_path = view.m_started_netlist_path.string() + ".FD.prn";
+    const std::string payload = "INDEX FREQ V(N2) I(V1)\n0 100 1.0 0.5\n1 1000 0.9 0.4\n.\n";
+    {
+        std::ofstream produced(produced_path, std::ios::out | std::ios::trunc);
+        produced << payload;
+    }
+    // act — finish the simulation successfully
+    presenter.on_simulation_finished(0, false);
+    // assert — the default prn file opened in the charts instead of the recorded FILE= destination
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_TRUE(view.m_charts_view_shown);
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "AC Analysis");
+    // assert — the produced prn file was copied to the recorded FILE= destination
+    const auto copied_path = working_directory / "ac-simple-01.raw";
+    ASSERT_TRUE(std::filesystem::exists(copied_path));
+    {
+        std::ifstream copied(copied_path);
+        const std::string copied_content((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(copied_content, payload);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(produced_path, ec);
+    std::filesystem::remove(copied_path, ec);
+    std::filesystem::remove_all(working_directory, ec);
 }
 
 TEST(SlintMainWindowPresenterChecks, prn_tran_default_format_looks_for_prn) {
@@ -2010,8 +2030,7 @@ TEST(SlintMainWindowPresenterChecks, prn_noise_default_format_looks_for_prn) {
 }
 
 TEST(SlintMainWindowPresenterChecks, prn_lin_default_format_looks_for_fd_prn) {
-    // arrange — launch a lin analysis with default-format ac print; Xyce
-    // produces <netlist>.FD.prn for LIN/.PRINT AC (touchstone is separate)
+    // arrange — launch a lin analysis with default-format ac print; Xyce produces <netlist>.FD.prn for LIN/.PRINT AC (touchstone is separate)
     RecordingView view;
     const std::string netlist_content = "R1 1 2 50\nR2 2 0 50\n.LIN 1 100 10\n.PRINT AC SM(1,1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2045,7 +2064,7 @@ TEST(SlintMainWindowPresenterChecks, csv_tran_default_format_looks_for_csv) {
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // arrange — the FILE= option is kept for CSV runs, and Xyce writes <netlist>.csv next to the temporary netlist
+    // arrange — the print statement survives verbatim in the netlist handed to Xyce and Xyce writes <netlist>.csv next to the temporary netlist
     {
         std::ifstream started(view.m_started_netlist_path);
         const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
@@ -2072,8 +2091,7 @@ TEST(SlintMainWindowPresenterChecks, csv_tran_default_format_looks_for_csv) {
 }
 
 TEST(SlintMainWindowPresenterChecks, csv_ac_default_format_looks_for_fd_csv) {
-    // arrange — launch an ac analysis with a FORMAT=CSV print; Xyce produces
-    // <netlist>.FD.csv for the frequency-domain output
+    // arrange — launch an ac analysis with a FORMAT=CSV print; Xyce produces <netlist>.FD.csv for the frequency-domain output
     RecordingView view;
     const std::string netlist_content = "V1 1 0 AC 1\nR1 1 0 1K\n.AC DEC 10 1 100MEG\n.PRINT AC FORMAT=CSV V(1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2102,10 +2120,8 @@ TEST(SlintMainWindowPresenterChecks, csv_ac_default_format_looks_for_fd_csv) {
     std::filesystem::remove(csv_path, ec);
 }
 
-TEST(SlintMainWindowPresenterChecks, csv_file_option_output_loads_from_destination) {
-    // arrange — launch a transient analysis with a FORMAT=CSV print carrying a
-    // FILE= option: the option survives the run and Xyce writes the named file
-    // in the working directory, which the presenter must resolve and load
+TEST(SlintMainWindowPresenterChecks, csv_print_file_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — launch a transient analysis with a FORMAT=CSV print carrying a FILE= destination, the option is removed from the netlist handed to Xyce so the run writes the default file for the format
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_csv_file_option_test";
     std::filesystem::remove_all(working_directory);
@@ -2114,22 +2130,33 @@ TEST(SlintMainWindowPresenterChecks, csv_file_option_output_loads_from_destinati
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // arrange — Xyce produced the named file in the working directory
+    // assert — the netlist handed to Xyce does not carry the FILE= option
     {
-        std::ofstream csv_file(working_directory / "my_results.csv", std::ios::out | std::ios::trunc);
+        std::ifstream started(view.m_started_netlist_path);
+        const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(started_content.find("FILE=my_results.csv"), std::string::npos);
+        EXPECT_NE(started_content.find(".PRINT TRAN FORMAT=CSV V(1)"), std::string::npos);
+    }
+    // arrange — Xyce produced the default csv file next to the temporary netlist
+    const auto csv_path = view.m_started_netlist_path.string() + ".csv";
+    {
+        std::ofstream csv_file(csv_path, std::ios::out | std::ios::trunc);
         csv_file << "TIME,V(1)\n";
         csv_file << "0.0,1.0\n";
         csv_file << "1e-9,1.1\n";
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
-    // assert — the named csv file loaded as the transient dataset
+    // assert — the default csv file loaded as the transient dataset
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // assert — the produced csv file was copied to the recorded FILE= destination
+    ASSERT_TRUE(std::filesystem::exists(working_directory / "my_results.csv"));
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(csv_path, ec);
     std::filesystem::remove_all(working_directory, ec);
 }
 
@@ -2140,7 +2167,7 @@ TEST(SlintMainWindowPresenterChecks, tecplot_tran_default_format_looks_for_dat) 
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // arrange — the FILE= option is kept for TECPLOT runs, and Xyce writes <netlist>.dat next to the temporary netlist
+    // arrange — the print statement survives verbatim in the netlist handed to Xyce and Xyce writes <netlist>.dat next to the temporary netlist
     {
         std::ifstream started(view.m_started_netlist_path);
         const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
@@ -2170,8 +2197,7 @@ TEST(SlintMainWindowPresenterChecks, tecplot_tran_default_format_looks_for_dat) 
 }
 
 TEST(SlintMainWindowPresenterChecks, tecplot_ac_default_format_looks_for_fd_dat) {
-    // arrange — launch an ac analysis with a FORMAT=TECPLOT print; Xyce produces
-    // <netlist>.FD.dat for the frequency-domain output
+    // arrange — launch an ac analysis with a FORMAT=TECPLOT print; Xyce produces <netlist>.FD.dat for the frequency-domain output
     RecordingView view;
     const std::string netlist_content = "V1 1 0 AC 1\nR1 1 0 1K\n.AC DEC 10 1 100MEG\n.PRINT AC FORMAT=TECPLOT V(1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2204,10 +2230,8 @@ TEST(SlintMainWindowPresenterChecks, tecplot_ac_default_format_looks_for_fd_dat)
     std::filesystem::remove(dat_path, ec);
 }
 
-TEST(SlintMainWindowPresenterChecks, tecplot_file_option_output_loads_from_destination) {
-    // arrange — launch a transient analysis with a FORMAT=TECPLOT print carrying
-    // a FILE= option: the option survives the run and Xyce writes the named file
-    // in the working directory, which the presenter must resolve and load
+TEST(SlintMainWindowPresenterChecks, tecplot_print_file_is_stripped_for_xyce_and_copied_on_finish) {
+    // arrange — launch a transient analysis with a FORMAT=TECPLOT print carrying a FILE= destination, the option is removed from the netlist handed to Xyce so the run writes the default file for the format
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_tecplot_file_option_test";
     std::filesystem::remove_all(working_directory);
@@ -2216,9 +2240,17 @@ TEST(SlintMainWindowPresenterChecks, tecplot_file_option_output_loads_from_desti
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // arrange — Xyce produced the named file in the working directory
+    // assert — the netlist handed to Xyce does not carry the FILE= option
     {
-        std::ofstream dat_file(working_directory / "my_results.dat", std::ios::out | std::ios::trunc);
+        std::ifstream started(view.m_started_netlist_path);
+        const std::string started_content((std::istreambuf_iterator<char>(started)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(started_content.find("FILE=my_results.dat"), std::string::npos);
+        EXPECT_NE(started_content.find(".PRINT TRAN FORMAT=TECPLOT V(1)"), std::string::npos);
+    }
+    // arrange — Xyce produced the default dat file next to the temporary netlist
+    const auto dat_path = view.m_started_netlist_path.string() + ".dat";
+    {
+        std::ofstream dat_file(dat_path, std::ios::out | std::ios::trunc);
         dat_file << "TITLE = \"demo.cir - Xyce Electrical Simulator\", \n";
         dat_file << "\tVARIABLES = \" TIME\" \n";
         dat_file << "\" V(1)\" \n";
@@ -2228,13 +2260,16 @@ TEST(SlintMainWindowPresenterChecks, tecplot_file_option_output_loads_from_desti
     }
     // act — finish the simulation successfully
     presenter.on_simulation_finished(0, false);
-    // assert — the named dat file loaded as the transient dataset
+    // assert — the default dat file loaded as the transient dataset
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // assert — the produced dat file was copied to the recorded FILE= destination
+    ASSERT_TRUE(std::filesystem::exists(working_directory / "my_results.dat"));
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(dat_path, ec);
     std::filesystem::remove_all(working_directory, ec);
 }
 
@@ -2262,8 +2297,7 @@ TEST(SlintMainWindowPresenterChecks, fft_dialog_result_with_empty_selection_sets
 }
 
 TEST(SlintMainWindowPresenterChecks, prn_tranadjoint_default_format_looks_for_tradj_prn) {
-    // arrange — launch a transient analysis with TRANADJOINT print; Xyce
-    // produces <netlist>.TRADJ.prn for TRANADJOINT
+    // arrange — launch a transient analysis with TRANADJOINT print; Xyce produces <netlist>.TRADJ.prn for TRANADJOINT
     RecordingView view;
     const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRANADJOINT V(1)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2292,15 +2326,13 @@ TEST(SlintMainWindowPresenterChecks, prn_tranadjoint_default_format_looks_for_tr
 }
 
 TEST(SlintMainWindowPresenterChecks, fft_run_without_print_loads_fft_tabs) {
-    // arrange — a transient run with .FFT directives and no .PRINT: Xyce
-    // produces only the FFT calculation files, no analysis output
+    // arrange — a transient run with .FFT directives and no .PRINT: Xyce produces only the FFT calculation files, no analysis output
     RecordingView view;
     const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.FFT I(L1) NP=1024 WINDOW=HANN\n.FFT I(C1) NP=2048 WINDOW=HANN FORMAT=UNORM\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // arrange — write the FFT output files Xyce produces, one per abscissa
-    // configuration (the hand-written content mirrors a real Xyce .FFT dump)
+    // arrange — write the FFT output files Xyce produces, one per abscissa configuration (the hand-written content mirrors a real Xyce .FFT dump)
     const auto fft0_path = view.m_started_netlist_path.string() + ".fft0";
     {
         std::ofstream fft0(fft0_path, std::ios::out | std::ios::trunc);
@@ -2381,8 +2413,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     const int primary_id = view.m_plot_tabs[0].id;
     const int fft_id = view.m_plot_tabs[1].id;
-    // arrange — the netlist is edited and the raw print line removed, then the
-    // simulation runs again
+    // arrange — the netlist is edited and the raw print line removed, then the simulation runs again
     source->m_reloaded = true;
     source->m_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.FFT I(L1) NP=1024 WINDOW=HANN\n.END\n";
     presenter.on_run_simulation();
@@ -2400,8 +2431,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     }
     // act — finish the second run
     presenter.on_simulation_finished(0, false);
-    // assert — the stale transient tab was dropped with the whole previous
-    // result set, only the fresh fft tab remains
+    // assert — the stale transient tab was dropped with the whole previous result set, only the fresh fft tab remains
     ASSERT_EQ(view.m_plot_tabs.size(), 1u);
     EXPECT_NE(view.m_plot_tabs[0].id, fft_id);
     EXPECT_FALSE(presenter.analysis_measurements().has_value());
@@ -2424,8 +2454,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
 // ========================================================================================
 
 TEST(SlintMainWindowPresenterChecks, pce_run_without_analysis_print_loads_pce_tab) {
-    // arrange — a transient run with .PCE parameters and its companion print
-    // but no .PRINT TRAN: Xyce produces only the PCE statistics file
+    // arrange — a transient run with .PCE parameters and its companion print but no .PRINT TRAN: Xyce produces only the PCE statistics file
     RecordingView view;
     const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2500,8 +2529,7 @@ TEST(SlintMainWindowPresenterChecks, tran_and_pce_prints_render_transient_and_pc
 }
 
 TEST(SlintMainWindowPresenterChecks, pce_run_without_produced_file_reports_missing_output) {
-    // arrange — a transient run configured with .PCE and its companion print
-    // but no .PRINT TRAN; the produced pce file is never written
+    // arrange — a transient run configured with .PCE and its companion print but no .PRINT TRAN; the produced pce file is never written
     RecordingView view;
     const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2520,8 +2548,7 @@ TEST(SlintMainWindowPresenterChecks, pce_run_without_produced_file_reports_missi
 }
 
 TEST(SlintMainWindowPresenterChecks, pce_run_with_unparsable_file_reports_missing_output) {
-    // arrange — a transient run configured with .PCE and its companion print
-    // but no .PRINT TRAN
+    // arrange — a transient run configured with .PCE and its companion print but no .PRINT TRAN
     RecordingView view;
     const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n";
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
@@ -2576,8 +2603,7 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_pce_print_drops_stale_pce_tab
     EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
     EXPECT_EQ(view.m_plot_tabs[1].title, "PCE Analysis");
     const int pce_id = view.m_plot_tabs[1].id;
-    // arrange — the netlist is edited and the pce directives removed, then the
-    // simulation runs again
+    // arrange — the netlist is edited and the pce directives removed, then the simulation runs again
     source->m_reloaded = true;
     source->m_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PRINT TRAN V(IN)\n.END\n";
     presenter.on_run_simulation();

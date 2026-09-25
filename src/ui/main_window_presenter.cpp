@@ -42,10 +42,7 @@ namespace
         }
     }
 
-    // map a PlotType to a human-readable tab label; falls back to the raw
-    // file's title for UNKNOWN plot types (e.g. parsed headers we don't
-    // classify). Touchstone files (detected via the data_format metadata
-    // key) show the analysis title instead of the AC Analysis label.
+    // map a PlotType to a human-readable tab label; falls back to the raw file's title for UNKNOWN plot types (e.g. parsed headers we don't classify). Touchstone files (detected via the data_format metadata key) show the analysis title instead of the AC Analysis label.
     std::string plot_type_to_label(const XyceOutputFile& file) {
         // touchstone files carry a data_format metadata entry
         if (file.metadata().count("data_format") > 0)
@@ -70,10 +67,7 @@ namespace
         }
     }
 
-    // suggested smith chart plots: one smith chart with the diagonal matrix
-    // entries (s11, s22, ...) which plot as reflection coefficients on the
-    // gamma plane; the equivalent entries of y/z parameter files map through
-    // the smith conversions
+    // suggested smith chart plots: one smith chart with the diagonal matrix entries (s11, s22, ...) which plot as reflection coefficients on the gamma plane; the equivalent entries of y/z parameter files map through the smith conversions
     std::vector<std::vector<std::string>> smith_suggested_plots(const XyceOutputFile& file) {
         // parameter type prefix (s/y/z) from the file metadata
         std::string parameter_type = "S";
@@ -105,8 +99,7 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
     const auto extension = path.extension().string();
     // netlist file extension
     if (extension == ".cir") {
-        // create an editor netlist source backed by the selected file, reading
-        // live editor text
+        // create an editor netlist source backed by the selected file, reading live editor text
         m_netlist_source = std::make_unique<EditorNetlistSource>([this]() { return m_view.netlist_editor_content(); }, path);
         // update the window title from the source
         set_base_title(m_netlist_source->title());
@@ -175,8 +168,7 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         }
         return;
     }
-    // csv file extension, covering all the analysis-specific .csv variants
-    // produced by .PRINT FORMAT=CSV
+    // csv file extension, covering all the analysis-specific .csv variants produced by .PRINT FORMAT=CSV
     if (extension == ".csv") {
         // parse the csv file
         auto csv_file = xyce_csv_file_parser(path);
@@ -187,9 +179,7 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         }
         return;
     }
-    // dat file extension, covering all the analysis-specific .dat variants
-    // produced by .PRINT FORMAT=TECPLOT, including the intrusive PCE
-    // companion files
+    // dat file extension, covering all the analysis-specific .dat variants produced by .PRINT FORMAT=TECPLOT, including the intrusive PCE companion files
     if (extension == ".dat") {
         // parse the tecplot file
         auto tecplot_file = xyce_tecplot_file_parser(path);
@@ -280,10 +270,7 @@ void SlintMainWindowPresenter::on_run_simulation() {
             // exit
             return;
         }
-        // initialize the simulation config from the parsed directives only when the netlist
-        // content actually changed since the last parse; a schematic re-export carrying the
-        // same content (e.g. KiCad autosave) must not discard the user's accepted dialog
-        // configuration, the schematic does not hold the edited directives back
+        // initialize the simulation config from the parsed directives only when the netlist content actually changed since the last parse; a schematic re-export carrying the same content (e.g. KiCad autosave) must not discard the user's accepted dialog configuration, the schematic does not hold the edited directives back
         if (content != m_pending_original_netlist) {
             const auto simulation_config = SimulationConfig::from_xyce_directives(topology.m_directives);
             if (!std::holds_alternative<std::monostate>(simulation_config.analysis))
@@ -298,8 +285,7 @@ void SlintMainWindowPresenter::on_run_simulation() {
     if (std::holds_alternative<std::monostate>(m_simulation_config.analysis)) {
         // mark the pending dialog as a simulation run
         m_run_pending = true;
-        // ask the view to show the configure dialog; the accepted configuration
-        // is delivered through on_simulation_parameters_dialog_result
+        // ask the view to show the configure dialog; the accepted configuration is delivered through on_simulation_parameters_dialog_result
         static_cast<void>(m_view.show_simulation_parameters_dialog(m_simulation_config));
         // exit
         return;
@@ -318,26 +304,11 @@ void SlintMainWindowPresenter::launch_simulation() {
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END for the editor
     const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
-    // build the netlist handed to Xyce with the FILE= option stripped from the
-    // analysis RAW .PRINT statement only; Xyce then writes the RAW file next to
-    // the temporary netlist under its own default name, so the file the
-    // application maps is never rewritten by a later run (on Windows the
-    // rewrite fails while the file is mapped, on macOS it invalidates the
-    // previous mapping). Unassociated and legacy print directives are never
-    // mapped by the application, so they keep their output files.
-    const auto analysis_print = m_simulation_config.analysis_print_statement();
-    // the analysis print statement matches by prefix: analyses may append
-    // analysis-specific output variables to the serialized print statement
-    // (e.g. the NOISE DNI()/DNO() operators per the Xyce reference guide)
-    const auto is_analysis_print = [&analysis_print](const std::string& directive) -> bool {
-        if (!analysis_print.has_value() || directive.size() < analysis_print->size())
-            return false;
-        return directive.compare(0, analysis_print->size(), *analysis_print) == 0 && (directive.size() == analysis_print->size() || directive[analysis_print->size()] == ' ');
-    };
+    // build the netlist handed to Xyce with the FILE= option removed from every .PRINT statement, Xyce then writes the default file for each print type and format next to the temporary netlist so neither the recorded destinations nor the produced files are ever rewritten by a later run (on Windows the rewrite fails while the file is mapped, on macOS it invalidates the previous mapping)
     std::vector<std::string> simulation_directives;
     simulation_directives.reserve(directives.size());
     for (const auto& directive : directives)
-        simulation_directives.push_back(is_analysis_print(directive) ? strip_print_file_option(directive) : directive);
+        simulation_directives.push_back(strip_print_file_option(directive));
     const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist
     if (update_netlist_editor_content(final_netlist, m_pending_original_netlist != final_netlist))
@@ -362,6 +333,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     // remember the run paths for the finished handler; the view owns the runner
     m_simulation_working_directory = working_directory;
     m_simulation_netlist_path = temp_path;
+    // record the FILE= destination of every .PRINT statement with the default file the run produces for it
+    m_simulation_output_copies = collect_print_file_copies(directives, temp_path, working_directory);
     // mark the simulation as running
     m_simulation_running = true;
     // reset the log for this run
@@ -382,11 +355,7 @@ void SlintMainWindowPresenter::on_configure_simulation() {
         update_netlist_editor_content(content, false);
     // parse the netlist and extract the topology
     const auto [sanitized_netlist, topology] = parse_netlist(content);
-    // build the simulation config from the parsed directives; only overwrite
-    // the user's saved config when the netlist content actually changed since
-    // the last parse — a schematic re-export carrying the same content (e.g.
-    // KiCad autosave) must not revert the dialog to the schematic directives
-    // and discard the user's accepted configuration
+    // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse — a schematic re-export carrying the same content (e.g. KiCad autosave) must not revert the dialog to the schematic directives and discard the user's accepted configuration
     const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
     if (content != m_pending_original_netlist && !std::holds_alternative<std::monostate>(parsed_config.analysis))
         m_simulation_config = parsed_config;
@@ -396,14 +365,12 @@ void SlintMainWindowPresenter::on_configure_simulation() {
     m_pending_original_netlist = content;
     // this dialog is a configure operation, not a pending simulation run
     m_run_pending = false;
-    // ask the view to show the dialog with the current config; the accepted
-    // configuration is delivered through on_simulation_parameters_dialog_result
+    // ask the view to show the dialog with the current config; the accepted configuration is delivered through on_simulation_parameters_dialog_result
     static_cast<void>(m_view.show_simulation_parameters_dialog(m_simulation_config));
 }
 
 void SlintMainWindowPresenter::on_configure_plugin() {
-    // the view owns the config dialog; it seeds it with the current config and
-    // reports the accepted result back through on_plugin_config_dialog_result
+    // the view owns the config dialog; it seeds it with the current config and reports the accepted result back through on_plugin_config_dialog_result
     static_cast<void>(m_view.show_plugin_config_dialog(m_plugin_config));
 }
 
@@ -434,8 +401,7 @@ void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const Simu
 }
 
 void SlintMainWindowPresenter::on_fft_dialog_result(std::vector<AnyExpression*> selected_expressions, const fft::FftParameters& fft_params) {
-    // the transform needs the charts data (expression manager and step
-    // information) from the active dataset
+    // the transform needs the charts data (expression manager and step information) from the active dataset
     auto* file = active_dataset_file();
     if (file == nullptr)
         return;
@@ -668,22 +634,18 @@ void SlintMainWindowPresenter::on_close_plot_tab(int index) {
 }
 
 void SlintMainWindowPresenter::on_chart_calculate_fft(size_t chart_index) {
-    // the FFT dialog needs the charts data (expression manager and step
-    // information) from the active dataset
+    // the FFT dialog needs the charts data (expression manager and step information) from the active dataset
     if (active_dataset_file() == nullptr)
         return;
-    // ask the view to show the FFT setup dialog for the chart; the accepted
-    // expressions and parameters are delivered through on_fft_dialog_result
+    // ask the view to show the FFT setup dialog for the chart; the accepted expressions and parameters are delivered through on_fft_dialog_result
     m_view.show_fft_dialog(chart_index);
 }
 
 void SlintMainWindowPresenter::on_chart_step_tool(size_t chart_index) {
-    // the step tool needs the charts data (step information) from the active
-    // dataset
+    // the step tool needs the charts data (step information) from the active dataset
     if (active_dataset_file() == nullptr)
         return;
-    // ask the view to show the step tool dialog for the chart; the accepted
-    // step selection is applied back to the chart through the renderer
+    // ask the view to show the step tool dialog for the chart; the accepted step selection is applied back to the chart through the renderer
     m_view.show_step_tool_dialog(chart_index);
 }
 
@@ -717,8 +679,7 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
     m_plot_datasets.push_back(PlotDataset{.id = m_next_dataset_id++, .file = std::move(raw_file), .closable = false});
     // the loaded file is the analysis measurements of this window
     m_analysis_measurements = m_plot_datasets.back().file;
-    // synchronize tabs with the view, activate the new dataset (the renderer
-    // creates a fresh chart state for it) and switch to the charts view
+    // synchronize tabs with the view, activate the new dataset (the renderer creates a fresh chart state for it) and switch to the charts view
     sync_plot_tabs_with_view();
     activate_plot_dataset(m_plot_datasets.size() - 1);
     show_simulation_output_view();
@@ -740,35 +701,22 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     }
     // check for success
     if (exit_code == 0) {
-        // 1. resolve and parse the analysis output; the returned instance is
-        // ready for rendering: the tab plot type follows the
-        // configured analysis print, not the produced file
-        auto analysis_measurements = resolve_analysis_output(m_simulation_netlist_path, m_simulation_working_directory);
-        // 2. the analysis type owns the knowledge of what companion data the
-        // run dumps besides the analysis output: a .LIN analysis with a
-        // touchstone format dumps one s-parameter file, a .TRAN analysis with
-        // .FFT directives dumps the FFT calculation files and a .TRAN or .DC
-        // analysis with .PCE parameters and a .PCE companion print dumps the
-        // PCE statistics output
+        // 1. resolve and parse the analysis output; the returned instance is ready for rendering: the tab plot type follows the configured analysis print, not the produced file
+        auto analysis_measurements = resolve_analysis_output(m_simulation_netlist_path);
+        // 2. the analysis type owns the knowledge of what companion data the run dumps besides the analysis output: a .LIN analysis with a touchstone format dumps one s-parameter file, a .TRAN analysis with .FFT directives dumps the FFT calculation files and a .TRAN or .DC analysis with .PCE parameters and a .PCE companion print dumps the PCE statistics output
         const auto produced = m_simulation_config.produced_measurements();
-        // step slices source for the companion loaders, taken from the
-        // analysis output before it is moved into the dataset
+        // step slices source for the companion loaders, taken from the analysis output before it is moved into the dataset
         const StepInformation* analysis_steps = analysis_measurements.has_value() ? &(*analysis_measurements)->step_information() : nullptr;
         // 3. start a fresh result set
         if (analysis_measurements.has_value()) {
-            // the run produced an analysis output: the primary dataset
-            // identity is kept so the renderer re-points its charts and zoom
-            // windows, plots and step selections survive the re-run of the
-            // same netlist; only the companion chart states are released
+            // the run produced an analysis output: the primary dataset identity is kept so the renderer re-points its charts and zoom windows, plots and step selections survive the re-run of the same netlist; only the companion chart states are released
             for (size_t i = 1; i < m_plot_datasets.size(); ++i)
                 m_view.release_charts(m_plot_datasets[i].id);
             // allocate space for at most one primary dataset
             m_plot_datasets.resize(std::min<size_t>(m_plot_datasets.size(), 1));
         }
         else {
-            // the run produced no analysis output: drop the whole previous
-            // result set, the stale tabs do not correspond with the latest
-            // simulation
+            // the run produced no analysis output: drop the whole previous result set, the stale tabs do not correspond with the latest simulation
             for (const auto& dataset : m_plot_datasets)
                 m_view.release_charts(dataset.id);
             // clear the primary dataset as well
@@ -818,11 +766,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             m_active_dataset_index = 0;
             activate_plot_dataset(0);
         }
-        // 8. copy the produced analysis output file to the user-indicated location; RAW and PROBE formats are mutually exclusive so exactly one of the two paths resolves
-        if (const auto raw_path = m_simulation_config.raw_output_file_path(m_simulation_netlist_path); raw_path.has_value() && std::filesystem::exists(*raw_path))
-            copy_simulation_output_to_destination(*raw_path);
-        else if (const auto csd_path = m_simulation_config.csd_output_file_path(m_simulation_netlist_path); csd_path.has_value() && std::filesystem::exists(*csd_path))
-            copy_simulation_output_to_destination(*csd_path);
+        // 8. copy every recorded FILE= destination from the default file the run produced for its .PRINT statement
+        for (const auto& copy : m_simulation_output_copies)
+            copy_simulation_output_to_destination(copy);
         // switch to the charts view
         m_view.show_charts_view();
         // hide the output panel — it is only shown on failure
@@ -844,43 +790,36 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
     refresh_action_states();
 }
 
-void SlintMainWindowPresenter::copy_simulation_output_to_destination(const std::filesystem::path& produced_path) {
-    // resolve the user-facing copy destination from the analysis print; RAW and PROBE formats are mutually exclusive so one of the two destinations resolves
-    auto destination = m_simulation_config.raw_output_copy_destination(m_simulation_working_directory);
-    // PROBE runs copy to the csd destination
-    if (!destination.has_value())
-        destination = m_simulation_config.csd_output_copy_destination(m_simulation_working_directory);
-    // no destination configured, or it is the produced file itself
-    if (!destination.has_value() || *destination == produced_path)
+void SlintMainWindowPresenter::copy_simulation_output_to_destination(const PrintOutputCopy& copy) {
+    // no copy needed when the destination is the produced file itself
+    if (copy.destination_file == copy.produced_file)
         return;
     // the produced file must exist
     std::error_code ec;
-    if (!std::filesystem::exists(produced_path))
+    if (!std::filesystem::exists(copy.produced_file))
         return;
     // create the destination parent directory when missing
-    std::filesystem::create_directories(destination->parent_path(), ec);
+    std::filesystem::create_directories(copy.destination_file.parent_path(), ec);
     // copy the produced file, overwriting the previous run's copy
-    std::filesystem::copy_file(produced_path, *destination, std::filesystem::copy_options::overwrite_existing, ec);
+    std::filesystem::copy_file(copy.produced_file, copy.destination_file, std::filesystem::copy_options::overwrite_existing, ec);
     if (ec)
-        spdlog::warn("Failed to copy output file to '{}': {}", destination->string(), ec.message());
+        spdlog::warn("Failed to copy output file to '{}': {}", copy.destination_file.string(), ec.message());
 }
 
-std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
-    // get the analysis print parameters; without a .PRINT directive Xyce
-    // writes no output file at all, so there is nothing to resolve
+std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path) {
+    // get the analysis print parameters; without a .PRINT directive Xyce writes no output file at all, so there is nothing to resolve
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
     if (!analysis_print.has_value())
         return std::nullopt;
-    // determine the output file format and build the expected file path: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; CSV produces the same table with a comma delimiter and a .csv extension; TECPLOT produces the same table in the tecplot format with a .dat extension; RAW and PROBE produce netlist-derived files (.raw and .csd) because their FILE= option is stripped for the run
+    // determine the output parser from the configured format: .prn-producing formats are STD (the default when no FORMAT is given), NOINDEX, GNUPLOT and SPLOT; CSV produces the same table with a comma delimiter, TECPLOT the tecplot table, PROBE the .csd file and every remaining format the raw file
     bool is_prn_format = true;
     bool is_csv_format = false;
     bool is_tecplot_format = false;
     bool is_probe_format = false;
-    std::filesystem::path output_path;
-    // check for known .prn-producing formats; empty format defaults to STD
+    // check for known formats, an unspecified format stays the prn default
     if (!analysis_print->print_format.empty()) {
         // format
-        auto format = to_upper(analysis_print->print_format);
+        const auto format = to_upper(analysis_print->print_format);
         // all this formats produce .prn files
         is_prn_format = (format == "STD" || format == "NOINDEX" || format == "GNUPLOT" || format == "SPLOT");
         // CSV format produces the same table with a comma delimiter in a .csv file
@@ -890,55 +829,20 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
         // PROBE format produces the .csd output file
         is_probe_format = (format == "PROBE");
     }
-    if (is_prn_format || is_csv_format || is_tecplot_format) {
-        // .prn, .csv and .dat formats preserve the FILE= option
-        if (!analysis_print->print_file.empty()) {
-            const auto resolved = std::filesystem::path(strip_outer_quotes(analysis_print->print_file));
-            output_path = resolved.is_absolute() ? resolved : working_directory / resolved;
-        }
-        else {
-            // no FILE= specified: Xyce writes <netlist><suffix> next to the netlist; the suffix depends on the print type and the format
-            output_path = std::filesystem::path(netlist_path).string() + (is_csv_format ? csv_output_suffix(analysis_print->print_type) : is_tecplot_format ? tecplot_output_suffix(analysis_print->print_type) : prn_output_suffix(analysis_print->print_type));
-        }
-    }
-    else if (is_probe_format) {
-        // PROBE format: FILE= is stripped for the Xyce run so the produced file
-        // is always next to the netlist; the path carries the .TD suffix for
-        // AC_IC runs, which produce time-domain output in a .TD.csd file
-        const auto csd_path = m_simulation_config.csd_output_file_path(netlist_path);
-        // without a produced csd file there is nothing to load
-        if (!csd_path.has_value() || !std::filesystem::exists(*csd_path))
-            return std::nullopt;
-        // parse the produced csd file and prepare the instance: the tab plot
-        // type follows the configured analysis print type, not the produced
-        // file, so the label is identical for every format
-        auto measurements = xyce_csd_file_parser(*csd_path);
-        if (measurements.has_value())
-            apply_analysis_print_metadata(**measurements);
-        return measurements;
-    }
-    else {
-        // RAW format: FILE= is stripped for the Xyce run so the produced file is always next to the netlist
-        output_path = std::filesystem::path(netlist_path).string() + ".raw";
-    }
+    // the FILE= option is removed from every .PRINT statement for the run, so the charts always open the default file Xyce produced for the print type and format and its recorded FILE= destination is copied after the run
+    const auto output_path = default_print_output_file(*analysis_print, netlist_path);
     // check the file exists
     if (!std::filesystem::exists(output_path))
         return {};
-    // parse the file with the appropriate parser and prepare the instance: the
-    // tab plot type follows the configured analysis print type, not
-    // the produced file, so the label is identical for every format
-    auto measurements = is_csv_format ? xyce_csv_file_parser(output_path) : is_tecplot_format ? xyce_tecplot_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
+    // parse the file with the appropriate parser and prepare the instance: the tab plot type follows the configured analysis print type, not the produced file, so the label is identical for every format
+    auto measurements = is_probe_format ? xyce_csd_file_parser(output_path) : is_csv_format ? xyce_csv_file_parser(output_path) : is_tecplot_format ? xyce_tecplot_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
     if (measurements.has_value())
         apply_analysis_print_metadata(**measurements);
     return measurements;
 }
 
 void SlintMainWindowPresenter::apply_analysis_print_metadata(XyceOutputFile& file) const {
-    // the tab plot type is derived from the configured analysis print type, not
-    // from the produced file: prn files carry no analysis-type header and raw
-    // Plotname strings must not shadow the configured print, so the tab label
-    // is identical regardless of the .PRINT format; the title keeps the
-    // circuit name provided by the parsers (raw Title header, prn file stem)
+    // the tab plot type is derived from the configured analysis print type, not from the produced file: prn files carry no analysis-type header and raw Plotname strings must not shadow the configured print, so the tab label is identical regardless of the .PRINT format; the title keeps the circuit name provided by the parsers (raw Title header, prn file stem)
     const auto analysis_print = m_simulation_config.analysis_print_parameters();
     // without analysis print parameters the parser-derived metadata stands
     if (!analysis_print.has_value())
@@ -963,14 +867,12 @@ void SlintMainWindowPresenter::apply_analysis_print_metadata(XyceOutputFile& fil
 }
 
 void SlintMainWindowPresenter::load_s_parameter_measurements(const StepInformation* analysis_steps) {
-    // count the P devices in the netlist; per the reference guide the default
-    // .LIN output name is <netlist>.sNp, N being the port count
+    // count the P devices in the netlist; per the reference guide the default .LIN output name is <netlist>.sNp, N being the port count
     const auto num_ports = static_cast<int>(std::count_if(m_pending_topology.m_devices.begin(), m_pending_topology.m_devices.end(), [](const Device& device) { return device.m_type_letter == "P"; }));
     // resolve the s-parameter output file path from the .LIN config
     std::optional<std::filesystem::path> s_parameter_path;
     if (const auto resolved = m_simulation_config.s_parameter_output_file_path(m_simulation_netlist_path, m_simulation_working_directory, num_ports)) {
-        // Xyce normally writes the FILE= value verbatim, but appends .s2p
-        // when the value names the netlist itself, so probe both candidates
+        // Xyce normally writes the FILE= value verbatim, but appends .s2p when the value names the netlist itself, so probe both candidates
         if (std::filesystem::exists(*resolved)) {
             s_parameter_path = resolved;
         }
@@ -984,16 +886,13 @@ void SlintMainWindowPresenter::load_s_parameter_measurements(const StepInformati
     // no s-parameter output was produced
     if (!s_parameter_path.has_value())
         return;
-    // parse the file, carrying the analysis output's step information when
-    // present so .STEP runs map into per-step slices
+    // parse the file, carrying the analysis output's step information when present so .STEP runs map into per-step slices
     auto measurements = touchstone_file_parser(s_parameter_path->string(), analysis_steps);
     if (!measurements.has_value()) {
         spdlog::warn("Failed to parse s-parameter output file '{}'", s_parameter_path->string());
         return;
     }
-    // store the parsed measurements and render the tabs: the LIN Analysis tab
-    // with the suggested rectangular plots, followed by the Smith Chart tab
-    // plotting the same data on the gamma plane with the diagonal entries
+    // store the parsed measurements and render the tabs: the LIN Analysis tab with the suggested rectangular plots, followed by the Smith Chart tab plotting the same data on the gamma plane with the diagonal entries
     m_s_parameter_measurements = *measurements;
     m_plot_datasets.push_back(PlotDataset{
         .id = m_next_dataset_id++,
@@ -1017,14 +916,11 @@ void SlintMainWindowPresenter::load_fft_measurements() {
     const auto fft_pattern = m_simulation_config.fft_output_file_path_pattern(m_simulation_netlist_path);
     if (!fft_pattern.has_value())
         return;
-    // the FFT data maps onto the analysis output's step slices when the run
-    // produced one; a run without a .PRINT directive produces no analysis
-    // output and the files' own step structure then drives the parsing
+    // the FFT data maps onto the analysis output's step slices when the run produced one; a run without a .PRINT directive produces no analysis output and the files' own step structure then drives the parsing
     const bool has_analysis_output = !m_plot_datasets.empty() && m_plot_datasets[0].file != nullptr;
     const StepInformation* analysis_steps = has_analysis_output ? &m_plot_datasets[0].file->step_information() : nullptr;
     ExpressionManager* analysis_expressions = has_analysis_output ? &m_plot_datasets[0].file->expression_manager() : nullptr;
-    // parse the matching FFT output files; the .TRAN analysis with .FFT
-    // directives dumps one file per abscissa group
+    // parse the matching FFT output files; the .TRAN analysis with .FFT directives dumps one file per abscissa group
     if (auto parsed_files = xyce_fft_file_parser(*fft_pattern, analysis_steps, analysis_expressions)) {
         // store the parsed FFT files
         m_fft_measurements = std::move(*parsed_files);
@@ -1044,7 +940,7 @@ void SlintMainWindowPresenter::load_fft_measurements() {
 
 void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_print) {
     // resolve the produced PCE output file path from the .PCE companion print
-    const auto pce_path = m_simulation_config.pce_output_file_path(m_simulation_netlist_path, m_simulation_working_directory);
+    const auto pce_path = m_simulation_config.pce_output_file_path(m_simulation_netlist_path);
     // the run produced no PCE output file next to the netlist
     if (!pce_path.has_value() || !std::filesystem::exists(*pce_path))
         return;
@@ -1076,8 +972,7 @@ void SlintMainWindowPresenter::on_simulation_stdout(const std::string& line) {
 void SlintMainWindowPresenter::on_simulation_stderr(const std::string& line) {
     // log the error line
     spdlog::warn("{}", line);
-    // append the error line to the simulation output log so the full Xyce log
-    // (stdout and stderr) is visible in the output panel
+    // append the error line to the simulation output log so the full Xyce log (stdout and stderr) is visible in the output panel
     m_view.append_simulation_output_line(line);
     // update the statusbar with the latest error line
     m_view.set_status_text("Simulation error: " + line);
@@ -1144,8 +1039,7 @@ void SlintMainWindowPresenter::refresh_action_states() {
     input.charts_smith = !m_plot_datasets.empty() && m_plot_datasets[m_active_dataset_index].smith;
     // compute the action enablement for the current state
     ActionStateEnablement enablement = compute_action_enablement(input);
-    // file actions are only available in standalone mode; KiCad provides the
-    // netlist, so there is no file to load/save when connected
+    // file actions are only available in standalone mode; KiCad provides the netlist, so there is no file to load/save when connected
     if (m_kicad_session != nullptr) {
         enablement.open = false;
         enablement.save = false;
@@ -1191,9 +1085,7 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
     auto* file = m_plot_datasets[index].file.get();
     // check the file is present
     if (file != nullptr) {
-        // activate the dataset in the renderer; switching back to a dataset
-        // restores its charts with zoom windows, plots and step selections intact;
-        // smith datasets suggest the diagonal entries instead of the rectangular plots
+        // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots
         m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
         // update the active tab in the view
         m_view.set_active_plot_tab(static_cast<int>(index));
