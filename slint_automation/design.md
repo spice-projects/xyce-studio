@@ -106,7 +106,7 @@ Do not invent MCP tool names or schemas based on examples from other versions.
 
 The framework should isolate all Slint/MCP-specific assumptions in one layer.
 
-**Status: complete.** The installed Slint version (`release/1`, verified live) is documented in
+**Status: complete.** The installed Slint version (`v1.18.1`, verified live) is documented in
 `slint_automation/slint-mcp-api.md`. Key findings that adjust this document:
 
 * transport is plain JSON-RPC 2.0 over HTTP POST `/mcp` — no sessions, no SSE, no batch;

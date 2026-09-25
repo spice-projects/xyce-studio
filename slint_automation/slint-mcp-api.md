@@ -2,7 +2,7 @@
 
 Observed against the Slint version used by this project:
 
-* Slint pinned via FetchContent: `release/1` (commit `cf62c975c311e7036d599ed8ed0b7e6a8386a934`, 2026-07-06)
+* Slint pinned via FetchContent: `v1.18.1` (tag `372cf0ee5577c3dfec309a45e7b778ba4e81b734`, 2026-09-21)
 * Server source: `internal/backends/testing/mcp_server.rs`, message schema: `internal/backends/testing/slint_systest.proto`
 * **All behavior below was verified live** against a running debug build of this application
   (`SLINT_MCP_PORT=<port> ./.build-debug/xyce-studio`) by direct HTTP probing.
