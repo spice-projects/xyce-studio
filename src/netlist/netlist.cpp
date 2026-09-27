@@ -307,12 +307,17 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
                     continue;
                 }
             }
-            // check for .PREPROCESS REPLACEGROUND directive
-            if (first_upper == ".PREPROCESS" && tokens.size() > 2 && to_upper(tokens[1]) == "REPLACEGROUND") {
-                // store as a managed directive
-                directives.push_back(stripped);
-                // next
-                continue;
+            // check for .PREPROCESS directives (REPLACEGROUND, REMOVEUNUSED, ADDRESISTORS)
+            if (first_upper == ".PREPROCESS" && tokens.size() > 1) {
+                // extract subcommand
+                const auto sub = to_upper(tokens[1]);
+                // check for supported preprocessing subcommands
+                if (sub == "REPLACEGROUND" || sub == "REMOVEUNUSED" || sub == "ADDRESISTORS") {
+                    // store as a managed directive
+                    directives.push_back(stripped);
+                    // next
+                    continue;
+                }
             }
             // handle .SUBCKT (subcircuit definition start)
             if (first_upper == ".SUBCKT") {

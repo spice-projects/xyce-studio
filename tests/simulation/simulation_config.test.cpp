@@ -50,6 +50,155 @@ TEST(SimulationConfigReplaceGroundChecks, enabled_state_round_trips_through_dire
 }
 
 // ========================================================================================
+// remove-unused and add-resistors preprocessing directives
+// ========================================================================================
+
+TEST(SimulationConfigRemoveUnusedChecks, from_xyce_directives_defaults_to_absent) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP"});
+    // assert
+    EXPECT_FALSE(config.remove_unused.has_value());
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, from_xyce_directives_parses_statement_without_value) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PREPROCESS REMOVEUNUSED"});
+    // assert
+    ASSERT_TRUE(config.remove_unused.has_value());
+    EXPECT_TRUE(config.remove_unused->empty());
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, from_xyce_directives_parses_component_list_value) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PREPROCESS REMOVEUNUSED r,c"});
+    // assert
+    ASSERT_TRUE(config.remove_unused.has_value());
+    EXPECT_EQ(*config.remove_unused, "r,c");
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, from_xyce_directives_last_statement_wins) {
+    // arrange / act — the RG allows one REMOVEUNUSED line, the parser keeps the last one
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PREPROCESS REMOVEUNUSED r,c", ".PREPROCESS REMOVEUNUSED l"});
+    // assert
+    ASSERT_TRUE(config.remove_unused.has_value());
+    EXPECT_EQ(*config.remove_unused, "l");
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, to_xyce_directives_emits_statement_with_value) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true, {}, "r,c");
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto found = std::find(directives.begin(), directives.end(), ".PREPROCESS REMOVEUNUSED r,c");
+    ASSERT_NE(found, directives.end());
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, to_xyce_directives_emits_statement_without_value) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true, {}, "");
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto found = std::find(directives.begin(), directives.end(), ".PREPROCESS REMOVEUNUSED");
+    ASSERT_NE(found, directives.end());
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, to_xyce_directives_omits_statement_when_absent) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto found = std::find(directives.begin(), directives.end(), ".PREPROCESS REMOVEUNUSED");
+    EXPECT_EQ(found, directives.end());
+}
+
+TEST(SimulationConfigRemoveUnusedChecks, configured_value_round_trips_through_directives) {
+    // arrange
+    SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    input.remove_unused = "r,c";
+    // act
+    const auto directives = input.to_xyce_directives(NetlistTopology{});
+    const auto output = SimulationConfig::from_xyce_directives(directives);
+    // assert
+    ASSERT_TRUE(output.remove_unused.has_value());
+    EXPECT_EQ(*output.remove_unused, "r,c");
+}
+
+TEST(SimulationConfigAddResistorsChecks, from_xyce_directives_defaults_to_empty) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP"});
+    // assert
+    EXPECT_TRUE(config.add_resistors.empty());
+}
+
+TEST(SimulationConfigAddResistorsChecks, from_xyce_directives_parses_oneterminal_statement) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PREPROCESS ADDRESISTORS ONETERMINAL 1G"});
+    // assert
+    ASSERT_EQ(config.add_resistors.size(), 1);
+    EXPECT_EQ(config.add_resistors[0], "ONETERMINAL 1G");
+}
+
+TEST(SimulationConfigAddResistorsChecks, from_xyce_directives_keeps_oneterminal_and_nodcpath_statements) {
+    // arrange / act
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".PREPROCESS ADDRESISTORS ONETERMINAL 1G", ".PREPROCESS ADDRESISTORS NODCPATH 10MEG"});
+    // assert: both qualifier variants coexist in source order
+    ASSERT_EQ(config.add_resistors.size(), 2);
+    EXPECT_EQ(config.add_resistors[0], "ONETERMINAL 1G");
+    EXPECT_EQ(config.add_resistors[1], "NODCPATH 10MEG");
+}
+
+TEST(SimulationConfigAddResistorsChecks, to_xyce_directives_emits_configured_statements) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true, {}, std::nullopt, {"ONETERMINAL 1G", "NODCPATH 10MEG"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto oneterminal = std::find(directives.begin(), directives.end(), ".PREPROCESS ADDRESISTORS ONETERMINAL 1G");
+    const auto nodcpath = std::find(directives.begin(), directives.end(), ".PREPROCESS ADDRESISTORS NODCPATH 10MEG");
+    ASSERT_NE(oneterminal, directives.end());
+    ASSERT_NE(nodcpath, directives.end());
+}
+
+TEST(SimulationConfigAddResistorsChecks, to_xyce_directives_omits_statements_when_absent) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto found = std::find(directives.begin(), directives.end(), ".PREPROCESS ADDRESISTORS ONETERMINAL 1G");
+    EXPECT_EQ(found, directives.end());
+}
+
+TEST(SimulationConfigAddResistorsChecks, configured_statements_round_trip_through_directives) {
+    // arrange
+    SimulationConfig input("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    input.add_resistors = {"ONETERMINAL 1G", "NODCPATH 10MEG"};
+    // act
+    const auto directives = input.to_xyce_directives(NetlistTopology{});
+    const auto output = SimulationConfig::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(output.add_resistors.size(), 2);
+    EXPECT_EQ(output.add_resistors[0], "ONETERMINAL 1G");
+    EXPECT_EQ(output.add_resistors[1], "NODCPATH 10MEG");
+}
+
+TEST(SimulationConfigPreprocessChecks, equality_distinguishes_preprocess_configuration) {
+    // arrange
+    const SimulationConfig base("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    SimulationConfig with_remove_unused = base;
+    with_remove_unused.remove_unused = "r,c";
+    SimulationConfig with_add_resistors = base;
+    with_add_resistors.add_resistors = {"ONETERMINAL 1G"};
+    // assert
+    EXPECT_EQ(base, base);
+    EXPECT_NE(base, with_remove_unused);
+    EXPECT_NE(base, with_add_resistors);
+}
+
+// ========================================================================================
 // analysis type detection
 // ========================================================================================
 

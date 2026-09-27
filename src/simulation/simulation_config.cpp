@@ -16,8 +16,8 @@
 #include "op_simulation_parameters.h"
 #include "transient_simulation_parameters.h"
 
-SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters) :
-    analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground), ic_parameters(std::move(ic_parameters)) {}
+SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters, std::optional<std::string> remove_unused, std::vector<std::string> add_resistors) :
+    analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground), ic_parameters(std::move(ic_parameters)), remove_unused(std::move(remove_unused)), add_resistors(std::move(add_resistors)) {}
 
 StepParameters SimulationConfig::step() const {
     // return the first step for backward compatibility, or a disabled default
@@ -120,18 +120,53 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     // parse the structured option directives
     const auto options = OptionParameters::from_xyce_directives(directives);
 
-    // parse the replace-ground preprocessing directive, the RG gives .PREPROCESS REPLACEGROUND no default so a netlist without the statement preserves its baseline semantics on round-trip
+    // parse preprocessing directives (.PREPROCESS REPLACEGROUND, REMOVEUNUSED, ADDRESISTORS)
     bool replace_ground = true;
+    std::optional<std::string> remove_unused;
+    std::vector<std::string> add_resistors;
     for (const auto& directive : directives) {
         // tokenize the directive
         const auto tokens = tokenize(directive);
-        // skip empty or short directives
-        if (tokens.size() < 3)
+        // skip directives without at least directive and subcommand
+        if (tokens.size() < 2)
             continue;
-        // check for .PREPROCESS REPLACEGROUND directive
-        if (to_upper(tokens[0]) == ".PREPROCESS" && to_upper(tokens[1]) == "REPLACEGROUND") {
-            // set replace_ground based on the third token (last statement wins)
-            replace_ground = (to_upper(tokens[2]) == "TRUE");
+        // check for .PREPROCESS directive
+        if (to_upper(tokens[0]) == ".PREPROCESS") {
+            // extract the subcommand in uppercase
+            const auto subcommand = to_upper(tokens[1]);
+            // handle REPLACEGROUND
+            if (subcommand == "REPLACEGROUND" && tokens.size() > 2) {
+                // set replace_ground based on the third token (last statement wins)
+                replace_ground = (to_upper(tokens[2]) == "TRUE");
+            }
+            // handle REMOVEUNUSED
+            else if (subcommand == "REMOVEUNUSED") {
+                // rebuild argument string from tokens after the subcommand
+                std::string val;
+                for (size_t i = 2; i < tokens.size(); ++i) {
+                    // append whitespace separator between tokens
+                    if (!val.empty())
+                        val += " ";
+                    // append token
+                    val += std::string(tokens[i]);
+                }
+                // record the remove-unused configuration (last statement wins per RG)
+                remove_unused = val;
+            }
+            // handle ADDRESISTORS
+            else if (subcommand == "ADDRESISTORS" && tokens.size() > 2) {
+                // rebuild argument string from tokens after the subcommand
+                std::string val;
+                for (size_t i = 2; i < tokens.size(); ++i) {
+                    // append whitespace separator between tokens
+                    if (!val.empty())
+                        val += " ";
+                    // append token
+                    val += std::string(tokens[i]);
+                }
+                // record the add-resistors configuration
+                add_resistors.push_back(val);
+            }
         }
     }
 
@@ -218,7 +253,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     const auto ic_parameters = ICParameters::from_xyce_directives(directives);
 
     // return the combined configuration container
-    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground, ic_parameters);
+    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground, ic_parameters, remove_unused, add_resistors);
 }
 
 std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopology& topology) const {
@@ -231,6 +266,18 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
 
     // emit the replace-ground preprocessing directive at most once for the whole netlist, the state is always emitted explicitly so that a disabled replacement round-trips
     directives.push_back(replace_ground ? ".PREPROCESS REPLACEGROUND TRUE" : ".PREPROCESS REPLACEGROUND FALSE");
+
+    // emit the remove-unused preprocessing directive when configured
+    if (remove_unused.has_value()) {
+        // emit remove-unused directive with or without value
+        directives.push_back(remove_unused->empty() ? ".PREPROCESS REMOVEUNUSED" : ".PREPROCESS REMOVEUNUSED " + *remove_unused);
+    }
+
+    // emit all add-resistors preprocessing directives
+    for (const auto& add_resistor : add_resistors) {
+        // emit add-resistors directive
+        directives.push_back(".PREPROCESS ADDRESISTORS " + add_resistor);
+    }
 
     // emit the initial condition directives (independent of analysis type)
     const auto ic_directives = ic_parameters.to_xyce_directives(topology);
@@ -280,7 +327,7 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
 
 bool SimulationConfig::operator==(const SimulationConfig& other) const {
     // compare all fields for equality
-    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground;
+    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground && remove_unused == other.remove_unused && add_resistors == other.add_resistors;
 }
 
 std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {

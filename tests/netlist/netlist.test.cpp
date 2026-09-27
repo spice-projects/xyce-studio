@@ -122,6 +122,42 @@ TEST(NetlistParserChecks, extracts_fft_options_package) {
     ASSERT_EQ(netlist.find(".OPTIONS FFT"), std::string::npos);
 }
 
+TEST(NetlistParserChecks, extracts_replace_ground_preprocess_directive) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.PREPROCESS REPLACEGROUND TRUE\n.END\n");
+    // assert: managed directives are collected separately and leave the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".PREPROCESS REPLACEGROUND TRUE");
+    ASSERT_EQ(netlist.find(".PREPROCESS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_remove_unused_preprocess_directive) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.PREPROCESS REMOVEUNUSED r,c\n.END\n");
+    // assert: the remove-unused statement is managed, not passthrough
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".PREPROCESS REMOVEUNUSED r,c");
+    ASSERT_EQ(netlist.find(".PREPROCESS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_add_resistors_preprocess_directives) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.PREPROCESS ADDRESISTORS ONETERMINAL 1G\n.PREPROCESS ADDRESISTORS NODCPATH 10MEG\n.END\n");
+    // assert: both qualifier variants are managed and leave the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 2);
+    ASSERT_EQ(topology.m_directives[0], ".PREPROCESS ADDRESISTORS ONETERMINAL 1G");
+    ASSERT_EQ(topology.m_directives[1], ".PREPROCESS ADDRESISTORS NODCPATH 10MEG");
+    ASSERT_EQ(netlist.find(".PREPROCESS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, keeps_unknown_preprocess_subcommand_as_passthrough) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.PREPROCESS UNKNOWN TRUE\n.END\n");
+    // assert: an unsupported subcommand stays in the sanitized netlist untouched
+    ASSERT_TRUE(topology.m_directives.empty());
+    ASSERT_NE(netlist.find(".PREPROCESS UNKNOWN TRUE"), std::string::npos);
+}
+
 TEST(NetlistParserChecks, handles_end_short_circuit) {
     // arrange / act
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.END\nextra stuff\n");

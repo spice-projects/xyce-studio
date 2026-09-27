@@ -29,7 +29,7 @@ class SimulationConfig
 {
 public:
     // construct a simulation config from individual components, replace_ground defaults to true because KiCad netlists reference the ground node as "GND" while Xyce uses node "0" and the .PREPROCESS REPLACEGROUND directive has no default per the RG
-    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true, ICParameters ic_parameters = {});
+    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true, ICParameters ic_parameters = {}, std::optional<std::string> remove_unused = std::nullopt, std::vector<std::string> add_resistors = {});
 
     // parse all directives into a SimulationConfig instance
     [[nodiscard]] static SimulationConfig from_xyce_directives(const std::vector<std::string>& directives);
@@ -97,4 +97,8 @@ public:
     bool replace_ground;
     // initial condition parameters (.IC / .DCVOLT directives)
     ICParameters ic_parameters;
+    // remove-unused preprocessing directive (.PREPROCESS REMOVEUNUSED [<value>])
+    std::optional<std::string> remove_unused;
+    // add-resistors preprocessing directives (.PREPROCESS ADDRESISTORS <qualifier> <value>)
+    std::vector<std::string> add_resistors;
 };
