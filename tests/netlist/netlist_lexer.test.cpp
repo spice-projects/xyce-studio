@@ -466,6 +466,25 @@ TEST(NetlistLexerChecks, print_lead_current_operators_are_keywords) {
     ASSERT_EQ(found, 9);
 }
 
+TEST(NetlistLexerChecks, classifies_preprocess_qualifier_words_as_keywords) {
+    // arrange / act: the subcommand and qualifier words of the remove-unused and
+    // add-resistors directives are Xyce keywords (Xyce RG 2.1.21 & 2.1.22)
+    const auto lines = tokenize_netlist(".PREPROCESS ADDRESISTORS ONETERMINAL 1G\n.PREPROCESS ADDRESISTORS NODCPATH 10MEG\n.PREPROCESS REMOVEUNUSED r,c");
+    // assert: every qualifier word classifies as KEYWORD
+    ASSERT_EQ(lines.size(), 3);
+    int found = 0;
+    for (const auto& line : lines) {
+        for (const auto& token : line.m_tokens) {
+            const std::string& text = token.m_text;
+            if (text == "ADDRESISTORS" || text == "ONETERMINAL" || text == "NODCPATH" || text == "REMOVEUNUSED") {
+                ++found;
+                ASSERT_EQ(token.m_type, NetlistTokenType::KEYWORD) << "token " << text;
+            }
+        }
+    }
+    ASSERT_EQ(found, 5);
+}
+
 TEST(NetlistLexerChecks, handles_unclosed_string_and_expression_gracefully) {
     // arrange / act
     const auto lines = tokenize_netlist(".PRINT FILE=\"unclosed_string\nR1 1 0 {1k + 2k");
