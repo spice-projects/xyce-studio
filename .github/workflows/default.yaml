@@ -368,10 +368,106 @@ jobs:
           # upload-artifact does not preserve file permissions, restore the exec bit
           chmod +x artifacts/linux/xyce-studio
           so_files=$(ls artifacts/linux/*.so* 2>/dev/null | tr '\n' ' ')
-          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.3' artifacts/linux/xyce-studio xyce-studio linux $so_files
+          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.3' artifacts/linux/xyce-studio xyce-studio linux "$so_files"
           cp dist/xyce-studio-${{ steps.version.outputs.version }}.3.zip packages/kicad-xyce-plugin-linux.zip
           # zip from inside artifacts/linux so the archive has no path prefix
           (cd artifacts/linux && zip -qry "../../packages/xyce-studio-linux.zip" .)
+
+      # nothing may reach gh release upload unless the packages are complete:
+      # v1.2 shipped a linux plugin zip with 1 of its 23 runtime libraries
+      # because a single unquoted argument silently dropped the rest (#267)
+      - name: Verify release packages
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          fail=0
+
+          expect_member() {
+            if ! grep -Fxq "$2" <<< "$1"; then
+              echo "::error::$3"
+              fail=1
+            fi
+          }
+
+          expect_metadata() {
+            if ! grep -q "\"version\": \"$VERSION.$2\"" <<< "$1"; then
+              echo "::error::$3 metadata.json carries the wrong version (expected $VERSION.$2)"
+              fail=1
+            fi
+            if ! grep -q "\"$4\"" <<< "$1"; then
+              echo "::error::$3 metadata.json carries the wrong platform (expected \"$4\")"
+              fail=1
+            fi
+          }
+
+          for artifact in "artifacts/macos/Xyce Studio.app" artifacts/linux artifacts/windows; do
+            if [ ! -e "$artifact" ]; then
+              echo "::error::missing artifact: $artifact"
+              fail=1
+            fi
+          done
+
+          rm -rf _verify
+          mkdir -p _verify/linux
+
+          # linux: the plugin zip must ship every runtime library beside the
+          # executable, and the standalone zip must carry the same set
+          linux_members=$(unzip -Z1 packages/kicad-xyce-plugin-linux.zip)
+          standalone_members=$(unzip -Z1 packages/xyce-studio-linux.zip)
+          for so in artifacts/linux/*.so*; do
+            expect_member "$linux_members" "plugins/$(basename "$so")" "linux plugin zip is missing plugins/$(basename "$so")"
+            expect_member "$standalone_members" "$(basename "$so")" "standalone linux zip is missing $(basename "$so")"
+          done
+          expect_member "$linux_members" "plugins/xyce-studio" "linux plugin zip is missing plugins/xyce-studio"
+          expect_member "$standalone_members" "xyce-studio" "standalone linux zip is missing xyce-studio"
+
+          # the executable keeps its exec bit through artifact upload/zip
+          linux_exe_perms=$(zipinfo -l packages/kicad-xyce-plugin-linux.zip 2>/dev/null | awk '/plugins\/xyce-studio$/ {print $1; exit}') || true
+          case "$linux_exe_perms" in
+            *x*) ;;
+            *) echo "::error::linux plugin executable is not executable inside the zip"; fail=1 ;;
+          esac
+
+          # $ORIGIN resolution inside the package: a soname that reports
+          # "not found" while we do ship it means the packaged copy is
+          # unreachable from the executable. Sonames we deliberately do not
+          # bundle (host system libs) are ignored: this runner has no build
+          # dependencies installed.
+          unzip -q packages/kicad-xyce-plugin-linux.zip -d _verify/linux
+          if ! ldd_out=$(ldd _verify/linux/plugins/xyce-studio 2>&1); then
+            echo "::error::ldd failed on the packaged linux executable"
+            echo "$ldd_out"
+            fail=1
+          fi
+          while read -r need; do
+            [ -n "$need" ] || continue
+            if [ -f "artifacts/linux/$need" ]; then
+              echo "::error::bundled library $need does not resolve from inside the linux package"
+              fail=1
+            fi
+          done < <(printf '%s\n' "$ldd_out" | awk '/not found/{print $1}')
+
+          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-linux.zip metadata.json)" 3 "linux plugin" "linux"
+
+          # windows: every runtime dll next to the executable
+          win_members=$(unzip -Z1 packages/kicad-xyce-plugin-windows.zip)
+          for dll in artifacts/windows/*.dll; do
+            expect_member "$win_members" "plugins/$(basename "$dll")" "windows plugin zip is missing plugins/$(basename "$dll")"
+          done
+          expect_member "$win_members" "plugins/xyce-studio.exe" "windows plugin zip is missing plugins/xyce-studio.exe"
+          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-windows.zip metadata.json)" 2 "windows plugin" "windows"
+
+          # macos: the packaged app bundle must match the built app exactly
+          mac_members=$(unzip -Z1 packages/kicad-xyce-plugin-macos.zip)
+          for file in "artifacts/macos/Xyce Studio.app/Contents/MacOS"/*; do
+            expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/$(basename "$file")" "macos plugin zip is missing Contents/MacOS/$(basename "$file")"
+          done
+          expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/xyce-studio" "macos plugin zip is missing the executable"
+          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-macos.zip metadata.json)" 1 "macos plugin" "macos"
+
+          exit $fail
 
       - name: Associate with GitHub Release
         env:
