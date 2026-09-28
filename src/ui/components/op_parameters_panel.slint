@@ -348,7 +348,7 @@ export component OpParametersPanel inherits Rectangle {
                     overflow: elide;
                 }
 
-                LineEdit {
+                ic-input := LineEdit {
                     height: 28px;
                     placeholder-text: "e.g. V(out)=1.0 V(in)=0";
                     text <=> root.initial-conditions;

@@ -440,6 +440,21 @@ namespace simulation_parameters_dialog_view
             return entries;
         }
 
+        // read an edited initial-condition line into the config; returns false and raises the error banner when the text yields no usable entry
+        [[nodiscard]] bool apply_ic_line(const WindowHandle& dialog, SimulationConfig& config, const std::string& text) {
+            // parse the textbox content through the single-line parser
+            const auto ic = ICParameters::from_line(text);
+            // reject non-blank text that produced no usable entry
+            if (!trim(text).empty() && ic.empty()) {
+                dialog->set_simulation_parameters_error_message(slint::SharedString("Invalid initial conditions: expected entries such as V(node)=value"));
+                dialog->set_simulation_parameters_show_error(true);
+                return false;
+            }
+            // replace the collected entries with the edited ones otherwise
+            config.ic_parameters = ic;
+            return true;
+        }
+
         // push the saved operating point parameters into the dialog root's op-* fields
         void apply_op_parameters(const WindowHandle& dialog, const OpSimulationParameters& params) {
             // print section (no print-type combo; the type is always DC)
@@ -1107,6 +1122,9 @@ namespace simulation_parameters_dialog_view
             m_config.analysis_type = ANALYSIS_TYPES[static_cast<size_t>(selected_tab)];
             // read the operating point panel back into the analysis variant
             if (selected_tab == PAGE_OP) {
+                // read the edited initial-condition line back into the configuration
+                if (!apply_ic_line(window, m_config, std::string(window->get_op_initial_conditions())))
+                    return;
                 m_config.analysis = build_op_parameters(window);
                 m_config.replace_ground = window->get_op_replace_ground();
             }
@@ -1117,6 +1135,9 @@ namespace simulation_parameters_dialog_view
             }
             // read the transient analysis panel back into the analysis variant
             else if (selected_tab == PAGE_TRAN) {
+                // read the edited initial-condition line back into the configuration
+                if (!apply_ic_line(window, m_config, std::string(window->get_tran_initial_conditions())))
+                    return;
                 m_config.analysis = build_transient_parameters(window, pce_params);
                 // reject an invalid PCE configuration without closing the panel
                 if (const auto* tran = std::get_if<TransientSimulationParameters>(&m_config.analysis); tran && tran->pce) {
@@ -1131,6 +1152,9 @@ namespace simulation_parameters_dialog_view
             // read the DC analysis panel back into the analysis variant;
             // reject an invalid DC sweep without closing the panel
             else if (selected_tab == PAGE_DC) {
+                // read the edited initial-condition line back into the configuration
+                if (!apply_ic_line(window, m_config, std::string(window->get_dc_initial_conditions())))
+                    return;
                 auto dc = build_dc_parameters(window, dc_sweeps, pce_params);
                 if (const auto error = dc.validate()) {
                     window->set_simulation_parameters_error_message(slint::SharedString(*error));
@@ -1196,6 +1220,11 @@ namespace simulation_parameters_dialog_view
         m_impl->m_config = current;
         // select the tab matching the analysis type
         m_impl->window->set_simulation_parameters_selected_tab(tab_index_for(current.analysis_type));
+        // seed the initial-condition line shared by the OP, TRAN and DC panels from the collected .IC entries
+        const auto ic_line = slint::SharedString(current.ic_parameters.to_line());
+        m_impl->window->set_op_initial_conditions(ic_line);
+        m_impl->window->set_tran_initial_conditions(ic_line);
+        m_impl->window->set_dc_initial_conditions(ic_line);
         // sync the operating point panel to the seeded config, or reset it to
         // defaults when a different analysis is currently active
         if (const auto* op = std::get_if<OpSimulationParameters>(&current.analysis))

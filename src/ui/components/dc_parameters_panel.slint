@@ -236,6 +236,9 @@ export component DcParametersPanel inherits Rectangle {
     // --- .MEASURE directives ---
     in-out property <string> measure: "";
 
+    // --- initial conditions (.IC / .DCVOLT) ---
+    in-out property <string> initial-conditions: "";
+
     // --- .PRINT section ---
     in-out property <bool> print-enabled: false;
     // 0 = DC, 1 = HOMOTOPY
@@ -583,6 +586,43 @@ export component DcParametersPanel inherits Rectangle {
                     wrap: word-wrap;
                     placeholder-text: "e.g. .MEASURE DC vout_max MAX V(out)";
                     text <=> root.measure;
+                }
+            }
+        }
+
+        // ---- initial conditions (.IC / .DCVOLT) ----
+        ic-card := Rectangle {
+
+            border-width: 1px;
+            border-color: Palette.border;
+            border-radius: 6px;
+            background: Palette.alternate-background;
+
+            VerticalLayout {
+                padding: 10px;
+                spacing: 6px;
+
+                Text {
+                    text: "Initial Conditions (.IC / .DCVOLT)";
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.foreground;
+                    horizontal-alignment: left;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: "Initial conditions enforced through the operating-point solve";
+                    font-size: 12px;
+                    color: Palette.foreground.transparentize(0.4);
+                    horizontal-alignment: left;
+                    overflow: elide;
+                }
+
+                ic-input := LineEdit {
+                    height: 28px;
+                    placeholder-text: "e.g. V(out)=1.0 V(in)=0";
+                    text <=> root.initial-conditions;
                 }
             }
         }

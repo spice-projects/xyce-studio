@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct NetlistTopology;
@@ -32,11 +33,17 @@ public:
     // construct an IC parameters instance from individual entries
     explicit ICParameters(std::vector<IcEntry> entries);
 
-    // parse all .IC / .DCVOLT directives into an ICParameters instance
+    // parse all .IC / .DCVOLT directives into an ICParameters instance; repeated nodes keep their first position and take the last value
     [[nodiscard]] static ICParameters from_xyce_directives(const std::vector<std::string>& directives);
 
-    // serialize this instance to a list of Xyce directive strings
+    // parse a single edited line (with or without an .IC/.DCVOLT prefix); blank or unusable text yields an empty instance
+    [[nodiscard]] static ICParameters from_line(std::string_view line);
+
+    // serialize this instance to a list of Xyce directive strings; all entries are emitted as one merged .IC line
     [[nodiscard]] std::vector<std::string> to_xyce_directives(const NetlistTopology& topology) const;
+
+    // serialize the collected entries as one line of V(node)=value pairs without the .IC prefix
+    [[nodiscard]] std::string to_line() const;
 
     // check whether this instance holds any entries
     [[nodiscard]] bool empty() const { return m_entries.empty(); }
