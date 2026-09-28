@@ -279,7 +279,7 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
         directives.push_back(".PREPROCESS ADDRESISTORS " + add_resistor);
     }
 
-    // emit the initial condition directives (independent of analysis type)
+    // emit the merged .IC line for every analysis type: Xyce consumes it in whichever DCOP the analysis performs, never rejects it, and documents no effect only for HB (RG .IC and .HB sections)
     const auto ic_directives = ic_parameters.to_xyce_directives(topology);
     directives.insert(directives.end(), ic_directives.begin(), ic_directives.end());
 

@@ -125,6 +125,7 @@ export component SimulationParametersPanel inherits ModalPanel {
     in-out property <string> tran-step-ceiling: "";
     in-out property <int> tran-op-keyword-index: 0;
     in-out property <string> tran-schedule: "";
+    in-out property <string> tran-initial-conditions: "";
     in-out property <string> tran-fft: "";
     in-out property <string> tran-four: "";
     in-out property <string> tran-measure: "";
@@ -153,6 +154,7 @@ export component SimulationParametersPanel inherits ModalPanel {
     callback dc-sweep-row-updated(int, DcSweepRow);
     in-out property <string> dc-data-table: "";
     in-out property <string> dc-measure: "";
+    in-out property <string> dc-initial-conditions: "";
     in-out property <bool> dc-print-enabled: false;
     in-out property <int> dc-print-type-index: 0;
     in-out property <bool> dc-print-all-nodes: false;
@@ -376,6 +378,7 @@ export component SimulationParametersPanel inherits ModalPanel {
                         fft <=> root.tran-fft;
                         four <=> root.tran-four;
                         measure <=> root.tran-measure;
+                        initial-conditions <=> root.tran-initial-conditions;
                         print-enabled <=> root.tran-print-enabled;
                         print-type-index <=> root.tran-print-type-index;
                         print-all-nodes <=> root.tran-print-all-nodes;
@@ -424,6 +427,7 @@ export component SimulationParametersPanel inherits ModalPanel {
                         remove-sweep(index) => { root.dc-remove-sweep(index); }
                         sweep-row-updated(index, row) => { root.dc-sweep-row-updated(index, row); }
                         measure <=> root.dc-measure;
+                        initial-conditions <=> root.dc-initial-conditions;
                         print-enabled <=> root.dc-print-enabled;
                         print-type-index <=> root.dc-print-type-index;
                         print-all-nodes <=> root.dc-print-all-nodes;

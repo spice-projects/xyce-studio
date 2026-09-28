@@ -159,6 +159,46 @@ TEST(ICParametersChecks, parses_multiple_directives) {
     ASSERT_EQ(params.entries()[2].voltage, "3.0");
 }
 
+TEST(ICParametersChecks, dedups_repeated_node_keeping_last_value) {
+    // arrange / act
+    const auto params = ICParameters::from_xyce_directives({".IC V(a)=2", ".IC V(a)=5"});
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "5");
+}
+
+TEST(ICParametersChecks, dedups_node_names_ignoring_case) {
+    // arrange / act — Xyce uppercases node names, so V(a) and V(A) are the same node
+    const auto params = ICParameters::from_xyce_directives({".IC V(a)=2", ".IC V(A)=5"});
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "5");
+}
+
+TEST(ICParametersChecks, dedups_across_ic_and_dcvolt) {
+    // arrange / act
+    const auto params = ICParameters::from_xyce_directives({".IC V(out)=1.0", ".DCVOLT V(OUT)=2.0"});
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].node, "out");
+    ASSERT_EQ(params.entries()[0].voltage, "2.0");
+}
+
+TEST(ICParametersChecks, dedup_keeps_top_down_order_of_distinct_nodes) {
+    // arrange / act
+    const auto params = ICParameters::from_xyce_directives({".IC V(a)=1 V(b)=2", ".IC V(a)=3 V(c)=4"});
+    // assert
+    ASSERT_EQ(params.entries().size(), 3);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "3");
+    ASSERT_EQ(params.entries()[1].node, "b");
+    ASSERT_EQ(params.entries()[1].voltage, "2");
+    ASSERT_EQ(params.entries()[2].node, "c");
+    ASSERT_EQ(params.entries()[2].voltage, "4");
+}
+
 // ========================================================================================
 // to_xyce_directives
 // ========================================================================================
@@ -172,15 +212,14 @@ TEST(ICParametersChecks, empty_params_produces_no_directives) {
     ASSERT_TRUE(directives.empty());
 }
 
-TEST(ICParametersChecks, generates_ic_directives_in_v_form) {
+TEST(ICParametersChecks, generates_single_merged_directive_in_v_form) {
     // arrange
     const ICParameters params({IcEntry("V1", "5"), IcEntry("V2", "3.3")});
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
-    // assert
-    ASSERT_EQ(directives.size(), 2);
-    ASSERT_EQ(directives[0], ".IC V1=5");
-    ASSERT_EQ(directives[1], ".IC V2=3.3");
+    // assert — all entries ride on one merged .IC line
+    ASSERT_EQ(directives.size(), 1);
+    ASSERT_EQ(directives[0], ".IC V(V1)=5 V(V2)=3.3");
 }
 
 TEST(ICParametersChecks, plain_node_is_wrapped_in_v_form) {
@@ -193,13 +232,23 @@ TEST(ICParametersChecks, plain_node_is_wrapped_in_v_form) {
     ASSERT_EQ(directives[0], ".IC V(out)=1.2");
 }
 
-TEST(ICParametersChecks, voltage_node_keeps_its_form) {
-    // arrange — node "V1" already starts with V, kept as-is
-    const ICParameters params({IcEntry("V1", "5")});
+TEST(ICParametersChecks, v_prefixed_node_is_wrapped_in_v_form) {
+    // arrange — node "vb" starts with v and must still be wrapped so Xyce accepts the line
+    const ICParameters params({IcEntry("vb", "10")});
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
-    ASSERT_EQ(directives[0], ".IC V1=5");
+    ASSERT_EQ(directives[0], ".IC V(vb)=10");
+}
+
+TEST(ICParametersChecks, multiple_statements_emit_as_one_merged_line) {
+    // arrange
+    const auto params = ICParameters::from_xyce_directives({".IC V(a)=2", ".IC V(vb)=10"});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    ASSERT_EQ(directives[0], ".IC V(a)=2 V(vb)=10");
 }
 
 // ========================================================================================
@@ -234,6 +283,97 @@ TEST(ICParametersChecks, node_val_form_round_trips_as_v_form) {
     ASSERT_EQ(reparsed.entries().size(), 1);
     ASSERT_EQ(reparsed.entries()[0].node, "out");
     ASSERT_EQ(reparsed.entries()[0].voltage, "1.0");
+}
+
+TEST(ICParametersChecks, multiple_statements_round_trip_as_one_merged_line) {
+    // arrange
+    const std::vector<std::string> input = {".IC V(a)=2", ".IC V(vb)=10"};
+    // act
+    const auto parsed = ICParameters::from_xyce_directives(input);
+    const auto directives = parsed.to_xyce_directives(NetlistTopology{});
+    const auto reparsed = ICParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(directives.size(), 1);
+    ASSERT_EQ(reparsed.entries().size(), 2);
+    ASSERT_EQ(reparsed.entries()[0].node, "a");
+    ASSERT_EQ(reparsed.entries()[0].voltage, "2");
+    ASSERT_EQ(reparsed.entries()[1].node, "vb");
+    ASSERT_EQ(reparsed.entries()[1].voltage, "10");
+}
+
+// ========================================================================================
+// to_line / from_line
+// ========================================================================================
+
+TEST(ICParametersChecks, to_line_joins_pairs_without_prefix) {
+    // arrange
+    const ICParameters params({IcEntry("out", "1.0"), IcEntry("in", "0")});
+    // act
+    const auto line = params.to_line();
+    // assert
+    ASSERT_EQ(line, "V(out)=1.0 V(in)=0");
+}
+
+TEST(ICParametersChecks, to_line_empty_returns_empty_string) {
+    // arrange / act
+    const auto line = ICParameters().to_line();
+    // assert
+    ASSERT_TRUE(line.empty());
+}
+
+TEST(ICParametersChecks, from_line_parses_pairs) {
+    // arrange / act
+    const auto params = ICParameters::from_line("V(a)=1 V(b)=2");
+    // assert
+    ASSERT_EQ(params.entries().size(), 2);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "1");
+    ASSERT_EQ(params.entries()[1].node, "b");
+    ASSERT_EQ(params.entries()[1].voltage, "2");
+}
+
+TEST(ICParametersChecks, from_line_blank_returns_empty) {
+    // arrange / act
+    const auto params = ICParameters::from_line("   ");
+    // assert
+    ASSERT_TRUE(params.empty());
+}
+
+TEST(ICParametersChecks, from_line_accepts_prefixed_statement) {
+    // arrange / act — a pasted .IC line keeps its command instead of being prefixed twice
+    const auto params = ICParameters::from_line(".IC V(a)=1");
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "1");
+}
+
+TEST(ICParametersChecks, from_line_accepts_lowercase_prefix) {
+    // arrange / act
+    const auto params = ICParameters::from_line(".ic V(a)=1");
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].node, "a");
+    ASSERT_EQ(params.entries()[0].voltage, "1");
+}
+
+TEST(ICParametersChecks, from_line_dedups_pairs) {
+    // arrange / act
+    const auto params = ICParameters::from_line("V(a)=1 V(a)=2");
+    // assert
+    ASSERT_EQ(params.entries().size(), 1);
+    ASSERT_EQ(params.entries()[0].voltage, "2");
+}
+
+TEST(ICParametersChecks, from_line_rejects_text_without_usable_entry) {
+    // arrange / act — a word, a missing value and a missing node all yield nothing usable
+    const auto word = ICParameters::from_line("garbage");
+    const auto missing_value = ICParameters::from_line("V(a)=");
+    const auto missing_node = ICParameters::from_line("=1");
+    // assert
+    ASSERT_TRUE(word.empty());
+    ASSERT_TRUE(missing_value.empty());
+    ASSERT_TRUE(missing_node.empty());
 }
 
 // ========================================================================================
@@ -314,4 +454,19 @@ TEST(ICParametersChecks, ic_and_dcvolt_are_collected_together) {
     const auto params = ICParameters::from_xyce_directives({".IC V(out)=1.0", ".DCVOLT V(in)=0", ".IC X 2.0"});
     // assert
     ASSERT_EQ(params.entries().size(), 3);
+}
+
+TEST(ICParametersChecks, simulation_config_emits_ic_for_hb_analysis) {
+    // arrange — HB is the analysis the reference guide documents no .IC effect for, yet emission stays unconditional
+    const std::vector<std::string> input = {".HB 1e4", ".IC V(a)=1"};
+    const auto config = SimulationConfig::from_xyce_directives(input);
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    bool found_ic = false;
+    for (const auto& directive : directives) {
+        if (directive == ".IC V(a)=1")
+            found_ic = true;
+    }
+    ASSERT_TRUE(found_ic);
 }

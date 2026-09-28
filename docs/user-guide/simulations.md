@@ -88,6 +88,24 @@ Conditions enforced *for the entire* operating-point solve, e.g.
 voltages can be specified; unsolvable combinations are possible — see
 the Xyce Users' Guide for guidance.
 
+- **Editing** — the *Initial Conditions* field on the `.OP`, `.DC` and
+  `.TRAN` tabs holds the line exactly as it will be emitted, without the
+  `.IC` prefix (e.g. `V(a)=2 V(b)=10`); text that parses to no entry is
+  rejected when the dialog is accepted. The other tabs (`.AC`,
+  `.NOISE`, `.LIN`, `.HB`) keep the collected statements untouched
+  (pass-through) for now.
+- **Merge & dedup** — every `.IC`/`.DCVOLT` statement in the netlist is
+  collected top-down and written back as a single line before `.END`. A
+  node named by several statements keeps its first position and takes
+  the last value — the order Xyce applies them in — compared
+  case-insensitively, because Xyce uppercases node names.
+- **Which analyses use it** — Xyce consumes `.IC` in every analysis
+  that computes a DC operating point: `.OP`, `.DC`, `.TRAN`, `.AC`,
+  `.NOISE` and `.LIN` (which rides the AC sweep). With `NOOP`/`UIC` on
+  `.TRAN` the values become the transient starting state and
+  unspecified nodes start at 0. The reference guide documents no effect
+  for `.HB`.
+
 ---
 
 ## Transient (.TRAN)

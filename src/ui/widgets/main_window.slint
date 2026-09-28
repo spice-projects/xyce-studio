@@ -361,6 +361,7 @@ export component MainWindow inherits Window {
     in-out property <string> tran-fft: "";
     in-out property <string> tran-four: "";
     in-out property <string> tran-measure: "";
+    in-out property <string> tran-initial-conditions: "";
     in-out property <bool> tran-print-enabled: false;
     in-out property <int> tran-print-type-index: 0;
     in-out property <bool> tran-print-all-nodes: false;
@@ -383,6 +384,7 @@ export component MainWindow inherits Window {
     callback dc-sweep-row-updated(int, DcSweepRow);
     in-out property <string> dc-data-table: "";
     in-out property <string> dc-measure: "";
+    in-out property <string> dc-initial-conditions: "";
     in-out property <bool> dc-print-enabled: false;
     in-out property <int> dc-print-type-index: 0;
     in-out property <bool> dc-print-all-nodes: false;
@@ -767,6 +769,7 @@ export component MainWindow inherits Window {
             tran-fft <=> root.tran-fft;
             tran-four <=> root.tran-four;
             tran-measure <=> root.tran-measure;
+            tran-initial-conditions <=> root.tran-initial-conditions;
             tran-print-enabled <=> root.tran-print-enabled;
             tran-print-type-index <=> root.tran-print-type-index;
             tran-print-all-nodes <=> root.tran-print-all-nodes;
@@ -786,6 +789,7 @@ export component MainWindow inherits Window {
             dc-remove-sweep(index) => { root.dc-remove-sweep(index); }
             dc-sweep-row-updated(index, row) => { root.dc-sweep-row-updated(index, row); }
             dc-measure <=> root.dc-measure;
+            dc-initial-conditions <=> root.dc-initial-conditions;
             dc-print-enabled <=> root.dc-print-enabled;
             dc-print-type-index <=> root.dc-print-type-index;
             dc-print-all-nodes <=> root.dc-print-all-nodes;
