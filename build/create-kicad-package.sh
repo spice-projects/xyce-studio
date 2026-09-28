@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# any failed copy, sed or zip must abort the packaging: a partial package
+# published as a release artifact is worse than a failed job (issue #267)
+set -euo pipefail
+
 # project version, defaults to 0.0.1
 PROJECT_VERSION=${1:-0.0.1}
 # path to the compiled plugin executable, defaults to the debug build output
@@ -8,8 +12,11 @@ EXECUTABLE=${2:-.build-debug/xyce-studio}
 ENTRYPOINT_NAME=${3:-xyce-studio}
 # platform, allowed values: macos, linux, windows
 PLATFORM=${4:-macos}
-# path(s) to shared libraries shipped beside the executable, space separated, defaults to none
-SHARED_LIBRARIES=${5:-}
+# path(s) to shared libraries shipped beside the executable: every argument
+# from the 5th onward, space separated, defaults to none. Collecting all of
+# them (${*:5}) instead of only $5 is what makes an unquoted caller list work;
+# each library may be passed as its own argument or all inside one argument
+SHARED_LIBRARIES="${*:5}"
 
 # fail early when the executable is missing
 if [ ! -f "$EXECUTABLE" ] && [ ! -d "$EXECUTABLE" ]; then
@@ -60,6 +67,17 @@ output_zip="$(pwd)/dist/xyce-studio-$PROJECT_VERSION.zip"
 
 # create package, flat structure
 (cd "$temp_dir" && zip -r "$output_zip" .)
+
+# verify the archive really carries every library: catching it here keeps a
+# truncated package from ever reaching a release (issue #267)
+zip_listing=$(zipinfo -1 "$output_zip")
+for library in $SHARED_LIBRARIES; do
+    if ! grep -Fqx "plugins/$(basename "$library")" <<< "$zip_listing"; then
+        echo "error: $(basename "$library") missing from $output_zip" >&2
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+done
 
 # clean up temporary folder
 rm -rf "$temp_dir"
