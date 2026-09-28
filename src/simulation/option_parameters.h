@@ -11,7 +11,7 @@ class OptionParameters
 {
 public:
     // construct an option parameters instance from individual fields
-    OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic = {}, std::map<std::string, std::string> parser = {}, std::map<std::string, std::string> linsol_ac = {}, std::map<std::string, std::string> loca = {}, std::map<std::string, std::string> dist = {}, std::map<std::string, std::string> measure = {}, std::map<std::string, std::string> nonlin_tran = {}, std::map<std::string, std::string> output = {}, std::map<std::string, std::string> restart = {});
+    OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic = {}, std::map<std::string, std::string> parser = {}, std::map<std::string, std::string> linsol_ac = {}, std::map<std::string, std::string> loca = {}, std::map<std::string, std::string> dist = {}, std::map<std::string, std::string> measure = {}, std::map<std::string, std::string> nonlin_tran = {}, std::map<std::string, std::string> output = {}, std::map<std::string, std::string> restart = {}, std::map<std::string, std::string> samples = {}, std::map<std::string, std::string> embeddedsamples = {});
 
     // parse all .OPTIONS directives into an OptionParameters instance
     [[nodiscard]] static OptionParameters from_xyce_directives(const std::vector<std::string>& directives);
@@ -50,4 +50,8 @@ public:
     std::map<std::string, std::string> output;
     // checkpointing/restarting control parameters (PACK, JOB, FILE, START_TIME, INITIAL_INTERVAL)
     std::map<std::string, std::string> restart;
+    // sampling analysis parameters (NUMSAMPLES, SAMPLE_TYPE, OUTPUTS, MEASURES, SEED, etc.; RG 2.1.25.13)
+    std::map<std::string, std::string> samples;
+    // embedded sampling analysis parameters (same keys as SAMPLES; RG 2.1.25.14)
+    std::map<std::string, std::string> embeddedsamples;
 };

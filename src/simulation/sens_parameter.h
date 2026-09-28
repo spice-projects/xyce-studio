@@ -13,7 +13,7 @@ class SensParameter
 {
 public:
     // construct a sens parameter instance from individual fields
-    SensParameter(std::string analysis_context, std::string objective_mode, std::vector<std::string> objective_values, std::vector<std::string> parameter_list, bool direct, bool adjoint, std::optional<PrintParameters> print_parameters);
+    SensParameter(std::string analysis_context, std::string objective_mode, std::vector<std::string> objective_values, std::vector<std::string> parameter_list, bool direct, bool adjoint, std::optional<PrintParameters> print_parameters, std::vector<std::string> option_tokens = {});
 
     // parse .SENS and companion directives into a SensParameter instance;
     // returns nullopt when no .SENS directive is found
@@ -39,4 +39,6 @@ public:
     bool adjoint;
     // optional print parameters
     std::optional<PrintParameters> print_parameters;
+    // verbatim key=value tokens captured from the .OPTIONS SENSITIVITY statement (RG 2.1.25.16)
+    std::vector<std::string> option_tokens;
 };

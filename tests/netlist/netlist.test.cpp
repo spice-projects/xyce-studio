@@ -158,6 +158,89 @@ TEST(NetlistParserChecks, keeps_unknown_preprocess_subcommand_as_passthrough) {
     ASSERT_NE(netlist.find(".PREPROCESS UNKNOWN TRUE"), std::string::npos);
 }
 
+TEST(NetlistParserChecks, extracts_sensitivity_options_package) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS SENSITIVITY direct=1 adjoint=0\n.END\n");
+    // assert: the sensitivity package is managed and leaves the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS SENSITIVITY direct=1 adjoint=0");
+    ASSERT_EQ(netlist.find(".OPTIONS SENSITIVITY"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_samples_options_package) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS SAMPLES NUMSAMPLES=10\n.END\n");
+    // assert: the sampling package is managed and leaves the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS SAMPLES NUMSAMPLES=10");
+    ASSERT_EQ(netlist.find(".OPTIONS SAMPLES"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_embeddedsamples_options_package) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=5\n.END\n");
+    // assert: the embedded sampling package is managed and leaves the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=5");
+    ASSERT_EQ(netlist.find(".OPTIONS EMBEDDEDSAMPLES"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_transient_solver_option_packages) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS NONLIN-TRAN NOX=1\n.OPTIONS LINSOL-AC TYPE=KLU\n.END\n");
+    // assert: both transient solver packages are managed and leave the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 2);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS NONLIN-TRAN NOX=1");
+    ASSERT_EQ(topology.m_directives[1], ".OPTIONS LINSOL-AC TYPE=KLU");
+    ASSERT_EQ(netlist.find(".OPTIONS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_utility_option_packages) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS DIAGNOSTIC DEBUGLEVEL=3\n.OPTIONS PARSER SCALE=1\n.OPTIONS LOCA MAXSTEPS=5\n.OPTIONS DIST STRATEGY=2\n.END\n");
+    // assert: all four utility packages are managed and leave the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 4);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS DIAGNOSTIC DEBUGLEVEL=3");
+    ASSERT_EQ(topology.m_directives[1], ".OPTIONS PARSER SCALE=1");
+    ASSERT_EQ(topology.m_directives[2], ".OPTIONS LOCA MAXSTEPS=5");
+    ASSERT_EQ(topology.m_directives[3], ".OPTIONS DIST STRATEGY=2");
+    ASSERT_EQ(netlist.find(".OPTIONS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, extracts_output_and_restart_option_packages) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS OUTPUT PRINTHEADER=false\n.OPTIONS RESTART PACK=1\n.END\n");
+    // assert: both interval packages are managed and leave the sanitized netlist
+    ASSERT_EQ(topology.m_directives.size(), 2);
+    ASSERT_EQ(topology.m_directives[0], ".OPTIONS OUTPUT PRINTHEADER=false");
+    ASSERT_EQ(topology.m_directives[1], ".OPTIONS RESTART PACK=1");
+    ASSERT_EQ(netlist.find(".OPTIONS"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, keeps_standalone_options_as_passthrough) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS RELTOL=1e-3 ABSTOL=1e-9\n.END\n");
+    // assert: unpackaged options are not RG syntax (RG 6.1.3) and stay in the sanitized netlist untouched
+    ASSERT_TRUE(topology.m_directives.empty());
+    ASSERT_NE(netlist.find(".OPTIONS RELTOL=1e-3 ABSTOL=1e-9"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, keeps_sampling_alias_options_as_passthrough) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.OPTIONS SAMPLING NUMSAMPLES=10\n.END\n");
+    // assert: the non-RG package spelling is not managed and stays in the sanitized netlist untouched
+    ASSERT_TRUE(topology.m_directives.empty());
+    ASSERT_NE(netlist.find(".OPTIONS SAMPLING NUMSAMPLES=10"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, keeps_options_inside_subcircuit_as_passthrough) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.SUBCKT INV IN OUT\nR1 IN OUT 100\n.OPTIONS DEVICE GMIN=1e-12\n.ENDS INV\nR2 1 0 200\n.END\n");
+    // assert: .OPTIONS inside a subcircuit is ignored per RG 2.1.25 and stays inline
+    ASSERT_TRUE(topology.m_directives.empty());
+    ASSERT_NE(netlist.find(".OPTIONS DEVICE GMIN=1e-12"), std::string::npos);
+}
+
 TEST(NetlistParserChecks, handles_end_short_circuit) {
     // arrange / act
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\n.END\nextra stuff\n");

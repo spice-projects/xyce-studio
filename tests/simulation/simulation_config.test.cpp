@@ -1263,3 +1263,37 @@ TEST(TecplotOutputSuffixChecks, unknown_type_falls_back_to_dot_dat) {
     EXPECT_EQ(empty_suffix, ".dat");
     EXPECT_EQ(lower_suffix, ".FD.dat");
 }
+
+TEST(SimulationConfigOptionsChecks, sensitivity_options_round_trip_through_config) {
+    // arrange
+    const std::vector<std::string> input = {
+        ".TRAN 1u 1m",
+        ".SENS objfunc={V(2)} param=R1:R",
+        ".OPTIONS SENSITIVITY direct=1 adjoint=0 OUTPUTUNSCALED=false",
+    };
+    // act
+    const auto config = SimulationConfig::from_xyce_directives(input);
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert: the sensitivity options appear exactly once with every key intact
+    const auto count = std::count_if(directives.begin(), directives.end(), [](const std::string& directive) { return directive.rfind(".OPTIONS SENSITIVITY", 0) == 0; });
+    ASSERT_EQ(count, 1);
+    const auto found = std::find(directives.begin(), directives.end(), ".OPTIONS SENSITIVITY direct=1 adjoint=0 OUTPUTUNSCALED=false");
+    ASSERT_NE(found, directives.end());
+}
+
+TEST(SimulationConfigOptionsChecks, multiple_option_statements_round_trip_through_config) {
+    // arrange
+    const std::vector<std::string> input = {
+        ".OP",
+        ".OPTIONS DEVICE GMIN=1e-12 TEMP=25",
+        ".OPTIONS DEVICE GMIN=1e-10 SCALE=1.5",
+    };
+    // act
+    const auto config = SimulationConfig::from_xyce_directives(input);
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert: both statements merge into one line with the first value found winning per key
+    const auto count = std::count_if(directives.begin(), directives.end(), [](const std::string& directive) { return directive.rfind(".OPTIONS DEVICE", 0) == 0; });
+    ASSERT_EQ(count, 1);
+    const auto found = std::find(directives.begin(), directives.end(), ".OPTIONS DEVICE GMIN=1e-12 SCALE=1.5 TEMP=25");
+    ASSERT_NE(found, directives.end());
+}
