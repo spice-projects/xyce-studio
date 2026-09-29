@@ -35,9 +35,9 @@ namespace
         ".OP", ".PRINT", ".SAVE", ".NODESET", ".DC", ".TRAN", ".FFT", ".FOUR", ".AC", ".LIN", ".HB", ".NOISE", ".MEASURE", ".MEAS", ".SENS", ".PCE", ".IC", ".DCVOLT", ".STEP", ".DATA", ".ENDDATA",
     };
 
-    // .OPTIONS packages that are managed and stored as directives
+    // managed .OPTIONS packages stored as directives, one per RG 2.1.25 package plus FFT (RG 2.1.25.19); standalone unpackaged lines are not RG syntax (RG 6.1.3) and stay passthrough
     const std::vector<std::string_view> MANAGED_OPTIONS_PACKAGES = {
-        "HBINT", "NONLIN-HB", "LINSOL-HB", "DEVICE", "TIMEINT", "NONLIN", "LINSOL", "FFT", "MEASURE", "PCES",
+        "HBINT", "NONLIN-HB", "LINSOL-HB", "DEVICE", "TIMEINT", "NONLIN", "NONLIN-TRAN", "LINSOL", "LINSOL-AC", "FFT", "MEASURE", "PCES", "SENSITIVITY", "SAMPLES", "EMBEDDEDSAMPLES", "DIAGNOSTIC", "PARSER", "LOCA", "DIST", "OUTPUT", "RESTART",
     };
 
     // join lines that start with '+' into the preceding logical line
@@ -296,8 +296,8 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
                 // next
                 continue;
             }
-            // check for managed .OPTIONS package directives
-            if (first_upper == ".OPTIONS" && tokens.size() > 1) {
+            // check for managed .OPTIONS package directives at the top level (RG 2.1.25: statements inside subcircuits are ignored)
+            if (first_upper == ".OPTIONS" && tokens.size() > 1 && current_subckt == nullptr) {
                 // extract the package name (second token) and check against managed list
                 auto pkg = to_upper(tokens[1]);
                 if (std::find(MANAGED_OPTIONS_PACKAGES.begin(), MANAGED_OPTIONS_PACKAGES.end(), pkg) != MANAGED_OPTIONS_PACKAGES.end()) {

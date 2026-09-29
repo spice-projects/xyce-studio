@@ -62,8 +62,17 @@ static std::map<std::string, std::string> parse_interval_option_tokens(const std
     return options;
 }
 
-OptionParameters::OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic, std::map<std::string, std::string> parser, std::map<std::string, std::string> linsol_ac, std::map<std::string, std::string> loca, std::map<std::string, std::string> dist, std::map<std::string, std::string> measure, std::map<std::string, std::string> nonlin_tran, std::map<std::string, std::string> output, std::map<std::string, std::string> restart) :
-    device(std::move(device)), timeint(std::move(timeint)), nonlin(std::move(nonlin)), linsol(std::move(linsol)), fft(std::move(fft)), diagnostic(std::move(diagnostic)), parser(std::move(parser)), linsol_ac(std::move(linsol_ac)), loca(std::move(loca)), dist(std::move(dist)), measure(std::move(measure)), nonlin_tran(std::move(nonlin_tran)), output(std::move(output)), restart(std::move(restart)) {}
+// merge parsed option entries into a package map, keeping the first value found per key (RG 2.1.25)
+static void merge_options(std::map<std::string, std::string>& target, std::map<std::string, std::string> parsed) {
+    // iterate over every parsed option entry
+    for (auto& [key, value] : parsed) {
+        // insert only when the key is absent so the first value found wins
+        target.emplace(std::move(key), std::move(value));
+    }
+}
+
+OptionParameters::OptionParameters(std::map<std::string, std::string> device, std::map<std::string, std::string> timeint, std::map<std::string, std::string> nonlin, std::map<std::string, std::string> linsol, std::map<std::string, std::string> fft, std::map<std::string, std::string> diagnostic, std::map<std::string, std::string> parser, std::map<std::string, std::string> linsol_ac, std::map<std::string, std::string> loca, std::map<std::string, std::string> dist, std::map<std::string, std::string> measure, std::map<std::string, std::string> nonlin_tran, std::map<std::string, std::string> output, std::map<std::string, std::string> restart, std::map<std::string, std::string> samples, std::map<std::string, std::string> embeddedsamples) :
+    device(std::move(device)), timeint(std::move(timeint)), nonlin(std::move(nonlin)), linsol(std::move(linsol)), fft(std::move(fft)), diagnostic(std::move(diagnostic)), parser(std::move(parser)), linsol_ac(std::move(linsol_ac)), loca(std::move(loca)), dist(std::move(dist)), measure(std::move(measure)), nonlin_tran(std::move(nonlin_tran)), output(std::move(output)), restart(std::move(restart)), samples(std::move(samples)), embeddedsamples(std::move(embeddedsamples)) {}
 
 OptionParameters OptionParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init option groups
@@ -81,6 +90,14 @@ OptionParameters OptionParameters::from_xyce_directives(const std::vector<std::s
     std::map<std::string, std::string> nonlin_tran;
     std::map<std::string, std::string> output;
     std::map<std::string, std::string> restart;
+    // sampling analysis option entries (RG 2.1.25.13)
+    std::map<std::string, std::string> samples;
+    // embedded sampling analysis option entries (RG 2.1.25.14)
+    std::map<std::string, std::string> embeddedsamples;
+    // track whether the OUTPUT statement was already accepted (only the first statement counts, RG 2.1.25)
+    bool output_seen = false;
+    // track whether the RESTART statement was already accepted (only the first statement counts, RG 2.1.25)
+    bool restart_seen = false;
 
     // parse each directive looking for supported option packages
     for (const auto& directive : directives) {
@@ -114,65 +131,132 @@ OptionParameters OptionParameters::from_xyce_directives(const std::vector<std::s
         // normalize the package name
         const std::string package = to_upper(tokens[1]);
 
+        // handle the device package options
         if (package == "DEVICE") {
-            device = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(device, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the time integration package options
         if (package == "TIMEINT") {
-            timeint = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(timeint, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the nonlinear solver package options
         if (package == "NONLIN") {
-            nonlin = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(nonlin, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the transient nonlinear solver package options
         if (package == "NONLIN-TRAN") {
-            nonlin_tran = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(nonlin_tran, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the output package options, only the first statement is applied (RG 2.1.25)
         if (package == "OUTPUT") {
-            output = parse_interval_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // guard so statements beyond the first are ignored entirely
+            if (!output_seen) {
+                // record that the output statement was accepted
+                output_seen = true;
+                // parse the interval options of the first statement
+                output = parse_interval_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            }
+            // skip the remaining package handlers
             continue;
         }
+        // handle the restart package options, only the first statement is applied (RG 2.1.25)
         if (package == "RESTART") {
-            restart = parse_interval_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // guard so statements beyond the first are ignored entirely
+            if (!restart_seen) {
+                // record that the restart statement was accepted
+                restart_seen = true;
+                // parse the interval options of the first statement
+                restart = parse_interval_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            }
+            // skip the remaining package handlers
             continue;
         }
+        // handle the linear solver package options
         if (package == "LINSOL") {
-            linsol = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(linsol, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the ac linear solver package options
         if (package == "LINSOL-AC") {
-            linsol_ac = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(linsol_ac, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the fft package options
         if (package == "FFT") {
-            fft = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(fft, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the diagnostic package options
         if (package == "DIAGNOSTIC") {
-            diagnostic = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(diagnostic, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the parser package options
         if (package == "PARSER") {
-            parser = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(parser, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the continuation tracking package options
         if (package == "LOCA") {
-            loca = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(loca, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the parallel distribution package options
         if (package == "DIST") {
-            dist = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(dist, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
+        // handle the measure package options
         if (package == "MEASURE") {
-            measure = parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+            // merge the entries keeping the first value found per key
+            merge_options(measure, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
+            continue;
+        }
+        // handle the sampling package options
+        if (package == "SAMPLES") {
+            // merge the entries keeping the first value found per key
+            merge_options(samples, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
+            continue;
+        }
+        // handle the embedded sampling package options
+        if (package == "EMBEDDEDSAMPLES") {
+            // merge the entries keeping the first value found per key
+            merge_options(embeddedsamples, parse_option_tokens(std::vector<std::string>(tokens.begin() + 2, tokens.end())));
+            // skip the remaining package handlers
             continue;
         }
     }
 
-    return OptionParameters(device, timeint, nonlin, linsol, fft, diagnostic, parser, linsol_ac, loca, dist, measure, nonlin_tran, output, restart);
+    // construct the option parameters instance from the collected package maps
+    return OptionParameters(device, timeint, nonlin, linsol, fft, diagnostic, parser, linsol_ac, loca, dist, measure, nonlin_tran, output, restart, samples, embeddedsamples);
 }
 
 std::vector<std::string> OptionParameters::to_xyce_directives(const NetlistTopology& topology) const {
@@ -239,11 +323,21 @@ std::vector<std::string> OptionParameters::to_xyce_directives(const NetlistTopol
     if (!restart.empty()) {
         directives.push_back(".OPTIONS RESTART " + format_options(restart));
     }
+    // emit the sampling package line when configured
+    if (!samples.empty()) {
+        // append the formatted samples options directive
+        directives.push_back(".OPTIONS SAMPLES " + format_options(samples));
+    }
+    // emit the embedded sampling package line when configured
+    if (!embeddedsamples.empty()) {
+        // append the formatted embeddedsamples options directive
+        directives.push_back(".OPTIONS EMBEDDEDSAMPLES " + format_options(embeddedsamples));
+    }
 
     return directives;
 }
 
 bool OptionParameters::operator==(const OptionParameters& other) const {
     // compare all fields for equality
-    return device == other.device && timeint == other.timeint && nonlin == other.nonlin && linsol == other.linsol && fft == other.fft && diagnostic == other.diagnostic && parser == other.parser && linsol_ac == other.linsol_ac && loca == other.loca && dist == other.dist && measure == other.measure && nonlin_tran == other.nonlin_tran && output == other.output && restart == other.restart;
+    return device == other.device && timeint == other.timeint && nonlin == other.nonlin && linsol == other.linsol && fft == other.fft && diagnostic == other.diagnostic && parser == other.parser && linsol_ac == other.linsol_ac && loca == other.loca && dist == other.dist && measure == other.measure && nonlin_tran == other.nonlin_tran && output == other.output && restart == other.restart && samples == other.samples && embeddedsamples == other.embeddedsamples;
 }

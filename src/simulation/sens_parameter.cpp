@@ -7,8 +7,8 @@
 #include "../netlist/netlist.h"
 #include "sens_parameter.h"
 
-SensParameter::SensParameter(std::string analysis_context, std::string objective_mode, std::vector<std::string> objective_values, std::vector<std::string> parameter_list, bool direct, bool adjoint, std::optional<PrintParameters> print_parameters) :
-    analysis_context(std::move(analysis_context)), objective_mode(std::move(objective_mode)), objective_values(std::move(objective_values)), parameter_list(std::move(parameter_list)), direct(direct), adjoint(adjoint), print_parameters(std::move(print_parameters)) {}
+SensParameter::SensParameter(std::string analysis_context, std::string objective_mode, std::vector<std::string> objective_values, std::vector<std::string> parameter_list, bool direct, bool adjoint, std::optional<PrintParameters> print_parameters, std::vector<std::string> option_tokens) :
+    analysis_context(std::move(analysis_context)), objective_mode(std::move(objective_mode)), objective_values(std::move(objective_values)), parameter_list(std::move(parameter_list)), direct(direct), adjoint(adjoint), print_parameters(std::move(print_parameters)), option_tokens(std::move(option_tokens)) {}
 
 std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vector<std::string>& directives) {
     // init directive found flag
@@ -27,6 +27,8 @@ std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vect
     bool adjoint = false;
     // init print parameters
     std::optional<PrintParameters> print_parameters;
+    // capture the verbatim option tokens so every RG 2.1.25.16 key round-trips unchanged
+    std::vector<std::string> option_tokens;
     // iterate provided directives
     for (const auto& directive : directives) {
         // tokenize directive
@@ -95,6 +97,8 @@ std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vect
             // iterate over tokens
             for (size_t i = 2; i < tokens.size(); ++i) {
                 const auto& token = tokens[i];
+                // keep the original token so the statement round-trips unchanged
+                option_tokens.push_back(std::string(token));
                 const auto lower_token = to_lower(token);
                 // check direct method
                 if (lower_token.substr(0, 7) == "direct=") {
@@ -119,8 +123,8 @@ std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vect
         // return none
         return std::nullopt;
     }
-    // return new instance
-    return SensParameter(analysis_context, objective_mode, std::move(objective_values), std::move(parameter_list), direct, adjoint, std::move(print_parameters));
+    // return new instance carrying the captured option tokens
+    return SensParameter(analysis_context, objective_mode, std::move(objective_values), std::move(parameter_list), direct, adjoint, std::move(print_parameters), std::move(option_tokens));
 }
 
 std::vector<std::string> SensParameter::to_xyce_directives(const NetlistTopology& topology) const {
@@ -153,10 +157,29 @@ std::vector<std::string> SensParameter::to_xyce_directives(const NetlistTopology
         // add directive line
         lines.push_back(".SENS objfunc={" + obj_str + "} param=" + param_str);
     }
-    // format options string
-    const std::string options_line = ".OPTIONS SENSITIVITY direct=" + std::string(direct ? "1" : "0") + " adjoint=" + std::string(adjoint ? "1" : "0");
-    // add options line
-    lines.push_back(options_line);
+    // emit the options line from the captured tokens when the statement came from the netlist
+    if (!option_tokens.empty()) {
+        // join the captured tokens back into a single line
+        std::string joined;
+        for (const auto& token : option_tokens) {
+            // separate every token but the first
+            if (!joined.empty()) {
+                // append the space separator
+                joined += " ";
+            }
+            // append the token verbatim
+            joined += token;
+        }
+        // add the verbatim options line preserving every RG 2.1.25.16 key
+        lines.push_back(".OPTIONS SENSITIVITY " + joined);
+    }
+    // synthesize the direct/adjoint options line for instances built without a parsed statement
+    else {
+        // format options string
+        const std::string options_line = ".OPTIONS SENSITIVITY direct=" + std::string(direct ? "1" : "0") + " adjoint=" + std::string(adjoint ? "1" : "0");
+        // add options line
+        lines.push_back(options_line);
+    }
     // check for print parameters
     if (print_parameters.has_value()) {
         // add print directive
@@ -168,5 +191,5 @@ std::vector<std::string> SensParameter::to_xyce_directives(const NetlistTopology
 
 bool SensParameter::operator==(const SensParameter& other) const {
     // compare all fields for equality
-    return analysis_context == other.analysis_context && objective_mode == other.objective_mode && objective_values == other.objective_values && parameter_list == other.parameter_list && direct == other.direct && adjoint == other.adjoint && print_parameters == other.print_parameters;
+    return analysis_context == other.analysis_context && objective_mode == other.objective_mode && objective_values == other.objective_values && parameter_list == other.parameter_list && direct == other.direct && adjoint == other.adjoint && print_parameters == other.print_parameters && option_tokens == other.option_tokens;
 }

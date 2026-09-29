@@ -370,6 +370,61 @@ TEST(OptionParametersChecks, parse_restart_from_file_with_continued_checkpointin
     ASSERT_EQ(params.restart.at("INITIAL_INTERVAL"), "0.1us");
 }
 
+TEST(OptionParametersChecks, parse_samples_package) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS SAMPLES NUMSAMPLES=100 SAMPLE_TYPE=LHS SEED=42",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.samples.size(), 3);
+    ASSERT_EQ(params.samples.at("NUMSAMPLES"), "100");
+    ASSERT_EQ(params.samples.at("SAMPLE_TYPE"), "LHS");
+    ASSERT_EQ(params.samples.at("SEED"), "42");
+}
+
+TEST(OptionParametersChecks, parse_embeddedsamples_package) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=50 OUTPUTS={V(1)}",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert
+    ASSERT_EQ(params.embeddedsamples.size(), 2);
+    ASSERT_EQ(params.embeddedsamples.at("NUMSAMPLES"), "50");
+    ASSERT_EQ(params.embeddedsamples.at("OUTPUTS"), "{V(1)}");
+}
+
+TEST(OptionParametersChecks, parse_multiple_statements_merges_first_value_wins) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS DEVICE GMIN=1e-12 TEMP=25",
+        ".OPTIONS DEVICE GMIN=1e-10 SCALE=1.5",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert: every statement is applied while duplicate keys keep the first value found (RG 2.1.25)
+    ASSERT_EQ(params.device.size(), 3);
+    ASSERT_EQ(params.device.at("GMIN"), "1e-12");
+    ASSERT_EQ(params.device.at("TEMP"), "25");
+    ASSERT_EQ(params.device.at("SCALE"), "1.5");
+}
+
+TEST(OptionParametersChecks, parse_multiple_output_statements_keeps_first_only) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS OUTPUT PRINTHEADER=false",
+        ".OPTIONS OUTPUT OUTPUTTIMEPOINTS=1e-3,2e-3",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    // assert: only the first OUTPUT statement applies, later statements are ignored entirely (RG 2.1.25)
+    ASSERT_EQ(params.output.size(), 1);
+    ASSERT_EQ(params.output.at("PRINTHEADER"), "false");
+}
+
 // ========================================================================================
 // to_xyce_directives
 // ========================================================================================
@@ -535,6 +590,18 @@ TEST(OptionParametersChecks, generate_empty_directives) {
     ASSERT_EQ(directives.size(), 0);
 }
 
+TEST(OptionParametersChecks, generate_samples_and_embeddedsamples_directives) {
+    // arrange
+    const OptionParameters params({{"TEMP", "25"}}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "100"}}, {{"NUMSAMPLES", "50"}});
+    // act
+    const auto directives = params.to_xyce_directives(NetlistTopology{});
+    // assert: the sampling packages are emitted after every pre-existing package in deterministic order
+    ASSERT_EQ(directives.size(), 3);
+    ASSERT_EQ(directives[0], ".OPTIONS DEVICE TEMP=25");
+    ASSERT_EQ(directives[1], ".OPTIONS SAMPLES NUMSAMPLES=100");
+    ASSERT_EQ(directives[2], ".OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=50");
+}
+
 // ========================================================================================
 // round trip
 // ========================================================================================
@@ -554,6 +621,48 @@ TEST(OptionParametersChecks, round_trip_directives) {
     ASSERT_EQ(round_trip[0], ".OPTIONS DEVICE TEMP=25");
     ASSERT_EQ(round_trip[1], ".OPTIONS NONLIN MAXSTEP=10");
     ASSERT_EQ(round_trip[2], ".OPTIONS FFT FFTOUT=1");
+}
+
+TEST(OptionParametersChecks, round_trip_samples_directives) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS SAMPLES NUMSAMPLES=100 SAMPLE_TYPE=LHS",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (NUMSAMPLES < SAMPLE_TYPE)
+    ASSERT_EQ(round_trip[0], ".OPTIONS SAMPLES NUMSAMPLES=100 SAMPLE_TYPE=LHS");
+}
+
+TEST(OptionParametersChecks, round_trip_embeddedsamples_directives) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=50 OUTPUTS={V(1)}",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(round_trip.size(), 1);
+    // keys are emitted in sorted map order (NUMSAMPLES < OUTPUTS)
+    ASSERT_EQ(round_trip[0], ".OPTIONS EMBEDDEDSAMPLES NUMSAMPLES=50 OUTPUTS={V(1)}");
+}
+
+TEST(OptionParametersChecks, round_trip_merged_package_statements) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".OPTIONS DEVICE GMIN=1e-12 TEMP=25",
+        ".OPTIONS DEVICE GMIN=1e-10 SCALE=1.5",
+    };
+    // act
+    const auto params = OptionParameters::from_xyce_directives(directives);
+    const auto round_trip = params.to_xyce_directives(NetlistTopology{});
+    // assert: both statements collapse into one line with the first value found winning per key
+    ASSERT_EQ(round_trip.size(), 1);
+    ASSERT_EQ(round_trip[0], ".OPTIONS DEVICE GMIN=1e-12 SCALE=1.5 TEMP=25");
 }
 
 TEST(OptionParametersChecks, round_trip_fft_options) {
@@ -832,6 +941,30 @@ TEST(OptionParametersChecks, differing_restart_options_compare_unequal) {
     // arrange
     const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt"}});
     const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"JOB", "checkpt_again"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, equal_sampling_options_compare_equal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "100"}}, {{"NUMSAMPLES", "50"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "100"}}, {{"NUMSAMPLES", "50"}});
+    // act / assert
+    ASSERT_TRUE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_samples_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "100"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "200"}});
+    // act / assert
+    ASSERT_FALSE(a == b);
+}
+
+TEST(OptionParametersChecks, differing_embeddedsamples_options_compare_unequal) {
+    // arrange
+    const OptionParameters a({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "50"}});
+    const OptionParameters b({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {{"NUMSAMPLES", "100"}});
     // act / assert
     ASSERT_FALSE(a == b);
 }

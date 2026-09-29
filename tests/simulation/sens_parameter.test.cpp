@@ -106,6 +106,23 @@ TEST(SensParameterChecks, no_sens_directive_returns_none) {
     ASSERT_FALSE(result.has_value());
 }
 
+TEST(SensParameterChecks, preserves_extra_sensitivity_option_keys) {
+    // arrange
+    const std::vector<std::string> directives = {
+        ".SENS objfunc={V(2)} param=R1:R",
+        ".OPTIONS SENSITIVITY direct=1 adjoint=0 OUTPUTUNSCALED=false ADJOINTBEGINTIME=0",
+    };
+    // act
+    const auto result = SensParameter::from_xyce_directives(directives);
+    // assert: every RG 2.1.25.16 key is captured verbatim beyond the direct/adjoint flags
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->option_tokens.size(), 4);
+    ASSERT_EQ(result->option_tokens[0], "direct=1");
+    ASSERT_EQ(result->option_tokens[1], "adjoint=0");
+    ASSERT_EQ(result->option_tokens[2], "OUTPUTUNSCALED=false");
+    ASSERT_EQ(result->option_tokens[3], "ADJOINTBEGINTIME=0");
+}
+
 // ========================================================================================
 // to_xyce_directives
 // ========================================================================================
@@ -142,6 +159,21 @@ TEST(SensParameterChecks, generate_sens_with_print_parameters) {
     ASSERT_EQ(directives[0], ".SENS objfunc={V(2)} param=R1:R");
     ASSERT_EQ(directives[1], ".OPTIONS SENSITIVITY direct=0 adjoint=1");
     ASSERT_EQ(directives[2], ".PRINT SENS V(OUT)");
+}
+
+TEST(SensParameterChecks, round_trip_sensitivity_options_line) {
+    // arrange
+    const std::vector<std::string> input = {
+        ".SENS objfunc={V(2)} param=R1:R",
+        ".OPTIONS SENSITIVITY direct=1 adjoint=0 OUTPUTUNSCALED=false",
+    };
+    // act
+    const auto result = SensParameter::from_xyce_directives(input);
+    ASSERT_TRUE(result.has_value());
+    const auto directives = result->to_xyce_directives(NetlistTopology{});
+    // assert: the options statement round-trips unchanged with every key intact
+    ASSERT_EQ(directives.size(), 2);
+    ASSERT_EQ(directives[1], ".OPTIONS SENSITIVITY direct=1 adjoint=0 OUTPUTUNSCALED=false");
 }
 
 TEST(SensParameterChecks, passes_through_print_wildcards_with_topology) {
