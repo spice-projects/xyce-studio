@@ -64,7 +64,7 @@ and read re-resolves against the current element tree.
 - `app.get_by_type("ToolbarButton")` — all elements whose primary Slint type
   matches, in document order. Combine with `.nth(index)` for positional
   access; declaration order in the `.slint` files is the contract (e.g. the
-  nine toolbar tools from left to right).
+  ten toolbar tools from left to right).
 - `app.get_by_role("Button")` — first element with the accessible role.
 - `locator.child("Text")` — restricts the search to a subtree.
 
@@ -181,10 +181,10 @@ is how insertion order is verified.
 
 ### Assert toolbar states (from `toolbar_test.py`)
 
-The toolbar exposes nine `ToolbarButton` tools in declaration order (left to
+The toolbar exposes ten `ToolbarButton` tools in declaration order (left to
 right: open, save, netlist, charts, output, run, configure simulation,
-configure plugin, exit). Disabled tools render their icon dimmed, so state is
-asserted through the icon opacity of the tool:
+options, configure plugin, exit). Disabled tools render their icon dimmed, so
+state is asserted through the icon opacity of the tool:
 
 ```python
 tools = app.get_by_type("ToolbarButton")
@@ -241,7 +241,7 @@ panel retains its content after close/reopen.
 ### Exit the application (from `simulation_run_test.py`)
 
 ```python
-app.get_by_type("ToolbarButton").nth(8).click()
+app.get_by_type("ToolbarButton").nth(9).click()
 app.wait_for_condition(lambda: not app.is_running(), timeout=10.0, message="expected the application process to exit")
 ```
 

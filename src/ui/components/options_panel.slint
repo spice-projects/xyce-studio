@@ -1,0 +1,242 @@
+import { LineEdit, Palette, ScrollView } from "std-widgets.slint";
+import { ModalPanel } from "modal_panel.slint";
+
+// one option row: the RG-documented key, its current value, and whether the
+// netlist carries it as a bare flag (no value)
+export struct OptionRow {
+    key: string,
+    value: string,
+    flag: bool,
+}
+
+// one card per managed .OPTIONS package: a header plus one label/value editor
+// row per option; text is displayed one-way from the host-owned model and
+// committed back through the row-edited callback
+component OptionPackageCard inherits Rectangle {
+
+    // display name of the package (e.g. TIMEINT)
+    in property <string> package-name;
+    // index of this package within the panel's fixed package order
+    in property <int> package-index;
+    // the option rows owned by the host model
+    in property <[OptionRow]> rows;
+    // a committed value edit; carries package index, row index, updated row
+    callback row-edited(int, int, OptionRow);
+
+    // scratch copy used to build the updated row on commit
+    private property <OptionRow> pending;
+
+    border-width: 1px;
+    border-color: Palette.border;
+    border-radius: 6px;
+    background: Palette.alternate-background;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 6px;
+
+        // card header names the exact netlist statement being edited
+        Text {
+            text: ".OPTIONS \{root.package-name} package";
+            font-size: 13px;
+            font-weight: 600;
+            color: Palette.foreground;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+
+        for row[idx] in root.rows: HorizontalLayout {
+            spacing: 8px;
+
+            // key label sized for the longest documented option name
+            Text {
+                text: row.key;
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 200px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            LineEdit {
+                height: 28px;
+                text: row.value;
+                accessible-label: row.key;
+                // a bare flag carries no value, so its placeholder shows state
+                placeholder-text: row.flag ? "flag is set" : "";
+                edited(new-text) => {
+                    root.pending = row;
+                    root.pending.value = new-text;
+                    root.row-edited(root.package-index, idx, root.pending);
+                }
+            }
+        }
+    }
+}
+
+// inline modal panel listing every managed .OPTIONS package with one editable
+// value row per RG-documented option; the host owns the row models and applies
+// committed edits through the option-row-edited callback
+export component OptionsPanel inherits ModalPanel {
+
+    title: "Xyce Options";
+    card-width: 720px;
+    card-height: 620px;
+
+    // one row model per package, written by the host on show
+    in-out property <[OptionRow]> device-rows: [];
+    in-out property <[OptionRow]> timeint-rows: [];
+    in-out property <[OptionRow]> nonlin-rows: [];
+    in-out property <[OptionRow]> nonlin-tran-rows: [];
+    in-out property <[OptionRow]> linsol-rows: [];
+    in-out property <[OptionRow]> linsol-ac-rows: [];
+    in-out property <[OptionRow]> loca-rows: [];
+    in-out property <[OptionRow]> parser-rows: [];
+    in-out property <[OptionRow]> diagnostic-rows: [];
+    in-out property <[OptionRow]> dist-rows: [];
+    in-out property <[OptionRow]> measure-rows: [];
+    in-out property <[OptionRow]> fft-rows: [];
+    in-out property <[OptionRow]> output-rows: [];
+    in-out property <[OptionRow]> restart-rows: [];
+    in-out property <[OptionRow]> samples-rows: [];
+    in-out property <[OptionRow]> embeddedsamples-rows: [];
+
+    // a committed edit from any package card: package index, row index, row
+    callback option-row-edited(int, int, OptionRow);
+
+    // explains the accept rule up front so empty rows are not a surprise
+    Text {
+        text: "Only options with a value are written to the netlist; an empty value omits the option";
+        font-size: 12px;
+        font-italic: true;
+        color: Palette.foreground.transparentize(0.4);
+        horizontal-alignment: left;
+        overflow: elide;
+    }
+
+    Rectangle {
+        horizontal-stretch: 1;
+        vertical-stretch: 1;
+
+        ScrollView {
+            content-height: options-column.preferred-height;
+
+            options-column := VerticalLayout {
+                spacing: 10px;
+
+                OptionPackageCard {
+                    package-name: "DEVICE";
+                    package-index: 0;
+                    rows: root.device-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "TIMEINT";
+                    package-index: 1;
+                    rows: root.timeint-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "NONLIN";
+                    package-index: 2;
+                    rows: root.nonlin-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "NONLIN-TRAN";
+                    package-index: 3;
+                    rows: root.nonlin-tran-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "LINSOL";
+                    package-index: 4;
+                    rows: root.linsol-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "LINSOL-AC";
+                    package-index: 5;
+                    rows: root.linsol-ac-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "LOCA";
+                    package-index: 6;
+                    rows: root.loca-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "PARSER";
+                    package-index: 7;
+                    rows: root.parser-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "DIAGNOSTIC";
+                    package-index: 8;
+                    rows: root.diagnostic-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "DIST";
+                    package-index: 9;
+                    rows: root.dist-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "MEASURE";
+                    package-index: 10;
+                    rows: root.measure-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "FFT";
+                    package-index: 11;
+                    rows: root.fft-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "OUTPUT";
+                    package-index: 12;
+                    rows: root.output-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "RESTART";
+                    package-index: 13;
+                    rows: root.restart-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "SAMPLES";
+                    package-index: 14;
+                    rows: root.samples-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "EMBEDDEDSAMPLES";
+                    package-index: 15;
+                    rows: root.embeddedsamples-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+            }
+        }
+    }
+}

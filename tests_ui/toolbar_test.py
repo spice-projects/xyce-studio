@@ -7,15 +7,15 @@ from slint_automation import expect, TestSession, launch
 
 class ToolbarInitialChecks(unittest.TestCase):
 
-    def test_toolbar_contains_nine_tools_in_expected_state(self) -> None:
+    def test_toolbar_contains_ten_tools_in_expected_state(self) -> None:
         # arrange: launch the application in a session scoped to this test
         with TestSession(launch(), self.id()) as app:
             # arrange: locate the toolbar tools by their slint type in declaration order
             tools = app.get_by_type("ToolbarButton")
-            # assert: exactly nine action tools are present
-            self.assertEqual(tools.count(), 9)
+            # assert: exactly ten action tools are present
+            self.assertEqual(tools.count(), 10)
             # toolbar actions from left to right
-            expected_states = [True, False, False, False, False, False, False, True, True]
+            expected_states = [True, False, False, False, False, False, False, False, True, True]
             # loop expected toolbar tools states
             for index, expected_enabled in enumerate(expected_states):
                 # the disabled state is rendered by the dimmed icon inside the tool
@@ -41,14 +41,14 @@ class ToolbarSimulationChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             # arrange: locate the toolbar tools by their slint type in declaration order
             tools = app.get_by_type("ToolbarButton")
-            # assert: exactly nine action tools are present
-            self.assertEqual(tools.count(), 9)
+            # assert: exactly ten action tools are present
+            self.assertEqual(tools.count(), 10)
             # step 1: run the simulation from the toolbar run tool
             tools.nth(5).click()
             # step 2: wait for the simulation to finish and the charts view to open
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=10.0)
             # assert
-            expected_states = [True, False, True, False, True, True, True, True, True]
+            expected_states = [True, False, True, False, True, True, True, True, True, True]
             for index, expected_enabled in enumerate(expected_states):
                 icon = tools.nth(index).child("Image")
                 if expected_enabled:
@@ -70,10 +70,10 @@ class ToolbarNetlistFileChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
             # arrange: locate the toolbar tools by their slint type in declaration order
             tools = app.get_by_type("ToolbarButton")
-            # assert: exactly nine action tools are present
-            self.assertEqual(tools.count(), 9)
+            # assert: exactly ten action tools are present
+            self.assertEqual(tools.count(), 10)
             # toolbar actions from left to right with a netlist loaded but no results
-            expected_states = [True, False, False, False, False, True, True, True, True]
+            expected_states = [True, False, False, False, False, True, True, True, True, True]
             # loop expected toolbar tools states
             for index, expected_enabled in enumerate(expected_states):
                 # the disabled state is rendered by the dimmed icon inside the tool

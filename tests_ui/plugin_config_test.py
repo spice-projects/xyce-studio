@@ -20,7 +20,7 @@ class PluginConfigDialogChecks(unittest.TestCase):
             # arrange: locate the toolbar tools by their slint type in declaration order
             tools = app.get_by_type("ToolbarButton")
             # step 1: open the plugin configuration dialog from the toolbar
-            tools.nth(7).click()
+            tools.nth(8).click()
             # arrange: locate the xyce path text box inside the dialog
             fields = app.get_by_type("LineEdit")
             # assert: exactly one text box is present in the dialog
@@ -46,7 +46,7 @@ class PluginConfigPersistenceChecks(unittest.TestCase):
             # step 1: launch the application reading the shared configuration
             with TestSession(launch(env={config_variable: config_root}), self.id()) as app:
                 # step 2: open the plugin configuration dialog
-                app.get_by_type("ToolbarButton").nth(7).click()
+                app.get_by_type("ToolbarButton").nth(8).click()
                 field = app.get_by_type("LineEdit").nth(0)
                 field.wait_for_exists()
                 # assert: the dialog shows the persisted xyce path
@@ -61,7 +61,7 @@ class PluginConfigPersistenceChecks(unittest.TestCase):
             # step 4: relaunch the application with the same configuration root
             with TestSession(launch(env={config_variable: config_root}), self.id()) as app:
                 # step 5: open the plugin configuration dialog again
-                app.get_by_type("ToolbarButton").nth(7).click()
+                app.get_by_type("ToolbarButton").nth(8).click()
                 field = app.get_by_type("LineEdit").nth(0)
                 field.wait_for_exists()
                 # assert: the dialog shows the persisted path after the relaunch

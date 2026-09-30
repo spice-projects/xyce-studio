@@ -395,6 +395,31 @@ the print file produced by the run in any plottable format — `RAW`
 Without a `.PRINT` line the run may complete but produce nothing
 plottable, and the charts panel will stay empty.
 
+## Options
+
+The **Options** toolbar tool (right after **Configure**) opens the Xyce
+options dialog: a scrollable list with one card per managed `.OPTIONS`
+package (`DEVICE`, `TIMEINT`, `NONLIN`, `NONLIN-TRAN`, `LINSOL`,
+`LINSOL-AC`, `LOCA`, `PARSER`, `DIAGNOSTIC`, `DIST`, `MEASURE`, `FFT`,
+`OUTPUT`, `RESTART`, `SAMPLES`, `EMBEDDEDSAMPLES`).
+
+- Every option Xyce documents for the package (Reference Guide
+  §2.1.25) is listed as a label with an editable value field, whether or
+  not the netlist uses it yet; keys the netlist carries but the catalog
+  does not document are appended as extra rows.
+- On accept, only options with a value are written back into the netlist
+  as `.OPTIONS <PKG> KEY=VALUE` lines; clearing a field omits the option.
+- Bare flags (a key written without a value, e.g. `.OPTIONS FFT FFTOUT`)
+  show `flag is set` in the empty field and are kept as bare flags while
+  the field stays empty.
+- The dialog parses the options from the netlist every time it opens and
+  rewrites them on accept, leaving the configured analysis untouched.
+
+The HB solver options (`HBINT`, `NONLIN-HB`, `LINSOL-HB`), the PCE
+options (`PCES`) and the sensitivity options (`SENSITIVITY`) are edited
+in their own analysis panels. Standalone `.OPTIONS` lines without a
+package keyword are not managed and stay verbatim in the netlist text.
+
 ## Directives
 
 ### .FFT directives

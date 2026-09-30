@@ -42,12 +42,18 @@ public:
     void on_cancel_simulation() override;
     void on_configure_simulation() override;
 
+    // the user opened the options dialog from the toolbar
+    void on_edit_options() override;
+
     // plugin configuration
     void on_configure_plugin() override;
     void on_plugin_config_dialog_result(const PluginConfig& config) override;
 
     // simulation configuration
     void on_simulation_parameters_dialog_result(const SimulationConfig& config) override;
+
+    // options configuration delivered by the view after the options dialog closes
+    void on_options_dialog_result(const OptionParameters& options) override;
 
     // FFT configuration, delivered by the view after the FFT dialog closes
     void on_fft_dialog_result(std::vector<AnyExpression*> selected_expressions, const fft::FftParameters& parameters) override;

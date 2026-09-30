@@ -238,6 +238,8 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     actions.on_run_simulation([this] { guard_modal([this] { m_event_handler->on_run_simulation(); }); });
     actions.on_stop_simulation([this] { guard_modal([this] { m_event_handler->on_cancel_simulation(); }); });
     actions.on_configure_simulation([this] { guard_modal([this] { m_event_handler->on_configure_simulation(); }); });
+    // options dialog
+    actions.on_edit_options([this] { guard_modal([this] { m_event_handler->on_edit_options(); }); });
     // plugin configuration
     actions.on_configure_plugin([this] { guard_modal([this] { m_event_handler->on_configure_plugin(); }); });
     // exit
@@ -638,6 +640,20 @@ std::optional<PluginConfig> SlintMainWindowView::show_plugin_config_dialog(const
     // nothing to return, the accepted configuration is delivered asynchronously
     // through MainWindowViewDefEvents::on_plugin_config_dialog_result
     return std::nullopt;
+}
+
+void SlintMainWindowView::show_options_dialog(const OptionParameters& options) {
+    // the presenter must be wired before the dialog can deliver its result
+    if (m_event_handler == nullptr)
+        return;
+    // check a modal dialog is already open, do not stack another one
+    if (!begin_modal_dialog())
+        return;
+    // create the dialog view wrapper on first use
+    if (!m_options_dialog)
+        m_options_dialog = std::make_unique<options_dialog_view::OptionsDialogView>(m_window);
+    // show the inline panel seeded with the given options; the edited options are delivered asynchronously through MainWindowViewDefEvents and the on_closed callback releases the modal state on both accept and cancel
+    m_options_dialog->show(options, *m_event_handler, [this] { end_modal_dialog(); });
 }
 
 void SlintMainWindowView::start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {

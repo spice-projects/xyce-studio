@@ -63,7 +63,7 @@ class ApplicationExitChecks(unittest.TestCase):
         # arrange: launch the application without any file
         with TestSession(launch(), self.id()) as app:
             # step 1: exit through the toolbar exit tool
-            app.get_by_type("ToolbarButton").nth(8).click()
+            app.get_by_type("ToolbarButton").nth(9).click()
             # assert: the application process terminated and the session
             # cleanup tolerates the already exited process
             app.wait_for_condition(lambda: not app.is_running(), timeout=10.0, message="expected the application process to exit")

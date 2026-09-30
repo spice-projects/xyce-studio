@@ -369,6 +369,28 @@ void SlintMainWindowPresenter::on_configure_simulation() {
     static_cast<void>(m_view.show_simulation_parameters_dialog(m_simulation_config));
 }
 
+void SlintMainWindowPresenter::on_edit_options() {
+    // load the netlist content
+    const auto [reloaded, content] = m_netlist_source->load_netlist();
+    // check content was reloaded
+    if (reloaded)
+        update_netlist_editor_content(content, false);
+    // parse the netlist and extract the topology
+    const auto [sanitized_netlist, topology] = parse_netlist(content);
+    // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse, so an accepted options edit cannot drop a configured analysis
+    const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    if (content != m_pending_original_netlist && !std::holds_alternative<std::monostate>(parsed_config.analysis))
+        m_simulation_config = parsed_config;
+    // remember the parse result so the accepted options can rebuild the netlist
+    m_pending_sanitized_netlist = sanitized_netlist;
+    m_pending_topology = topology;
+    m_pending_original_netlist = content;
+    // this dialog is an edit operation, not a pending simulation run
+    m_run_pending = false;
+    // seed the dialog from the fresh parse so the options load even when no analysis is configured
+    m_view.show_options_dialog(parsed_config.options);
+}
+
 void SlintMainWindowPresenter::on_configure_plugin() {
     // the view owns the config dialog; it seeds it with the current config and reports the accepted result back through on_plugin_config_dialog_result
     static_cast<void>(m_view.show_plugin_config_dialog(m_plugin_config));
@@ -396,6 +418,18 @@ void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const Simu
     // merge the directives into the sanitized netlist before .END
     const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker (an unsaved netlist still needs Save even when the rewrite reproduces the typed text verbatim) and marks the editor dirty when the merged directives changed the content
+    if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
+        refresh_action_states();
+}
+
+void SlintMainWindowPresenter::on_options_dialog_result(const OptionParameters& options) {
+    // store the edited options, leaving the configured analysis untouched
+    m_simulation_config.options = options;
+    // build the directives from the config with topology expansion
+    const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
+    // merge the directives into the sanitized netlist before .END
+    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker and marks the editor dirty when the merged directives changed the content
     if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
         refresh_action_states();
 }

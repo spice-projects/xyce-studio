@@ -108,6 +108,12 @@ namespace
 
         [[nodiscard]] std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig&) override { return m_plugin_config_result; }
 
+        // the options dialog delivers its result asynchronously, so nothing is returned
+        void show_options_dialog(const OptionParameters& options) override {
+            m_options_dialog_requests++;
+            m_last_options_seed = options;
+        }
+
         [[nodiscard]] std::optional<std::filesystem::path> request_netlist_save_path() override { return m_save_path_result; }
 
         // simulation process lifecycle (presenter decides when, the view wires the process events)
@@ -152,6 +158,8 @@ namespace
         std::optional<SimulationConfig> m_simulation_config_result;
         int m_simulation_dialog_requests = 0;
         std::optional<SimulationConfig> m_last_simulation_config_seed;
+        int m_options_dialog_requests = 0;
+        std::optional<OptionParameters> m_last_options_seed;
         std::optional<PluginConfig> m_plugin_config_result;
         std::optional<std::filesystem::path> m_save_path_result;
         bool m_started = false;
@@ -2757,4 +2765,52 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_pce_print_drops_stale_pce_tab
     std::filesystem::remove(tran_path_second_run, ec);
     std::filesystem::remove(tran_path, ec);
     std::filesystem::remove(pce_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, edit_options_seeds_dialog_with_netlist_options) {
+    // arrange — a netlist carrying a managed options package alongside a transient analysis
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 20m 0\n.OPTIONS TIMEINT RELTOL=1e-4\n.END\n", std::filesystem::temp_directory_path());
+    source->m_reloaded = true;
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — open the options dialog
+    presenter.on_edit_options();
+    // assert — the dialog is seeded with the options parsed fresh from the netlist
+    ASSERT_EQ(view.m_options_dialog_requests, 1);
+    ASSERT_TRUE(view.m_last_options_seed.has_value());
+    EXPECT_EQ(view.m_last_options_seed->timeint.at("RELTOL"), "1e-4");
+}
+
+TEST(SlintMainWindowPresenterChecks, edit_options_seeds_dialog_when_no_analysis_is_configured) {
+    // arrange — a netlist with an options package but no analysis directive
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.OPTIONS DEVICE GMIN=1e-11\n.END\n", std::filesystem::temp_directory_path());
+    source->m_reloaded = true;
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — open the options dialog
+    presenter.on_edit_options();
+    // assert — the options still reach the dialog without an analysis configured
+    ASSERT_EQ(view.m_options_dialog_requests, 1);
+    ASSERT_TRUE(view.m_last_options_seed.has_value());
+    EXPECT_EQ(view.m_last_options_seed->device.at("GMIN"), "1e-11");
+}
+
+TEST(SlintMainWindowPresenterChecks, options_dialog_result_rebuilds_netlist_and_keeps_analysis) {
+    // arrange — a netlist with options and a transient analysis, dialog open
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 20m 0\n.OPTIONS TIMEINT RELTOL=1e-4\n.END\n", std::filesystem::temp_directory_path());
+    source->m_reloaded = true;
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_edit_options();
+    ASSERT_TRUE(view.m_last_options_seed.has_value());
+    // act — accept the dialog with an edited option value
+    OptionParameters edited = *view.m_last_options_seed;
+    edited.timeint["RELTOL"] = "2e-4";
+    presenter.on_options_dialog_result(edited);
+    // assert — the editor carries the edited option line instead of the original one
+    EXPECT_NE(view.m_editor_content.find(".OPTIONS TIMEINT RELTOL=2e-4"), std::string::npos);
+    EXPECT_EQ(view.m_editor_content.find(".OPTIONS TIMEINT RELTOL=1e-4"), std::string::npos);
+    // assert — the analysis is untouched and still emitted before .END
+    EXPECT_NE(view.m_editor_content.find(".TRAN 1u 20m"), std::string::npos);
+    EXPECT_NE(view.m_editor_content.find(".END"), std::string::npos);
 }
