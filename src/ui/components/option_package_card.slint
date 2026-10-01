@@ -1,0 +1,121 @@
+import { ComboBox, LineEdit, Palette } from "std-widgets.slint";
+
+// one option row: the RG-documented key, its current value, whether the
+// netlist carries it as a bare flag (no value), the closed-choice editor
+// model with "<default>" first, the reference default for the placeholder,
+// and the index of the current value within the choices (-1 when unknown)
+export struct OptionRow {
+    key: string,
+    value: string,
+    flag: bool,
+    choices: [string],
+    default-value: string,
+    choice-index: int,
+}
+
+// one card per managed .OPTIONS package: a header plus one label/value editor
+// row per option; text is displayed one-way from the host-owned model and
+// committed back through the row-edited callback
+export component OptionPackageCard inherits Rectangle {
+
+    // display name of the package (e.g. TIMEINT)
+    in property <string> package-name;
+    // the OptionPackage enum value of this card's package
+    in property <int> package-index;
+    // the option rows owned by the host model
+    in property <[OptionRow]> rows;
+    // a committed value edit; carries package index, row index, updated row
+    callback row-edited(int, int, OptionRow);
+
+    // scratch copy used to build the updated row on commit
+    private property <OptionRow> pending;
+
+    // a bare flag carries no value, so it renders as its state message
+    pure function is-bare-flag(row: OptionRow) -> bool {
+        return row.value == "" && row.flag;
+    }
+
+    // closed-choice keys with a known value render a combobox; the <default> entry is index 0
+    pure function is-choice-row(row: OptionRow) -> bool {
+        return !self.is-bare-flag(row) && row.choices.length > 0 && row.choice-index >= 0;
+    }
+
+    // everything else renders a free-text field with the reference default as placeholder
+    pure function is-text-row(row: OptionRow) -> bool {
+        return !self.is-bare-flag(row) && !self.is-choice-row(row);
+    }
+
+    border-width: 1px;
+    border-color: Palette.border;
+    border-radius: 6px;
+    background: Palette.alternate-background;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 6px;
+
+        // card header names the exact netlist statement being edited
+        Text {
+            text: ".OPTIONS \{root.package-name} package";
+            font-size: 13px;
+            font-weight: 600;
+            color: Palette.foreground;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+
+        for row[idx] in root.rows: HorizontalLayout {
+            spacing: 8px;
+
+            // key label sized for the longest documented option name
+            Text {
+                text: row.key;
+                font-size: 13px;
+                color: Palette.foreground;
+                min-width: 200px;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            // a bare flag shows its state; typing replaces the flag with a value
+            if is-bare-flag(row): LineEdit {
+                height: 28px;
+                text: "";
+                accessible-label: row.key;
+                placeholder-text: "flag is set";
+                edited(new-text) => {
+                    root.pending = row;
+                    root.pending.value = new-text;
+                    root.row-edited(root.package-index, idx, root.pending);
+                }
+            }
+
+            // closed-choice keys pick from the guide's values, <default> clears the option
+            if is-choice-row(row): choice-box := ComboBox {
+                model: row.choices;
+                current-index: row.choice-index;
+                accessible-label: row.key;
+                selected(value) => {
+                    root.pending = row;
+                    root.pending.value = value == "<default>" ? "" : value;
+                    root.pending.choice-index = choice-box.current-index;
+                    root.row-edited(root.package-index, idx, root.pending);
+                }
+            }
+
+            // free-text keys show the reference default as placeholder
+            if is-text-row(row): LineEdit {
+                height: 28px;
+                text: row.value;
+                accessible-label: row.key;
+                placeholder-text: row.default-value;
+                edited(new-text) => {
+                    root.pending = row;
+                    root.pending.value = new-text;
+                    root.row-edited(root.package-index, idx, root.pending);
+                }
+            }
+        }
+    }
+}

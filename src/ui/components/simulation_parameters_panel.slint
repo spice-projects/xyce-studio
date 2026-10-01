@@ -15,6 +15,10 @@ import {
     NoiseParametersPanel,
 } from "../components/noise_parameters_panel.slint";
 import { ModalPanel } from "../components/modal_panel.slint";
+import {
+    OptionPackageCard,
+    OptionRow,
+} from "../components/option_package_card.slint";
 import { OpParametersPanel } from "../components/op_parameters_panel.slint";
 import {
     PceParametersPanel,
@@ -75,6 +79,18 @@ export component SimulationParametersPanel inherits ModalPanel {
 
     // analysis tab selected in the tabbed parameter panel
     in-out property <int> selected-tab: 0;
+
+    // one row model per analysis-specific .OPTIONS package shown in the tab cards
+    in-out property <[OptionRow]> timeint-rows: [];
+    in-out property <[OptionRow]> nonlin-rows: [];
+    in-out property <[OptionRow]> nonlin-tran-rows: [];
+    in-out property <[OptionRow]> linsol-ac-rows: [];
+    in-out property <[OptionRow]> loca-rows: [];
+    in-out property <[OptionRow]> fft-rows: [];
+    in-out property <[OptionRow]> output-rows: [];
+
+    // a committed option row edit from any tab card: package index, row index, row
+    callback sim-options-row-edited(int, int, OptionRow);
 
     // operating point (.OP) panel state, two-way bound to the OpParametersPanel
     // sub-component. C++ reads/writes these root-level properties (sub-component
@@ -338,26 +354,38 @@ export component SimulationParametersPanel inherits ModalPanel {
 
             ScrollView {
                 visible: root.selected-tab == 0;
-                content-height: op-panel.preferred-height;
+                content-height: op-page.preferred-height;
 
-                op-panel := OpParametersPanel {
-                    print-enabled <=> root.op-print-enabled;
-                    print-all-nodes <=> root.op-print-all-nodes;
-                    print-all-currents <=> root.op-print-all-currents;
-                    print-power <=> root.op-print-power;
-                    print-bjt-leads <=> root.op-print-bjt-leads;
-                    print-fet-leads <=> root.op-print-fet-leads;
-                    print-specific-variables <=> root.op-print-specific-variables;
-                    print-format-index <=> root.op-print-format-index;
-                    print-output-file <=> root.op-print-output-file;
-                    print-extra-options <=> root.op-print-extra-options;
-                    save-enabled <=> root.op-save-enabled;
-                    save-type-index <=> root.op-save-type-index;
-                    save-file <=> root.op-save-file;
-                    save-level-index <=> root.op-save-level-index;
-                    nodeset <=> root.op-nodeset;
-                    initial-conditions <=> root.op-initial-conditions;
-                    replace-ground <=> root.op-replace-ground;
+                op-page := VerticalLayout {
+                    spacing: 10px;
+
+                    op-panel := OpParametersPanel {
+                        print-enabled <=> root.op-print-enabled;
+                        print-all-nodes <=> root.op-print-all-nodes;
+                        print-all-currents <=> root.op-print-all-currents;
+                        print-power <=> root.op-print-power;
+                        print-bjt-leads <=> root.op-print-bjt-leads;
+                        print-fet-leads <=> root.op-print-fet-leads;
+                        print-specific-variables <=> root.op-print-specific-variables;
+                        print-format-index <=> root.op-print-format-index;
+                        print-output-file <=> root.op-print-output-file;
+                        print-extra-options <=> root.op-print-extra-options;
+                        save-enabled <=> root.op-save-enabled;
+                        save-type-index <=> root.op-save-type-index;
+                        save-file <=> root.op-save-file;
+                        save-level-index <=> root.op-save-level-index;
+                        nodeset <=> root.op-nodeset;
+                        initial-conditions <=> root.op-initial-conditions;
+                        replace-ground <=> root.op-replace-ground;
+                    }
+
+                    // the nonlinear solver package drives the operating point solve
+                    OptionPackageCard {
+                        package-name: "NONLIN";
+                        package-index: 2;
+                        rows: root.nonlin-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
                 }
             }
 
@@ -409,6 +437,46 @@ export component SimulationParametersPanel inherits ModalPanel {
                         print-output-file <=> root.pce-print-output-file;
                         print-extra-options <=> root.pce-print-extra-options;
                     }
+
+                    // time integration package, the transient solver controls
+                    OptionPackageCard {
+                        package-name: "TIMEINT";
+                        package-index: 1;
+                        rows: root.timeint-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
+
+                    // transient nonlinear solver package
+                    OptionPackageCard {
+                        package-name: "NONLIN-TRAN";
+                        package-index: 3;
+                        rows: root.nonlin-tran-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
+
+                    // continuation and bifurcation package, enabled through NONLIN CONTINUATION
+                    OptionPackageCard {
+                        package-name: "LOCA";
+                        package-index: 6;
+                        rows: root.loca-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
+
+                    // FFT package, the .FFT statements run on transient output
+                    OptionPackageCard {
+                        package-name: "FFT";
+                        package-index: 11;
+                        rows: root.fft-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
+
+                    // output package, the .PRINT TRAN frequency and header controls
+                    OptionPackageCard {
+                        package-name: "OUTPUT";
+                        package-index: 12;
+                        rows: root.output-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
                 }
             }
 
@@ -458,29 +526,57 @@ export component SimulationParametersPanel inherits ModalPanel {
                         print-output-file <=> root.pce-print-output-file;
                         print-extra-options <=> root.pce-print-extra-options;
                     }
+
+                    // nonlinear solver package, the DC sweep solve controls
+                    OptionPackageCard {
+                        package-name: "NONLIN";
+                        package-index: 2;
+                        rows: root.nonlin-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
+
+                    // continuation and bifurcation package, enabled through NONLIN CONTINUATION
+                    OptionPackageCard {
+                        package-name: "LOCA";
+                        package-index: 6;
+                        rows: root.loca-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
                 }
             }
 
             ScrollView {
                 visible: root.selected-tab == 3;
-                content-height: ac-panel.preferred-height;
+                content-height: ac-page.preferred-height;
 
-                ac-panel := AcParametersPanel {
-                    sweep-mode-index <=> root.ac-sweep-mode-index;
-                    points <=> root.ac-points;
-                    start <=> root.ac-start;
-                    end <=> root.ac-end;
-                    data-table <=> root.ac-data-table;
-                    measure <=> root.ac-measure;
-                    print-enabled <=> root.ac-print-enabled;
-                    print-type-index <=> root.ac-print-type-index;
-                    print-all-nodes <=> root.ac-print-all-nodes;
-                    print-all-currents <=> root.ac-print-all-currents;
-                    print-specific-variables <=> root.ac-print-specific-variables;
-                    print-format-index <=> root.ac-print-format-index;
-                    print-output-file <=> root.ac-print-output-file;
-                    print-extra-options <=> root.ac-print-extra-options;
-                    replace-ground <=> root.ac-replace-ground;
+                ac-page := VerticalLayout {
+                    spacing: 10px;
+
+                    ac-panel := AcParametersPanel {
+                        sweep-mode-index <=> root.ac-sweep-mode-index;
+                        points <=> root.ac-points;
+                        start <=> root.ac-start;
+                        end <=> root.ac-end;
+                        data-table <=> root.ac-data-table;
+                        measure <=> root.ac-measure;
+                        print-enabled <=> root.ac-print-enabled;
+                        print-type-index <=> root.ac-print-type-index;
+                        print-all-nodes <=> root.ac-print-all-nodes;
+                        print-all-currents <=> root.ac-print-all-currents;
+                        print-specific-variables <=> root.ac-print-specific-variables;
+                        print-format-index <=> root.ac-print-format-index;
+                        print-output-file <=> root.ac-print-output-file;
+                        print-extra-options <=> root.ac-print-extra-options;
+                        replace-ground <=> root.ac-replace-ground;
+                    }
+
+                    // AC linear solver package, the frequency-domain solve controls
+                    OptionPackageCard {
+                        package-name: "LINSOL-AC";
+                        package-index: 5;
+                        rows: root.linsol-ac-rows;
+                        row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
+                    }
                 }
             }
 

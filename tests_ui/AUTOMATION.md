@@ -225,6 +225,54 @@ fields.nth(0).wait_for_gone()          # dialog closed
 - A rejected accept keeps the dialog open; wait for the footer button to still
   exist and for the validation error text to appear.
 
+### Locate option rows by their accessible label (from `options_test.py`)
+
+Every `.OPTIONS` package row in the Options dialog and in the Configure
+dialog tabs carries its Reference Guide key as the `LineEdit` (or
+`ComboBox`) `accessibleLabel`, so rows are addressed by key name instead
+of a positional index. Only viewport fields are exposed, so scroll the
+dialog's `ScrollView` (`nth(1)` — the first scroller is the netlist
+editor) until the row appears, checking the deepest inspected row:
+
+```python
+for _ in range(90):
+    fields = [handle for handle in app.client().find_by_type_in(root, "LineEdit")
+              if app.client().get_element_properties(handle).get("accessibleLabel") == "MAXORD"]
+    if fields:
+        rect = app.client().get_element_properties(fields[0])
+        viewport = scroller.properties()
+        top = rect["absolutePosition"]["y"]
+        if top >= viewport["absolutePosition"]["y"] and top + rect["size"]["height"] <= viewport["absolutePosition"]["y"] + viewport["size"]["height"]:
+            break
+    scroller.scroll(0.0, SCROLL_STEP)
+else:
+    self.fail("expected the row to scroll into view")
+```
+
+Free-text rows expose the Reference Guide default as
+`accessiblePlaceholderText`; a bare flag row shows `flag is set`;
+closed-choice rows are `ComboBox` elements whose `accessibleValue` reads
+back `"<default>"` or the selected choice. Edit a `LineEdit` with
+`app.client().set_element_value(handle, "30")`.
+
+### Drive a combobox (from `options_test.py`, `pce_parameters_test.py`)
+
+A `ComboBox` has no set-value action; open its popup through the
+`ComboBoxBase::i-touch-area` touch area, move the selection with the
+macOS down-arrow function key and confirm with Return:
+
+```python
+combo = [handle for handle in app.client().find_by_type_in(root, "ComboBox")
+         if app.client().get_element_properties(handle).get("accessibleLabel") == "METHOD"][0]
+touch = [handle for handle in app.client().find_by_type_in(combo, "TouchArea")
+         if (app.client().get_element_properties(handle).get("typeNamesAndIds") or [{}])[0].get("id") == "ComboBoxBase::i-touch-area"]
+app.client().click_element(touch[0])
+app.client().dispatch_key_event("\uf701")   # down arrow, one entry per step
+app.client().dispatch_key_event("\n")
+```
+
+Assert the selection through `accessibleValue` with `wait_for_condition`.
+
 ### Configuration persistence across launches (from `plugin_config_test.py`)
 
 Point `XDG_CONFIG_HOME` (or `APPDATA` on Windows) at a temporary directory and

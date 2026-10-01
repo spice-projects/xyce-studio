@@ -273,6 +273,8 @@ void SlintMainWindowPresenter::on_run_simulation() {
         // initialize the simulation config from the parsed directives only when the netlist content actually changed since the last parse; a schematic re-export carrying the same content (e.g. KiCad autosave) must not discard the user's accepted dialog configuration, the schematic does not hold the edited directives back
         if (content != m_pending_original_netlist) {
             const auto simulation_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+            // refresh the options whenever the netlist content changed, even without an analysis, so an accepted dialog cannot drop them
+            m_simulation_config.options = simulation_config.options;
             if (!std::holds_alternative<std::monostate>(simulation_config.analysis))
                 m_simulation_config = simulation_config;
         }
@@ -357,8 +359,12 @@ void SlintMainWindowPresenter::on_configure_simulation() {
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse — a schematic re-export carrying the same content (e.g. KiCad autosave) must not revert the dialog to the schematic directives and discard the user's accepted configuration
     const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
-    if (content != m_pending_original_netlist && !std::holds_alternative<std::monostate>(parsed_config.analysis))
-        m_simulation_config = parsed_config;
+    if (content != m_pending_original_netlist) {
+        // refresh the options whenever the netlist content changed, even without an analysis, so an accepted dialog cannot drop them
+        m_simulation_config.options = parsed_config.options;
+        if (!std::holds_alternative<std::monostate>(parsed_config.analysis))
+            m_simulation_config = parsed_config;
+    }
     // remember the parse result so the accepted config can rebuild the netlist
     m_pending_sanitized_netlist = sanitized_netlist;
     m_pending_topology = topology;
