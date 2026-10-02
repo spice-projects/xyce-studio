@@ -17,6 +17,7 @@
 #include "charts_renderer.h"
 #include "fft_dialog_view.h"
 #include "main_window_view_def.h"
+#include "options_dialog_view.h"
 #include "plugin_config_dialog_view.h"
 #include "simulation_parameters_dialog_view.h"
 #include "simulation_runner.h"
@@ -70,6 +71,7 @@ public:
     void show_step_tool_dialog(size_t chart_index) override;
     std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig& current) override;
     std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig& current) override;
+    void show_options_dialog(const OptionParameters& options) override;
     std::optional<std::filesystem::path> request_netlist_save_path() override;
     void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override;
     void cancel_simulation_process() override;
@@ -157,6 +159,9 @@ private:
 
     // simulation parameters dialog, kept alive for the lifetime of the view
     std::unique_ptr<simulation_parameters_dialog_view::SimulationParametersDialogView> m_simulation_parameters_dialog;
+
+    // options dialog, kept alive for the lifetime of the view
+    std::unique_ptr<options_dialog_view::OptionsDialogView> m_options_dialog;
 
     // FFT setup dialog, kept alive for the lifetime of the view
     std::unique_ptr<fft_dialog_view::FftDialogView> m_fft_dialog;

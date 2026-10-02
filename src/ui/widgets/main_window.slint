@@ -18,6 +18,8 @@ import {
 } from "../components/expression_selector.slint";
 import { FftPanel } from "../components/fft_panel.slint";
 import { PluginConfigPanel } from "../components/plugin_config_panel.slint";
+import { OptionRow } from "../components/option_package_card.slint";
+import { OptionsPanel } from "../components/options_panel.slint";
 import {
     NetlistEditor,
     HighlightedLine,
@@ -48,6 +50,7 @@ export global MainWindowActions {
     callback run-simulation();
     callback stop-simulation();
     callback configure-simulation();
+    callback edit-options();
     callback configure-plugin();
     callback netlist-edited();
     callback exit();
@@ -274,6 +277,35 @@ export component MainWindow inherits Window {
     in-out property <int> simulation-parameters-selected-tab: 0;
     in property <bool> simulation-parameters-show-error: false;
     in property <string> simulation-parameters-error-message: "";
+
+    // one row model per analysis-specific .OPTIONS package edited inside the dialog tabs
+    in-out property <[OptionRow]> timeint-rows: [];
+    in-out property <[OptionRow]> nonlin-rows: [];
+    in-out property <[OptionRow]> nonlin-tran-rows: [];
+    in-out property <[OptionRow]> linsol-ac-rows: [];
+    in-out property <[OptionRow]> loca-rows: [];
+    in-out property <[OptionRow]> fft-rows: [];
+    in-out property <[OptionRow]> output-rows: [];
+
+    // forwarded from the inline simulation parameters panel to the view adapter
+    callback sim-options-row-edited(int, int, OptionRow);
+
+    // options panel rendered inline as a modal overlay (no separate OS window); driven from the view adapter
+    in property <bool> options-visible: false;
+
+    // one row model per simulation-agnostic .OPTIONS package shown in the panel
+    in-out property <[OptionRow]> options-device-rows: [];
+    in-out property <[OptionRow]> options-linsol-rows: [];
+    in-out property <[OptionRow]> options-parser-rows: [];
+    in-out property <[OptionRow]> options-diagnostic-rows: [];
+    in-out property <[OptionRow]> options-dist-rows: [];
+    in-out property <[OptionRow]> options-measure-rows: [];
+    in-out property <[OptionRow]> options-restart-rows: [];
+
+    // forwarded from the inline options panel to the view adapter
+    callback options-accepted();
+    callback options-dismissed();
+    callback options-row-edited(int, int, OptionRow);
 
     // FFT setup panel rendered inline as a modal overlay (no separate OS
     // window); driven from the view adapter
@@ -560,6 +592,13 @@ export component MainWindow inherits Window {
                             icon: @image-url("../kicad-icons/sim_tune_48.png");
                             enabled: root.enable-configure-simulation;
                             clicked => { MainWindowActions.configure-simulation(); }
+                        }
+
+                        ToolbarButton {
+                            text: "Options";
+                            icon: @image-url("../kicad-icons/options_generic_48.png");
+                            enabled: root.enable-configure-simulation;
+                            clicked => { MainWindowActions.edit-options(); }
                         }
 
                         ToolbarSeparator { }
@@ -871,7 +910,33 @@ export component MainWindow inherits Window {
             pce-print-format-index <=> root.pce-print-format-index;
             pce-print-output-file <=> root.pce-print-output-file;
             pce-print-extra-options <=> root.pce-print-extra-options;
+            timeint-rows <=> root.timeint-rows;
+            nonlin-rows <=> root.nonlin-rows;
+            nonlin-tran-rows <=> root.nonlin-tran-rows;
+            linsol-ac-rows <=> root.linsol-ac-rows;
+            loca-rows <=> root.loca-rows;
+            fft-rows <=> root.fft-rows;
+            output-rows <=> root.output-rows;
+            sim-options-row-edited(pkg, idx, row) => { root.sim-options-row-edited(pkg, idx, row); }
         }
+    }
+
+    // options panel rendered as an inline modal overlay: a dimmed backdrop covers the whole window and a centered card lists every managed package; modality is enforced by the guard_modal gate and the panel's dimmed backdrop
+    if root.options-visible: OptionsPanel {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        device-rows <=> root.options-device-rows;
+        linsol-rows <=> root.options-linsol-rows;
+        parser-rows <=> root.options-parser-rows;
+        diagnostic-rows <=> root.options-diagnostic-rows;
+        dist-rows <=> root.options-dist-rows;
+        measure-rows <=> root.options-measure-rows;
+        restart-rows <=> root.options-restart-rows;
+        accepted => { root.options-accepted(); }
+        dismissed => { root.options-dismissed(); }
+        option-row-edited(pkg, idx, row) => { root.options-row-edited(pkg, idx, row); }
     }
 
     // FFT setup panel rendered as an inline modal overlay (no separate OS

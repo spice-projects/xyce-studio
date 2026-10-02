@@ -64,8 +64,11 @@ and read re-resolves against the current element tree.
 - `app.get_by_type("ToolbarButton")` — all elements whose primary Slint type
   matches, in document order. Combine with `.nth(index)` for positional
   access; declaration order in the `.slint` files is the contract (e.g. the
-  nine toolbar tools from left to right).
+  ten toolbar tools from left to right).
 - `app.get_by_role("Button")` — first element with the accessible role.
+- `locator.with_label("TEMP")` — narrows a type or role locator to
+  elements carrying that accessible label (label-scoped locators keep
+  `nth`/`count` semantics; combine with `.nth(0)` for the first match).
 - `locator.child("Text")` — restricts the search to a subtree.
 
 ### Assertions and waiting
@@ -181,10 +184,10 @@ is how insertion order is verified.
 
 ### Assert toolbar states (from `toolbar_test.py`)
 
-The toolbar exposes nine `ToolbarButton` tools in declaration order (left to
+The toolbar exposes ten `ToolbarButton` tools in declaration order (left to
 right: open, save, netlist, charts, output, run, configure simulation,
-configure plugin, exit). Disabled tools render their icon dimmed, so state is
-asserted through the icon opacity of the tool:
+options, configure plugin, exit). Disabled tools render their icon dimmed, so
+state is asserted through the icon opacity of the tool:
 
 ```python
 tools = app.get_by_type("ToolbarButton")
@@ -225,6 +228,43 @@ fields.nth(0).wait_for_gone()          # dialog closed
 - A rejected accept keeps the dialog open; wait for the footer button to still
   exist and for the validation error text to appear.
 
+### Edit option rows by their accessible label (from `options_test.py`)
+
+Every `.OPTIONS` package row in the Options dialog and in the Configure
+dialog tabs carries its Reference Guide key as the `LineEdit` (or
+`ComboBox`) `accessibleLabel`, so rows are addressed through label-scoped
+locators instead of positional indices. Only viewport fields resolve, so
+scroll the dialog's `ScrollView` (`nth(1)` — the first scroller is the
+netlist editor) with the locator helper:
+
+```python
+scroller = app.get_by_type("ScrollView").nth(1)
+temp = app.get_by_type("LineEdit").with_label("TEMP").nth(0)
+temp.scroll_into_view(scroller)
+temp.fill("30")
+expect(temp).to_have_text("30")
+```
+
+Free-text rows expose the Reference Guide default as
+`accessiblePlaceholderText` (`temp.property("accessiblePlaceholderText")`),
+bare flags render as a `ComboBox` sitting on the `flag is set` entry
+(clear it with the `<default>` entry), and closed-choice rows are
+`ComboBox`es whose `text()` reads back `"<default>"` or the selected
+choice. Footer buttons resolve through a type locator narrowed by label:
+`app.get_by_type("Button").with_label("OK").nth(0).click()`.
+
+### Select a combobox entry (from `options_test.py`)
+
+`Locator.select_option` opens the popup, walks to the requested entry
+and confirms it, so tests never touch widget internals:
+
+```python
+method = app.get_by_type("ComboBox").with_label("METHOD").nth(0)
+method.scroll_into_view(scroller)
+method.select_option("trap")
+expect(method).to_have_text("trap")
+```
+
 ### Configuration persistence across launches (from `plugin_config_test.py`)
 
 Point `XDG_CONFIG_HOME` (or `APPDATA` on Windows) at a temporary directory and
@@ -241,7 +281,7 @@ panel retains its content after close/reopen.
 ### Exit the application (from `simulation_run_test.py`)
 
 ```python
-app.get_by_type("ToolbarButton").nth(8).click()
+app.get_by_type("ToolbarButton").nth(9).click()
 app.wait_for_condition(lambda: not app.is_running(), timeout=10.0, message="expected the application process to exit")
 ```
 

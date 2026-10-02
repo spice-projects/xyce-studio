@@ -1,0 +1,99 @@
+import { Palette, ScrollView } from "std-widgets.slint";
+import { ModalPanel } from "modal_panel.slint";
+import { OptionPackageCard, OptionRow } from "option_package_card.slint";
+
+// inline modal panel listing the simulation-agnostic .OPTIONS packages with
+// one editable value row per RG-documented option; the analysis-specific
+// packages are edited in the simulation parameters dialog instead, and the
+// host owns the row models and applies committed edits through the
+// option-row-edited callback
+export component OptionsPanel inherits ModalPanel {
+
+    title: "Xyce Options";
+    card-width: 720px;
+    card-height: 620px;
+
+    // one row model per simulation-agnostic package, written by the host on show
+    in-out property <[OptionRow]> device-rows: [];
+    in-out property <[OptionRow]> linsol-rows: [];
+    in-out property <[OptionRow]> parser-rows: [];
+    in-out property <[OptionRow]> diagnostic-rows: [];
+    in-out property <[OptionRow]> dist-rows: [];
+    in-out property <[OptionRow]> measure-rows: [];
+    in-out property <[OptionRow]> restart-rows: [];
+
+    // a committed edit from any package card: package index, row index, row
+    callback option-row-edited(int, int, OptionRow);
+
+    // explains the accept rule up front so empty rows are not a surprise
+    Text {
+        text: "Valued options are written to the netlist, empty fields omit the option, and flag is set keeps a bare flag";
+        font-size: 12px;
+        font-italic: true;
+        color: Palette.foreground.transparentize(0.4);
+        horizontal-alignment: left;
+        overflow: elide;
+    }
+
+    Rectangle {
+        horizontal-stretch: 1;
+        vertical-stretch: 1;
+
+        ScrollView {
+            content-height: options-column.preferred-height;
+
+            options-column := VerticalLayout {
+                spacing: 10px;
+
+                OptionPackageCard {
+                    package-name: "DEVICE";
+                    package-index: 0;
+                    rows: root.device-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "LINSOL";
+                    package-index: 4;
+                    rows: root.linsol-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "PARSER";
+                    package-index: 7;
+                    rows: root.parser-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "DIAGNOSTIC";
+                    package-index: 8;
+                    rows: root.diagnostic-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "DIST";
+                    package-index: 9;
+                    rows: root.dist-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "MEASURE";
+                    package-index: 10;
+                    rows: root.measure-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+
+                OptionPackageCard {
+                    package-name: "RESTART";
+                    package-index: 13;
+                    rows: root.restart-rows;
+                    row-edited(pkg, idx, row) => { root.option-row-edited(pkg, idx, row); }
+                }
+            }
+        }
+    }
+}

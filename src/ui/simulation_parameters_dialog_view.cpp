@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,12 +24,14 @@
 #include "../simulation/measure_parameters.h"
 #include "../simulation/noise_simulation_parameters.h"
 #include "../simulation/op_simulation_parameters.h"
+#include "../simulation/option_catalog.h"
 #include "../simulation/pce_parameters.h"
 #include "../simulation/print_parameters.h"
 #include "../simulation/simulation_config.h"
 #include "../simulation/transient_simulation_parameters.h"
 #include "dc_sweep_rows.h"
 #include "main_window_view_def.h"
+#include "options_dialog_view.h"
 #include "simulation_parameters_dialog_view.h"
 
 namespace simulation_parameters_dialog_view
@@ -1054,6 +1057,24 @@ namespace simulation_parameters_dialog_view
 
         // default linear analysis parameters, used to reset the panel to defaults
         [[nodiscard]] LinSimulationParameters default_lin_parameters() { return LinSimulationParameters(false, "", "", "", "", "", "", "", "", "", "", "", std::nullopt); }
+
+        // the analysis-specific packages edited by the dialog cards, in the model order shared by the window setters
+        constexpr OptionPackage SIM_PACKAGES[] = {OptionPackage::TIMEINT, OptionPackage::NONLIN, OptionPackage::NONLIN_TRAN, OptionPackage::LINSOL_AC, OptionPackage::LOCA, OptionPackage::FFT, OptionPackage::OUTPUT};
+
+        // number of analysis-specific packages edited by the dialog cards
+        constexpr size_t SIM_PACKAGE_COUNT = 7;
+
+        // one window row-model setter for the analysis-specific option cards
+        using OptionRowSetter = std::function<void(const std::shared_ptr<slint::Model<main_window::OptionRow>>&)>;
+
+        // find the model position for the edited package; SIM_PACKAGE_COUNT when the package is not shown
+        [[nodiscard]] size_t sim_package_position(int package_index) {
+            const auto package = static_cast<OptionPackage>(package_index);
+            const auto* end = SIM_PACKAGES + SIM_PACKAGE_COUNT;
+            const auto* found = std::find(SIM_PACKAGES, end, package);
+            // report an unknown package so the caller can ignore the edit
+            return found == end ? SIM_PACKAGE_COUNT : static_cast<size_t>(found - SIM_PACKAGES);
+        }
     } // namespace
 
     struct SimulationParametersDialogView::Impl
@@ -1077,6 +1098,9 @@ namespace simulation_parameters_dialog_view
 
         // host-owned row model backing the PCE section's uncertain parameter table
         std::shared_ptr<slint::VectorModel<main_window::PceParamRow>> pce_params;
+
+        // host-owned row models backing the analysis-specific option cards, in the SIM_PACKAGES order
+        std::array<std::shared_ptr<slint::VectorModel<main_window::OptionRow>>, SIM_PACKAGE_COUNT> option_rows;
 
         Impl(WindowHandle w) :
             window(w), m_config(SimulationConfig::from_xyce_directives({})) {
@@ -1113,6 +1137,39 @@ namespace simulation_parameters_dialog_view
                 if (index >= 0 && static_cast<size_t>(index) < pce_params->row_count())
                     pce_params->set_row_data(static_cast<size_t>(index), row);
             });
+            // the option row-model setters in the SIM_PACKAGES order
+            const std::array<OptionRowSetter, SIM_PACKAGE_COUNT> option_setters = {
+                [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_timeint_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_nonlin_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_nonlin_tran_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_linsol_ac_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_loca_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_fft_rows(rows); }, [this](const std::shared_ptr<slint::Model<main_window::OptionRow>>& rows) { window->set_output_rows(rows); },
+            };
+            // create one empty model per analysis-specific package and publish it to the matching window property
+            for (size_t i = 0; i < SIM_PACKAGE_COUNT; ++i) {
+                option_rows[i] = std::make_shared<slint::VectorModel<main_window::OptionRow>>();
+                option_setters[i](option_rows[i]);
+            }
+            // commit an edited option row back into the model
+            window->on_sim_options_row_edited([this](int package_index, int row_index, main_window::OptionRow row) {
+                const auto position = sim_package_position(package_index);
+                // ignore edits for packages the dialog does not show
+                if (position == SIM_PACKAGE_COUNT)
+                    return;
+                // ignore rows outside the current model
+                if (row_index < 0 || static_cast<size_t>(row_index) >= option_rows[position]->row_count())
+                    return;
+                // refresh the combobox selection for the edited value
+                auto updated = row;
+                updated.choice_index = options_dialog_view::choice_index_for(option_key_info(SIM_PACKAGES[position], std::string(row.key)), std::string(row.value), row.flag);
+                // commit the edited row into the host-owned model
+                option_rows[position]->set_row_data(static_cast<size_t>(row_index), updated);
+            });
+        }
+
+        void seed_option_rows(size_t position, const OptionParameters& options) {
+            // resolve the package for the model position
+            const auto package = SIM_PACKAGES[position];
+            // build the rows from the package catalog and the current option values
+            auto rows = options_dialog_view::build_option_rows(package, package_options(options, package));
+            // replace the model contents in place so the window property keeps the same model
+            option_rows[position]->set_vector(std::move(rows));
         }
 
         void accept() {
@@ -1187,6 +1244,13 @@ namespace simulation_parameters_dialog_view
                 m_config.analysis = build_lin_parameters(window);
                 m_config.replace_ground = window->get_lin_replace_ground();
             }
+            // read the edited analysis-specific option rows out of the host-owned models
+            std::vector<std::vector<main_window::OptionRow>> option_row_lists;
+            option_row_lists.reserve(SIM_PACKAGE_COUNT);
+            for (const auto& model : option_rows)
+                option_row_lists.push_back(options_dialog_view::read_option_rows(model));
+            // rebuild the analysis-specific packages onto the configuration options
+            m_config.options = options_dialog_view::assemble_option_result(m_config.options, std::span<const OptionPackage>(SIM_PACKAGES, SIM_PACKAGE_COUNT), option_row_lists);
             // hide the panel before delivering the result
             window->set_simulation_parameters_visible(false);
             // release the modal state held by the caller
@@ -1292,6 +1356,9 @@ namespace simulation_parameters_dialog_view
             apply_lin_parameters(m_impl->window, default_lin_parameters());
         // mirror the replace-ground toggle onto the LIN panel state
         m_impl->window->set_lin_replace_ground(current.replace_ground);
+        // seed the analysis-specific option cards from the current configuration
+        for (size_t i = 0; i < SIM_PACKAGE_COUNT; ++i)
+            m_impl->seed_option_rows(i, current.options);
         // clear any previous validation feedback
         m_impl->window->set_simulation_parameters_show_error(false);
         // show the inline panel

@@ -82,6 +82,8 @@ public:
     // modal dialogs (the view's job, they need a parent window)
     [[nodiscard]] virtual std::optional<SimulationConfig> show_simulation_parameters_dialog(const SimulationConfig& current) = 0;
     [[nodiscard]] virtual std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig& current) = 0;
+    // the options dialog delivers its result asynchronously, so nothing is returned
+    virtual void show_options_dialog(const OptionParameters& options) = 0;
 
     // ask the user for the save location and filename of an untitled netlist
     [[nodiscard]] virtual std::optional<std::filesystem::path> request_netlist_save_path() = 0;
@@ -118,6 +120,8 @@ public:
     virtual void on_run_simulation() = 0;
     virtual void on_cancel_simulation() = 0;
     virtual void on_configure_simulation() = 0;
+    // the user opened the options dialog; the presenter seeds it with options parsed fresh from the netlist
+    virtual void on_edit_options() = 0;
 
     // plugin configuration
     virtual void on_configure_plugin() = 0;
@@ -132,6 +136,9 @@ public:
     // the view reports the result asynchronously instead of through
     // show_simulation_parameters_dialog()
     virtual void on_simulation_parameters_dialog_result(const SimulationConfig& config) = 0;
+
+    // accepted options delivered by the view after the options dialog closes; the slint dialog is non-modal, so the view reports the result asynchronously instead of through show_options_dialog()
+    virtual void on_options_dialog_result(const OptionParameters& options) = 0;
 
     // accepted FFT setup delivered by the view after the FFT dialog closes: the
     // selected real (time-domain filtered) expressions and the FFT parameters;

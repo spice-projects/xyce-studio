@@ -26,6 +26,7 @@ From left to right:
 | **Sim Output** | Show or hide the simulation output panel. |
 | **Run Simulation** | Run the simulation. While a simulation is running, this becomes a red **Stop Simulation** button that cancels the run. |
 | **Configure** | Open the simulation parameters dialog. |
+| **Options** | Open the Xyce options dialog to view and edit the `.OPTIONS` package values. |
 | **Plugin Settings** | Open the plugin configuration dialog (Xyce executable path). |
 | **Exit** | Close the application. |
 

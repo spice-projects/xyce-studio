@@ -106,6 +106,9 @@ the Xyce Users' Guide for guidance.
   unspecified nodes start at 0. The reference guide documents no effect
   for `.HB`.
 
+The `.OP` tab of the simulation parameters dialog also edits the
+`.OPTIONS NONLIN` package values (the operating-point solver controls).
+
 ---
 
 ## Transient (.TRAN)
@@ -153,6 +156,10 @@ Same options as [Operating Point](#print-output-options) plus a **Print
 type** selector: `TRAN` (normal transient output) or `TRANADJOINT`
 (transient adjoint sensitivity output). The print type defaults to
 `TRAN`.
+
+The `.TRAN` tab of the simulation parameters dialog also edits the
+`.OPTIONS TIMEINT`, `NONLIN-TRAN`, `LOCA`, `FFT` and `OUTPUT` package
+values.
 
 ---
 
@@ -237,6 +244,9 @@ The dialog rejects a PCE configuration with mismatched list lengths or
 missing distribution values (e.g. `PCE parameter R1: a normal
 distribution requires means`) and keeps the dialog open for corrections.
 
+The `.DC` tab of the simulation parameters dialog also edits the
+`.OPTIONS NONLIN` and `LOCA` package values.
+
 ---
 
 ## AC Analysis (.AC)
@@ -267,6 +277,9 @@ analysis — use a `.STEP` directive for that.
 - **.MEASURE directives** e.g. `.MEASURE AC vout_max MAX V(out)`.
 - **Print type**: `AC` or `AC_IC` (AC initial conditions). Power
   calculations are not available for AC analysis.
+
+The `.AC` tab of the simulation parameters dialog also edits the
+`.OPTIONS LINSOL-AC` package values.
 
 ---
 
@@ -394,6 +407,60 @@ the print file produced by the run in any plottable format — `RAW`
 
 Without a `.PRINT` line the run may complete but produce nothing
 plottable, and the charts panel will stay empty.
+
+## Options
+
+Xyce Studio splits the managed `.OPTIONS` packages by the simulation
+they apply to:
+
+- The **Options** toolbar tool (right after **Configure**) edits the
+  **simulation-agnostic** packages: `DEVICE`, `LINSOL`, `PARSER`,
+  `DIAGNOSTIC`, `DIST`, `MEASURE` and `RESTART`.
+- The **simulation-specific** packages are edited in the **Configure**
+  dialog on the tab of their analysis: `TIMEINT`, `NONLIN-TRAN`, `FFT`
+  and `OUTPUT` on `.TRAN`; `NONLIN` on `.OP` and `.DC`; `LOCA` on `.DC`
+  and `.TRAN`; `LINSOL-AC` on `.AC`.
+
+| Section | Option parameters | Simulation type |
+| --- | --- | --- |
+| `DEVICE` | DEFAD, DEFAS, DEFL, DEFW, DIGINITSTATE, GMIN, MINRES, MINCAP, TEMP, TNOM, NUMJAC, VOLTLIM, B3SOIVOLTLIM, B3SOIGMINSCALING, ICFAC, MAXTIMESTEP, SMOOTHBSRC, RCCONST, VDSSCALEMIN, VGSTCONST, LENGTH0, WIDTH0, TOX0, DEBUGLEVEL, DEBUGMINTIMESTEP, DEBUGMAXTIMESTEP, DEBUGMINTIME, DEBUGMAXTIME | General |
+| `TIMEINT` | METHOD, RELTOL, ABSTOL, RESTARTSTEPSCALE, NLNEARCONV, NLSMALLUPDATE, RESETTRANNLS, MAXORD, MINORD, NEWLTE, NEWBPSTEPPING, MASKIVARS, ERROPTION, NLMIN, NLMAX, DELMAX, MINTIMESTEPSBP, TIMESTEPSREVERSAL, DOUBLEDCOPSTEP, BREAKPOINTS, BPENABLE, EXITTIME, EXITSTEP | Transient (.TRAN) |
+| `NONLIN` | NOX, NLSTRATEGY, SEARCHMETHOD, CONTINUATION, ABSTOL, RELTOL, DELTAXTOL, RHSTOL, SMALLUPDATETOL, MAXSTEP, MAXSEARCHSTEP, IN_FORCING, AZ_TOL, RECOVERYSTEPTYPE, RECOVERYSTEP, DEBUGLEVEL, DEBUGMINTIMESTEP, DEBUGMAXTIMESTEP, DEBUGMINTIME, DEBUGMAXTIME | DC / operating point |
+| `NONLIN-TRAN` | same keys as `NONLIN` | Transient (.TRAN) |
+| `LINSOL` | TYPE, PREC_TYPE, USE_AZTEC_PRECOND, USE_IFPACK_FACTORY, IFPACK_TYPE, SHYLU_RTHRESH, TR_PARTITION, TR_PARTITION_TYPE, TR_SINGLETON_FILTER, TR_AMD, TR_GLOBAL_BTF, TR_REINDEX, TR_SOLVERMAP, ADAPTIVE_SOLVE, AZ_MAX_ITER, AZ_PRECOND, AZ_SOLVER, AZ_CONV, AZ_PRE_CALC, AZ_KEEP_INFO, AZ_ORTHOG, AZ_SUBDOMAIN_SOLVE, AZ_ILUT_FILL, AZ_DROP, AZ_REORDER, AZ_SCALING, AZ_KSPACE, AZ_TOL, AZ_OUTPUT, AZ_DIAGNOSTICS, AZ_OVERLAP, AZ_RTHRESH, AZ_ATHRESH, OUTPUT_LS, OUTPUT_BASE_LS, OUTPUT_FAILED_LS | General |
+| `LINSOL-AC` | same keys as `LINSOL` | AC (.AC) |
+| `LOCA` | STEPPER, PREDICTOR, STEPCONTROL, CONPARAM, INITIALVALUE, MINVALUE, MAXVALUE, BIFPARAM, MAXSTEPS, MAXNLITERS, INITIALSTEPSIZE, MINSTEPSIZE, MAXSTEPSIZE, AGGRESSIVENESS, RESIDUALCONDUCTANCE | DC / transient (continuation) |
+| `PARSER` | MODEL_BINNING, SCALE | General |
+| `DIAGNOSTIC` | EXTREMA, EXTREMALIMIT, VOLTAGELIMIT, CURRENTLIMIT, DISCLIMIT, DIAGFILENAME | General |
+| `DIST` | STRATEGY | General |
+| `MEASURE` | DEFAULT_VAL, MEASDGT, MEASFAIL, MEASOUT, MEASPRINT, USE_CONT_FILES, USE_LTTM | General |
+| `FFT` | FFT_ACCURATE, FFTOUT, FFT_MODE | Transient (.TRAN) |
+| `OUTPUT` | INITIAL_INTERVAL, OUTPUTTIMEPOINTS, PRINTHEADER, PRINTFOOTER, SNAPSHOTS, ADD_STEPNUM_COL, PHASE_OUTPUT_RADIANS | Transient (.TRAN) |
+| `RESTART` | PACK, JOB, INITIAL_INTERVAL, FILE, START_TIME | General |
+| `SAMPLES` | NUMSAMPLES, SAMPLE_TYPE, OUTPUTS, MEASURES, COVMATRIX, SEED, OUTPUT_SAMPLE_STATS, REGRESSION_PCE, PROJECTION_PCE, RESAMPLE, OUTPUT_PCE_COEFFS, SPARSE_GRID, STDOUTPUT | Sampling (.SAMPLING) |
+| `EMBEDDEDSAMPLES` | NUMSAMPLES, SAMPLE_TYPE, OUTPUTS, COVMATRIX, SEED, OUTPUT_SAMPLE_STATS, REGRESSION_PCE, PROJECTION_PCE, RESAMPLE, OUTPUT_PCE_COEFFS, SPARSE_GRID, STDOUTPUT | Embedded sampling |
+
+In both dialogs, every option Xyce documents for the package (Reference
+Guide §2.1.25) is listed as a row, whether or not the netlist uses it
+yet; keys the netlist carries but the catalog does not document are
+appended as extra rows. Options with a closed set of values (e.g.
+`METHOD` = `trap`/`gear`) render a combobox with a `<default>` entry
+that clears the option, free-text fields show the guide's default value
+as placeholder, and bare flags (a key written without a value, e.g.
+`.OPTIONS FFT FFTOUT`) offer a `flag is set` entry that keeps them, while
+`<default>` removes the option. On accept, valued options are written
+back as `.OPTIONS <PKG> KEY=VALUE` lines, kept bare flags as a bare
+`KEY`, and every other empty field omits the option.
+Both dialogs parse the options from the netlist when they open and
+leave the configured analysis untouched.
+
+The HB solver options (`HBINT`, `NONLIN-HB`, `LINSOL-HB`), the PCE
+options (`PCES`) and the sensitivity options (`SENSITIVITY`) are edited
+in their own analysis panels. The sampling options (`SAMPLES`,
+`EMBEDDEDSAMPLES`) belong to `.SAMPLING`/`.EMBEDDEDSAMPLING`
+statements, which Xyce Studio does not manage — their netlist values are
+preserved but not editable. Standalone `.OPTIONS` lines without a
+package keyword are not managed and stay verbatim in the netlist text.
 
 ## Directives
 
