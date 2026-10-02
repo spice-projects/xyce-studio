@@ -76,14 +76,43 @@ namespace
         return joined;
     }
 
-    // remove inline comments starting with ';' from a line
+    // remove inline comments starting with ';' from a line, keeping semicolons inside quotes and brace expressions (Xyce RG 2.1.39.2)
     std::string strip_inline_comment(const std::string& line) {
-        // find the first semicolon which starts an inline comment
-        auto idx = line.find(';');
-        // return the portion before the comment if one was found
-        if (idx != std::string::npos)
-            return line.substr(0, idx);
-        // return the original line unchanged when no comment exists
+        // return the line unchanged when it contains no semicolon at all
+        if (line.find(';') == std::string::npos)
+            return line;
+        // nesting depth of curly brace expressions on the line
+        int brace_depth = 0;
+        // scan every character of the line from left to right
+        for (size_t i = 0; i < line.size(); ++i) {
+            // jump over a string literal so quotes never expose their content as code
+            if (line[i] == '"' || line[i] == '\'') {
+                // find the matching closing quote, falling back to the end of the line when the literal is unterminated
+                const auto closing = line.find(line[i], i + 1);
+                // advance past the closing quote or to the end of the line
+                i = (closing != std::string::npos) ? closing : line.size();
+                // skip to the next scan position
+                continue;
+            }
+            // enter a nested expression on an opening brace
+            if (line[i] == '{') {
+                // increase the expression nesting depth
+                ++brace_depth;
+                // skip to the next scan position
+                continue;
+            }
+            // leave a nested expression on a closing brace
+            if (line[i] == '}' && brace_depth > 0) {
+                // decrease the expression nesting depth without going below zero
+                --brace_depth;
+                // skip to the next scan position
+                continue;
+            }
+            // start the inline comment when a semicolon appears outside quotes and expressions
+            if (line[i] == ';' && brace_depth == 0)
+                return line.substr(0, i);
+        }
+        // return the original line unchanged when every semicolon was data
         return line;
     }
 

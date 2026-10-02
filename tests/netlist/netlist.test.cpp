@@ -35,6 +35,48 @@ TEST(NetlistParserChecks, strips_inline_comments) {
     ASSERT_EQ(topology.m_devices[0].m_name, "R1");
 }
 
+TEST(NetlistParserChecks, keeps_semicolon_inside_quoted_delimiter) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PRINT TRAN DELIMITER=\";\" V(1)\n.END\n");
+    // assert
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".PRINT TRAN DELIMITER=\";\" V(1)");
+}
+
+TEST(NetlistParserChecks, keeps_semicolon_inside_single_quoted_string) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PRINT TRAN FILE='a;b.csv' V(1)\n.END\n");
+    // assert
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".PRINT TRAN FILE='a;b.csv' V(1)");
+}
+
+TEST(NetlistParserChecks, keeps_semicolon_inside_brace_expression) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 {100 ; tol}\n.END\n");
+    // assert
+    ASSERT_EQ(topology.m_devices.size(), 1);
+    ASSERT_EQ(topology.m_devices[0].m_nodes.size(), 2);
+    ASSERT_NE(netlist.find("R1 1 0 {100 ; tol}"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, strips_comment_after_quoted_delimiter) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PRINT TRAN DELIMITER=\";\" V(1) ; trailing comment\n.END\n");
+    // assert
+    ASSERT_EQ(topology.m_directives.size(), 1);
+    ASSERT_EQ(topology.m_directives[0], ".PRINT TRAN DELIMITER=\";\" V(1)");
+}
+
+TEST(NetlistParserChecks, strips_comment_after_brace_expression) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 {100} ; trailing comment\n.END\n");
+    // assert
+    ASSERT_EQ(topology.m_devices.size(), 1);
+    ASSERT_NE(netlist.find("R1 1 0 {100}"), std::string::npos);
+    ASSERT_EQ(netlist.find(";"), std::string::npos);
+}
+
 TEST(NetlistParserChecks, extracts_device_nodes) {
     // arrange / act
     const auto [netlist, topology] = parse_netlist("Title\nR1 1 0 100\nC1 2 0 1u\nQ1 1 2 3 npn\n.END\n");
