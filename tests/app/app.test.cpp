@@ -23,6 +23,7 @@ namespace
         void set_status_text(const std::string&) override {}
         void apply_action_enablement(const ActionStateEnablement&) override {}
         void set_simulation_running(bool) override {}
+        void set_simulation_progress(const SimulationProgress&) override {}
         void show_netlist_view() override {}
         void show_charts_view() override {}
         void set_netlist_editor_content(const std::string&) override {}
@@ -32,7 +33,8 @@ namespace
         void show_simulation_output_panel() override {}
         void hide_simulation_output_panel() override {}
         void clear_simulation_output() override {}
-        void append_simulation_output_line(const std::string&) override {}
+        void append_simulation_output_line(const std::string&, LogSeverity) override {}
+        std::size_t simulation_output_line_count() const override { return 0; }
         bool simulation_output_panel_hidden() const override { return true; }
         bool simulation_output_has_content() const override { return false; }
         void update_charts(int, ExpressionManager&, const StepInformation&, AbscissaScale, const std::vector<std::vector<std::string>>&, bool) override {}

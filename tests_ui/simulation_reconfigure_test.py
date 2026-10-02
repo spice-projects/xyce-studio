@@ -17,7 +17,7 @@ class ReconfigureAfterRunChecks(unittest.TestCase):
         # arrange: launch the application with the netlist and the xyce executable
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             # arrange: locate the status bar text and the toolbar tools
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             tools = app.get_by_type("ToolbarButton")
             # step 1: run the simulation and wait for the final status message
             tools.nth(5).click()

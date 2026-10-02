@@ -56,9 +56,12 @@ into the netlist before `.END`, and the simulation runs with them.
 
 ## 3. Run the simulation
 
-Click **Run Simulation**. The status bar reports the progress —
-`Simulation started...`, then `Simulation finished successfully` — and
-the charts panel opens automatically.
+Click **Run Simulation**. While the run is in flight the status bar shows
+a progress bar with the completion percentage, the estimated time to
+completion, and the warnings and errors Xyce has reported so far; click
+the status bar to open the simulation output panel and watch the live
+log. When the run ends the status bar reports `Simulation finished
+successfully` and the charts panel opens automatically.
 
 ![Transient charts](../user-guide/images/charts-transient.png)
 

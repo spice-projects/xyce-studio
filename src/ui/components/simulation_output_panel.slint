@@ -1,5 +1,6 @@
-// Simulation output panel: a header row with a title, copy and close buttons
-// over a monospaced, virtualized list of log lines.
+// Simulation output panel: a header row with a title, the warning and error
+// counts, and copy and close buttons over a monospaced, virtualized list of
+// log lines.
 //
 // The log uses a custom `ListView` element rather than the std-widgets one.
 // The std-widgets ListView is a ScrollView whose own scrollbar consumes wheel
@@ -16,6 +17,22 @@
 // implements terminal-style line selection (click, shift+click, drag). A thin
 // LogScrollBar adds a draggable thumb and scrolls the strip under the pointer.
 import { Palette } from "std-widgets.slint";
+
+// severity of a single Xyce console log line, taken from the report prefix
+// Xyce writes the line with ("Netlist error", "Netlist warning", ...)
+export enum LogSeverity {
+    info,
+    warning,
+    error,
+}
+
+// one row of the simulation log
+export struct LogLine {
+    // the log line as Xyce wrote it
+    text: string,
+    // severity the line was classified as
+    severity: LogSeverity,
+}
 
 component ListView inherits Flickable {
     // explicit visible-size mirrors, as the builtin Flickable does not expose
@@ -91,7 +108,13 @@ component LogScrollBar inherits Rectangle {
 }
 
 export component SimulationOutputPanel inherits Rectangle {
-    in property <[string]> log-lines;
+    in property <[LogLine]> log-lines;
+    in property <int> warning-count: 0;
+    in property <int> error-count: 0;
+    // log row holding the first reported warning and error; clicking the matching
+    // header count scrolls the log to it
+    in property <int> warning-line: -1;
+    in property <int> error-line: -1;
     in-out property <int> selection-start: -1;
     in-out property <int> selection-end: -1;
     callback close;
@@ -103,7 +126,19 @@ export component SimulationOutputPanel inherits Rectangle {
     // selection anchor for shift+click / drag range selection
     private property <int> anchor: -1;
 
+    // amber used for the lines Xyce reported as a warning
+    private property <color> warning-color: #d9a441;
+    // red used for the lines Xyce reported as an error
+    private property <color> error-color: #e05b4b;
+
     background: Palette.background;
+
+    // scroll the log to the given row and select it
+    public function reveal-line(index: int) {
+        log.content-y = min(0px, -(index * root.row-height));
+        root.selection-start = index;
+        root.selection-end = index;
+    }
 
     VerticalLayout {
         HorizontalLayout {
@@ -117,6 +152,78 @@ export component SimulationOutputPanel inherits Rectangle {
                 font-weight: 600;
                 color: Palette.foreground;
                 vertical-alignment: center;
+            }
+
+            warning-badge := Rectangle {
+                visible: root.warning-count > 0;
+                height: 18px;
+                border-radius: 9px;
+                background: root.warning-color.with-alpha(0.16);
+
+                HorizontalLayout {
+                    alignment: center;
+                    padding-left: 8px;
+                    padding-right: 8px;
+
+                    Text {
+                        text: root.warning-count;
+                        font-size: 11px;
+                        color: root.warning-color;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "warnings";
+                        font-size: 11px;
+                        color: root.warning-color;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                wb := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.reveal-line(root.warning-line);
+                    }
+                }
+            }
+
+            error-badge := Rectangle {
+                visible: root.error-count > 0;
+                height: 18px;
+                border-radius: 9px;
+                background: root.error-color.with-alpha(0.16);
+
+                HorizontalLayout {
+                    alignment: center;
+                    padding-left: 8px;
+                    padding-right: 8px;
+
+                    Text {
+                        text: root.error-count;
+                        font-size: 11px;
+                        color: root.error-color;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "errors";
+                        font-size: 11px;
+                        color: root.error-color;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                eb := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.reveal-line(root.error-line);
+                    }
+                }
             }
 
             Rectangle {
@@ -225,10 +332,14 @@ export component SimulationOutputPanel inherits Rectangle {
                             height: 100%;
                             vertical-alignment: center;
                             horizontal-alignment: left;
-                            text: line;
+                            text: line.text;
                             font-family: "JetBrains Mono";
                             font-size: 13px;
-                            color: Palette.foreground;
+                            color: line.severity == LogSeverity.warning
+                                ? root.warning-color
+                                : line.severity == LogSeverity.error
+                                ? root.error-color
+                                : Palette.foreground;
                             wrap: no-wrap;
                         }
                     }

@@ -106,7 +106,10 @@ The MCP server omits empty fields, so an empty label reads back as `None`.
    (toolbar index 5 is the run tool).
 4. Wait for the status bar to report success:
    `expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=15.0)`
-   with `status = app.get_by_id("MainWindow::statusbar").child("Text")`.
+   with `status = app.get_by_id("MainWindow::status-message")`. The status
+   message carries its own element id because the progress indicator adds
+   further `Text` elements to the same row, so a `child("Text")` lookup
+   inside `MainWindow::statusbar` is ambiguous while a run is in flight.
 5. Wait for the charts view to open:
    `app.get_by_id("MainWindow::charts").wait_for_exists(timeout=10.0)`.
 

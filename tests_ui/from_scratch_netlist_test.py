@@ -47,7 +47,7 @@ class FromScratchNetlistChecks(unittest.TestCase):
         with TestSession(launch(args=["--xyce", xyce]), self.id()) as app:
             # arrange: locate the blank editor and the status bar
             editor = app.get_by_id("NetlistEditor::input")
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             expect(editor).to_exist(timeout=5.0)
             # step 1: type a netlist without simulation directives into the blank editor
             netlist = "* from scratch RLC\nV1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1u\n.END\n"
@@ -97,7 +97,7 @@ class FromScratchNetlistChecks(unittest.TestCase):
         with TestSession(launch(args=["--xyce", xyce]), self.id()) as app:
             # arrange: locate the blank editor, the status bar and the toolbar
             editor = app.get_by_id("NetlistEditor::input")
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             tools = app.get_by_type("ToolbarButton")
             expect(editor).to_exist(timeout=5.0)
             # step 1: type a netlist carrying its simulation directives

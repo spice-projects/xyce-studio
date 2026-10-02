@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <deque>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -12,6 +14,7 @@
 #include "../netlist/netlist.h"
 #include "../netlist/netlist_source.h"
 #include "../simulation/simulation_config.h"
+#include "../simulation/xyce_log_parser.h"
 #include "main_window_view_def.h"
 
 class KiCadSession;
@@ -114,11 +117,23 @@ private:
     // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
-    // merge the quantities declared by the .PLOT directives of the given topology into the analysis print so the plotted expressions always have data; a netlist without .PLOT directives leaves the print untouched and the print is only created when the creation is allowed
+// merge the quantities declared by the .PLOT directives of the given topology into the analysis print so the plotted expressions always have data; a netlist without .PLOT directives leaves the print untouched and the print is only created when the creation is allowed
     void augment_analysis_print_with_plot_directives(SimulationConfig& config, const NetlistTopology& topology, bool create_print) const;
 
     // append the .PLOT chart directives of the parsed netlist to the directives merged into the editor netlist, so every directive the application interpreted shows up in the block above .END; the copy handed to the simulator is built without them
     [[nodiscard]] std::vector<std::string> editor_directives(const std::vector<std::string>& directives) const;
+
+    // classify the given console log line, append it to the output log and hand the refreshed progress to the view; a line is dropped when it repeats a line of the stdout stream Xyce already wrote to the stderr stream
+    void handle_simulation_log_line(const std::string& line);
+
+    // hand the progress distilled from the Xyce console log to the view
+    void publish_simulation_progress();
+
+    // remember a stdout log line so the repeated copy Xyce writes to the stderr stream is recognized
+    void remember_stdout_line(const std::string& line);
+
+    // true when the given stderr line repeats a line the stdout stream already delivered
+    [[nodiscard]] bool is_repeated_stdout_line(const std::string& line) const;
 
     void show_simulation_output_view();
 
@@ -188,4 +203,8 @@ private:
     std::filesystem::path m_simulation_working_directory;
     std::filesystem::path m_simulation_netlist_path;
     std::vector<PrintOutputCopy> m_simulation_output_copies;
+    // parser distilling the progress and the diagnostics out of the Xyce console log of the running simulation
+    XyceLogParser m_log_parser;
+    // Xyce writes every console message to stdout and to stderr, so the stderr stream repeats the stdout one; the tail of the stdout stream is kept here and a repeated line is not shown a second time
+    std::deque<std::string> m_recent_stdout_lines;
 };

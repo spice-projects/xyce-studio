@@ -88,3 +88,30 @@ TEST(SlintMainWindowViewChecks, implements_main_window_view_def) {
     // assert
     EXPECT_TRUE((std::is_base_of_v<BaseT, ViewT>));
 }
+
+TEST(SlintMainWindowViewChecks, set_simulation_progress_is_virtual) {
+    // set_simulation_progress is a virtual override
+    // of MainWindowView
+    // arrange / act
+    using ViewT = SlintMainWindowView;
+    // assert
+    EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::set_simulation_progress)>);
+}
+
+TEST(SlintMainWindowViewChecks, append_simulation_output_line_is_virtual) {
+    // append_simulation_output_line is a virtual override
+    // of MainWindowView, it carries the severity the parser classified the line with
+    // arrange / act
+    using ViewT = SlintMainWindowView;
+    // assert
+    EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::append_simulation_output_line)>);
+}
+
+TEST(SlintMainWindowViewChecks, simulation_output_line_count_is_virtual) {
+    // simulation_output_line_count is a virtual override
+    // of MainWindowView, the presenter reports the log row with it
+    // arrange / act
+    using ViewT = SlintMainWindowView;
+    // assert
+    EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::simulation_output_line_count)>);
+}

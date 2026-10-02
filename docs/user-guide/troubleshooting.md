@@ -16,6 +16,10 @@
 - Check the [Simulation Output panel](main-window.md#simulation-output-panel)
   for the Xyce error messages — parse errors, unknown devices, and
   convergence failures are reported there line by line.
+- While the run is in flight the status bar already counts what Xyce has
+  reported: an amber `N warnings` and a red `N errors`. Clicking the
+  status bar opens the output panel, and clicking a count in the panel
+  header jumps to the first occurrence.
 - **“Simulation failed (exit code N)”** — the Xyce process exited with
   an error; the log above it usually contains the cause.
 - **“Simulation finished but output file could not be found”** — the
@@ -26,6 +30,21 @@
 - DC convergence problems: add `.NODESET` hints or `.IC` conditions in
   the [Operating Point tab](simulations.md#operating-point-op), or save
   a converged bias point with `.SAVE` and reuse it.
+
+## A transient run looks stuck
+
+- The progress bar only fills for a **transient** analysis: Xyce reports
+  its progress as a percentage of the simulated time and reports nothing
+  for a DC sweep, an AC, a harmonic balance or an operating point run.
+  Those runs show an indeterminate bar with the elapsed time instead,
+  which is all Xyce knows at that point.
+- The percentage moves in coarse steps on a short run, and Xyce never
+  reaches `100%` — the run simply ends after the last marker it wrote.
+- The estimated time is Xyce's own extrapolation from the steps taken so
+  far, so it grows after a hard part of the run and settles again
+  afterwards.
+- Click the status bar to open the output panel and read the live log;
+  the `Current system time` markers show how far the run really is.
 
 ## FFT does not produce a result
 
