@@ -19,8 +19,11 @@ class ChartPanelChecks(unittest.TestCase):
             # act: run the simulation from the toolbar and wait for the charts view
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            # assert: the transient tab shows one chart
-            self.assertEqual(app.get_by_type("ChartView").count(), 1)
+            # assert: the transient tab shows the two charts its .PLOT lines declare, each carrying its series
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected one chart per .PLOT line")
+            charts = app.get_by_type("ChartView")
+            self.assertEqual(charts.nth(0).text(), "I(L1)")
+            self.assertEqual(charts.nth(1).text(), "V(IN)")
 
     def test_transient_tab_shows_the_full_abscissa_range(self) -> None:
         # arrange: resolve the xyce executable and the sample netlist
@@ -55,8 +58,10 @@ class ChartPanelChecks(unittest.TestCase):
             # unlike the legend entries and the ordinate origin label
             ticks = [label for label in abscissa_labels if label.endswith(("Hz", "s")) or label.endswith(" ms")]
             self.assertEqual(ticks, ["0s", "2 ms", "4 ms", "6 ms", "8 ms", "10 ms", "12 ms", "14 ms", "16 ms", "18 ms", "20 ms"])
-            # assert: the ordinate axis shows tick labels (default 0..1 axis)
-            self.assertTrue(any(label.endswith(("m", " ")) for label in ordinate_labels))
+            # assert: the chart plots the current its .PLOT line declares, so
+            # the ordinate axis carries the current scale of that series
+            self.assertEqual(view.text(), "I(L1)")
+            self.assertTrue(any(label.endswith("A") for label in ordinate_labels))
 
     def test_fft_tab_shows_the_normalized_fft_ranges(self) -> None:
         # arrange: resolve the xyce executable and the sample netlist

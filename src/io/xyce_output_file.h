@@ -74,6 +74,9 @@ public:
     // set the plot type (used by the presenter for .prn outputs)
     void set_plot_type(PlotType plot_type);
 
+    // set the charts the renderer builds when the dataset is activated for the first time (used by the presenter for the .PLOT directives of the netlist)
+    void set_suggested_plots(std::vector<std::vector<std::string>> suggested_plots);
+
 private:
     std::filesystem::path m_filename;
     std::string m_title;

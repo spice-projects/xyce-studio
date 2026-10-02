@@ -73,3 +73,5 @@ const std::vector<std::vector<std::string>>& XyceOutputFile::suggested_plots() c
 void XyceOutputFile::set_title(std::string title) { m_title = std::move(title); }
 
 void XyceOutputFile::set_plot_type(const PlotType plot_type) { m_plot_type = plot_type; }
+
+void XyceOutputFile::set_suggested_plots(std::vector<std::vector<std::string>> suggested_plots) { m_suggested_plots = std::move(suggested_plots); }

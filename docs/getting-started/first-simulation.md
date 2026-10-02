@@ -75,6 +75,10 @@ Click a couple of expression chips (for example `V(IN)` and `V(N2)`),
 then **OK**. Each signal becomes a colored series with a legend below the
 chart.
 
+To skip this step on every run, add a
+[`.PLOT` line](../user-guide/plot-directive.md) to the netlist, e.g.
+`.PLOT V(IN) V(N2)`, and the run opens with that chart already plotted.
+
 ## 5. Inspect the waveform
 
 Hover the plot to read values in the status bar, and drag a rectangle

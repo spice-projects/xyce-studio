@@ -43,6 +43,9 @@ public:
     // serialize the analysis print directive, nullopt when no analysis is configured or the analysis print is disabled
     [[nodiscard]] std::optional<std::string> analysis_print_statement() const;
 
+    // merge output variables into the analysis print directive so the plotted expressions always have data; a variable already printed passes through once and a printed wildcard suppresses the quantities it already covers, and when the analysis has no print directive a print carrying the variables is created unless the creation is refused
+    void augment_analysis_print_variables(const std::vector<std::string>& variables, bool create_when_absent);
+
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 

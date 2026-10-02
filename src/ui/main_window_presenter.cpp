@@ -19,6 +19,7 @@
 #include "../kicad/kicad_session.h"
 #include "../netlist/editor_netlist_source.h"
 #include "../netlist/netlist.h"
+#include "../simulation/plot_parameters.h"
 #include "../simulation/print_parameters.h"
 #include "../simulation/simulation_config.h"
 #include "main_window_presenter.h"
@@ -125,6 +126,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_view.release_all_charts();
         // clear plot datasets
         m_plot_datasets.clear();
+        // forget the chart groups of a previous run, the opened netlist declares its own
+        m_applied_plot_groups.clear();
         // reset active dataset index
         m_active_dataset_index = 0;
         // synchronize plot tabs with view
@@ -272,7 +275,9 @@ void SlintMainWindowPresenter::on_run_simulation() {
         }
         // initialize the simulation config from the parsed directives only when the netlist content actually changed since the last parse; a schematic re-export carrying the same content (e.g. KiCad autosave) must not discard the user's accepted dialog configuration, the schematic does not hold the edited directives back
         if (content != m_pending_original_netlist) {
-            const auto simulation_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+            auto simulation_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+            // the .PLOT directives declare the default charts, their quantities join the analysis print of a netlist-derived configuration
+            augment_analysis_print_with_plot_directives(simulation_config, topology, true);
             // refresh the options whenever the netlist content changed, even without an analysis, so an accepted dialog cannot drop them
             m_simulation_config.options = simulation_config.options;
             if (!std::holds_alternative<std::monostate>(simulation_config.analysis))
@@ -296,6 +301,24 @@ void SlintMainWindowPresenter::on_run_simulation() {
     launch_simulation();
 }
 
+void SlintMainWindowPresenter::augment_analysis_print_with_plot_directives(SimulationConfig& config, const NetlistTopology& topology, bool create_print) const {
+    // collect the quantities the plotted expressions read
+    const auto variables = plot_output_variables(plot_chart_groups(topology.m_plot_directives));
+    // nothing declared, nothing to merge
+    if (variables.empty())
+        return;
+    // merge the quantities into the analysis print of the configuration
+    config.augment_analysis_print_variables(variables, create_print);
+}
+
+std::vector<std::string> SlintMainWindowPresenter::editor_directives(const std::vector<std::string>& directives) const {
+    // the directives as serialized by the configuration
+    std::vector<std::string> merged = directives;
+    // append the .PLOT chart directives the parser extracted, they are re-inserted with the managed directives and never reach the simulator
+    merged.insert(merged.end(), m_pending_topology.m_plot_directives.begin(), m_pending_topology.m_plot_directives.end());
+    return merged;
+}
+
 void SlintMainWindowPresenter::on_cancel_simulation() {
     // request the view to cancel the running simulation process
     m_view.cancel_simulation_process();
@@ -304,13 +327,14 @@ void SlintMainWindowPresenter::on_cancel_simulation() {
 void SlintMainWindowPresenter::launch_simulation() {
     // build the directives from the config with topology expansion
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
-    // merge the directives into the sanitized netlist before .END for the editor
-    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    // merge the directives into the sanitized netlist before .END for the editor, the .PLOT chart directives join them there so the editor shows every interpreted directive in one block
+    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, editor_directives(directives), m_pending_topology.m_passthrough_directives);
     // build the netlist handed to Xyce with the FILE= option removed from every .PRINT statement, Xyce then writes the default file for each print type and format next to the temporary netlist so neither the recorded destinations nor the produced files are ever rewritten by a later run (on Windows the rewrite fails while the file is mapped, on macOS it invalidates the previous mapping)
     std::vector<std::string> simulation_directives;
     simulation_directives.reserve(directives.size());
     for (const auto& directive : directives)
         simulation_directives.push_back(strip_print_file_option(directive));
+    // the .PLOT chart directives stay out of the netlist the simulator reads: Xyce does not implement them (RG Table 6-1) and warns about every one of them
     const auto simulation_netlist = build_final_netlist(m_pending_sanitized_netlist, simulation_directives, m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker (an unsaved netlist still needs Save even when the rewrite reproduces the typed text verbatim) and marks the editor dirty when the merged directives changed the content
     if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
@@ -358,7 +382,9 @@ void SlintMainWindowPresenter::on_configure_simulation() {
     // parse the netlist and extract the topology
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse — a schematic re-export carrying the same content (e.g. KiCad autosave) must not revert the dialog to the schematic directives and discard the user's accepted configuration
-    const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    // the .PLOT directives declare the default charts, their quantities join the analysis print the dialog shows
+    augment_analysis_print_with_plot_directives(parsed_config, topology, true);
     if (content != m_pending_original_netlist) {
         // refresh the options whenever the netlist content changed, even without an analysis, so an accepted dialog cannot drop them
         m_simulation_config.options = parsed_config.options;
@@ -384,7 +410,9 @@ void SlintMainWindowPresenter::on_edit_options() {
     // parse the netlist and extract the topology
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse, so an accepted options edit cannot drop a configured analysis
-    const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    // the .PLOT directives declare the default charts, their quantities join the analysis print of the netlist-derived configuration this path may install
+    augment_analysis_print_with_plot_directives(parsed_config, topology, true);
     if (content != m_pending_original_netlist) {
         // refresh the options whenever the netlist content changed, even without an analysis, so a later configure or run cannot rewrite them from a stale cache
         m_simulation_config.options = parsed_config.options;
@@ -416,6 +444,8 @@ void SlintMainWindowPresenter::on_plugin_config_dialog_result(const PluginConfig
 void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const SimulationConfig& config) {
     // store the updated simulation configuration
     m_simulation_config = config;
+    // the .PLOT directives declare the default charts, their quantities join an accepted analysis print but never re-enable a print the user turned off
+    augment_analysis_print_with_plot_directives(m_simulation_config, m_pending_topology, false);
     // resume a pending simulation run when the dialog was opened from run
     if (m_run_pending) {
         // launch the simulation with the configured analysis
@@ -426,7 +456,7 @@ void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const Simu
     // build the directives from the config with topology expansion
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END
-    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, editor_directives(directives), m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker (an unsaved netlist still needs Save even when the rewrite reproduces the typed text verbatim) and marks the editor dirty when the merged directives changed the content
     if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
         refresh_action_states();
@@ -438,7 +468,7 @@ void SlintMainWindowPresenter::on_options_dialog_result(const OptionParameters& 
     // build the directives from the config with topology expansion
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END
-    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    const auto final_netlist = build_final_netlist(m_pending_sanitized_netlist, editor_directives(directives), m_pending_topology.m_passthrough_directives);
     // update the editor with the final netlist; the rewrite never clears an existing unsaved-changes marker and marks the editor dirty when the merged directives changed the content
     if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
         refresh_action_states();
@@ -719,6 +749,8 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
     m_view.release_all_charts();
     m_plot_datasets.clear();
     m_active_dataset_index = 0;
+    // forget the chart groups of a previous run, the loaded file declares no .PLOT directives
+    m_applied_plot_groups.clear();
     // append the parsed raw file as a primary (non-closable) plot dataset
     m_plot_datasets.push_back(PlotDataset{.id = m_next_dataset_id++, .file = std::move(raw_file), .closable = false});
     // the loaded file is the analysis measurements of this window
@@ -774,7 +806,8 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // 4. render the main simulation tab when the run produced analysis output
         if (analysis_measurements.has_value()) {
             // check if a previous simulation produced a primary dataset
-            if (m_plot_datasets.empty()) {
+            const bool reuses_primary_dataset = !m_plot_datasets.empty();
+            if (!reuses_primary_dataset) {
                 // the primary dataset is empty, so push the new analysis output as the first dataset
                 m_plot_datasets.push_back(PlotDataset{.id = m_next_dataset_id++, .file = std::move(*analysis_measurements), .closable = false});
             }
@@ -784,6 +817,18 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             }
             // the installed file is the analysis measurements of this run
             m_analysis_measurements = m_plot_datasets[0].file;
+            // the .PLOT directives of the netlist declare the default charts of the primary tab
+            const auto plot_groups = plot_chart_groups(m_pending_topology.m_plot_directives);
+            // hand the declared chart groups to the output file when the netlist carries .PLOT directives
+            if (!plot_groups.empty()) {
+                // a re-run whose directives declare other charts drops the primary chart state so the renderer rebuilds it; unchanged directives keep the charts the user arranged
+                if (reuses_primary_dataset && m_applied_plot_groups != plot_groups)
+                    m_view.release_charts(m_plot_datasets[0].id);
+                // remember the applied groups for the next run
+                m_applied_plot_groups = plot_groups;
+                // the renderer builds one chart per group when the dataset is activated for the first time
+                m_plot_datasets[0].file->set_suggested_plots(plot_groups);
+            }
             // activate the primary dataset
             m_active_dataset_index = 0;
             sync_plot_tabs_with_view();

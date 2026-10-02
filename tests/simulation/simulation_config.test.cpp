@@ -1297,3 +1297,164 @@ TEST(SimulationConfigOptionsChecks, multiple_option_statements_round_trip_throug
     const auto found = std::find(directives.begin(), directives.end(), ".OPTIONS DEVICE GMIN=1e-12 SCALE=1.5 TEMP=25");
     ASSERT_NE(found, directives.end());
 }
+
+// ========================================================================================
+// analysis print augmentation for the .PLOT directives
+// ========================================================================================
+
+TEST(SimulationConfigPlotAugmentChecks, merges_the_quantities_into_an_existing_transient_print) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN FORMAT=RAW V(1)"});
+    // act
+    config.augment_analysis_print_variables({"V(2)", "I(R1)"}, true);
+    // assert — the plotted quantities join the printed ones and the format option survives
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "V(2)", "I(R1)"}));
+    ASSERT_EQ(config.analysis_print_parameters()->print_format, "RAW");
+}
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_quantity_that_is_already_printed_once) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(1)"});
+    // act
+    config.augment_analysis_print_variables({"V(1)", "V(2)"}, true);
+    // assert
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "V(2)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, compares_the_printed_quantities_case_insensitively) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(out)"});
+    // act
+    config.augment_analysis_print_variables({"v(OUT)"}, true);
+    // assert
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(out)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, skips_a_quantity_a_printed_wildcard_already_collects) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(*) I(*)"});
+    // act
+    config.augment_analysis_print_variables({"V(1)", "V(2,N3)", "I(R1)"}, true);
+    // assert — the voltage and current wildcards already cover every quantity of their probe family
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(*)", "I(*)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_quantity_of_another_probe_family_next_to_a_wildcard) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(*)"});
+    // act
+    config.augment_analysis_print_variables({"V(1)", "P(R1)"}, true);
+    // assert
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(*)", "P(R1)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, creates_a_transient_print_when_the_netlist_declares_none) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m"});
+    // act
+    config.augment_analysis_print_variables({"V(1)", "I(R1)"}, true);
+    // assert — the created print carries the print type of the analysis so Xyce produces the analysis output
+    ASSERT_EQ(config.analysis_print_statement().value_or(""), ".PRINT TRAN V(1) I(R1)");
+}
+
+TEST(SimulationConfigPlotAugmentChecks, creates_a_dc_print_for_an_operating_point_analysis) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".OP"});
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, true);
+    // assert — an operating point analysis prints the DC operating point
+    ASSERT_EQ(config.analysis_print_statement().value_or(""), ".PRINT DC V(1)");
+}
+
+TEST(SimulationConfigPlotAugmentChecks, creates_no_print_for_a_linear_analysis) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 1k", ".LIN AC 1 0"});
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, true);
+    // assert — a .LIN run writes its touchstone output instead of an analysis print
+    ASSERT_EQ(config.analysis_type, "LIN");
+    ASSERT_FALSE(config.analysis_print_statement().has_value());
+}
+
+TEST(SimulationConfigPlotAugmentChecks, merges_into_the_legacy_operating_point_variable_list) {
+    // arrange — the dialog builds an operating point print through the legacy representation
+    SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    config.augment_analysis_print_variables({"I(R1)"}, true);
+    // assert — the quantities join the legacy list and the print keeps the dialog representation
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "I(R1)"}));
+    ASSERT_EQ(config.analysis_print_parameters()->print_format, "RAW");
+}
+
+TEST(SimulationConfigPlotAugmentChecks, creates_no_print_for_an_operating_point_run_the_user_disabled) {
+    // arrange — an operating point analysis with its print turned off
+    SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, false);
+    // assert — the refused creation leaves the disabled print alone
+    ASSERT_FALSE(config.analysis_print_statement().has_value());
+}
+
+TEST(SimulationConfigPlotAugmentChecks, creates_no_print_without_an_analysis) {
+    // arrange — a netlist that only carries the chart directives
+    SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, true);
+    // assert
+    ASSERT_FALSE(config.analysis_print_statement().has_value());
+}
+
+TEST(SimulationConfigPlotAugmentChecks, leaves_the_print_untouched_for_an_empty_quantity_list) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m"});
+    // act
+    config.augment_analysis_print_variables({}, true);
+    // assert — nothing declared means no print is created
+    ASSERT_FALSE(config.analysis_print_statement().has_value());
+}
+
+TEST(SimulationConfigPlotAugmentChecks, merges_into_an_ac_print) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 1k", ".PRINT AC FORMAT=RAW V(1)"});
+    // act
+    config.augment_analysis_print_variables({"V(out)"}, true);
+    // assert — the quantity behind a plotted expression joins the printed ones
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "V(out)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, merges_the_variables_only_once_when_repeated) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m"});
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, true);
+    config.augment_analysis_print_variables({"V(1)", "I(R1)"}, true);
+    // assert — the augmentation is idempotent for the quantities it already merged
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "I(R1)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_lead_current_next_to_a_printed_current_wildcard) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN I(*)"});
+    // act
+    config.augment_analysis_print_variables({"IC(Q1)", "I(R1)"}, true);
+    // assert — the wildcard covers the branch currents but not the lead currents Xyce spells separately
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"I(*)", "IC(Q1)"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_device_parameter_quantity_next_to_a_printed_wildcard) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(*)"});
+    // act
+    config.augment_analysis_print_variables({"R1:res"}, true);
+    // assert — a parameter probe carries no probe name, so no wildcard covers it
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(*)", "R1:res"}));
+}
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_quantity_next_to_a_printed_bare_wildcard) {
+    // arrange — a wildcard without a probe name covers nothing
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN (*)"});
+    // act
+    config.augment_analysis_print_variables({"V(1)"}, true);
+    // assert
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"(*)", "V(1)"}));
+}

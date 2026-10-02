@@ -16,6 +16,77 @@
 #include "op_simulation_parameters.h"
 #include "transient_simulation_parameters.h"
 
+namespace
+{
+
+    // check whether an already printed output variable covers a quantity through a wildcard, e.g. a printed V(*) covers V(N1) and V(N2,N3) while a printed I(*) does not cover the lead current IC(Q1)
+    bool wildcard_covers(const std::string& printed, const std::string& quantity) {
+        // a wildcard output variable carries the probe name followed by the (*) argument list
+        if (!to_upper(printed).ends_with("(*)"))
+            return false;
+        // a quantity without an argument list carries no probe name and is never covered
+        if (quantity.find('(') == std::string::npos)
+            return false;
+        // the wildcard covers the quantities of its own probe family
+        return to_upper(printed.substr(0, printed.size() - 3)) == to_upper(quantity.substr(0, quantity.find('(')));
+    }
+
+    // merge output variables into an output variable list, a variable already present passes through once and a printed wildcard suppresses the quantities it already covers
+    std::vector<std::string> merge_output_variables(const std::vector<std::string>& printed, const std::vector<std::string>& variables) {
+        // the merged output variables
+        std::vector<std::string> merged = printed;
+        // names already present, compared in lowercase because the expression manager looks the names up in lowercase
+        std::set<std::string> present;
+        // index every already printed variable
+        for (const auto& variable : printed)
+            present.insert(to_lower(variable));
+        // append every variable that is neither printed yet nor covered by a printed wildcard
+        for (const auto& variable : variables) {
+            // skip a variable that is already printed
+            if (!present.insert(to_lower(variable)).second)
+                continue;
+            // skip a variable a printed wildcard already collects
+            if (std::ranges::any_of(printed, [&variable](const auto& existing) { return wildcard_covers(existing, variable); }))
+                continue;
+            merged.push_back(variable);
+        }
+        return merged;
+    }
+
+    // merge output variables into the analysis print of every analysis variant
+    struct PrintAugmentVisitor
+    {
+        // variables to merge into the analysis print
+        const std::vector<std::string>& variables;
+        // whether a print may be created for an analysis that has none
+        bool may_create;
+        // print type used when a print is created
+        std::string print_type;
+
+        void operator()(std::monostate&) const {}
+
+        template <typename T>
+        void operator()(T& params) const {
+            // merge into the structured print of the analysis
+            if (params.print_parameters.has_value()) {
+                params.print_parameters->output_variables = merge_output_variables(params.print_parameters->output_variables, variables);
+                return;
+            }
+            // the legacy .OP representation keeps its output variables in a separate list
+            if constexpr (std::is_same_v<T, OpSimulationParameters>) {
+                if (params.print_dc_enabled) {
+                    params.print_dc_specific_variables = merge_output_variables(params.print_dc_specific_variables, variables);
+                    return;
+                }
+            }
+            // the analysis produces no print at all, create one carrying the variables
+            if (may_create)
+                params.print_parameters = PrintParameters(print_type, "", "", variables, {});
+        }
+    };
+
+} // anonymous namespace
+
 SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters, std::optional<std::string> remove_unused, std::vector<std::string> add_resistors) :
     analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground), ic_parameters(std::move(ic_parameters)), remove_unused(std::move(remove_unused)), add_resistors(std::move(add_resistors)) {}
 
@@ -373,6 +444,20 @@ std::optional<std::string> SimulationConfig::analysis_print_statement() const {
         return std::nullopt;
     // return the serialized directive
     return print_parameters->to_xyce_statement();
+}
+
+void SimulationConfig::augment_analysis_print_variables(const std::vector<std::string>& variables, bool create_when_absent) {
+    // nothing declared, nothing to merge
+    if (variables.empty())
+        return;
+    // the print type of the configured analysis, an .OP run prints the DC operating point and a .LIN run writes its touchstone output instead of an analysis print
+    std::string print_type;
+    if (!std::holds_alternative<std::monostate>(analysis) && analysis_type != "LIN")
+        print_type = analysis_type == "OP" ? "DC" : to_upper(analysis_type);
+    // a print is only created when the caller allows it and the analysis has one
+    const bool may_create = create_when_absent && !print_type.empty();
+    // merge the variables into the analysis print of the configured analysis
+    std::visit(PrintAugmentVisitor{variables, may_create, std::move(print_type)}, analysis);
 }
 
 std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const {

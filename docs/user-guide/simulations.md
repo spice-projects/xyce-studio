@@ -149,6 +149,9 @@ enforced limit for that interval.
 - **.MEASURE directives** — one per line, e.g.
   `.MEASURE TRAN vout_max MAX V(out)`. See
   [.MEASURE syntax](#measure-directives).
+- **.PLOT directives** — one per chart, e.g. `.PLOT V(out) abs(I(R1))`.
+  They declare the charts the run opens and are not edited here; see
+  [The .PLOT Directive](plot-directive.md).
 
 ### .PRINT output options
 
@@ -407,6 +410,11 @@ the print file produced by the run in any plottable format — `RAW`
 
 Without a `.PRINT` line the run may complete but produce nothing
 plottable, and the charts panel will stay empty.
+
+To declare the charts a run should open, add
+[`.PLOT` directives](plot-directive.md) to the netlist — they also make the
+run print the quantities they plot, so a `.PRINT` line is no longer needed
+just to get something on screen.
 
 ## Options
 
