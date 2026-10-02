@@ -667,3 +667,189 @@ class StaleHandleChecks(unittest.TestCase):
         # act / assert
         with self.assertRaises(McpError):
             locator.click()
+
+class LabelNarrowingClient:
+
+    def __init__(self, handles: dict[str, list[dict]], properties: dict[str, dict]) -> None:
+        # handles maps selector keys to the canned handle lists
+        self._handles = handles
+        # properties maps a handle index to the canned property dict
+        self._properties = properties
+
+    def find_by_type(self, type_name: str) -> list[dict]:
+        # return the canned handles for the requested type
+        return self._handles.get(type_name, [])
+
+    def find_by_role(self, role: str) -> list[dict]:
+        # return the canned handles for the requested role
+        return self._handles.get(role, [])
+
+    def get_element_properties(self, element_handle: dict) -> dict:
+        # return the canned properties for the requested handle
+        return self._properties[element_handle["index"]]
+
+
+class ComboboxClient:
+
+    def __init__(self, model: list[str], start_index: int) -> None:
+        # model is the canned combobox entry list
+        self._model = model
+        # cursor tracks the highlighted entry
+        self._cursor = start_index
+        # _keys records every key dispatch invocation
+        self._keys: list[str] = []
+        # _clicks records every click invocation
+        self._clicks = 0
+
+    @property
+    def _current_value(self) -> str:
+        # the accessible value mirrors the highlighted entry
+        return self._model[self._cursor]
+
+    def find_by_type(self, type_name: str) -> list[dict]:
+        # only the combobox matches
+        return [{"index": "0"}] if type_name == "ComboBox" else []
+
+    def get_element_properties(self, element_handle: dict) -> dict:
+        # report the live accessible value of the combobox
+        return {"accessibleValue": self._current_value}
+
+    def click_element(self, element_handle: dict, action: str = "SingleClick", button: str = "Left") -> None:
+        # record the click invocation
+        self._clicks += 1
+
+    def dispatch_key_event(self, text: str, event_type: str = "PressAndRelease") -> None:
+        # record the key dispatch
+        self._keys.append(text)
+        # the highlight clamps at the ends like the widget does
+        if text == "\uf701":
+            self._cursor = min(self._cursor + 1, len(self._model) - 1)
+        elif text == "\uf700":
+            self._cursor = max(self._cursor - 1, 0)
+
+    def keys(self) -> list[str]:
+        # return the recorded key dispatches
+        return self._keys
+
+    def clicks(self) -> int:
+        # return the recorded click count
+        return self._clicks
+
+
+class ScrollingClient:
+
+    def __init__(self, element_y: float) -> None:
+        # element_y is the current y position of the scrolled element
+        self._element_y = element_y
+        # _scrolls records every scroll invocation
+        self._scrolls: list[tuple[float, float]] = []
+
+    def find_by_type(self, type_name: str) -> list[dict]:
+        # both the element and the scroller resolve by type
+        return [{"index": type_name}]
+
+    def get_element_properties(self, element_handle: dict) -> dict:
+        # the scroller viewport spans 0..500, the element is 40 tall
+        if element_handle["index"] == "Scroller":
+            return {"absolutePosition": {"y": 0.0}, "size": {"height": 500.0}}
+        return {"absolutePosition": {"y": self._element_y}, "size": {"height": 40.0}}
+
+    def scroll_element(self, element_handle: dict, delta_x: float = 0.0, delta_y: float = 0.0) -> None:
+        # record the scroll and move the element up by the delta
+        self._scrolls.append((delta_x, delta_y))
+        self._element_y += delta_y
+
+    def scrolls(self) -> list[tuple[float, float]]:
+        # return the recorded scroll invocations
+        return self._scrolls
+
+
+class LabelLocatorChecks(unittest.TestCase):
+
+    def test_collection_with_label_narrows_matches(self) -> None:
+        # arrange — two LineEdits, only one carrying the RELTOL label
+        handles = {"LineEdit": [{"index": "0"}, {"index": "1"}]}
+        properties = {"0": {"accessibleLabel": "RELTOL"}, "1": {"accessibleLabel": "ABSTOL"}}
+        client = LabelNarrowingClient(handles, properties)
+        collection = LocatorCollection(client, "LineEdit")
+        # act — narrow the collection by label
+        narrowed = collection.with_label("RELTOL")
+        # assert — only the labelled element matches and resolves
+        self.assertEqual(narrowed.count(), 1)
+        self.assertEqual(narrowed.nth(0)._matched_handle(), {"index": "0"})
+        self.assertEqual(narrowed.nth(0).describe(), "type LineEdit[0] labelled 'RELTOL'")
+
+    def test_locator_with_label_narrows_role_match(self) -> None:
+        # arrange — two buttons, only one labelled OK
+        handles = {"Button": [{"index": "0"}, {"index": "1"}]}
+        properties = {"0": {"accessibleLabel": "Cancel"}, "1": {"accessibleLabel": "OK"}}
+        client = LabelNarrowingClient(handles, properties)
+        # act — narrow a role locator by label
+        locator = Locator(client, role="Button").with_label("OK")
+        # assert — only the labelled button resolves without ambiguity
+        self.assertEqual(locator._matched_handle(), {"index": "1"})
+        self.assertEqual(locator.describe(), "role Button labelled 'OK'")
+
+    def test_label_alone_is_rejected(self) -> None:
+        # arrange / act — a label without any base selector
+        # assert — the locator rejects the selector combination
+        with self.assertRaises(LocatorError):
+            Locator(LabelNarrowingClient({}, {}), label="RELTOL")
+
+
+class SelectOptionChecks(unittest.TestCase):
+
+    def test_select_option_walks_down_to_the_entry_and_confirms(self) -> None:
+        # arrange — a combobox starting on <default> with the target below
+        client = ComboboxClient(["<default>", "trap", "gear"], start_index=0)
+        locator = Locator(client, type_name="ComboBox")
+        # act — select the entry two steps down
+        locator.select_option("gear")
+        # assert — the click opened the popup, two downs walked to the entry, and return confirmed
+        self.assertEqual(client.clicks(), 1)
+        self.assertEqual(client.keys(), ["\uf701", "\uf701", "\n"])
+        self.assertEqual(client._current_value, "gear")
+
+    def test_select_option_walks_up_when_the_entry_precedes_the_start(self) -> None:
+        # arrange — a combobox starting on the last entry with the target above
+        client = ComboboxClient(["<default>", "trap", "gear"], start_index=2)
+        locator = Locator(client, type_name="ComboBox")
+        # act — select the first entry, which requires walking up
+        locator.select_option("<default>")
+        # assert — the downward walk clamped, the upward walk reached the entry, return confirmed
+        self.assertEqual(client.keys()[-1], "\n")
+        self.assertIn("\uf700", client.keys())
+        self.assertEqual(client._current_value, "<default>")
+
+    def test_select_option_closes_the_popup_when_the_value_is_missing(self) -> None:
+        # arrange — a combobox that does not offer the requested entry
+        client = ComboboxClient(["<default>", "trap"], start_index=0)
+        locator = Locator(client, type_name="ComboBox")
+        # act / assert — the failed search escapes the popup and raises
+        with self.assertRaises(LocatorError):
+            locator.select_option("bogus")
+        self.assertEqual(client.keys()[-1], "\x1b")
+
+
+class ScrollIntoViewChecks(unittest.TestCase):
+
+    def test_scroll_into_view_scrolls_until_the_element_is_inside(self) -> None:
+        # arrange — an element below the viewport that rises with every scroll
+        client = ScrollingClient(element_y=1000.0)
+        locator = Locator(client, type_name="Element")
+        scroller = Locator(client, type_name="Scroller")
+        # act — scroll the element into the viewport
+        locator.scroll_into_view(scroller, max_steps=30, step=-60.0)
+        # assert — enough scroll steps moved the element fully inside
+        self.assertEqual(len(client.scrolls()), 9)
+        self.assertGreaterEqual(client.scrolls()[0][1], -60.0)
+
+    def test_scroll_into_view_raises_when_the_element_never_appears(self) -> None:
+        # arrange — an element pinned below the viewport
+        client = ScrollingClient(element_y=100000.0)
+        locator = Locator(client, type_name="Element")
+        scroller = Locator(client, type_name="Scroller")
+        # act / assert — the bounded search surfaces a locator error
+        with self.assertRaises(LocatorError):
+            locator.scroll_into_view(scroller, max_steps=3, step=-60.0)
+        self.assertEqual(len(client.scrolls()), 3)

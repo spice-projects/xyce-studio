@@ -30,14 +30,17 @@ namespace options_dialog_view
 
         // assemble one editor row from its key, current value and editing metadata
         [[nodiscard]] main_window::OptionRow make_option_row(const std::string& key, const std::string& value, bool flag, const OptionKeyInfo& info) {
-            // the combobox model carries the <default> entry first
+            // the editor model opens with <default>, carries the flag marker for bare flags, then the guide's choices
             auto choices = std::make_shared<slint::VectorModel<slint::SharedString>>();
-            if (!info.choices.empty()) {
+            const bool bare_flag = flag && value.empty();
+            if (!info.choices.empty() || bare_flag) {
                 choices->push_back(slint::SharedString("<default>"));
+                if (bare_flag)
+                    choices->push_back(slint::SharedString("flag is set"));
                 for (const auto& choice : info.choices)
                     choices->push_back(slint::SharedString(choice));
             }
-            return main_window::OptionRow{slint::SharedString(key), slint::SharedString(value), flag, choices, slint::SharedString(info.default_value), choice_index_for(info, value)};
+            return main_window::OptionRow{slint::SharedString(key), slint::SharedString(value), flag, choices, slint::SharedString(info.default_value), choice_index_for(info, value, flag)};
         }
     } // namespace
 
@@ -70,7 +73,10 @@ namespace options_dialog_view
         return rows;
     }
 
-    int choice_index_for(const OptionKeyInfo& info, const std::string& value) {
+    int choice_index_for(const OptionKeyInfo& info, const std::string& value, bool flag) {
+        // a loaded bare flag selects the flag marker entry so it can be kept or cleared
+        if (flag && value.empty())
+            return 1;
         // keys without choices never render a combobox
         if (info.choices.empty())
             return -1;
@@ -178,7 +184,7 @@ namespace options_dialog_view
                 return;
             // refresh the combobox selection for the edited value
             auto updated = row;
-            updated.choice_index = choice_index_for(option_key_info(*found, std::string(row.key)), std::string(row.value));
+            updated.choice_index = choice_index_for(option_key_info(*found, std::string(row.key)), std::string(row.value), row.flag);
             // commit the edited row into the host-owned model
             models[position]->set_row_data(static_cast<size_t>(row_index), updated);
         }

@@ -1,9 +1,10 @@
 import { ComboBox, LineEdit, Palette } from "std-widgets.slint";
 
 // one option row: the RG-documented key, its current value, whether the
-// netlist carries it as a bare flag (no value), the closed-choice editor
-// model with "<default>" first, the reference default for the placeholder,
-// and the index of the current value within the choices (-1 when unknown)
+// netlist carries it as a bare flag (no value), the editor model with
+// "<default>" first and the flag marker for bare flags, the reference
+// default for the placeholder, and the index of the current value within
+// the model (-1 when the row renders as free text)
 export struct OptionRow {
     key: string,
     value: string,
@@ -30,19 +31,15 @@ export component OptionPackageCard inherits Rectangle {
     // scratch copy used to build the updated row on commit
     private property <OptionRow> pending;
 
-    // a bare flag carries no value, so it renders as its state message
-    pure function is-bare-flag(row: OptionRow) -> bool {
-        return row.value == "" && row.flag;
-    }
-
-    // closed-choice keys with a known value render a combobox; the <default> entry is index 0
+    // rows with a known editor model render a combobox: <default> first, then
+    // the flag marker for bare flags, then the documented choices
     pure function is-choice-row(row: OptionRow) -> bool {
-        return !self.is-bare-flag(row) && row.choices.length > 0 && row.choice-index >= 0;
+        return row.choices.length > 0 && row.choice-index >= 0;
     }
 
     // everything else renders a free-text field with the reference default as placeholder
     pure function is-text-row(row: OptionRow) -> bool {
-        return !self.is-bare-flag(row) && !self.is-choice-row(row);
+        return !self.is-choice-row(row);
     }
 
     border-width: 1px;
@@ -78,28 +75,27 @@ export component OptionPackageCard inherits Rectangle {
                 overflow: elide;
             }
 
-            // a bare flag shows its state; typing replaces the flag with a value
-            if is-bare-flag(row): LineEdit {
-                height: 28px;
-                text: "";
-                accessible-label: row.key;
-                placeholder-text: "flag is set";
-                edited(new-text) => {
-                    root.pending = row;
-                    root.pending.value = new-text;
-                    root.row-edited(root.package-index, idx, root.pending);
-                }
-            }
-
-            // closed-choice keys pick from the guide's values, <default> clears the option
+            // pick from <default> (clears the option), the flag marker, or the guide's values
             if is-choice-row(row): choice-box := ComboBox {
                 model: row.choices;
                 current-index: row.choice-index;
                 accessible-label: row.key;
                 selected(value) => {
                     root.pending = row;
-                    root.pending.value = value == "<default>" ? "" : value;
-                    root.pending.choice-index = choice-box.current-index;
+                    // "<default>" clears the option; "flag is set" keeps a bare flag (the host builds the same marker string)
+                    if value == "<default>" {
+                        root.pending.value = "";
+                        root.pending.flag = false;
+                        root.pending.choice-index = 0;
+                    } else if value == "flag is set" {
+                        root.pending.value = "";
+                        root.pending.flag = true;
+                        root.pending.choice-index = 1;
+                    } else {
+                        root.pending.value = value;
+                        root.pending.flag = false;
+                        root.pending.choice-index = choice-box.current-index;
+                    }
                     root.row-edited(root.package-index, idx, root.pending);
                 }
             }

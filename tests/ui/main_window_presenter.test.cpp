@@ -2865,3 +2865,25 @@ TEST(SlintMainWindowPresenterChecks, run_accept_preserves_options_on_analysis_le
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
+
+TEST(SlintMainWindowPresenterChecks, edit_options_cancel_then_configure_preserves_options) {
+    // arrange — a netlist carrying managed options but no analysis directive
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.OPTIONS TIMEINT RELTOL=1e-4\n.END\n", std::filesystem::temp_directory_path());
+    source->m_reloaded = true;
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act — open the options dialog and cancel it without delivering a result
+    presenter.on_edit_options();
+    // act — open the configure dialog afterwards; its content matches the pending parse
+    presenter.on_configure_simulation();
+    // assert — the configure seed still carries the netlist options from the refreshed cache
+    ASSERT_EQ(view.m_simulation_dialog_requests, 1);
+    ASSERT_TRUE(view.m_last_simulation_config_seed.has_value());
+    EXPECT_EQ(view.m_last_simulation_config_seed->options.timeint.at("RELTOL"), "1e-4");
+    // act — accept with a transient analysis configured and the seeded options
+    const SimulationConfig edited("TRAN", TransientSimulationParameters("1u", "25m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, view.m_last_simulation_config_seed->options, {}, true);
+    presenter.on_simulation_parameters_dialog_result(edited);
+    // assert — the editor keeps the option line next to the new analysis
+    EXPECT_NE(view.m_editor_content.find(".OPTIONS TIMEINT RELTOL=1e-4"), std::string::npos);
+    EXPECT_NE(view.m_editor_content.find(".TRAN 1u 25m"), std::string::npos);
+}

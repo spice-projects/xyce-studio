@@ -27,7 +27,7 @@ export component OptionsPanel inherits ModalPanel {
 
     // explains the accept rule up front so empty rows are not a surprise
     Text {
-        text: "Only options with a value are written to the netlist; an empty value omits the option";
+        text: "Valued options are written to the netlist, empty fields omit the option, and flag is set keeps a bare flag";
         font-size: 12px;
         font-italic: true;
         color: Palette.foreground.transparentize(0.4);

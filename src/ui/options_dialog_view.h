@@ -39,8 +39,8 @@ namespace options_dialog_view
     // the simulation-agnostic packages shown by the dialog, in the panel's card order
     [[nodiscard]] const std::vector<OptionPackage>& option_dialog_packages();
 
-    // index of the value within the row's choices: 0 selects <default>, i+1 selects choices[i], -1 reports an unknown value or a free-text key
-    [[nodiscard]] int choice_index_for(const OptionKeyInfo& info, const std::string& value);
+    // index of the value within the row's model: 0 selects <default>, 1 selects the flag marker of a bare flag, i+1 selects choices[i], -1 reports an unknown value or a free-text key
+    [[nodiscard]] int choice_index_for(const OptionKeyInfo& info, const std::string& value, bool flag);
 
     // editor rows for one package: catalog keys in order first, then netlist keys the catalog does not document, each filled with the guide's choices and default
     [[nodiscard]] std::vector<main_window::OptionRow> build_option_rows(OptionPackage package, const std::map<std::string, std::string>& loaded);

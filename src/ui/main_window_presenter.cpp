@@ -385,8 +385,12 @@ void SlintMainWindowPresenter::on_edit_options() {
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // build the simulation config from the parsed directives; only overwrite the user's saved config when the netlist content actually changed since the last parse, so an accepted options edit cannot drop a configured analysis
     const auto parsed_config = SimulationConfig::from_xyce_directives(topology.m_directives);
-    if (content != m_pending_original_netlist && !std::holds_alternative<std::monostate>(parsed_config.analysis))
-        m_simulation_config = parsed_config;
+    if (content != m_pending_original_netlist) {
+        // refresh the options whenever the netlist content changed, even without an analysis, so a later configure or run cannot rewrite them from a stale cache
+        m_simulation_config.options = parsed_config.options;
+        if (!std::holds_alternative<std::monostate>(parsed_config.analysis))
+            m_simulation_config = parsed_config;
+    }
     // remember the parse result so the accepted options can rebuild the netlist
     m_pending_sanitized_netlist = sanitized_netlist;
     m_pending_topology = topology;

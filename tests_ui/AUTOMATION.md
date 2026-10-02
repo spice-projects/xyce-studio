@@ -66,6 +66,9 @@ and read re-resolves against the current element tree.
   access; declaration order in the `.slint` files is the contract (e.g. the
   ten toolbar tools from left to right).
 - `app.get_by_role("Button")` — first element with the accessible role.
+- `locator.with_label("TEMP")` — narrows a type or role locator to
+  elements carrying that accessible label (label-scoped locators keep
+  `nth`/`count` semantics; combine with `.nth(0)` for the first match).
 - `locator.child("Text")` — restricts the search to a subtree.
 
 ### Assertions and waiting
@@ -225,53 +228,42 @@ fields.nth(0).wait_for_gone()          # dialog closed
 - A rejected accept keeps the dialog open; wait for the footer button to still
   exist and for the validation error text to appear.
 
-### Locate option rows by their accessible label (from `options_test.py`)
+### Edit option rows by their accessible label (from `options_test.py`)
 
 Every `.OPTIONS` package row in the Options dialog and in the Configure
 dialog tabs carries its Reference Guide key as the `LineEdit` (or
-`ComboBox`) `accessibleLabel`, so rows are addressed by key name instead
-of a positional index. Only viewport fields are exposed, so scroll the
-dialog's `ScrollView` (`nth(1)` — the first scroller is the netlist
-editor) until the row appears, checking the deepest inspected row:
+`ComboBox`) `accessibleLabel`, so rows are addressed through label-scoped
+locators instead of positional indices. Only viewport fields resolve, so
+scroll the dialog's `ScrollView` (`nth(1)` — the first scroller is the
+netlist editor) with the locator helper:
 
 ```python
-for _ in range(90):
-    fields = [handle for handle in app.client().find_by_type_in(root, "LineEdit")
-              if app.client().get_element_properties(handle).get("accessibleLabel") == "MAXORD"]
-    if fields:
-        rect = app.client().get_element_properties(fields[0])
-        viewport = scroller.properties()
-        top = rect["absolutePosition"]["y"]
-        if top >= viewport["absolutePosition"]["y"] and top + rect["size"]["height"] <= viewport["absolutePosition"]["y"] + viewport["size"]["height"]:
-            break
-    scroller.scroll(0.0, SCROLL_STEP)
-else:
-    self.fail("expected the row to scroll into view")
+scroller = app.get_by_type("ScrollView").nth(1)
+temp = app.get_by_type("LineEdit").with_label("TEMP").nth(0)
+temp.scroll_into_view(scroller)
+temp.fill("30")
+expect(temp).to_have_text("30")
 ```
 
 Free-text rows expose the Reference Guide default as
-`accessiblePlaceholderText`; a bare flag row shows `flag is set`;
-closed-choice rows are `ComboBox` elements whose `accessibleValue` reads
-back `"<default>"` or the selected choice. Edit a `LineEdit` with
-`app.client().set_element_value(handle, "30")`.
+`accessiblePlaceholderText` (`temp.property("accessiblePlaceholderText")`),
+bare flags render as a `ComboBox` sitting on the `flag is set` entry
+(clear it with the `<default>` entry), and closed-choice rows are
+`ComboBox`es whose `text()` reads back `"<default>"` or the selected
+choice. Footer buttons resolve through a type locator narrowed by label:
+`app.get_by_type("Button").with_label("OK").nth(0).click()`.
 
-### Drive a combobox (from `options_test.py`, `pce_parameters_test.py`)
+### Select a combobox entry (from `options_test.py`)
 
-A `ComboBox` has no set-value action; open its popup through the
-`ComboBoxBase::i-touch-area` touch area, move the selection with the
-macOS down-arrow function key and confirm with Return:
+`Locator.select_option` opens the popup, walks to the requested entry
+and confirms it, so tests never touch widget internals:
 
 ```python
-combo = [handle for handle in app.client().find_by_type_in(root, "ComboBox")
-         if app.client().get_element_properties(handle).get("accessibleLabel") == "METHOD"][0]
-touch = [handle for handle in app.client().find_by_type_in(combo, "TouchArea")
-         if (app.client().get_element_properties(handle).get("typeNamesAndIds") or [{}])[0].get("id") == "ComboBoxBase::i-touch-area"]
-app.client().click_element(touch[0])
-app.client().dispatch_key_event("\uf701")   # down arrow, one entry per step
-app.client().dispatch_key_event("\n")
+method = app.get_by_type("ComboBox").with_label("METHOD").nth(0)
+method.scroll_into_view(scroller)
+method.select_option("trap")
+expect(method).to_have_text("trap")
 ```
-
-Assert the selection through `accessibleValue` with `wait_for_condition`.
 
 ### Configuration persistence across launches (from `plugin_config_test.py`)
 

@@ -1157,7 +1157,7 @@ namespace simulation_parameters_dialog_view
                     return;
                 // refresh the combobox selection for the edited value
                 auto updated = row;
-                updated.choice_index = options_dialog_view::choice_index_for(option_key_info(SIM_PACKAGES[position], std::string(row.key)), std::string(row.value));
+                updated.choice_index = options_dialog_view::choice_index_for(option_key_info(SIM_PACKAGES[position], std::string(row.key)), std::string(row.value), row.flag);
                 // commit the edited row into the host-owned model
                 option_rows[position]->set_row_data(static_cast<size_t>(row_index), updated);
             });

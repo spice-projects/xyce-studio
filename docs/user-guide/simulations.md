@@ -417,9 +417,9 @@ they apply to:
   **simulation-agnostic** packages: `DEVICE`, `LINSOL`, `PARSER`,
   `DIAGNOSTIC`, `DIST`, `MEASURE` and `RESTART`.
 - The **simulation-specific** packages are edited in the **Configure**
-  dialog on the tab of their analysis: `TIMEINT`, `NONLIN-TRAN`, `LOCA`,
-  `FFT` and `OUTPUT` on `.TRAN`; `NONLIN` and `LOCA` on `.OP` and `.DC`;
-  `LINSOL-AC` on `.AC`.
+  dialog on the tab of their analysis: `TIMEINT`, `NONLIN-TRAN`, `FFT`
+  and `OUTPUT` on `.TRAN`; `NONLIN` on `.OP` and `.DC`; `LOCA` on `.DC`
+  and `.TRAN`; `LINSOL-AC` on `.AC`.
 
 | Section | Option parameters | Simulation type |
 | --- | --- | --- |
@@ -447,9 +447,10 @@ appended as extra rows. Options with a closed set of values (e.g.
 `METHOD` = `trap`/`gear`) render a combobox with a `<default>` entry
 that clears the option, free-text fields show the guide's default value
 as placeholder, and bare flags (a key written without a value, e.g.
-`.OPTIONS FFT FFTOUT`) show `flag is set` and are kept as bare flags
-while their field stays empty. On accept, only options with a value are
-written back into the netlist as `.OPTIONS <PKG> KEY=VALUE` lines.
+`.OPTIONS FFT FFTOUT`) offer a `flag is set` entry that keeps them, while
+`<default>` removes the option. On accept, valued options are written
+back as `.OPTIONS <PKG> KEY=VALUE` lines, kept bare flags as a bare
+`KEY`, and every other empty field omits the option.
 Both dialogs parse the options from the netlist when they open and
 leave the configured analysis untouched.
 

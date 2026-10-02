@@ -104,15 +104,28 @@ TEST(OptionsDialogViewChecks, build_option_rows_places_catalog_keys_then_netlist
 }
 
 TEST(OptionsDialogViewChecks, build_option_rows_marks_bare_flags) {
-    // arrange — a catalog key the netlist carries as a bare flag without a value
-    const std::map<std::string, std::string> loaded = {{"FFTOUT", ""}};
+    // arrange — catalog keys the netlist carries as bare flags without a value
+    const std::map<std::string, std::string> fft_flags = {{"FFTOUT", ""}};
+    const std::map<std::string, std::string> timeint_flags = {{"BREAKPOINTS", ""}};
     // act — build the editor rows
-    const auto rows = options_dialog_view::build_option_rows(OptionPackage::FFT, loaded);
-    // assert — the FFTOUT row keeps the empty value and carries the flag marker
-    ASSERT_EQ(rows.size(), option_package_catalog(OptionPackage::FFT).size());
-    EXPECT_EQ(std::string(rows[1].key), "FFTOUT");
-    EXPECT_EQ(std::string(rows[1].value), "");
-    EXPECT_TRUE(rows[1].flag);
+    const auto fft_rows = options_dialog_view::build_option_rows(OptionPackage::FFT, fft_flags);
+    const auto timeint_rows = options_dialog_view::build_option_rows(OptionPackage::TIMEINT, timeint_flags);
+    // assert — the flagged choice row keeps the empty value and the flag marker entry
+    ASSERT_EQ(fft_rows.size(), option_package_catalog(OptionPackage::FFT).size());
+    EXPECT_EQ(std::string(fft_rows[1].key), "FFTOUT");
+    EXPECT_EQ(std::string(fft_rows[1].value), "");
+    EXPECT_TRUE(fft_rows[1].flag);
+    ASSERT_EQ(fft_rows[1].choices->row_count(), 4u);
+    EXPECT_EQ(std::string(*fft_rows[1].choices->row_data(1)), "flag is set");
+    EXPECT_EQ(fft_rows[1].choice_index, 1);
+    // assert — a flag without documented choices still offers default and the flag marker
+    const auto breakpoints = timeint_rows[19];
+    EXPECT_EQ(std::string(breakpoints.key), "BREAKPOINTS");
+    EXPECT_TRUE(breakpoints.flag);
+    ASSERT_EQ(breakpoints.choices->row_count(), 2u);
+    EXPECT_EQ(std::string(*breakpoints.choices->row_data(0)), "<default>");
+    EXPECT_EQ(std::string(*breakpoints.choices->row_data(1)), "flag is set");
+    EXPECT_EQ(breakpoints.choice_index, 1);
 }
 
 TEST(OptionsDialogViewChecks, build_option_rows_fills_choices_and_defaults) {
@@ -138,11 +151,16 @@ TEST(OptionsDialogViewChecks, choice_index_for_selects_default_choices_and_fallb
     const OptionKeyInfo choice = {{"trap", "7", "gear", "8"}, "trap"};
     const OptionKeyInfo text = {{}, "1.0E-03"};
     // act / assert — the index selects <default>, a choice, or the text fallback
-    EXPECT_EQ(options_dialog_view::choice_index_for(choice, ""), 0);
-    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "trap"), 1);
-    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "8"), 4);
-    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "bogus"), -1);
-    EXPECT_EQ(options_dialog_view::choice_index_for(text, "1e-3"), -1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "", false), 0);
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "trap", false), 1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "8", false), 4);
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "bogus", false), -1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(text, "1e-3", false), -1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(text, "", false), -1);
+    // act / assert — a loaded bare flag always selects the flag marker entry
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "", true), 1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(text, "", true), 1);
+    EXPECT_EQ(options_dialog_view::choice_index_for(choice, "gear", true), 3);
 }
 
 TEST(OptionsDialogViewChecks, apply_option_rows_writes_values_and_keeps_flags) {
