@@ -288,7 +288,7 @@ class PceRunChecks(unittest.TestCase):
             # for the final status message
             pre_run = time.time()
             app.get_by_type("ToolbarButton").nth(5).click()
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=60.0)
             # step 9: find the .PCE.prn file Xyce produced next to the temporary
             # netlist after the run started and show its content

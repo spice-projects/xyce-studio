@@ -59,12 +59,36 @@ problems and for reading `.MEASURE` results.
   selected; **Cmd/Ctrl+A** selects everything.
 - The **Copy** button does the same as the keyboard shortcut.
 - The panel keeps its content after being closed and reopened.
+- Lines Xyce reported as a warning are amber and lines it reported as an
+  error are red, so the reported problems stand out from the ordinary
+  progress output.
+- The header carries the `N warnings` and `N errors` counts whenever the
+  run reported any. Clicking a count scrolls the log to the first
+  occurrence and selects it.
 
 ## Status bar
 
-The status bar reports the current state: `Simulation started...`,
-`Simulation finished successfully`, `Simulation failed (exit code N)`,
-`Simulation canceled`, and specific errors such as
-`Configured Xyce executable path is invalid`. While you hover the mouse
-over a chart, the status bar temporarily shows a readout of the values
-under the cursor (see [Viewing Results](charts.md)).
+The status bar reports the current state: `Simulation finished
+successfully`, `Simulation failed (exit code N)`, `Simulation canceled`,
+and specific errors such as `Configured Xyce executable path is
+invalid`. While you hover the mouse over a chart, the status bar
+temporarily shows a readout of the values under the cursor (see
+[Viewing Results](charts.md)).
+
+While a simulation is running, a progress indicator appears on the right
+of the status bar and the message area on the left is left empty:
+
+- a **progress bar** with the completion percentage and Xyce's own
+  estimate of the remaining time, for example `62% · ETA 14 sec.`. Xyce
+  reports progress for a transient analysis only, so a DC sweep, an AC,
+  a harmonic balance or an operating point run shows an indeterminate bar
+  and the elapsed time instead (`9s elapsed`).
+- the **warning and error counts** Xyce reported so far, colour-coded
+  like the log lines they refer to.
+- the whole status bar is a shortcut: **clicking it opens the simulation
+  output panel** so you can watch the live log without leaving the view
+  you are working in.
+
+The percentage comes from the `***** Percent complete:` markers Xyce
+writes to its console log; the estimated time is Xyce's own estimate and
+moves as the run learns how long a time step takes.

@@ -20,6 +20,19 @@
 
 namespace
 {
+    // map the severity the log parser classified a line with onto the slint enum the panel renders
+    main_window::LogSeverity to_slint_severity(const LogSeverity severity) {
+        switch (severity) {
+        case LogSeverity::warning:
+            return main_window::LogSeverity::Warning;
+        case LogSeverity::error:
+            return main_window::LogSeverity::Error;
+        case LogSeverity::info:
+            break;
+        }
+        return main_window::LogSeverity::Info;
+    }
+
     // slint color from a chart color
     slint::Color to_slint_color(const ChartColor& color) { return slint::Color::from_argb_float(color.a, color.r, color.g, color.b); }
 
@@ -185,7 +198,7 @@ namespace
 } // namespace
 
 SlintMainWindowView::SlintMainWindowView(std::unique_ptr<NetlistSource> /*netlist_source*/, PluginConfig /*plugin_config*/) :
-    m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<slint::SharedString>>()) {
+    m_window(main_window::MainWindow::create()), m_simulation_log(std::make_shared<slint::VectorModel<main_window::LogLine>>()) {
     // expose the log model to the output panel
     m_window->set_simulation_output_log(m_simulation_log);
 #ifdef NDEBUG
@@ -231,6 +244,8 @@ void SlintMainWindowView::set_event_handler(MainWindowViewDefEvents& handler) {
     actions.on_show_netlist([this] { guard_modal([this] { m_event_handler->on_show_netlist(); }); });
     actions.on_show_charts([this] { guard_modal([this] { m_event_handler->on_show_charts(); }); });
     actions.on_show_simulation_output([this] { guard_modal([this] { m_event_handler->on_show_simulation_output(); }); });
+    // the statusbar strip opens the same panel while a run is in flight, the log holds live output the panel is the only view for
+    actions.on_open_simulation_output_from_status([this] { guard_modal([this] { m_event_handler->on_show_simulation_output(); }); });
     actions.on_close_simulation_output([this] { guard_modal([this] { m_event_handler->on_close_simulation_output(); }); });
     // the copy action is a pure view operation on the buffered log
     actions.on_copy_simulation_output([this](int start, int end) { copy_simulation_selection(start, end); });
@@ -345,6 +360,24 @@ void SlintMainWindowView::set_status_text(const std::string& text) {
 void SlintMainWindowView::set_simulation_running(bool running) {
     // toggle the Run/Stop toolbar action
     m_window->set_simulation_running(running);
+}
+
+void SlintMainWindowView::set_simulation_progress(const SimulationProgress& progress) {
+    // a run without a reported percentage drives the indeterminate bar, slint has no other way to spell it
+    const float percentage = progress.percentage.has_value() ? static_cast<float>(*progress.percentage) : -1.0f;
+    // rows outside the log are reported as -1, so an unreported warning or error has no row to scroll to
+    const int warning_line = progress.first_warning_line.has_value() ? static_cast<int>(*progress.first_warning_line) : -1;
+    const int error_line = progress.first_error_line.has_value() ? static_cast<int>(*progress.first_error_line) : -1;
+    // publish the progress to the statusbar
+    m_window->set_simulation_progress_running(progress.running);
+    m_window->set_simulation_progress_percentage(percentage);
+    m_window->set_simulation_progress_eta(slint::SharedString(progress.eta));
+    m_window->set_simulation_progress_phase(slint::SharedString(progress.phase));
+    // publish the diagnostic counts to the statusbar and the output panel header
+    m_window->set_simulation_warning_count(progress.warnings);
+    m_window->set_simulation_error_count(progress.errors);
+    m_window->set_simulation_warning_line(warning_line);
+    m_window->set_simulation_error_line(error_line);
 }
 
 void SlintMainWindowView::apply_action_enablement(const ActionStateEnablement& enablement) {
@@ -503,10 +536,15 @@ void SlintMainWindowView::clear_simulation_output() {
     m_simulation_log->clear();
 }
 
-void SlintMainWindowView::append_simulation_output_line(const std::string& line) {
+void SlintMainWindowView::append_simulation_output_line(const std::string& line, const LogSeverity severity) {
     // append the line to the panel log model; tabs are expanded to spaces
     // because the slint text renderer has no tab support
-    m_simulation_log->push_back(slint::SharedString(expand_tabs(line)));
+    m_simulation_log->push_back(main_window::LogLine{.text = slint::SharedString(expand_tabs(line)), .severity = to_slint_severity(severity)});
+}
+
+std::size_t SlintMainWindowView::simulation_output_line_count() const {
+    // report the number of rows the buffered log holds
+    return m_simulation_log->row_count();
 }
 
 void SlintMainWindowView::copy_simulation_selection(int start, int end) {
@@ -524,7 +562,8 @@ void SlintMainWindowView::copy_simulation_selection(int start, int end) {
     for (std::size_t i = first; i <= last; ++i) {
         if (!text.empty())
             text.push_back('\n');
-        text.append(m_simulation_log->row_data(i).value_or(slint::SharedString()));
+        const auto row = m_simulation_log->row_data(i);
+        text.append(row.has_value() ? std::string(row->text) : std::string());
     }
     copy_to_clipboard(text);
 }

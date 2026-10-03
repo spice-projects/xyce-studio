@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -13,6 +14,7 @@
 #include "../expression/expression_manager.h"
 #include "../io/xyce_output_file.h"
 #include "../simulation/simulation_config.h"
+#include "../simulation/xyce_log_parser.h"
 #include "main_window_state.h"
 
 struct PlotTabItem
@@ -20,6 +22,27 @@ struct PlotTabItem
     int id = 0;
     std::string title;
     bool closable = false;
+};
+
+// live information about a running simulation, distilled from the Xyce console log and shown in the
+// statusbar and the header of the simulation output panel
+struct SimulationProgress
+{
+    // a simulation is running
+    bool running = false;
+    // completion percentage of the run, empty for the analyses Xyce reports no progress for (a DC sweep,
+    // AC, harmonic balance and operating point analyses); an empty percentage renders as an indeterminate bar
+    std::optional<double> percentage;
+    // estimated time to completion exactly as Xyce spelled it, e.g. "14 sec." or "1 min., 53 sec."
+    std::string eta;
+    // analysis phase Xyce announced last, e.g. "Transient Calculation"
+    std::string phase;
+    // number of warnings and errors Xyce reported so far
+    int warnings = 0;
+    int errors = 0;
+    // row of the first reported warning and error in the output log, used to scroll the panel to them
+    std::optional<std::size_t> first_warning_line;
+    std::optional<std::size_t> first_error_line;
 };
 
 // abstract view interface for the main window, so the presenter can be tested without a ui
@@ -36,6 +59,9 @@ public:
     // simulation run state, drives the Run/Stop toolbar toggle
     virtual void set_simulation_running(bool running) = 0;
 
+    // live simulation progress shown in the statusbar and the output panel header
+    virtual void set_simulation_progress(const SimulationProgress& progress) = 0;
+
     // content views (netlist editor vs charts, mutually exclusive)
     virtual void show_netlist_view() = 0;
     virtual void show_charts_view() = 0;
@@ -48,7 +74,10 @@ public:
     virtual void show_simulation_output_panel() = 0;
     virtual void hide_simulation_output_panel() = 0;
     virtual void clear_simulation_output() = 0;
-    virtual void append_simulation_output_line(const std::string& line) = 0;
+    // append one log line, classified with the severity the parser distilled from its report prefix
+    virtual void append_simulation_output_line(const std::string& line, LogSeverity severity) = 0;
+    // number of rows the output log holds, used to report the row a log line was appended at
+    [[nodiscard]] virtual std::size_t simulation_output_line_count() const = 0;
     [[nodiscard]] virtual bool simulation_output_panel_hidden() const = 0;
     [[nodiscard]] virtual bool simulation_output_has_content() const = 0;
 

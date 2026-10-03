@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -13,6 +14,7 @@
 #include "../config/plugin_config.h"
 #include "../netlist/netlist_lexer.h"
 #include "../netlist/netlist_source.h"
+#include "../simulation/xyce_log_parser.h"
 #include "add_plot_dialog_view.h"
 #include "charts_renderer.h"
 #include "fft_dialog_view.h"
@@ -46,17 +48,19 @@ public:
     void set_status_text(const std::string& text) override;
     void apply_action_enablement(const ActionStateEnablement& enablement) override;
     void set_simulation_running(bool running) override;
+    void set_simulation_progress(const SimulationProgress& progress) override;
     void show_netlist_view() override;
     void show_charts_view() override;
     void set_netlist_editor_content(const std::string& content) override;
-    std::string netlist_editor_content() const override;
+    [[nodiscard]] std::string netlist_editor_content() const override;
     void set_netlist_editor_read_only(bool read_only) override;
-    bool charts_shown() const override;
+    [[nodiscard]] bool charts_shown() const override;
     void show_simulation_output_panel() override;
     void hide_simulation_output_panel() override;
     void clear_simulation_output() override;
-    void append_simulation_output_line(const std::string& line) override;
-    bool simulation_output_panel_hidden() const override;
+    void append_simulation_output_line(const std::string& line, LogSeverity severity) override;
+    [[nodiscard]] std::size_t simulation_output_line_count() const override;
+    [[nodiscard]] bool simulation_output_panel_hidden() const override;
     bool simulation_output_has_content() const override;
     void update_charts(int dataset_id, ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale, const std::vector<std::vector<std::string>>& suggested_plots, bool smith) override;
     void release_charts(int dataset_id) override;
@@ -128,7 +132,7 @@ private:
 
     // simulation output log lines, exposed as a model to the output panel's
     // ListView; appending a line only touches the new row (virtualized list)
-    std::shared_ptr<slint::VectorModel<slint::SharedString>> m_simulation_log;
+    std::shared_ptr<slint::VectorModel<main_window::LogLine>> m_simulation_log;
 
     // current theme state; used when (re-)building the highlight model
     bool m_dark_mode = false;
