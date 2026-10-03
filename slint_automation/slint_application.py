@@ -16,7 +16,10 @@ from .mcp_client import McpClient
 from .slint_client import SlintClient
 from .waiting import DEFAULT_POLL_INTERVAL, DEFAULT_WAIT_TIMEOUT, reports_test_frames, wait_for
 
-DEFAULT_STARTUP_TIMEOUT = 10.0
+# the application needs roughly five seconds to reach the handshake on an idle machine, and a full
+# suite run keeps the machine busy enough to push that past a ten second budget and report a launch
+# failure for a healthy application; the generous budget still fails fast on a broken build
+DEFAULT_STARTUP_TIMEOUT = 30.0
 DEFAULT_READY_POLL_INTERVAL = 0.1
 DEFAULT_TERMINATE_TIMEOUT = 5.0
 MAX_LAUNCH_ATTEMPTS = 3

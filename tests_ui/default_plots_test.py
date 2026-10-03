@@ -22,7 +22,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the final status message
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
@@ -81,7 +81,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the final status message
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
@@ -122,7 +122,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the final status message
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
@@ -174,7 +174,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the final status message
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
@@ -204,7 +204,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the final status message
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
@@ -236,7 +236,7 @@ class PlotDirectiveChartChecks(unittest.TestCase):
             # arrange: launch the application with the netlist and the xyce executable
             with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
                 # arrange: locate the status bar text and the netlist editor
-                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                status = app.get_by_id("MainWindow::status-message")
                 # step 1: run the simulation and wait for the charts view
                 app.get_by_type("ToolbarButton").nth(5).click()
                 expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
