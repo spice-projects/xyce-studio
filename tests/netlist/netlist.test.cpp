@@ -323,6 +323,47 @@ TEST(NetlistParserChecks, handles_y_type_devices) {
     ASSERT_TRUE(has_yacc);
 }
 
+TEST(NetlistParserChecks, extracts_plot_directives_and_removes_them_from_the_body) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PLOT V(1) V(2,N3) abs(I(R1))\n.PLOT I(R3)\n.END\n");
+    // assert — every .PLOT line is recorded and lifted out of the body like any other managed directive
+    ASSERT_EQ(topology.m_plot_directives.size(), 2);
+    ASSERT_EQ(topology.m_plot_directives[0], ".PLOT V(1) V(2,N3) abs(I(R1))");
+    ASSERT_EQ(topology.m_plot_directives[1], ".PLOT I(R3)");
+    ASSERT_EQ(netlist.find(".PLOT"), std::string::npos);
+    // act — the directives are re-inserted with the managed ones by build_final_netlist
+    const auto rebuilt = build_final_netlist(netlist, {}, topology.m_plot_directives);
+    // assert
+    ASSERT_NE(rebuilt.find(".PLOT V(1) V(2,N3) abs(I(R1))\n.PLOT I(R3)\n\n.END"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, records_a_plot_directive_verbatim) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.plot {V(1) * 2}\n.END\n");
+    // assert — the recorded line keeps the authored spelling so the editor reproduces what was written
+    ASSERT_EQ(topology.m_plot_directives.size(), 1);
+    ASSERT_EQ(topology.m_plot_directives[0], ".plot {V(1) * 2}");
+    ASSERT_EQ(netlist.find(".plot"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, joins_continuation_lines_of_a_plot_directive) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PLOT V(1)\n+ V(2)\n.END\n");
+    // assert — the continuation line joins the directive into a single logical line
+    ASSERT_EQ(topology.m_plot_directives.size(), 1);
+    ASSERT_EQ(topology.m_plot_directives[0], ".PLOT V(1) V(2)");
+    ASSERT_EQ(netlist.find("V(1) V(2)"), std::string::npos);
+}
+
+TEST(NetlistParserChecks, plot_directive_without_arguments_is_recorded_verbatim) {
+    // arrange / act
+    const auto [netlist, topology] = parse_netlist("Title\n.PLOT\n.END\n");
+    // assert — an argument-less directive carries no chart and is lifted out of the body like every managed directive
+    ASSERT_EQ(topology.m_plot_directives.size(), 1);
+    ASSERT_EQ(topology.m_plot_directives[0], ".PLOT");
+    ASSERT_EQ(netlist.find(".PLOT"), std::string::npos);
+}
+
 TEST(NetlistAssemblyChecks, inserts_directives_before_end) {
     // arrange
     const std::string netlist = "Title line\nR1 1 0 100\n.END\n";
@@ -351,4 +392,24 @@ TEST(NetlistAssemblyChecks, includes_passthrough_directives) {
     const auto result = build_final_netlist(netlist, directives, passthrough);
     // assert
     ASSERT_NE(result.find(".WIDTH OUT=80"), std::string::npos);
+}
+
+TEST(NetlistAssemblyChecks, inserts_plot_directives_after_the_managed_ones) {
+    // arrange
+    const std::string netlist = "Title\nR1 1 0 100\n.END\n";
+    const std::vector<std::string> directives = {".TRAN 1u 1m", ".PRINT TRAN V(1)"};
+    const std::vector<std::string> plots = {".PLOT V(1) abs(I(R1))"};
+    // act
+    const auto result = build_final_netlist(netlist, directives, plots);
+    // assert — the chart declaration follows the output directives it depends on and still sits above .END
+    ASSERT_NE(result.find(".PRINT TRAN V(1)\n.PLOT V(1) abs(I(R1))\n\n.END"), std::string::npos);
+}
+
+TEST(NetlistAssemblyChecks, returns_a_plot_only_netlist_unchanged_without_directives) {
+    // arrange — the parser lifted the .PLOT lines out, so an assembly without them must not re-insert anything
+    const std::string netlist = "Title\nR1 1 0 100\n.END\n";
+    // act
+    const auto result = build_final_netlist(netlist, {}, {});
+    // assert
+    ASSERT_EQ(result, netlist);
 }

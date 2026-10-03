@@ -131,6 +131,29 @@ them in vertical order. Every chart carries an accessible identity: plotted
 charts report their first series name as `accessibleLabel` (for example
 `FFT(I(C1))`), empty charts report `None`.
 
+### Assert the charts a netlist declares (from `default_plots_test.py`)
+
+A netlist whose `.PLOT` directives declare default charts opens one chart per
+directive, in declaration order, each carrying the first series it declares.
+Read the identities like any other chart, and read the series names of a
+multi-series chart from the legend entries in the band below its plot (the same
+band as the abscissa labels):
+
+```python
+app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected one chart per .PLOT line")
+charts = app.get_by_type("ChartView")
+self.assertEqual(charts.nth(0).text(), "I(L1)")
+self.assertEqual(charts.nth(1).text(), "V(IN)")
+```
+
+The same recipe covers a compound expression (`db(I(L1))` is plotted even when
+the print only carries `I(*)`) and the voltage difference syntax `V(N2,N1)`.
+To see the netlist the application rewrote — the quantities a chart declares are
+merged into the `.PRINT` line — switch to the netlist view with toolbar index 2
+and read `NetlistEditor::input`. That the directive never reaches the simulator
+is observable in the log panel (toolbar index 4): a run must report no
+*“Unrecognized dot line”* warning.
+
 Axis tick labels are `Text` children of the `ChartView`; abscissa labels sit
 in the band below the plot (relative y in the last 60 px of the view) and
 ordinate labels above it. See `_chart_axis_labels` and `_abscissa_tick_labels`

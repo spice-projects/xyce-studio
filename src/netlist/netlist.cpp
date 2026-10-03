@@ -223,6 +223,8 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
     std::vector<std::string> directives;
     // directives that should pass through without re-insertion
     std::vector<std::string> passthrough_directives;
+    // .PLOT directive lines declaring the default charts of the run
+    std::vector<std::string> plot_directives;
     // pointer to the currently open subcircuit definition (nullptr when at top level)
     SubcircuitDefinition* current_subckt = nullptr;
     // sanitized netlist lines being built during parsing
@@ -403,6 +405,13 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
                 // next
                 continue;
             }
+            // handle .PLOT directives (Xyce Studio extension declaring the default charts of a run, stripped from the netlist handed to the simulator)
+            if (first_upper == ".PLOT") {
+                // store as a managed directive so the plot parser can read the expressions and the editor shows it with the other directives
+                plot_directives.push_back(stripped);
+                // next
+                continue;
+            }
             // any other dot-command is treated as a passthrough directive
             std::string other_directive = first_upper;
             for (size_t i = 1; i < tokens.size(); ++i)
@@ -465,6 +474,7 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
     topology.m_global_nodes = std::move(global_nodes);
     topology.m_directives = std::move(directives);
     topology.m_passthrough_directives = std::move(passthrough_directives);
+    topology.m_plot_directives = std::move(plot_directives);
     // return the sanitized netlist string and the parsed topology
     return {std::move(netlist_str), std::move(topology)};
 }

@@ -21,7 +21,8 @@ appears only when there is more than one dataset.
 
 Each tab holds a stack of charts, drawn top to bottom. A chart starts
 empty — a fresh simulation shows an empty chart until you choose the
-expressions to plot.
+expressions to plot, or until the netlist declares its default charts with
+the [`.PLOT` directive](plot-directive.md).
 
 ### Adding and removing plots
 

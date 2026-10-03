@@ -65,6 +65,7 @@ nav:
       - The Main Window: user-guide/main-window.md
       - Configuring Xyce: user-guide/configuration.md
       - Running Simulations: user-guide/simulations.md
+      - The .PLOT Directive: user-guide/plot-directive.md
       - Simulation Output Files: user-guide/output-files.md
       - Viewing Results: user-guide/charts.md
       - Troubleshooting: user-guide/troubleshooting.md

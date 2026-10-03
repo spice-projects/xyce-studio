@@ -7,24 +7,24 @@ from slint_automation import TestSession, launch
 
 class ChartsContextActionChecks(unittest.TestCase):
 
-    def test_add_chart_appends_after_the_single_chart(self) -> None:
+    def test_add_chart_appends_after_the_declared_charts(self) -> None:
         # arrange: resolve the xyce executable and the sample netlist
         xyce = shutil.which("Xyce")
         netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
         if xyce is None:
             self.skipTest("Xyce executable not found")
         # arrange: launch the application, run the simulation and wait for the
-        # initial transient chart
+        # transient charts the .PLOT lines declare
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             # act: add a chart targeting the bottom of the stack
             app.invoke_chart_action("add-chart", chart_position=1.0)
-            # assert: a second chart appeared after the first one
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=5.0, message="expected a second chart after the invoke")
+            # assert: the new empty chart appeared below the two declared ones
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 3, timeout=5.0, message="expected a third chart after the invoke")
             labels = [app.client().get_element_properties(handle).get("accessibleLabel") for handle in app.client().find_by_type("ChartView")]
-            self.assertEqual(labels, [None, None])
+            self.assertEqual(labels, ["I(L1)", "V(IN)", None])
 
     def test_add_chart_inserts_after_the_targeted_chart(self) -> None:
         # arrange: resolve the xyce executable and the sample netlist
@@ -37,7 +37,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -60,7 +60,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -137,7 +137,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -159,7 +159,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -184,7 +184,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -253,7 +253,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()
@@ -284,7 +284,7 @@ class ChartsContextActionChecks(unittest.TestCase):
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             tabs = app.get_by_type("PlotTabButton")
             self.assertEqual(tabs.count(), 3)
             tabs.nth(1).click()

@@ -46,6 +46,8 @@ struct NetlistTopology
     std::vector<std::string> m_directives;
     // directives that are stored but not re-inserted by build_final_netlist
     std::vector<std::string> m_passthrough_directives;
+    // .PLOT directive lines declaring the default charts of a run; like every managed directive they are re-inserted before .END by build_final_netlist and never reach the simulator
+    std::vector<std::string> m_plot_directives;
 };
 
 // parse a raw netlist text and return a sanitized netlist string + topology

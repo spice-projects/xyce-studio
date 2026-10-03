@@ -14,11 +14,11 @@ class ExpressionLegendChecks(unittest.TestCase):
         if xyce is None:
             self.skipTest("Xyce executable not found")
         # arrange: launch the application, run the simulation and wait for the
-        # initial transient chart
+        # transient charts the .PLOT lines declare
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             # step: open the add plot expression selector through the debug
             # trigger; the native context menu is not reachable
             app.invoke_chart_action("add-remove-plots", chart_position=0.5)
@@ -51,11 +51,11 @@ class ExpressionLegendChecks(unittest.TestCase):
         if xyce is None:
             self.skipTest("Xyce executable not found")
         # arrange: launch the application, run the simulation and wait for the
-        # initial transient chart
+        # transient charts the .PLOT lines declare
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             app.get_by_type("ToolbarButton").nth(5).click()
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
-            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=10.0, message="expected the initial transient chart")
+            app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 2, timeout=15.0, message="expected the charts the .PLOT lines declare")
             # step: open the fft setup panel through the debug trigger
             app.invoke_chart_action("calculate-fft", chart_position=0.5)
             legend = app.get_by_type("Legend")

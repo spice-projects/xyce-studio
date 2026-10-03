@@ -32,9 +32,10 @@ everything in this guide applies to both unless explicitly noted.
    - [Harmonic Balance (.HB)](simulations.md#harmonic-balance-hb)
    - [Linear Analysis (.LIN)](simulations.md#linear-analysis-lin)
    - [Directives: .PRINT, .FFT, .FOUR, .MEASURE](simulations.md#print-output-options)
-5. [Simulation Output Files](output-files.md)
-6. [Viewing Results](charts.md)
-7. [Troubleshooting](troubleshooting.md)
+5. [The `.PLOT` Directive](plot-directive.md) — declare the default charts of a run
+6. [Simulation Output Files](output-files.md)
+7. [Viewing Results](charts.md)
+8. [Troubleshooting](troubleshooting.md)
 
 ## A typical workflow
 
