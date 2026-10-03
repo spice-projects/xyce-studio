@@ -37,9 +37,7 @@ constexpr std::array<std::pair<std::string_view, LogSeverity>, 4> MESSAGE_PREFIX
 }
 
 // true when the line starts with the given prefix
-[[nodiscard]] bool starts_with(std::string_view line, std::string_view prefix) {
-    return line.size() >= prefix.size() && line.compare(0, prefix.size(), prefix) == 0;
-}
+[[nodiscard]] bool starts_with(std::string_view line, std::string_view prefix) { return line.size() >= prefix.size() && line.compare(0, prefix.size(), prefix) == 0; }
 
 // drop the dot runs Xyce closes its analysis phase announcements with
 [[nodiscard]] std::string_view without_trailing_dots(std::string_view value) {

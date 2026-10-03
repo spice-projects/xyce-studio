@@ -117,7 +117,7 @@ private:
     // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
-// merge the quantities declared by the .PLOT directives of the given topology into the analysis print so the plotted expressions always have data; a netlist without .PLOT directives leaves the print untouched and the print is only created when the creation is allowed
+    // merge the quantities declared by the .PLOT directives of the given topology into the analysis print so the plotted expressions always have data; a netlist without .PLOT directives leaves the print untouched and the print is only created when the creation is allowed
     void augment_analysis_print_with_plot_directives(SimulationConfig& config, const NetlistTopology& topology, bool create_print) const;
 
     // append the .PLOT chart directives of the parsed netlist to the directives merged into the editor netlist, so every directive the application interpreted shows up in the block above .END; the copy handed to the simulator is built without them

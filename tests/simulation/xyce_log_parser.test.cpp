@@ -312,22 +312,7 @@ TEST(XyceLogParserChecks, feed_reads_a_complete_transient_run_log) {
     XyceLogParser parser;
     // arrange: the console log of a transient run that reported two progress blocks and one warning
     const std::vector<std::string> log = {
-        "",
-        "***** Welcome to the Xyce(TM) Parallel Electronic Simulator",
-        "***** Reading and parsing netlist...",
-        "Netlist warning: No print specified",
-        "***** Setting up topology...",
-        "***** Initializing...",
-        "***** Beginning DC Operating Point Calculation...",
-        "***** Beginning Transient Calculation...",
-        "",
-        "***** Percent complete: 1.00002 %",
-        "***** Current system time: Fri Oct  2 14:44:18 2026",
-        "***** Estimated time to completion:  1 min., 53 sec.",
-        "",
-        "***** Percent complete: 97.0018 %",
-        "***** Current system time: Fri Oct  2 14:46:16 2026",
-        "***** Estimated time to completion: 3 sec.",
+        "", "***** Welcome to the Xyce(TM) Parallel Electronic Simulator", "***** Reading and parsing netlist...", "Netlist warning: No print specified", "***** Setting up topology...", "***** Initializing...", "***** Beginning DC Operating Point Calculation...", "***** Beginning Transient Calculation...", "", "***** Percent complete: 1.00002 %", "***** Current system time: Fri Oct  2 14:44:18 2026", "***** Estimated time to completion:  1 min., 53 sec.", "", "***** Percent complete: 97.0018 %", "***** Current system time: Fri Oct  2 14:46:16 2026", "***** Estimated time to completion: 3 sec.",
     };
     // act
     LogSeverity last_severity = LogSeverity::info;
