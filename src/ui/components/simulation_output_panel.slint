@@ -165,7 +165,8 @@ export component SimulationOutputPanel inherits Rectangle {
                     padding-left: 8px;
                     padding-right: 8px;
 
-                    Text {
+                    // carries an element id so the automation can read the count as text
+                    warning-badge-count := Text {
                         text: root.warning-count;
                         font-size: 11px;
                         color: root.warning-color;
@@ -182,7 +183,7 @@ export component SimulationOutputPanel inherits Rectangle {
                     }
                 }
 
-                wb := TouchArea {
+                warning-badge-touch := TouchArea {
                     mouse-cursor: pointer;
                     clicked => {
                         root.reveal-line(root.warning-line);
@@ -218,7 +219,7 @@ export component SimulationOutputPanel inherits Rectangle {
                     }
                 }
 
-                eb := TouchArea {
+                error-badge-touch := TouchArea {
                     mouse-cursor: pointer;
                     clicked => {
                         root.reveal-line(root.error-line);

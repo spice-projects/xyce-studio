@@ -161,13 +161,23 @@ component RunProgress inherits Rectangle {
     private property <float> bar-width: 120;
     private property <float> sweep-position: root.sweep-phase * root.bar-width / 40;
 
-    // tick four times a second while a run is in flight but Xyce reports no percentage, driving the elapsed counter and the sweep
+    // advance the sweep four times a second while a run is in flight but Xyce reports no
+    // percentage, so it reads as a moving highlight
     Timer {
         interval: 250ms;
         running: root.percentage < 0;
         triggered => {
-            root.elapsed-seconds = root.elapsed-seconds + 1;
             root.sweep-phase = Math.mod(root.sweep-phase + 1, 40);
+        }
+    }
+
+    // count the elapsed seconds once a second, on their own timer so the sweep cadence
+    // cannot stretch the reported time
+    Timer {
+        interval: 1s;
+        running: root.percentage < 0;
+        triggered => {
+            root.elapsed-seconds = root.elapsed-seconds + 1;
         }
     }
 
@@ -188,9 +198,12 @@ component RunProgress inherits Rectangle {
             height: 3px;
             border-radius: 2px;
             background: Palette.foreground.with-alpha(0.14);
+            // the sweep travels a full track width, so the part that runs past the right edge must be
+            // cut off instead of painted over the spacing and the progress text
+            clip: true;
 
             // the filled part spans the reported percentage, or a third of the bar travelling across it while the percentage is unknown
-            Rectangle {
+            run-progress-fill := Rectangle {
                 x: (root.percentage >= 0 ? 0 : root.sweep-position) * 1px;
                 width: (root.percentage >= 0 ? root.bar-width * root.percentage / 100 : root.bar-width / 3) * 1px;
                 height: 100%;
@@ -207,7 +220,8 @@ component RunProgress inherits Rectangle {
             }
         }
 
-        Text {
+        // carries an element id so the automation can read the reported progress as text
+        run-progress-percentage := Text {
             text: root.percentage >= 0
                 ? (root.eta != "" ? Math.round(root.percentage) + "% · ETA " + root.eta : Math.round(root.percentage) + "%")
                 : (root.phase != "" ? root.elapsed-seconds + "s · " + root.phase : root.elapsed-seconds + "s elapsed");
@@ -217,7 +231,7 @@ component RunProgress inherits Rectangle {
             vertical-alignment: center;
         }
 
-        Text {
+        run-progress-warnings := Text {
             text: root.warning-count > 0 ? root.warning-count + " warnings" : "";
             font-size: 12px;
             color: #d9a441;
@@ -225,7 +239,7 @@ component RunProgress inherits Rectangle {
             vertical-alignment: center;
         }
 
-        Text {
+        run-progress-errors := Text {
             text: root.error-count > 0 ? root.error-count + " errors" : "";
             font-size: 12px;
             color: #e05b4b;
@@ -840,7 +854,7 @@ export component MainWindow inherits Window {
                         horizontal-stretch: 1;
                     }
 
-                    if root.simulation-progress-running: RunProgress {
+                    if root.simulation-progress-running: run-progress := RunProgress {
                         percentage: root.simulation-progress-percentage;
                         eta: root.simulation-progress-eta;
                         phase: root.simulation-progress-phase;

@@ -19,6 +19,14 @@
 
 class KiCadSession;
 
+// one console log line already shown in the simulation output panel, paired with the stream it arrived
+// on; the pair lets the presenter recognize the copy Xyce writes to the other stream
+struct RememberedLogLine
+{
+    std::string line;
+    bool from_stderr = false;
+};
+
 // business/orchestration logic for the slint main window, decoupled from the ui through MainWindowViewDef and MainWindowViewDefEvents; the presenter implements the event handler interface and receives user-interaction callbacks from the view without the view knowing the presenter exists
 class SlintMainWindowPresenter : public MainWindowViewDefEvents
 {
@@ -123,17 +131,17 @@ private:
     // append the .PLOT chart directives of the parsed netlist to the directives merged into the editor netlist, so every directive the application interpreted shows up in the block above .END; the copy handed to the simulator is built without them
     [[nodiscard]] std::vector<std::string> editor_directives(const std::vector<std::string>& directives) const;
 
-    // classify the given console log line, append it to the output log and hand the refreshed progress to the view; a line is dropped when it repeats a line of the stdout stream Xyce already wrote to the stderr stream
-    void handle_simulation_log_line(const std::string& line);
+    // classify the given console log line, append it to the output log and hand the refreshed progress to the view; the line is dropped when the other stream already delivered it
+    void handle_simulation_log_line(const std::string& line, bool from_stderr);
 
     // hand the progress distilled from the Xyce console log to the view
     void publish_simulation_progress();
 
-    // remember a stdout log line so the repeated copy Xyce writes to the stderr stream is recognized
-    void remember_stdout_line(const std::string& line);
+    // remember a log line so the repeated copy Xyce writes to the other stream is recognized
+    void remember_log_line(const std::string& line, bool from_stderr);
 
-    // true when the given stderr line repeats a line the stdout stream already delivered
-    [[nodiscard]] bool is_repeated_stdout_line(const std::string& line) const;
+    // true when the given line was already delivered by the other stream; Xyce writes every message to stdout and to stderr, and the two pipes are drained on independent threads, so either copy can arrive first
+    [[nodiscard]] bool is_cross_stream_duplicate(const std::string& line, bool from_stderr) const;
 
     void show_simulation_output_view();
 
@@ -205,6 +213,6 @@ private:
     std::vector<PrintOutputCopy> m_simulation_output_copies;
     // parser distilling the progress and the diagnostics out of the Xyce console log of the running simulation
     XyceLogParser m_log_parser;
-    // Xyce writes every console message to stdout and to stderr, so the stderr stream repeats the stdout one; the tail of the stdout stream is kept here and a repeated line is not shown a second time
-    std::deque<std::string> m_recent_stdout_lines;
+    // Xyce writes every console message to stdout and to stderr, so the two streams carry the same log twice; the tail of what was shown is kept here with the stream each line arrived on, so the second copy is dropped no matter which pipe delivered it first
+    std::deque<RememberedLogLine> m_recent_log_lines;
 };

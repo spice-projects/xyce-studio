@@ -28,10 +28,10 @@
 
 namespace
 {
-    // number of stdout log lines kept to recognize the copy Xyce writes to the stderr
-    // stream; the runner hands over complete lines in 4096 byte chunks, so the copy of a
-    // line always follows within one chunk of it
-    constexpr std::size_t RECENT_STDOUT_LINES = 64;
+    // number of log lines kept to recognize the copy Xyce writes to the other stream; the
+    // runner hands over complete lines in 4096 byte chunks, so the copy of a line always
+    // follows within one chunk of it
+    constexpr std::size_t RECENT_LOG_LINES = 64;
 
     std::string window_to_string(fft::WindowFunction wf) {
         switch (wf) {
@@ -371,9 +371,9 @@ void SlintMainWindowPresenter::launch_simulation() {
     m_simulation_output_copies = collect_print_file_copies(directives, temp_path, working_directory);
     // mark the simulation as running
     m_simulation_running = true;
-    // drop the progress distilled out of the console log of the previous run
+    // drop the progress and the remembered log of the previous run
     m_log_parser.reset();
-    m_recent_stdout_lines.clear();
+    m_recent_log_lines.clear();
     // reset the log for this run
     m_view.clear_simulation_output();
     // launch the simulation through the view, which wires the runner
@@ -1073,23 +1073,23 @@ void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_
 }
 
 void SlintMainWindowPresenter::on_simulation_stdout(const std::string& line) {
-    // remember the line so the repeated copy Xyce writes to the stderr stream is recognized
-    remember_stdout_line(line);
     // classify the line, append it to the output log and refresh the progress
-    handle_simulation_log_line(line);
+    handle_simulation_log_line(line, false);
 }
 
 void SlintMainWindowPresenter::on_simulation_stderr(const std::string& line) {
     // log the line, it is a diagnostic even when it only repeats the stdout stream
     spdlog::warn("{}", line);
-    // drop the line when the stdout stream already delivered it, Xyce writes every message to both streams
-    if (is_repeated_stdout_line(line))
-        return;
     // classify the line, append it to the output log and refresh the progress
-    handle_simulation_log_line(line);
+    handle_simulation_log_line(line, true);
 }
 
-void SlintMainWindowPresenter::handle_simulation_log_line(const std::string& line) {
+void SlintMainWindowPresenter::handle_simulation_log_line(const std::string& line, const bool from_stderr) {
+    // drop the copy of a line the other stream already delivered, Xyce writes every message to both
+    if (is_cross_stream_duplicate(line, from_stderr))
+        return;
+    // remember the line so the copy arriving on the other stream is recognized
+    remember_log_line(line, from_stderr);
     // the row the line is appended at, the parser records it for the first warning and error
     const std::size_t row = m_view.simulation_output_line_count();
     // classify the line by the report prefix Xyce wrote it with
@@ -1108,17 +1108,19 @@ void SlintMainWindowPresenter::publish_simulation_progress() {
     m_view.set_simulation_progress(progress);
 }
 
-void SlintMainWindowPresenter::remember_stdout_line(const std::string& line) {
-    // append the line to the tail of the stdout stream
-    m_recent_stdout_lines.push_back(line);
+void SlintMainWindowPresenter::remember_log_line(const std::string& line, const bool from_stderr) {
+    // append the line to the tail of what was shown
+    m_recent_log_lines.push_back(RememberedLogLine{.line = line, .from_stderr = from_stderr});
     // drop the oldest line once the tail is full, the repeated copy of a line always follows within a chunk of it
-    if (m_recent_stdout_lines.size() > RECENT_STDOUT_LINES)
-        m_recent_stdout_lines.pop_front();
+    if (m_recent_log_lines.size() > RECENT_LOG_LINES)
+        m_recent_log_lines.pop_front();
 }
 
-bool SlintMainWindowPresenter::is_repeated_stdout_line(const std::string& line) const {
-    // check the tail of the stdout stream for an identical line
-    return std::find(m_recent_stdout_lines.begin(), m_recent_stdout_lines.end(), line) != m_recent_stdout_lines.end();
+bool SlintMainWindowPresenter::is_cross_stream_duplicate(const std::string& line, const bool from_stderr) const {
+    // look for an identical line the other stream already delivered; a line the same stream repeats is
+    // legitimate (Xyce separates its progress blocks with blank lines and repeats its summaries in a
+    // .STEP run) and stays visible
+    return std::any_of(m_recent_log_lines.begin(), m_recent_log_lines.end(), [&line, from_stderr](const RememberedLogLine& remembered) { return remembered.from_stderr != from_stderr && remembered.line == line; });
 }
 
 void SlintMainWindowPresenter::on_netlist_editor_modified() {

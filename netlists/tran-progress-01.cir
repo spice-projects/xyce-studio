@@ -1,0 +1,15 @@
+* Slow RLC Series Circuit - Simulation Progress Feedback Test
+* The transient is long enough for the status bar progress indicator, the
+* warning badge and the simulation output panel to be observed while the run
+* is in flight; the floating capacitor makes Xyce report a warning
+V1 IN 0 PULSE(0 5 0 1n 1n 1m 2m)
+R1 IN 0 100
+L1 IN N2 10mH
+C1 N2 0 1uF
+C3 FLOAT 0 100n
+
+.PREPROCESS REPLACEGROUND TRUE
+.TRAN 1u 1 0
+.PRINT TRAN FORMAT=RAW V(IN) V(N2)
+
+.END

@@ -983,6 +983,41 @@ TEST(SlintMainWindowPresenterChecks, simulation_stderr_drops_the_line_the_stdout
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, simulation_stdout_drops_the_line_the_stderr_stream_delivered_first) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — the two pipes are drained on independent threads, so the stderr copy can win the race
+    presenter.on_simulation_stderr("Netlist warning: No print specified");
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    // assert — the line is shown once and counted once whichever stream arrived first
+    ASSERT_EQ(view.m_output_lines.size(), 1U);
+    EXPECT_EQ(view.m_output_lines[0], "Netlist warning: No print specified");
+    EXPECT_EQ(view.m_progress.warnings, 1);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_keeps_a_line_the_same_stream_repeats) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act — Xyce separates its progress blocks with blank lines and repeats its summaries in a .STEP run
+    presenter.on_simulation_stdout("");
+    presenter.on_simulation_stdout("***** Percent complete: 10 %");
+    presenter.on_simulation_stdout("");
+    presenter.on_simulation_stderr("");
+    // assert — only the copy arriving on the other stream is dropped
+    EXPECT_EQ(view.m_output_lines.size(), 3U);
+    EXPECT_EQ(view.m_output_lines[0], "");
+    EXPECT_EQ(view.m_output_lines[1], "***** Percent complete: 10 %");
+    EXPECT_EQ(view.m_output_lines[2], "");
+}
+
 TEST(SlintMainWindowPresenterChecks, simulation_stderr_keeps_a_line_the_stdout_stream_never_delivered) {
     // arrange
     RecordingView view;
@@ -994,14 +1029,14 @@ TEST(SlintMainWindowPresenterChecks, simulation_stderr_keeps_a_line_the_stdout_s
     EXPECT_EQ(view.m_progress.errors, 1);
 }
 
-TEST(SlintMainWindowPresenterChecks, simulation_stderr_drops_a_line_beyond_the_recent_stdout_window) {
+TEST(SlintMainWindowPresenterChecks, simulation_drops_a_duplicate_beyond_the_recent_log_window) {
     // arrange
     RecordingView view;
     const auto working_directory = std::filesystem::temp_directory_path();
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
-    // act — flood the stdout stream past the window that recognizes the repeated copies
+    // act — flood the log past the window that recognizes the repeated copies
     presenter.on_simulation_stdout("Netlist warning: No print specified");
     for (int row = 0; row < 64; ++row)
         presenter.on_simulation_stdout("***** Total Elapsed Run Time: " + std::to_string(row) + " seconds");
