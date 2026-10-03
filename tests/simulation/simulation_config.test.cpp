@@ -1458,3 +1458,21 @@ TEST(SimulationConfigPlotAugmentChecks, keeps_a_quantity_next_to_a_printed_bare_
     // assert
     ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"(*)", "V(1)"}));
 }
+
+TEST(SimulationConfigPlotAugmentChecks, keeps_a_plotted_noise_operator_that_the_print_stores_beside_its_variables) {
+    // arrange — the noise parser moves DNI/DNO tokens out of the output variables into the device noise operators
+    auto config = SimulationConfig::from_xyce_directives({".NOISE V(out) V(1)", ".PRINT NOISE FORMAT=RAW DNI(R1) V(1)"});
+    ASSERT_TRUE(config.analysis_print_parameters().has_value());
+    // act — a chart declares the very same noise operator
+    config.augment_analysis_print_variables({"DNI(R1)", "ONOISE(V(1))"}, true);
+    // assert — the operator is neither added to the variable list nor emitted twice
+    ASSERT_EQ(config.analysis_print_parameters()->output_variables, (std::vector<std::string>{"V(1)", "ONOISE(V(1))"}));
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    const auto print = std::ranges::find_if(directives, [](const std::string& directive) { return directive.rfind(".PRINT NOISE", 0) == 0; });
+    ASSERT_NE(print, directives.end());
+    // count how often the noise operator appears in the emitted statement
+    size_t occurrences = 0;
+    for (auto position = print->find("DNI(R1)"); position != std::string::npos; position = print->find("DNI(R1)", position + 1))
+        ++occurrences;
+    ASSERT_EQ(occurrences, 1);
+}

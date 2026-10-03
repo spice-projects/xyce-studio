@@ -161,6 +161,36 @@ class PlotDirectiveChartChecks(unittest.TestCase):
                 self.assertTrue({"V(IN)", "V(N1)", "abs(I(L1))"}.issubset(set(first_legend)), f"expected the first chart to legend its three series, got {first_legend}")
                 self.assertIn("V(N2,N1)", second_legend)
 
+    def test_compound_voltage_difference_plots_from_the_node_voltages(self) -> None:
+        # arrange: resolve the xyce executable so the run action gets past its config check
+        xyce = shutil.which("Xyce")
+        # arrange: skip the scenario when the xyce executable is not available
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        # arrange: write a netlist whose chart reads a voltage difference the print does not carry
+        with tempfile.TemporaryDirectory() as scratch:
+            netlist_path = Path(scratch) / "differential-plot.cir"
+            netlist_path.write_text("* compound differential\nV1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nL1 N1 N2 10mH\nC1 N2 0 1uF\n.TRAN 1u 20m 0\n.PRINT TRAN FORMAT=RAW V(IN)\n.PLOT abs(V(N2,N1))\n.END\n")
+            # arrange: launch the application with the netlist and the xyce executable
+            with TestSession(launch(args=["--netlist", str(netlist_path), "--xyce", xyce]), self.id()) as app:
+                # arrange: locate the status bar text
+                status = app.get_by_id("MainWindow::statusbar").child("Text")
+                # step 1: run the simulation and wait for the final status message
+                app.get_by_type("ToolbarButton").nth(5).click()
+                expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
+                # step 2: wait for the charts view to open
+                app.get_by_id("MainWindow::charts").wait_for_exists(timeout=15.0)
+                # assert: the compound differential resolves, so the chart is plotted instead of skipped
+                app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 1, timeout=15.0, message="expected the declared chart")
+                self.assertEqual(app.get_by_type("ChartView").nth(0).text(), "abs(V(N2,N1))")
+                # step 3: switch to the netlist view to inspect the rewritten netlist
+                app.get_by_type("ToolbarButton").nth(2).click()
+                editor = app.get_by_id("NetlistEditor::input")
+                app.wait_for_condition(lambda: editor.exists(), timeout=10.0, message="expected the netlist view")
+                netlist_text = editor.text() or ""
+                # assert: the two node voltages joined the print, because the viewer computes the difference from them
+                self.assertIn(".PRINT TRAN FORMAT=RAW V(IN) V(N2) V(N1)", netlist_text)
+
     def test_plotted_quantity_missing_from_the_print_is_added_to_it(self) -> None:
         # arrange: resolve the xyce executable so the run action gets past its config check
         xyce = shutil.which("Xyce")

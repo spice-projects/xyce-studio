@@ -282,6 +282,9 @@ void SlintMainWindowPresenter::on_run_simulation() {
             m_simulation_config.options = simulation_config.options;
             if (!std::holds_alternative<std::monostate>(simulation_config.analysis))
                 m_simulation_config = simulation_config;
+            // a netlist without an analysis directive keeps the accepted analysis; its print still gains the quantities the .PLOT directives declare, in merge-only mode so an explicitly disabled print stays disabled
+            else
+                augment_analysis_print_with_plot_directives(m_simulation_config, topology, false);
         }
         // remember the parse result for the launch (always updated when the
         m_pending_sanitized_netlist = sanitized_netlist;
@@ -390,6 +393,9 @@ void SlintMainWindowPresenter::on_configure_simulation() {
         m_simulation_config.options = parsed_config.options;
         if (!std::holds_alternative<std::monostate>(parsed_config.analysis))
             m_simulation_config = parsed_config;
+        // a netlist without an analysis directive keeps the accepted analysis; its print still gains the quantities the .PLOT directives declare, in merge-only mode so an explicitly disabled print stays disabled
+        else
+            augment_analysis_print_with_plot_directives(m_simulation_config, topology, false);
     }
     // remember the parse result so the accepted config can rebuild the netlist
     m_pending_sanitized_netlist = sanitized_netlist;
@@ -418,6 +424,9 @@ void SlintMainWindowPresenter::on_edit_options() {
         m_simulation_config.options = parsed_config.options;
         if (!std::holds_alternative<std::monostate>(parsed_config.analysis))
             m_simulation_config = parsed_config;
+        // a netlist without an analysis directive keeps the accepted analysis; its print still gains the quantities the .PLOT directives declare, in merge-only mode so an explicitly disabled print stays disabled
+        else
+            augment_analysis_print_with_plot_directives(m_simulation_config, topology, false);
     }
     // remember the parse result so the accepted options can rebuild the netlist
     m_pending_sanitized_netlist = sanitized_netlist;
@@ -819,16 +828,14 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             m_analysis_measurements = m_plot_datasets[0].file;
             // the .PLOT directives of the netlist declare the default charts of the primary tab
             const auto plot_groups = plot_chart_groups(m_pending_topology.m_plot_directives);
-            // hand the declared chart groups to the output file when the netlist carries .PLOT directives
-            if (!plot_groups.empty()) {
-                // a re-run whose directives declare other charts drops the primary chart state so the renderer rebuilds it; unchanged directives keep the charts the user arranged
-                if (reuses_primary_dataset && m_applied_plot_groups != plot_groups)
-                    m_view.release_charts(m_plot_datasets[0].id);
-                // remember the applied groups for the next run
-                m_applied_plot_groups = plot_groups;
-                // the renderer builds one chart per group when the dataset is activated for the first time
+            // a re-run whose directives declare other charts drops the primary chart state so the renderer rebuilds it; unchanged directives keep the charts the user arranged
+            if (!plot_groups.empty() && reuses_primary_dataset && m_applied_plot_groups != plot_groups)
+                m_view.release_charts(m_plot_datasets[0].id);
+            // remember the declared groups of this run, an empty set included, so restoring the directives after a run without them still counts as a change
+            m_applied_plot_groups = plot_groups;
+            // hand the declared chart groups to the output file when the netlist carries .PLOT directives, the renderer builds one chart per group when the dataset is activated for the first time
+            if (!plot_groups.empty())
                 m_plot_datasets[0].file->set_suggested_plots(plot_groups);
-            }
             // activate the primary dataset
             m_active_dataset_index = 0;
             sync_plot_tabs_with_view();

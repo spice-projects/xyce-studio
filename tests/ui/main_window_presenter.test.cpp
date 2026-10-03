@@ -3196,3 +3196,132 @@ TEST(SlintMainWindowPresenterChecks, an_options_edit_keeps_the_plot_directive_qu
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
 }
+
+TEST(SlintMainWindowPresenterChecks, a_netlist_without_an_analysis_still_prints_the_plot_quantities) {
+    // arrange — launch a transient run so the pending parse holds an accepted analysis and its print
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path());
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    std::filesystem::remove(view.m_started_netlist_path);
+    // act — the netlist drops its analysis directive but declares a chart, so the accepted analysis is retained
+    source->m_content = "V1 1 0 5\nR1 1 0 1K\n.PRINT TRAN FORMAT=RAW V(1)\n.PLOT abs(I(R1))\n.END\n";
+    source->m_reloaded = true;
+    presenter.on_run_simulation();
+    // assert — the retained analysis gained the plotted quantity, so the run produces data for the declared series
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_NE(content.find(".PRINT TRAN FORMAT=RAW V(1) I(R1)"), std::string::npos);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, a_disabled_print_stays_disabled_when_only_plot_directives_changed) {
+    // arrange — accept a transient configuration whose print the user turned off
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", std::filesystem::temp_directory_path());
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_simulation_parameters_dialog_result(SimulationConfig("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true));
+    // act — a netlist without an analysis directive adds a chart declaration while the accepted print stays off
+    source->m_content = "V1 1 0 5\nR1 1 0 1K\n.PLOT abs(I(R1))\n.END\n";
+    source->m_reloaded = true;
+    presenter.on_run_simulation();
+    // assert — the run netlist carries no print, the augmentation never re-enables one the user turned off
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ifstream temp_netlist(view.m_started_netlist_path);
+        const std::string content((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content.find(".PRINT"), std::string::npos);
+        EXPECT_EQ(content.find(".PLOT"), std::string::npos);
+    }
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, restoring_the_plot_directives_after_a_run_without_them_rebuilds_the_charts) {
+    // arrange — launch a transient run declaring a chart and finish it
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1) I(R1)\n.PLOT V(1)\n.END\n", std::filesystem::temp_directory_path());
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto first_netlist_path = view.m_started_netlist_path;
+    {
+        std::ofstream raw_file(first_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Restored Directive Circuit\n";
+        raw_file << "Plotname: Transient Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 3\n";
+        raw_file << "No. Points: 2\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\ttime\ttime\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "\t2\tI(R1)\tcurrent\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0  0.01\n";
+        raw_file << " 1  0.001  2.0  0.02\n";
+    }
+    presenter.on_simulation_finished(0, false);
+    // act — run again without any .PLOT line, which keeps the charts of the previous run
+    source->m_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1) I(R1)\n.END\n";
+    source->m_reloaded = true;
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto second_netlist_path = view.m_started_netlist_path;
+    {
+        std::ofstream raw_file(second_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Restored Directive Circuit\n";
+        raw_file << "Plotname: Transient Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 3\n";
+        raw_file << "No. Points: 2\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\ttime\ttime\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "\t2\tI(R1)\tcurrent\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0  0.01\n";
+        raw_file << " 1  0.001  2.0  0.02\n";
+    }
+    presenter.on_simulation_finished(0, false);
+    // assert — the run without declarations keeps the charts, so the primary dataset was not released
+    EXPECT_EQ(std::count(view.m_released_dataset_ids.begin(), view.m_released_dataset_ids.end(), 1), 0);
+    // act — restore the very same declaration and run once more
+    source->m_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1) I(R1)\n.PLOT V(1)\n.END\n";
+    source->m_reloaded = true;
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto third_netlist_path = view.m_started_netlist_path;
+    {
+        std::ofstream raw_file(third_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Restored Directive Circuit\n";
+        raw_file << "Plotname: Transient Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 3\n";
+        raw_file << "No. Points: 2\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\ttime\ttime\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "\t2\tI(R1)\tcurrent\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0  0.01\n";
+        raw_file << " 1  0.001  2.0  0.02\n";
+    }
+    presenter.on_simulation_finished(0, false);
+    // assert — the declarations changed since the preceding run, so the charts are rebuilt from them
+    EXPECT_NE(std::count(view.m_released_dataset_ids.begin(), view.m_released_dataset_ids.end(), 1), 0);
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    EXPECT_EQ((*presenter.analysis_measurements())->suggested_plots(), (std::vector<std::vector<std::string>>{std::vector<std::string>{"V(1)"}}));
+    // cleanup
+    std::error_code ec;
+    for (const auto& path : {first_netlist_path, second_netlist_path, third_netlist_path}) {
+        std::filesystem::remove(path, ec);
+        std::filesystem::remove(path.string() + ".raw", ec);
+    }
+}

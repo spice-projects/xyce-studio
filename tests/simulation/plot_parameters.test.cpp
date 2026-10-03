@@ -54,6 +54,31 @@ TEST(PlotDirectiveChecks, keeps_a_comma_inside_a_braced_expression) {
     ASSERT_EQ(groups[0], (std::vector<std::string>{"V(1), V(2)", "V(3)"}));
 }
 
+TEST(PlotDirectiveChecks, strips_the_single_quotes_of_a_quoted_expression) {
+    // arrange / act — Xyce accepts single quotes around an expression (RG 2.2), the quotes must not reach the viewer expression parser
+    const auto groups = plot_chart_groups({".PLOT 'V(1) * 2'"});
+    // assert
+    ASSERT_EQ(groups.size(), 1);
+    ASSERT_EQ(groups[0], (std::vector<std::string>{"V(1) * 2"}));
+    ASSERT_EQ(plot_output_variables(groups), (std::vector<std::string>{"V(1)"}));
+}
+
+TEST(PlotDirectiveChecks, strips_the_double_quotes_of_a_quoted_expression) {
+    // arrange / act
+    const auto groups = plot_chart_groups({".PLOT \"V(1) * 2\" V(2)"});
+    // assert
+    ASSERT_EQ(groups.size(), 1);
+    ASSERT_EQ(groups[0], (std::vector<std::string>{"V(1) * 2", "V(2)"}));
+}
+
+TEST(PlotDirectiveChecks, keeps_a_quoted_name_that_carries_no_expression) {
+    // arrange / act — an unbalanced quote is not a delimiter and the token stays as written
+    const auto groups = plot_chart_groups({".PLOT 'V(1)"});
+    // assert
+    ASSERT_EQ(groups.size(), 1);
+    ASSERT_EQ(groups[0], (std::vector<std::string>{"'V(1)"}));
+}
+
 TEST(PlotDirectiveChecks, normalizes_the_power_alias_to_the_p_probe) {
     // arrange / act
     const auto groups = plot_chart_groups({".PLOT W(R1) I(R2)"});
@@ -131,8 +156,8 @@ TEST(PlotDirectiveChecks, collects_nothing_from_a_network_parameter_name) {
 TEST(PlotDirectiveChecks, collects_the_solution_variables_of_a_compound_expression) {
     // arrange / act
     const auto variables = plot_output_variables({{"abs(I(R1))", "db(V(out))", "V(N2,N3)*2"}});
-    // assert — the function calls themselves are evaluated in the viewer, only their solution variables must be produced
-    ASSERT_EQ(variables, (std::vector<std::string>{"I(R1)", "V(out)", "V(N2,N3)"}));
+    // assert — the function calls themselves are evaluated in the viewer, only their solution variables must be produced and a voltage difference contributes the two nodes it reads
+    ASSERT_EQ(variables, (std::vector<std::string>{"I(R1)", "V(out)", "V(N2)", "V(N3)"}));
 }
 
 TEST(PlotDirectiveChecks, collects_the_solution_variables_of_a_nested_expression) {
@@ -149,11 +174,32 @@ TEST(PlotDirectiveChecks, collects_the_solution_variables_of_a_negated_expressio
     ASSERT_EQ(variables, (std::vector<std::string>{"V(out)"}));
 }
 
-TEST(PlotDirectiveChecks, normalizes_a_voltage_difference_written_with_spaces) {
+TEST(PlotDirectiveChecks, collects_both_nodes_of_a_voltage_difference_written_with_spaces) {
     // arrange / act — the space inside the argument list is not a series separator
     const auto variables = plot_output_variables({{"V(N2, N3)"}});
-    // assert — the rendered quantity carries no whitespace so the produced column name matches
-    ASSERT_EQ(variables, (std::vector<std::string>{"V(N2,N3)"}));
+    // assert — the viewer resolves the difference from the two node columns, never from a printed differential column
+    ASSERT_EQ(variables, (std::vector<std::string>{"V(N2)", "V(N3)"}));
+}
+
+TEST(PlotDirectiveChecks, collects_both_nodes_of_a_voltage_difference_nested_in_an_expression) {
+    // arrange / act — the differential sits inside a compound expression, so it only surfaces through the parsed AST
+    const auto variables = plot_output_variables({{"abs(V(N2,N1))"}});
+    // assert
+    ASSERT_EQ(variables, (std::vector<std::string>{"V(N2)", "V(N1)"}));
+}
+
+TEST(PlotDirectiveChecks, collects_a_single_node_probe_untouched) {
+    // arrange / act — a one-argument voltage probe is a node column of its own
+    const auto variables = plot_output_variables({{"V(N2)"}});
+    // assert
+    ASSERT_EQ(variables, (std::vector<std::string>{"V(N2)"}));
+}
+
+TEST(PlotDirectiveChecks, leaves_a_three_argument_voltage_probe_untouched) {
+    // arrange / act — only a node pair splits; anything else keeps its spelling
+    const auto variables = plot_output_variables({{"V(a,b,c)"}});
+    // assert
+    ASSERT_EQ(variables, (std::vector<std::string>{"V(a,b,c)"}));
 }
 
 TEST(PlotDirectiveChecks, collects_the_solution_variables_of_a_frequency_domain_call) {

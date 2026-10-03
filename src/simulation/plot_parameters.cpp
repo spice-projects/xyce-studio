@@ -69,12 +69,36 @@ namespace
         return separated;
     }
 
-    // strip one pair of outer braces from an expression; .PRINT uses the braces to group an expression but a chart expression is evaluated on its own
-    std::string strip_expression_braces(const std::string& expression) {
-        // only a fully braced expression loses its braces
-        if (expression.size() < 2 || expression.front() != '{' || expression.back() != '}')
-            return expression;
-        return expression.substr(1, expression.size() - 2);
+    // strip the outer delimiters of an expression; Xyce accepts braces and single quotes around an expression (RG 2.2) and a chart expression is evaluated on its own
+    std::string strip_expression_delimiters(const std::string& expression) {
+        // a braced expression loses its braces
+        if (expression.size() >= 2 && expression.front() == '{' && expression.back() == '}')
+            return expression.substr(1, expression.size() - 2);
+        // a quoted expression loses its quotes, the same way a FILE= option value does
+        return strip_outer_quotes(expression);
+    }
+
+    // split a bare voltage difference into the two node voltages it reads, because the viewer resolves V(node1,node2) from the node columns (the reconstructed probe key of the evaluator, "V(a, b)", never matches a printed differential column spelled "V(a,b)")
+    std::vector<std::string> split_voltage_difference(const std::string& expression) {
+        // locate the probe name and its argument list
+        const auto open = expression.find('(');
+        // a bare probe always carries a parenthesized argument list
+        if (open == std::string::npos || expression.size() < 2 || expression.back() != ')')
+            return {expression};
+        // only the voltage operator takes a node pair (RG 2.1.31: V(<circuit node>,<circuit node>))
+        if (to_upper(expression.substr(0, open)) != "V")
+            return {expression};
+        // a wildcard collects every node already
+        const auto arguments = expression.substr(open + 1, expression.size() - open - 2);
+        // split the two node names at the comma, a node name never holds one
+        const auto comma = arguments.find(',');
+        // anything but exactly two node names is left untouched
+        if (comma == std::string::npos || comma == 0 || comma + 1 >= arguments.size() || arguments.find(',', comma + 1) != std::string::npos)
+            return {expression};
+        // the probe name is reused for both node columns
+        const auto name = expression.substr(0, open);
+        // collect both node voltages
+        return {name + "(" + arguments.substr(0, comma) + ")", name + "(" + arguments.substr(comma + 1) + ")"};
     }
 
     // check whether an expression is a bare .PRINT output variable such as V(out), I(R1), P(R1) or R1:res, wildcards such as V(*) included
@@ -131,7 +155,9 @@ namespace
             const bool names_only = !function->args.empty() && std::ranges::all_of(function->args, [](const ExpressionPtr& argument) { return dynamic_cast<const IdentifierNode*>(argument.get()) != nullptr; });
             // render the leaf when the call is a probe over node names
             if (is_probe && names_only) {
-                leaves.push_back(render_probe_leaf(*function));
+                // a voltage difference contributes the two node voltages it reads
+                for (const auto& leaf : split_voltage_difference(render_probe_leaf(*function)))
+                    leaves.push_back(leaf);
                 return;
             }
         }
@@ -163,7 +189,9 @@ namespace
         std::vector<std::string> leaves;
         // a bare output variable is its own quantity, wildcards such as V(*) included
         if (is_bare_output_variable(expression)) {
-            leaves.push_back(expression);
+            // a voltage difference reads the two node voltages instead of a single differential column
+            for (const auto& leaf : split_voltage_difference(expression))
+                leaves.push_back(leaf);
             return leaves;
         }
         // parse the compound expression and collect its solution-variable leaves
@@ -197,8 +225,8 @@ std::vector<std::vector<std::string>> plot_chart_groups(const std::vector<std::s
         std::vector<std::string> group;
         // normalize every remaining token into one chart expression
         for (auto token = expression; token != tokens.end(); ++token) {
-            // drop the .PRINT braces so the expression can be evaluated on its own
-            const auto normalized = strip_expression_braces(trim(*token));
+            // drop the braces or quotes so the expression can be evaluated on its own
+            const auto normalized = strip_expression_delimiters(trim(*token));
             // skip a token that holds no expression
             if (normalized.empty())
                 continue;

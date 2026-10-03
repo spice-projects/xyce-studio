@@ -31,14 +31,17 @@ namespace
         return to_upper(printed.substr(0, printed.size() - 3)) == to_upper(quantity.substr(0, quantity.find('(')));
     }
 
-    // merge output variables into an output variable list, a variable already present passes through once and a printed wildcard suppresses the quantities it already covers
-    std::vector<std::string> merge_output_variables(const std::vector<std::string>& printed, const std::vector<std::string>& variables) {
+    // merge output variables into an output variable list, a variable already present passes through once and a printed wildcard suppresses the quantities it already covers; additionally_printed names quantities the print already carries outside its variable list (the device noise operators of a .PRINT NOISE), so they are not appended twice
+    std::vector<std::string> merge_output_variables(const std::vector<std::string>& printed, const std::vector<std::string>& variables, const std::vector<std::string>& additionally_printed = {}) {
         // the merged output variables
         std::vector<std::string> merged = printed;
         // names already present, compared in lowercase because the expression manager looks the names up in lowercase
         std::set<std::string> present;
         // index every already printed variable
         for (const auto& variable : printed)
+            present.insert(to_lower(variable));
+        // index the quantities the print carries outside its variable list
+        for (const auto& variable : additionally_printed)
             present.insert(to_lower(variable));
         // append every variable that is neither printed yet nor covered by a printed wildcard
         for (const auto& variable : variables) {
@@ -51,6 +54,23 @@ namespace
             merged.push_back(variable);
         }
         return merged;
+    }
+
+    // render the device noise operators of a .PRINT NOISE back to their output variable spelling, the noise parser stores them beside the output variables and the serialization appends them there, so a plotted operator must not be added to the variable list as well
+    std::vector<std::string> device_noise_operator_variables(const std::vector<DeviceNoiseOperator>& operators) {
+        // the rendered operator tokens
+        std::vector<std::string> variables;
+        // render every stored operator
+        for (const auto& operator_entry : operators) {
+            // start with the operator type and its node
+            std::string variable = operator_entry.type + "(" + operator_entry.node;
+            // append the noise source when the operator carries one
+            if (!operator_entry.source.empty())
+                variable += "," + operator_entry.source;
+            // close the argument list and keep the token
+            variables.push_back(variable + ")");
+        }
+        return variables;
     }
 
     // merge output variables into the analysis print of every analysis variant
@@ -67,9 +87,13 @@ namespace
 
         template <typename T>
         void operator()(T& params) const {
+            // the noise analysis carries its device noise operators beside the output variables, they must take part in the deduplication
+            std::vector<std::string> carried_outside;
+            if constexpr (std::is_same_v<T, NoiseSimulationParameters>)
+                carried_outside = device_noise_operator_variables(params.device_noise_operators);
             // merge into the structured print of the analysis
             if (params.print_parameters.has_value()) {
-                params.print_parameters->output_variables = merge_output_variables(params.print_parameters->output_variables, variables);
+                params.print_parameters->output_variables = merge_output_variables(params.print_parameters->output_variables, variables, carried_outside);
                 return;
             }
             // the legacy .OP representation keeps its output variables in a separate list

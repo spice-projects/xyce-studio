@@ -37,8 +37,10 @@ text box — its SPICE exporter passes `.PLOT` through like any other directive.
   `.PLOT V(N1), V(N2)` and `.PLOT V(N1) V(N2)` are the same. A comma inside an
   argument list (`V(N2,N3)`) or a braced expression (`{V(1), V(2)}`) belongs
   to the expression.
-- **Wrap expressions containing spaces in braces**, the same way a `.PRINT`
-  line does: `.PLOT {V(1) * 2}`. The braces are removed for the chart.
+- **Wrap expressions containing spaces in braces or single quotes**, the same
+  way a `.PRINT` line does (Xyce accepts `{}`, `''` or no delimiter at all):
+  `.PLOT {V(1) * 2}` or `.PLOT 'V(1) * 2'`. The delimiters are removed for the
+  chart.
 - **Any expression the charts panel understands works**: solution variables
   (`V(out)`, `V(a,b)`, `I(R1)`, `IC(Q1)`, `P(R1)`, `R1:res`), functions
   (`abs`, `db`, `mag`, `phase`, …), arithmetic and conditionals. This is
@@ -70,6 +72,11 @@ enough (a `.LIN` run is the exception: it writes a touchstone file instead of
 an analysis print). The merged `.PRINT` is what you see in the editor and in
 the [simulation parameters dialog](simulations.md) — nothing happens behind
 your back.
+
+A **voltage difference contributes the two node voltages** instead of a
+differential column: `.PLOT abs(V(N2,N1))` adds `V(N2) V(N1)` to the print,
+because the charts panel computes the difference from the two nodes. The
+series is still named after the expression you wrote.
 
 Only quantities of the analysis print are added. A per-step selector such as
 `I(R1)@2` or a network parameter such as `S11` reads no printable quantity, so
