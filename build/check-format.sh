@@ -12,12 +12,14 @@ EXCLUDED=(
     "src/ui/font_data.h"
 )
 
-# collect tracked C++ sources, dropping the generated files
+# collect the C++ sources of the working tree, dropping the generated files.  untracked files are
+# included so a freshly added source is linted before it is committed, which is when a formatting
+# violation is cheapest to fix (a tracked-only listing let a new file reach CI unformatted)
 files=()
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     files+=("$file")
-done < <(git ls-files 'src/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -e "${EXCLUDED[0]}" -e "${EXCLUDED[1]}" -e "${EXCLUDED[2]}")
+done < <(git ls-files --cached --others --exclude-standard 'src/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "error: no C++ source files found" >&2

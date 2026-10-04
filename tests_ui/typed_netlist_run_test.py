@@ -17,7 +17,7 @@ class TypedNetlistSaveStateChecks(unittest.TestCase):
             # arrange: locate the blank netlist editor, the toolbar tools and the status bar
             editor = app.get_by_id("NetlistEditor::input")
             tools = app.get_by_type("ToolbarButton")
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             expect(editor).to_exist(timeout=5.0)
             # step 1: type the AC netlist into the blank editor
             netlist = (
@@ -60,7 +60,7 @@ class TypedNetlistEditChecks(unittest.TestCase):
             # arrange: locate the blank netlist editor, the toolbar tools and the status bar
             editor = app.get_by_id("NetlistEditor::input")
             tools = app.get_by_type("ToolbarButton")
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             expect(editor).to_exist(timeout=5.0)
             # step 1: type the AC netlist into the blank editor
             netlist = (

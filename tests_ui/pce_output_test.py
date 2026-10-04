@@ -19,7 +19,7 @@ class PceOutputSimulationChecks(unittest.TestCase):
         # step 1: launch the application with the netlist and the xyce executable
         with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
             # arrange: locate the status bar text and the toolbar
-            status = app.get_by_id("MainWindow::statusbar").child("Text")
+            status = app.get_by_id("MainWindow::status-message")
             tools = app.get_by_type("ToolbarButton")
             # step 2: run the simulation from the toolbar run tool
             tools.nth(5).click()

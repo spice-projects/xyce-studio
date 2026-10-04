@@ -37,6 +37,9 @@ namespace
         // simulation run state, drives the Run/Stop toolbar toggle
         void set_simulation_running(bool running) override { m_simulation_running_ui = running; }
 
+        // live run progress distilled from the Xyce console log
+        void set_simulation_progress(const SimulationProgress& progress) override { m_progress = progress; }
+
         // content views (netlist editor vs charts, mutually exclusive)
         void show_netlist_view() override {
             m_netlist_view_shown = true;
@@ -63,7 +66,12 @@ namespace
 
         void clear_simulation_output() override { m_output_lines.clear(); }
 
-        void append_simulation_output_line(const std::string& line) override { m_output_lines.push_back(line); }
+        void append_simulation_output_line(const std::string& line, LogSeverity severity) override {
+            m_output_lines.push_back(line);
+            m_output_severities.push_back(severity);
+        }
+
+        [[nodiscard]] std::size_t simulation_output_line_count() const override { return m_output_lines.size(); }
 
         [[nodiscard]] bool simulation_output_panel_hidden() const override { return m_output_panel_hidden; }
 
@@ -145,6 +153,8 @@ namespace
         bool m_editor_read_only = true;
         bool m_output_panel_hidden = true;
         std::vector<std::string> m_output_lines;
+        std::vector<LogSeverity> m_output_severities;
+        SimulationProgress m_progress;
         int m_update_charts_count = 0;
         std::vector<int> m_updated_dataset_ids;
         std::vector<bool> m_updated_smith_datasets;
@@ -872,6 +882,216 @@ TEST(SlintMainWindowPresenterChecks, cancel_simulation_forwards_to_view) {
     EXPECT_EQ(view.m_cancel_count, 1);
 }
 
+TEST(SlintMainWindowPresenterChecks, launch_simulation_reports_an_empty_progress) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert — the run is announced as running with no progress distilled yet
+    ASSERT_TRUE(view.m_started);
+    EXPECT_TRUE(view.m_progress.running);
+    EXPECT_FALSE(view.m_progress.percentage.has_value());
+    EXPECT_EQ(view.m_progress.warnings, 0);
+    EXPECT_EQ(view.m_progress.errors, 0);
+    // the statusbar message is cleared, the progress indicator carries the run
+    EXPECT_EQ(view.m_status_text, "");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stdout_reports_the_transient_progress) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act
+    presenter.on_simulation_stdout("***** Beginning Transient Calculation...");
+    presenter.on_simulation_stdout("***** Percent complete: 88.0017 %");
+    presenter.on_simulation_stdout("***** Current system time: Fri Oct  2 14:46:05 2026");
+    presenter.on_simulation_stdout("***** Estimated time to completion: 14 sec.");
+    // assert — the percentage, the phase and the estimate reached the view
+    ASSERT_TRUE(view.m_progress.percentage.has_value());
+    EXPECT_DOUBLE_EQ(*view.m_progress.percentage, 88.0017);
+    EXPECT_EQ(view.m_progress.phase, "Transient Calculation");
+    EXPECT_EQ(view.m_progress.eta, "14 sec.");
+    EXPECT_TRUE(view.m_progress.running);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stdout_counts_the_reported_warnings_and_errors) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act
+    presenter.on_simulation_stdout("***** Beginning Transient Calculation...");
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    presenter.on_simulation_stdout("Netlist warning in file /tmp/xyce_1_2_3.cir at or near line 4");
+    presenter.on_simulation_stdout("Netlist error: There was 1 undefined symbol in .PRINT command: node 1");
+    // assert — every reported message is counted and the log rows are reported with them
+    EXPECT_EQ(view.m_progress.warnings, 2);
+    EXPECT_EQ(view.m_progress.errors, 1);
+    ASSERT_TRUE(view.m_progress.first_warning_line.has_value());
+    EXPECT_EQ(*view.m_progress.first_warning_line, 1U);
+    ASSERT_TRUE(view.m_progress.first_error_line.has_value());
+    EXPECT_EQ(*view.m_progress.first_error_line, 3U);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stdout_classifies_every_log_line) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_simulation_stdout("***** Percent complete: 12 %");
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    presenter.on_simulation_stdout("*** Xyce Abort ***");
+    // assert — the severity of each line reaches the view with it
+    ASSERT_EQ(view.m_output_severities.size(), 3U);
+    EXPECT_EQ(view.m_output_severities[0], LogSeverity::info);
+    EXPECT_EQ(view.m_output_severities[1], LogSeverity::warning);
+    EXPECT_EQ(view.m_output_severities[2], LogSeverity::error);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stderr_drops_the_line_the_stdout_stream_delivered) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — Xyce writes every message to stdout and to stderr, so both streams carry the warning
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    presenter.on_simulation_stderr("Netlist warning: No print specified");
+    // assert — the line is shown once and counted once
+    ASSERT_EQ(view.m_output_lines.size(), 1U);
+    EXPECT_EQ(view.m_output_lines[0], "Netlist warning: No print specified");
+    EXPECT_EQ(view.m_progress.warnings, 1);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stdout_drops_the_line_the_stderr_stream_delivered_first) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — the two pipes are drained on independent threads, so the stderr copy can win the race
+    presenter.on_simulation_stderr("Netlist warning: No print specified");
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    // assert — the line is shown once and counted once whichever stream arrived first
+    ASSERT_EQ(view.m_output_lines.size(), 1U);
+    EXPECT_EQ(view.m_output_lines[0], "Netlist warning: No print specified");
+    EXPECT_EQ(view.m_progress.warnings, 1);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_keeps_a_line_the_same_stream_repeats) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act — Xyce separates its progress blocks with blank lines and repeats its summaries in a .STEP run
+    presenter.on_simulation_stdout("");
+    presenter.on_simulation_stdout("***** Percent complete: 10 %");
+    presenter.on_simulation_stdout("");
+    presenter.on_simulation_stderr("");
+    // assert — only the copy arriving on the other stream is dropped
+    EXPECT_EQ(view.m_output_lines.size(), 3U);
+    EXPECT_EQ(view.m_output_lines[0], "");
+    EXPECT_EQ(view.m_output_lines[1], "***** Percent complete: 10 %");
+    EXPECT_EQ(view.m_output_lines[2], "");
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stderr_keeps_a_line_the_stdout_stream_never_delivered) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
+    // act
+    presenter.on_simulation_stderr("Netlist error: There was 1 undefined symbol in .PRINT command: node 1");
+    // assert — a stderr-only message is shown and counted
+    ASSERT_EQ(view.m_output_lines.size(), 1U);
+    EXPECT_EQ(view.m_progress.errors, 1);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_drops_a_duplicate_beyond_the_recent_log_window) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — flood the log past the window that recognizes the repeated copies
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    for (int row = 0; row < 64; ++row)
+        presenter.on_simulation_stdout("***** Total Elapsed Run Time: " + std::to_string(row) + " seconds");
+    presenter.on_simulation_stderr("Netlist warning: No print specified");
+    // assert — the repeated copy is shown again because the original left the window
+    EXPECT_EQ(view.m_output_lines.size(), 66U);
+    EXPECT_EQ(view.m_progress.warnings, 2);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, simulation_stderr_does_not_overwrite_the_status_text) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act — a reported error arrives on the stderr stream
+    presenter.on_simulation_stderr("Netlist error: There was 1 undefined symbol in .PRINT command: node 1");
+    // assert — the status text stays clear for the whole run, the error shows up in the counts instead
+    EXPECT_EQ(view.m_status_text, "");
+    EXPECT_EQ(view.m_progress.errors, 1);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, rerun_resets_the_distilled_progress) {
+    // arrange
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    presenter.on_simulation_stdout("***** Percent complete: 42 %");
+    presenter.on_simulation_stdout("Netlist warning: No print specified");
+    presenter.on_simulation_finished(0, true);
+    // assert — the finished run is no longer running and carries its last progress
+    EXPECT_FALSE(view.m_progress.running);
+    EXPECT_FALSE(view.m_started_netlist_path.empty());
+    // act — a second run starts
+    presenter.on_run_simulation();
+    // assert — nothing of the previous run is left in the progress
+    ASSERT_TRUE(view.m_started);
+    EXPECT_TRUE(view.m_progress.running);
+    EXPECT_FALSE(view.m_progress.percentage.has_value());
+    EXPECT_EQ(view.m_progress.warnings, 0);
+    EXPECT_EQ(view.m_progress.eta, "");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, simulation_finished_canceled_sets_status) {
     // arrange
     RecordingView view;
@@ -1330,16 +1550,18 @@ TEST(SlintMainWindowPresenterChecks, simulation_stdout_is_appended_to_output) {
     EXPECT_EQ(view.m_output_lines[0], "line one");
 }
 
-TEST(SlintMainWindowPresenterChecks, simulation_stderr_updates_output_and_status) {
+TEST(SlintMainWindowPresenterChecks, simulation_stderr_updates_the_output_without_a_status_message) {
     // arrange
     RecordingView view;
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(""), nullptr);
-    // act
-    presenter.on_simulation_stderr("boom");
-    // assert
-    ASSERT_EQ(view.m_output_lines.size(), 1);
-    EXPECT_EQ(view.m_output_lines[0], "boom");
-    EXPECT_EQ(view.m_status_text, "Simulation error: boom");
+    // act — a line Xyce only wrote to the stderr stream
+    presenter.on_simulation_stderr("Netlist error: boom");
+    // assert — it reaches the output log and is counted, the status text is left alone
+    ASSERT_EQ(view.m_output_lines.size(), 1U);
+    EXPECT_EQ(view.m_output_lines[0], "Netlist error: boom");
+    EXPECT_EQ(view.m_output_severities[0], LogSeverity::error);
+    EXPECT_EQ(view.m_progress.errors, 1);
+    EXPECT_EQ(view.m_status_text, "");
 }
 
 // ========================================================================================

@@ -26,6 +26,7 @@ import {
 } from "../components/netlist_editor.slint";
 import { StepItem, StepToolPanel } from "../components/step_tool_panel.slint";
 import {
+    LogLine,
     SimulationOutputPanel,
 } from "../components/simulation_output_panel.slint";
 import {
@@ -47,6 +48,7 @@ export global MainWindowActions {
     callback show-simulation-output();
     callback close-simulation-output();
     callback copy-simulation-output(start: int, end: int);
+    callback open-simulation-output-from-status();
     callback run-simulation();
     callback stop-simulation();
     callback configure-simulation();
@@ -130,6 +132,123 @@ component ToolbarButton inherits Rectangle {
 // appending a line cheap: only the visible rows are rendered
 
 
+// live run progress shown in the statusbar while a simulation is running: a
+// determinate bar once Xyce reported a completion percentage, an indeterminate
+// sweep for the analyses it reports no progress for, followed by the phase,
+// the warning and error counts.  a click anywhere on the statusbar opens the
+// simulation output panel, so the whole strip stays a shortcut to the log
+component RunProgress inherits Rectangle {
+    // completion percentage in the 0..100 range, negative for a run Xyce reports no progress for
+    in property <float> percentage: -1;
+    // estimated time to completion exactly as Xyce spelled it, empty until it reported one
+    in property <string> eta: "";
+    // analysis phase Xyce announced last, empty until it announced one
+    in property <string> phase: "";
+    in property <int> warning-count: 0;
+    in property <int> error-count: 0;
+
+    // width of the bar; the strip is the last item of the statusbar layout, so it takes only what it needs.
+    // the indicator is sized by its content and centered by the statusbar row, which keeps the row from
+    // collapsing onto the height of this strip
+    horizontal-stretch: 0;
+
+    // seconds elapsed since the indeterminate run started; a determinate run reports the percentage and the estimate Xyce computed instead
+    private property <int> elapsed-seconds: 0;
+    // position of the indeterminate sweep, advanced by the timer below
+    private property <int> sweep-phase: 0;
+
+    // the sweep travels across the bar in 40 steps and restarts, which reads as a moving highlight without a spinner glyph
+    private property <float> bar-width: 120;
+    private property <float> sweep-position: root.sweep-phase * root.bar-width / 40;
+
+    // advance the sweep four times a second while a run is in flight but Xyce reports no
+    // percentage, so it reads as a moving highlight
+    Timer {
+        interval: 250ms;
+        running: root.percentage < 0;
+        triggered => {
+            root.sweep-phase = Math.mod(root.sweep-phase + 1, 40);
+        }
+    }
+
+    // count the elapsed seconds once a second, on their own timer so the sweep cadence
+    // cannot stretch the reported time
+    Timer {
+        interval: 1s;
+        running: root.percentage < 0;
+        triggered => {
+            root.elapsed-seconds = root.elapsed-seconds + 1;
+        }
+    }
+
+    // drop the counters as soon as the run reports a percentage, they are not shown then
+    changed percentage => {
+        if (root.percentage >= 0) {
+            root.elapsed-seconds = 0;
+            root.sweep-phase = 0;
+        }
+    }
+
+    HorizontalLayout {
+        cross-axis-alignment: center;
+        spacing: 8px;
+
+        Rectangle {
+            width: root.bar-width * 1px;
+            height: 3px;
+            border-radius: 2px;
+            background: Palette.foreground.with-alpha(0.14);
+            // the sweep travels a full track width, so the part that runs past the right edge must be
+            // cut off instead of painted over the spacing and the progress text
+            clip: true;
+
+            // the filled part spans the reported percentage, or a third of the bar travelling across it while the percentage is unknown
+            run-progress-fill := Rectangle {
+                x: (root.percentage >= 0 ? 0 : root.sweep-position) * 1px;
+                width: (root.percentage >= 0 ? root.bar-width * root.percentage / 100 : root.bar-width / 3) * 1px;
+                height: 100%;
+                border-radius: 2px;
+                background: Palette.accent-background;
+                animate x {
+                    duration: 250ms;
+                    easing: ease-out;
+                }
+                animate width {
+                    duration: 250ms;
+                    easing: ease-out;
+                }
+            }
+        }
+
+        // carries an element id so the automation can read the reported progress as text
+        run-progress-percentage := Text {
+            text: root.percentage >= 0
+                ? (root.eta != "" ? Math.round(root.percentage) + "% · ETA " + root.eta : Math.round(root.percentage) + "%")
+                : (root.phase != "" ? root.elapsed-seconds + "s · " + root.phase : root.elapsed-seconds + "s elapsed");
+            font-size: 12px;
+            color: Palette.foreground;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+
+        run-progress-warnings := Text {
+            text: root.warning-count > 0 ? root.warning-count + " warnings" : "";
+            font-size: 12px;
+            color: #d9a441;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+
+        run-progress-errors := Text {
+            text: root.error-count > 0 ? root.error-count + " errors" : "";
+            font-size: 12px;
+            color: #e05b4b;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     title: root.window-title;
     preferred-width: 900px;
@@ -194,6 +313,21 @@ export component MainWindow inherits Window {
     // a simulation is running: the Run toolbar action is replaced by Stop
     in property <bool> simulation-running: false;
 
+    // live progress of a running simulation, distilled from the Xyce console
+    // log by the presenter; the completion percentage is negative for the
+    // analyses Xyce reports no progress for, which render as an
+    // indeterminate bar
+    in property <bool> simulation-progress-running: false;
+    in property <float> simulation-progress-percentage: -1;
+    in property <string> simulation-progress-eta: "";
+    in property <string> simulation-progress-phase: "";
+    // warnings and errors Xyce reported so far, with the log row of the first
+    // one so the output panel can scroll to it; a row below zero means none
+    in property <int> simulation-warning-count: 0;
+    in property <int> simulation-error-count: 0;
+    in property <int> simulation-warning-line: -1;
+    in property <int> simulation-error-line: -1;
+
     // content-view switching actions; also driven from apply_action_enablement
     in property <bool> enable-show-netlist: false;
     in property <bool> enable-show-charts: false;
@@ -222,7 +356,7 @@ export component MainWindow inherits Window {
     // bottom simulation output panel; shown while a simulation runs (or its log
     // holds content), the log is a list of lines model-driven from the view
     in property <bool> simulation-output-visible: false;
-    in property <[string]> simulation-output-log;
+    in property <[LogLine]> simulation-output-log;
 
     // a modal dialog is open, the window dims and must not accept input; the
     // slint dialog is a separate native window, so the OS window input block
@@ -669,6 +803,10 @@ export component MainWindow inherits Window {
                     if root.simulation-output-visible: output := SimulationOutputPanel {
                         height: 200px;
                         log-lines: root.simulation-output-log;
+                        warning-count: root.simulation-warning-count;
+                        error-count: root.simulation-error-count;
+                        warning-line: root.simulation-warning-line;
+                        error-line: root.simulation-error-line;
                         close => { MainWindowActions.close-simulation-output(); }
                         copy-requested(start, end) => {
                             MainWindowActions.copy-simulation-output(start, end);
@@ -682,24 +820,58 @@ export component MainWindow inherits Window {
                 height: 24px;
                 background: Palette.background;
 
-                VerticalLayout {
-                    Rectangle {
-                        height: 1px;
-                        background: Palette.border;
+                // hairline along the top edge; drawn as an overlay instead of a row of a layout so the
+                // content row below is the only layout item and therefore owns the whole bar, which keeps
+                // cross-axis-alignment centering the message and the progress indicator vertically
+                separator := Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: 100%;
+                    height: 1px;
+                    background: Palette.border;
+                }
+
+                HorizontalLayout {
+                    cross-axis-alignment: center;
+                    // the padding clears the hairline drawn over the top edge and keeps the content
+                    // centered in the bar rather than in the area below the hairline
+                    padding-top: 1px;
+                    padding-bottom: 1px;
+                    padding-left: 12px;
+                    padding-right: 12px;
+
+                    // the status message carries its own element id because the progress indicator
+                    // adds further Text elements to the same row, which makes a
+                    // type-based lookup inside the status bar ambiguous
+                    status-message := Text {
+                        text: root.status-text;
+                        font-size: 12px;
+                        color: Palette.foreground;
+                        horizontal-alignment: left;
                     }
 
-                    HorizontalLayout {
-                        cross-axis-alignment: center;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
 
-                        Rectangle {
-                            width: 12px;
-                        }
+                    if root.simulation-progress-running: run-progress := RunProgress {
+                        percentage: root.simulation-progress-percentage;
+                        eta: root.simulation-progress-eta;
+                        phase: root.simulation-progress-phase;
+                        warning-count: root.simulation-warning-count;
+                        error-count: root.simulation-error-count;
+                    }
+                }
 
-                        Text {
-                            text: root.status-text;
-                            font-size: 12px;
-                            color: Palette.foreground;
-                            horizontal-alignment: left;
+                // empty overlay turning the whole strip into a shortcut to the simulation output
+                // panel while a run is in flight, so a user without the panel open can still reach
+                // the live log
+                status-touch := TouchArea {
+                    mouse-cursor: root.simulation-progress-running ? pointer : default;
+
+                    clicked => {
+                        if (root.simulation-progress-running) {
+                            MainWindowActions.open-simulation-output-from-status();
                         }
                     }
                 }
