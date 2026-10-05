@@ -1,6 +1,7 @@
 #pragma once
 
 #include <complex>
+#include <string>
 #include <variant>
 
 #include "../core/view.h"
@@ -17,6 +18,8 @@ bool is_vector(const XyceValue& value);
 bool is_real(const XyceValue& value);
 
 bool is_complex(const XyceValue& value);
+
+void require_real_argument(const std::string& name, const XyceValue& value);
 
 template <typename T>
 T scalar_value(const XyceValue& value) {

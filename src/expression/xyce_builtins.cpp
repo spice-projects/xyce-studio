@@ -69,48 +69,30 @@ namespace
     }
 
     // apply a unary real function across a scalar or vector
-    XyceValue map_unary_real(const XyceValue& value, const std::function<double(double)>& fn) {
-        // processor
-        auto l = [&fn]<typename T0>(T0& arg) -> XyceValue {
-            // actual parameter type
-            using TX = std::decay_t<T0>;
-            // double
-            if constexpr (std::is_same_v<TX, double>) {
-                // apply fn
-                return fn(arg);
-            }
-            // complex
-            if constexpr (std::is_same_v<TX, std::complex<double>>) {
-                // apply fn
-                return fn(arg.real());
-            }
-            // View<double>
-            if constexpr (std::is_same_v<TX, std::shared_ptr<View<double>>>) {
-                // vector
-                std::vector<double> out;
-                // allocate space
-                out.reserve(arg->size());
-                // append mapped values
-                std::ranges::transform(arg->begin(), arg->end(), std::back_inserter(out), fn);
-                // exit
-                return std::make_shared<View<double>>(std::move(out));
-            }
-            // View<complex>
-            if constexpr (std::is_same_v<TX, std::shared_ptr<View<std::complex<double>>>>) {
-                // vector
-                std::vector<double> out;
-                // allocate space
-                out.reserve(arg->size());
-                // append mapped values
-                std::ranges::transform(arg->begin(), arg->end(), std::back_inserter(out), [&fn](auto v) { return fn(v.real()); });
-                // exit
-                return std::make_shared<View<double>>(std::move(out));
-            }
-            // not possible value type
-            throw std::invalid_argument("unsupported type");
-        };
+    XyceValue map_unary_real(const std::string& name, const XyceValue& value, const std::function<double(double)>& fn) {
+        // a real function has no complex value to apply to
+        require_real_argument(name, value);
+        // normalize the argument to a real vector, promoting a scalar
+        const auto operand = to_real_vector(value);
+        // apply function, returns vector or scalar
+        if (is_scalar(value))
+            return fn(operand->operator[](0));
+        // output vector
+        std::vector<double> out;
+        // allocate space
+        out.reserve(operand->size());
+        // append mapped values
+        std::ranges::transform(operand->begin(), operand->end(), std::back_inserter(out), fn);
         // exit
-        return std::visit(l, value);
+        return std::make_shared<View<double>>(std::move(out));
+    }
+
+    // extract a real-only builtin argument, failing on a complex value
+    double real_argument(const std::string& name, const XyceValue& value) {
+        // reject a complex argument, its imaginary part would be discarded below
+        require_real_argument(name, value);
+        // exit
+        return scalar_value<double>(value);
     }
 
     // apply a unary complex function across a scalar or vector
@@ -227,8 +209,8 @@ namespace
     XyceValue builtin_db(const std::vector<XyceValue>& args) {
         // one value argument
         expect_arity("db", args, 1);
-        // apply function, returns vector or scalar
-        return map_unary_real(args[0], [](const double value) { return 20.0 * std::log10(std::abs(value)); });
+        // apply function to the argument magnitude, returns vector or scalar
+        return map_unary_complex(args[0], [](const std::complex<double> value) { return 20.0 * std::log10(std::abs(value)); });
     }
 
     // real part builtin
@@ -360,7 +342,7 @@ namespace
         // one value argument
         expect_arity("tan", args, 1);
         // apply function, returns vector or scalar
-        return map_unary_real(args[0], [](const double value) { return std::tan(value); });
+        return map_unary_real("tan", args[0], [](const double value) { return std::tan(value); });
     }
 
     // arcsine builtin
@@ -368,7 +350,7 @@ namespace
         // one value argument
         expect_arity("asin", args, 1);
         // apply function, returns vector or scalar
-        return std::asin(scalar_value<double>(args[0]));
+        return std::asin(real_argument("asin", args[0]));
     }
 
     // arccosine builtin
@@ -376,7 +358,7 @@ namespace
         // one value argument
         expect_arity("acos", args, 1);
         // apply function, returns vector or scalar
-        return std::acos(scalar_value<double>(args[0]));
+        return std::acos(real_argument("acos", args[0]));
     }
 
     // arctangent builtin
@@ -384,7 +366,7 @@ namespace
         // one value argument
         expect_arity("atan", args, 1);
         // apply function, returns vector or scalar
-        return std::atan(scalar_value<double>(args[0]));
+        return std::atan(real_argument("atan", args[0]));
     }
 
     // arctangent alias
@@ -395,7 +377,7 @@ namespace
         // one value argument
         expect_arity("atan2", args, 2);
         // apply function, returns vector or scalar
-        return std::atan2(scalar_value<double>(args[0]), scalar_value<double>(args[1]));
+        return std::atan2(real_argument("atan2", args[0]), real_argument("atan2", args[1]));
     }
 
     // hyperbolic sine builtin
@@ -403,7 +385,7 @@ namespace
         // one value argument
         expect_arity("sinh", args, 1);
         // apply function, returns vector or scalar
-        return std::sinh(scalar_value<double>(args[0]));
+        return std::sinh(real_argument("sinh", args[0]));
     }
 
     // hyperbolic cosine builtin
@@ -411,7 +393,7 @@ namespace
         // one value argument
         expect_arity("cosh", args, 1);
         // apply function, returns vector or scalar
-        return std::cosh(scalar_value<double>(args[0]));
+        return std::cosh(real_argument("cosh", args[0]));
     }
 
     // hyperbolic tangent builtin
@@ -419,7 +401,7 @@ namespace
         // one value argument
         expect_arity("tanh", args, 1);
         // apply function, returns vector or scalar
-        return std::tanh(scalar_value<double>(args[0]));
+        return std::tanh(real_argument("tanh", args[0]));
     }
 
     // inverse hyperbolic sine builtin
@@ -427,7 +409,7 @@ namespace
         // one value argument
         expect_arity("asinh", args, 1);
         // apply function, returns vector or scalar
-        return std::asinh(scalar_value<double>(args[0]));
+        return std::asinh(real_argument("asinh", args[0]));
     }
 
     // inverse hyperbolic cosine builtin
@@ -435,7 +417,7 @@ namespace
         // one value argument
         expect_arity("acosh", args, 1);
         // apply function, returns vector or scalar
-        return std::acosh(scalar_value<double>(args[0]));
+        return std::acosh(real_argument("acosh", args[0]));
     }
 
     // inverse hyperbolic tangent builtin
@@ -443,7 +425,7 @@ namespace
         // one value argument
         expect_arity("atanh", args, 1);
         // apply function, returns vector or scalar
-        return std::atanh(scalar_value<double>(args[0]));
+        return std::atanh(real_argument("atanh", args[0]));
     }
 
     // exponential builtin
@@ -451,7 +433,7 @@ namespace
         // one value argument
         expect_arity("exp", args, 1);
         // apply function, returns vector or scalar
-        return std::exp(scalar_value<double>(args[0]));
+        return std::exp(real_argument("exp", args[0]));
     }
 
     // complex conjugate builtin
@@ -487,7 +469,7 @@ namespace
         // one value argument
         expect_arity("sgn", args, 1);
         // scalar argument
-        const auto x = scalar_value<double>(args[0]);
+        const auto x = real_argument("sgn", args[0]);
         // sign
         return (x > 0.0) - (x < 0.0);
     }
@@ -497,9 +479,12 @@ namespace
         // two values argument
         expect_arity("sign", args, 2);
         // scalar arguments
-        const auto x = std::abs(scalar_value<double>(args[0]));
-        const auto y = scalar_value<double>(args[1]);
-        // return y >= 0.0 ? x : -x;
+        const auto x = std::abs(real_argument("sign", args[0]));
+        const auto y = real_argument("sign", args[1]);
+        // sgn(y) is zero for a zero second argument, so the magnitude collapses
+        if (y == 0.0)
+            return 0.0;
+        // return sgn(y) * |x|
         return y < 0.0 ? -x : x;
     }
 
@@ -508,7 +493,7 @@ namespace
         // one value argument
         expect_arity("uramp", args, 1);
         // max(arg, 0)
-        return std::max(scalar_value<double>(args[0]), 0.0);
+        return std::max(real_argument("uramp", args[0]), 0.0);
     }
 
     // step builtin
@@ -516,7 +501,7 @@ namespace
         // one value argument
         expect_arity("stp", args, 1);
         // return 1.0 if arg > 0, else 0.0
-        return scalar_value<double>(args[0]) > 0.0 ? 1.0 : 0.0;
+        return real_argument("stp", args[0]) > 0.0 ? 1.0 : 0.0;
     }
 
     // round builtin
@@ -524,7 +509,7 @@ namespace
         // one value argument
         expect_arity("round", args, 1);
         // round
-        return std::round(scalar_value<double>(args[0]));
+        return std::round(real_argument("round", args[0]));
     }
 
     // nearest-integer builtin
@@ -532,7 +517,7 @@ namespace
         // one value argument
         expect_arity("nint", args, 1);
         // round
-        return std::round(scalar_value<double>(args[0]));
+        return std::round(real_argument("nint", args[0]));
     }
 
     // floor builtin
@@ -540,7 +525,7 @@ namespace
         // one value argument
         expect_arity("floor", args, 1);
         // floor
-        return std::floor(scalar_value<double>(args[0]));
+        return std::floor(real_argument("floor", args[0]));
     }
 
     // ceiling builtin
@@ -548,7 +533,7 @@ namespace
         // one value argument
         expect_arity("ceil", args, 1);
         // ceiling
-        return std::ceil(scalar_value<double>(args[0]));
+        return std::ceil(real_argument("ceil", args[0]));
     }
 
     // truncate builtin
@@ -556,7 +541,7 @@ namespace
         // one value argument
         expect_arity("int", args, 1);
         // truncate
-        return std::trunc(scalar_value<double>(args[0]));
+        return std::trunc(real_argument("int", args[0]));
     }
 
     // power builtin
@@ -564,15 +549,15 @@ namespace
         // two value arguments
         expect_arity("pow", args, 2);
         // arg0 ^ arg1
-        return std::pow(scalar_value<double>(args[0]), scalar_value<double>(args[1]));
+        return std::pow(real_argument("pow", args[0]), real_argument("pow", args[1]));
     }
 
-    // absolute-power builtin
+    // power builtin
     XyceValue builtin_pwr(const std::vector<XyceValue>& args) {
         // two value arguments
         expect_arity("pwr", args, 2);
-        // abs(arg0) ^ arg1
-        return std::pow(std::abs(scalar_value<double>(args[0])), scalar_value<double>(args[1]));
+        // arg0 ^ arg1, documented as an alternate spelling of pow without a magnitude
+        return std::pow(real_argument("pwr", args[0]), real_argument("pwr", args[1]));
     }
 
     // signed-power builtin
@@ -580,8 +565,8 @@ namespace
         // two value arguments
         expect_arity("pwrs", args, 2);
         // scalar arguments
-        const auto x = scalar_value<double>(args[0]);
-        const auto y = scalar_value<double>(args[1]);
+        const auto x = real_argument("pwrs", args[0]);
+        const auto y = real_argument("pwrs", args[1]);
         // return sign(x) * abs(x)^y
         return (x < 0.0 ? -1.0 : 1.0) * std::pow(std::abs(x), y);
     }
@@ -591,7 +576,7 @@ namespace
         // two value arguments
         expect_arity("fmod", args, 2);
         // floating remainder
-        return std::fmod(scalar_value<double>(args[0]), scalar_value<double>(args[1]));
+        return std::fmod(real_argument("fmod", args[0]), real_argument("fmod", args[1]));
     }
 
     // minimum builtin
@@ -599,10 +584,10 @@ namespace
         // at least one value argument
         expect_min_arity("min", args, 1);
         // first argument is the initial minimum
-        auto result = scalar_value<double>(args[0]);
+        auto result = real_argument("min", args[0]);
         // loop other arguments, updating the minimum
         for (size_t i = 1; i < args.size(); ++i)
-            result = std::min(result, scalar_value<double>(args[i]));
+            result = std::min(result, real_argument("min", args[i]));
         // exit
         return result;
     }
@@ -612,10 +597,10 @@ namespace
         // at least one value argument
         expect_min_arity("max", args, 1);
         // first argument is the initial maximum
-        auto result = scalar_value<double>(args[0]);
+        auto result = real_argument("max", args[0]);
         // loop other arguments, updating the maximum
         for (size_t i = 1; i < args.size(); ++i)
-            result = std::max(result, scalar_value<double>(args[i]));
+            result = std::max(result, real_argument("max", args[i]));
         // exit
         return result;
     }
@@ -625,16 +610,39 @@ namespace
         // three value arguments
         expect_arity("limit", args, 3);
         // clamp the first argument between the second and third arguments
-        return std::clamp(scalar_value<double>(args[0]), scalar_value<double>(args[1]), scalar_value<double>(args[2]));
+        return std::clamp(real_argument("limit", args[0]), real_argument("limit", args[1]), real_argument("limit", args[2]));
     }
 
     // conditional builtin
     XyceValue builtin_if(const std::vector<XyceValue>& args) {
         // three value arguments
         expect_arity("if", args, 3);
+        // the condition selects a branch, it carries no complex part of its own
+        require_real_argument("if", args[0]);
         // if all arguments are scalars, return a scalar
         if (!is_vector(args[0]) && !is_vector(args[1]) && !is_vector(args[2]))
             return scalar_value<double>(args[0]) != 0.0 ? args[1] : args[2];
+        // a complex branch keeps its imaginary part, so all operands become complex
+        if (is_complex(args[1]) || is_complex(args[2])) {
+            // convert all arguments to complex vectors for broadcasting
+            const auto condition = to_complex_vector(args[0]);
+            const auto if_true = to_complex_vector(args[1]);
+            const auto if_false = to_complex_vector(args[2]);
+            // output vector
+            std::vector<std::complex<double>> out;
+            // allocate space
+            out.reserve(condition->size());
+            // loop over condition, broadcasting if necessary
+            for (size_t index = 0; index < condition->size(); ++index) {
+                // true and false values
+                const auto t = if_true->size() == 1 ? if_true->operator[](0) : if_true->operator[](index);
+                const auto f = if_false->size() == 1 ? if_false->operator[](0) : if_false->operator[](index);
+                // append value based on condition
+                out.push_back(condition->operator[](index).real() != 0.0 ? t : f);
+            }
+            // exit
+            return std::make_shared<View<std::complex<double>>>(std::move(out));
+        }
         // convert all arguments to real vectors for broadcasting
         const auto condition = to_real_vector(args[0]);
         const auto if_true = to_real_vector(args[1]);

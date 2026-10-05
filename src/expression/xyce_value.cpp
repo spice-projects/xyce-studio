@@ -56,6 +56,14 @@ bool is_complex(const XyceValue& value) {
     return std::holds_alternative<std::complex<double>>(value) || std::holds_alternative<std::shared_ptr<View<std::complex<double>>>>(value);
 }
 
+void require_real_argument(const std::string& name, const XyceValue& value) {
+    // only the operators documented for complex numbers accept a complex argument
+    if (!is_complex(value))
+        return;
+    // reject the argument instead of silently dropping its imaginary part
+    throw std::invalid_argument("Function '" + name + "' does not accept a complex argument, use abs(), real() or phase() to select a part");
+}
+
 std::shared_ptr<View<double>> to_real_vector(const XyceValue& value) {
     // processor
     auto l = []<typename T0>(T0& arg) -> std::shared_ptr<View<double>> {

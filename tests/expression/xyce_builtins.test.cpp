@@ -94,7 +94,7 @@ TEST(XyceBuiltinsChecks, core_builtin_functions_work) {
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("ceil")({expression_value(2.1)})), 3.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("int")({expression_value(-2.9)})), -2.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("pow")({expression_value(2.0), expression_value(10.0)})), 1024.0);
-    ASSERT_DOUBLE_EQ(scalar<double>(functions.at("pwr")({expression_value(-2.0), expression_value(3.0)})), 8.0);
+    ASSERT_DOUBLE_EQ(scalar<double>(functions.at("pwr")({expression_value(-2.0), expression_value(3.0)})), -8.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("pwrs")({expression_value(-2.0), expression_value(3.0)})), -8.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("fmod")({expression_value(10.0), expression_value(3.0)})), 1.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("min")({expression_value(3.0), expression_value(1.0), expression_value(2.0)})), 1.0);
@@ -184,6 +184,8 @@ TEST(XyceBuiltinsChecks, builtin_branch_edges_match_scenarios) {
     ASSERT_DOUBLE_EQ(sgn_positive, 1.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("sgn")({expression_value(0.0)})), 0.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("sign")({expression_value(3.0), expression_value(-2.0)})), -3.0);
+    ASSERT_DOUBLE_EQ(scalar<double>(functions.at("sign")({expression_value(3.0), expression_value(0.0)})), 0.0);
+    ASSERT_DOUBLE_EQ(scalar<double>(functions.at("sign")({expression_value(-3.0), expression_value(2.0)})), 3.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("stp")({expression_value(0.0)})), 0.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("stp")({expression_value(-1.0)})), 0.0);
     ASSERT_DOUBLE_EQ(scalar<double>(functions.at("uramp")({expression_value(3.0)})), 3.0);
@@ -215,6 +217,25 @@ TEST(XyceBuiltinsChecks, builtin_function_errors_match_scenarios) {
     ASSERT_THROW(functions.at("max")({}), std::invalid_argument);
     ASSERT_THROW(functions.at("ddt")({expression_value(1.0)}), std::logic_error);
     ASSERT_THROW(functions.at("sdt")({expression_value(1.0)}), std::logic_error);
+}
+
+TEST(XyceBuiltinsChecks, real_only_builtins_reject_complex_arguments) {
+    // arrange
+    const auto& functions = BUILTIN_FUNCTIONS;
+    // act
+    const auto complex_scalar = expression_value(std::complex<double>(3.0, 4.0));
+    const auto complex_vector = expression_value(std::vector<std::complex<double>>{{3.0, 4.0}});
+    // assert
+    ASSERT_THROW(functions.at("tan")({complex_scalar}), std::invalid_argument);
+    ASSERT_THROW(functions.at("tan")({complex_vector}), std::invalid_argument);
+    ASSERT_THROW(functions.at("exp")({complex_scalar}), std::invalid_argument);
+    ASSERT_THROW(functions.at("pwr")({complex_scalar, expression_value(2.0)}), std::invalid_argument);
+    ASSERT_THROW(functions.at("fmod")({expression_value(1.0), complex_scalar}), std::invalid_argument);
+    ASSERT_THROW(functions.at("sign")({complex_scalar, expression_value(1.0)}), std::invalid_argument);
+    ASSERT_THROW(functions.at("if")({complex_scalar, expression_value(1.0), expression_value(2.0)}), std::invalid_argument);
+    ASSERT_NO_THROW(functions.at("db")({complex_scalar}));
+    ASSERT_NO_THROW(functions.at("abs")({complex_scalar}));
+    ASSERT_NO_THROW(functions.at("phase")({complex_scalar}));
 }
 
 TEST(XyceBuiltinsChecks, builtin_abs_applies_elementwise_to_vectors) {
@@ -297,12 +318,14 @@ TEST(XyceBuiltinsChecks, builtin_db_tan_map_across_vectors) {
     // act
     const auto db_real = functions.at("db")({expression_value(std::vector<double>{10.0, 100.0})});
     const auto db_complex = functions.at("db")({expression_value(std::vector<std::complex<double>>{{3.0, 4.0}})});
+    const auto db_complex_scalar = functions.at("db")({expression_value(std::complex<double>(3.0, 4.0))});
     const auto tan_real = functions.at("tan")({expression_value(std::vector<double>{0.0, 0.0})});
     // assert
     ASSERT_EQ(as_real_vector(db_real), (std::vector<double>{20.0, 40.0}));
     const auto db_complex_values = as_real_vector(db_complex);
     ASSERT_EQ(db_complex_values.size(), 1U);
-    ASSERT_NEAR(db_complex_values[0], 20.0 * std::log10(3.0), 1e-12);
+    ASSERT_NEAR(db_complex_values[0], 20.0 * std::log10(5.0), 1e-12);
+    ASSERT_NEAR(scalar<double>(db_complex_scalar), 20.0 * std::log10(5.0), 1e-12);
     ASSERT_EQ(as_real_vector(tan_real), (std::vector<double>{0.0, 0.0}));
 }
 
@@ -320,6 +343,19 @@ TEST(XyceBuiltinsChecks, builtin_if_broadcasts_over_vectors) {
     ASSERT_EQ(as_real_vector(scalar_branches), (std::vector<double>{10.0, 20.0}));
     ASSERT_TRUE(std::holds_alternative<std::shared_ptr<View<double>>>(scalar_condition));
     ASSERT_EQ(as_real_vector(scalar_condition), (std::vector<double>{30.0}));
+}
+
+TEST(XyceBuiltinsChecks, builtin_if_preserves_complex_branches) {
+    // arrange
+    const auto& functions = BUILTIN_FUNCTIONS;
+    // act
+    const auto vector_condition = functions.at("if")({expression_value(std::vector<double>{1.0, 0.0}), expression_value(std::vector<std::complex<double>>{{1.0, 2.0}, {3.0, 4.0}}), expression_value(std::vector<std::complex<double>>{{5.0, 6.0}, {7.0, 8.0}})});
+    const auto mixed_branch = functions.at("if")({expression_value(std::vector<double>{0.0, 1.0}), expression_value(std::vector<double>{10.0, 20.0}), expression_value(std::vector<std::complex<double>>{{1.0, 2.0}, {3.0, 4.0}})});
+    // assert
+    ASSERT_TRUE(std::holds_alternative<std::shared_ptr<View<std::complex<double>>>>(vector_condition));
+    ASSERT_EQ(as_complex_vector(vector_condition), (std::vector<std::complex<double>>{{1.0, 2.0}, {7.0, 8.0}}));
+    ASSERT_TRUE(std::holds_alternative<std::shared_ptr<View<std::complex<double>>>>(mixed_branch));
+    ASSERT_EQ(as_complex_vector(mixed_branch), (std::vector<std::complex<double>>{{1.0, 2.0}, {20.0, 0.0}}));
 }
 
 TEST(XyceBuiltinsChecks, builtin_arity_mismatches_throw) {

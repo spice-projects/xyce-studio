@@ -520,6 +520,8 @@ namespace
         const auto condition = evaluate(*expression.condition, context);
         // branch for scalar condition (short-circuit non-taken branch)
         if (is_scalar(condition)) {
+            // the condition selects a branch, it carries no complex part of its own
+            require_real_argument("?:", condition);
             // check condition and evaluate corresponding branch
             return scalar_value<double>(condition) != 0.0 ? evaluate(*expression.if_true, context) : evaluate(*expression.if_false, context);
         }
