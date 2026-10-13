@@ -17,6 +17,7 @@ import {
     LegendItem,
 } from "../components/expression_selector.slint";
 import { FftPanel } from "../components/fft_panel.slint";
+import { FourierResultRow } from "../components/fourier_results_panel.slint";
 import { PluginConfigPanel } from "../components/plugin_config_panel.slint";
 import { OptionRow } from "../components/option_package_card.slint";
 import { OptionsPanel } from "../components/options_panel.slint";
@@ -340,6 +341,13 @@ export component MainWindow inherits Window {
     // the charts panel is hidden by default and appears when the charts view
     // is shown (controlled from the view adapter)
     in property <bool> charts-visible: false;
+
+    // the Fourier results panel is the exclusive content view for a Fourier
+    // dataset tab; the host drives it from the view adapter
+    in property <bool> fourier-visible: false;
+    in property <string> fourier-title: "";
+    in property <bool> fourier-show-step: false;
+    in property <[FourierResultRow]> fourier-rows: [];
 
     // debug builds expose the hidden automation triggers to the test mcp
     // server; release builds keep them out of the element tree entirely
@@ -775,7 +783,7 @@ export component MainWindow inherits Window {
                 background: Palette.alternate-background;
 
                 VerticalLayout {
-                    if !root.charts-visible: schematic := NetlistEditor {
+                    if !root.charts-visible && !root.fourier-visible: schematic := NetlistEditor {
                         vertical-stretch: 1;
                         text <=> root.netlist-text;
                         read-only: root.netlist-read-only;
@@ -797,6 +805,12 @@ export component MainWindow inherits Window {
                         charts: root.charts;
                         // match the canvas background of the charts panel
                         chart-background: root.charts-background;
+                        // replace the chart canvas with the Fourier results table
+                        // when the active dataset is a Fourier analysis output
+                        fourier-active: root.fourier-visible;
+                        fourier-title: root.fourier-title;
+                        fourier-show-step: root.fourier-show-step;
+                        fourier-rows: root.fourier-rows;
                         // report layout changes to the renderer
                         viewport-changed(width, height) => { root.charts-viewport-changed(width, height); }
                     }

@@ -1,9 +1,15 @@
 #include <algorithm>
+#include <cmath>
+#include <complex>
 #include <filesystem>
+#include <iomanip>
 #include <memory>
+#include <numbers>
 #include <span>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -72,6 +78,72 @@ namespace
         default:
             return file.title();
         }
+    }
+
+    // format a Fourier table numeric cell like the .four file prints it
+    std::string format_fourier_value(double value) {
+        // scientific notation with six decimals mirrors the file columns
+        std::ostringstream stream;
+        // match the .four column formatting
+        stream << std::scientific << std::setprecision(6) << value;
+        // return the formatted cell
+        return stream.str();
+    }
+
+    // build the result rows of a Fourier output file: one row per harmonic of
+    // every signal and step, mirroring the columns of the .four file the table
+    // replaces (the chart renderer cannot plot the complex spectra)
+    std::vector<FourierResultRow> build_fourier_result_rows(XyceOutputFile& file) {
+        // result rows
+        std::vector<FourierResultRow> rows;
+        // step structure and expressions of the file
+        const StepInformation& steps = file.step_information();
+        ExpressionManager& manager = file.expression_manager();
+        // number of steps the file holds
+        const size_t step_count = steps.length();
+        // the step column is shown only for multi-step sweeps
+        const bool show_step = step_count > 1;
+        // the abscissa expression carries the harmonic frequency of every step
+        Expression<double>& abscissa = manager.abscissa();
+        // emit a row per signal, step and harmonic; skipping the abscissa (a
+        // real expression) leaves only the complex spectra
+        for (AnyExpression* any : manager.expressions()) {
+            // keep only complex spectra
+            auto* spectrum = std::get_if<Expression<std::complex<double>>>(any);
+            // skip the abscissa and any real expression
+            if (spectrum == nullptr)
+                continue;
+            // walk every step of this signal
+            for (size_t step = 0; step < step_count; ++step) {
+                // complex magnitude/phase pairs of this step
+                const std::span<const std::complex<double>> values = spectrum->step_data(step);
+                // harmonic frequencies of this step; the parser builds the
+                // abscissa and every spectrum from the same harmonic rows, so
+                // the two spans always have the same length
+                const std::span<const double> frequencies = abscissa.step_data(step);
+                // walk every harmonic written for this signal
+                for (size_t harmonic = 0; harmonic < values.size(); ++harmonic) {
+                    // build the row
+                    FourierResultRow row;
+                    // step label only when several steps are present
+                    row.step = show_step ? "Step " + std::to_string(step + 1) : std::string();
+                    // signal name (brace stripped by the parser)
+                    row.signal = spectrum->name();
+                    // harmonic index
+                    row.harmonic = static_cast<int>(harmonic);
+                    // harmonic frequency from the abscissa
+                    row.frequency = format_fourier_value(frequencies[harmonic]);
+                    // magnitude is the complex modulus
+                    row.magnitude = format_fourier_value(std::abs(values[harmonic]));
+                    // phase in degrees is the complex argument
+                    row.phase = format_fourier_value(std::arg(values[harmonic]) * 180.0 / std::numbers::pi);
+                    // append the row
+                    rows.push_back(std::move(row));
+                }
+            }
+        }
+        // return the assembled table
+        return rows;
     }
 
     // suggested smith chart plots: one smith chart with the diagonal matrix entries (s11, s22, ...) which plot as reflection coefficients on the gamma plane; the equivalent entries of y/z parameter files map through the smith conversions
@@ -237,8 +309,8 @@ void SlintMainWindowPresenter::on_show_netlist() {
 }
 
 void SlintMainWindowPresenter::on_show_charts() {
-    // switch to the charts view
-    m_view.show_charts_view();
+    // switch to the results view matching the active dataset
+    show_active_dataset_view();
     // refresh state
     refresh_action_states();
 }
@@ -886,8 +958,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // 8. copy every recorded FILE= destination from the default file the run produced for its .PRINT statement
         for (const auto& copy : m_simulation_output_copies)
             copy_simulation_output_to_destination(copy);
-        // switch to the charts view
-        m_view.show_charts_view();
+        // switch to the results view matching the active dataset (charts, or the
+        // Fourier results table when the run produced only Fourier output)
+        show_active_dataset_view();
         // hide the output panel — it is only shown on failure
         m_view.hide_simulation_output_panel();
         // update the statusbar
@@ -1269,13 +1342,42 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
     auto* file = m_plot_datasets[index].file.get();
     // check the file is present
     if (file != nullptr) {
-        // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots
-        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
+        // a Fourier analysis output carries complex spectra the chart renderer
+        // cannot plot, so its results are presented as the read-only table the
+        // .four file holds instead of the chart canvas
+        if (file->plot_type() == PlotType::FOURIER) {
+            // build the per-harmonic rows and hand them to the table
+            const std::vector<FourierResultRow> rows = build_fourier_result_rows(*file);
+            // the step column is shown only for multi-step (swept) runs
+            m_view.show_fourier_results(file->title(), file->step_information().length() > 1, rows);
+        }
+        else {
+            // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots
+            m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
+            // reveal the chart canvas, which the previous dataset may have replaced with the Fourier table
+            m_view.show_charts_view();
+        }
         // update the active tab in the view
         m_view.set_active_plot_tab(static_cast<int>(index));
         // update the base title from the dataset title
         set_base_title(file->title());
     }
+}
+
+void SlintMainWindowPresenter::show_active_dataset_view() {
+    // the active dataset decides which results view is shown: a Fourier dataset
+    // has no plottable spectra and is presented as the results table, any other
+    // (or a missing) dataset is presented as charts
+    auto* file = active_dataset_file();
+    // a Fourier dataset routes through the activation branch that builds the table
+    if (file != nullptr && file->plot_type() == PlotType::FOURIER) {
+        // re-activate the active index to refresh the table contents
+        activate_plot_dataset(m_active_dataset_index);
+        // exit
+        return;
+    }
+    // reveal the charts panel for a plottable or missing dataset
+    m_view.show_charts_view();
 }
 
 void SlintMainWindowPresenter::show_simulation_output_view() {

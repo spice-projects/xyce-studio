@@ -123,6 +123,10 @@ private:
     // activate the dataset at the given index and update charts in the view
     void activate_plot_dataset(size_t index);
 
+    // reveal the results view matching the active dataset: the Fourier results
+    // table for a Fourier dataset, the charts panel otherwise
+    void show_active_dataset_view();
+
     // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 

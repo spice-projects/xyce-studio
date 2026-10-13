@@ -497,6 +497,12 @@ Performs Fourier analysis over the last period (`1/freq`) of the
 transient simulation and reports the DC component and the first nine
 harmonics. Results are written to `<netlist>.four#` files.
 
+After a transient run, Xyce Studio reads those files back and adds one
+**FOUR** tab per fundamental frequency to the charts panel. Because the
+complex spectra cannot be plotted, the tab shows a read-only table
+mirroring the `.four#` file — one row per harmonic of every signal, with
+a leading **Step** column when the run sweeps a parameter (`.STEP`).
+
 ### .MEASURE directives
 
 ```
