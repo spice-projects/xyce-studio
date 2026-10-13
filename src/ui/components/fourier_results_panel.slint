@@ -25,13 +25,15 @@ export struct FourierSignalTable {
     rows: [FourierResultRow],
 }
 
-// column header cell, left aligned like the .four table header
+// column header cell; the numeric columns are right aligned like their body
+// cells, so a value renders below its title
 component FourierHeaderCell inherits Text {
     in property <length> cell-width;
+    in property <bool> align-right: false;
     width: cell-width;
     height: 100%;
     vertical-alignment: center;
-    horizontal-alignment: left;
+    horizontal-alignment: self.align-right ? right : left;
     font-size: 12px;
     font-weight: 600;
     color: Palette.foreground;
@@ -120,21 +122,25 @@ export component FourierResultsPanel inherits Rectangle {
                         HorizontalLayout {
                             FourierHeaderCell {
                                 cell-width: root.harmonic-width;
+                                align-right: true;
                                 text: "Harmonic";
                             }
 
                             FourierHeaderCell {
                                 cell-width: root.frequency-width;
+                                align-right: true;
                                 text: "Frequency (Hz)";
                             }
 
                             FourierHeaderCell {
                                 cell-width: root.magnitude-width;
+                                align-right: true;
                                 text: "Magnitude";
                             }
 
                             FourierHeaderCell {
                                 cell-width: root.phase-width;
+                                align-right: true;
                                 text: "Phase (deg)";
                             }
                         }
