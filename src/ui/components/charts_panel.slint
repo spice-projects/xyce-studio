@@ -1,7 +1,7 @@
 import { Palette } from "std-widgets.slint";
 import { ChartView, ChartFrameData } from "chart_view.slint";
 import {
-    FourierResultRow,
+    FourierSignalTable,
     FourierResultsPanel,
 } from "fourier_results_panel.slint";
 
@@ -213,8 +213,7 @@ export component ChartsPanel inherits Rectangle {
     // plot tab bar stays in place so the user can switch back to another tab
     in property <bool> fourier-active: false;
     in property <string> fourier-title: "";
-    in property <bool> fourier-show-step: false;
-    in property <[FourierResultRow]> fourier-rows: [];
+    in property <[FourierSignalTable]> fourier-tables: [];
 
     // fires with the panel size whenever the geometry changes, so the host
     // renderer can resize its offscreen surface and recompute limits
@@ -669,8 +668,7 @@ export component ChartsPanel inherits Rectangle {
         if root.fourier-active: FourierResultsPanel {
             vertical-stretch: 1;
             title: root.fourier-title;
-            show-step: root.fourier-show-step;
-            rows: root.fourier-rows;
+            tables: root.fourier-tables;
         }
     }
 }

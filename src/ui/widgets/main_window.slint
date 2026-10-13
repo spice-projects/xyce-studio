@@ -17,7 +17,7 @@ import {
     LegendItem,
 } from "../components/expression_selector.slint";
 import { FftPanel } from "../components/fft_panel.slint";
-import { FourierResultRow } from "../components/fourier_results_panel.slint";
+import { FourierSignalTable } from "../components/fourier_results_panel.slint";
 import { PluginConfigPanel } from "../components/plugin_config_panel.slint";
 import { OptionRow } from "../components/option_package_card.slint";
 import { OptionsPanel } from "../components/options_panel.slint";
@@ -342,12 +342,12 @@ export component MainWindow inherits Window {
     // is shown (controlled from the view adapter)
     in property <bool> charts-visible: false;
 
-    // the Fourier results panel is the exclusive content view for a Fourier
-    // dataset tab; the host drives it from the view adapter
+    // when the active dataset is a Fourier analysis output the charts panel
+    // swaps its canvas for the read-only Fourier results table; the host drives
+    // this from the view adapter
     in property <bool> fourier-visible: false;
     in property <string> fourier-title: "";
-    in property <bool> fourier-show-step: false;
-    in property <[FourierResultRow]> fourier-rows: [];
+    in property <[FourierSignalTable]> fourier-tables: [];
 
     // debug builds expose the hidden automation triggers to the test mcp
     // server; release builds keep them out of the element tree entirely
@@ -809,8 +809,7 @@ export component MainWindow inherits Window {
                         // when the active dataset is a Fourier analysis output
                         fourier-active: root.fourier-visible;
                         fourier-title: root.fourier-title;
-                        fourier-show-step: root.fourier-show-step;
-                        fourier-rows: root.fourier-rows;
+                        fourier-tables: root.fourier-tables;
                         // report layout changes to the renderer
                         viewport-changed(width, height) => { root.charts-viewport-changed(width, height); }
                     }

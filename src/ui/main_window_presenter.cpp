@@ -90,23 +90,40 @@ namespace
         return stream.str();
     }
 
-    // build the result rows of a Fourier output file: one row per harmonic of
-    // every signal and step, mirroring the columns of the .four file the table
-    // replaces (the chart renderer cannot plot the complex spectra)
-    std::vector<FourierResultRow> build_fourier_result_rows(XyceOutputFile& file) {
-        // result rows
-        std::vector<FourierResultRow> rows;
+    // format the per-block THD: the file already writes a percentage, so the
+    // unit is appended; a non-finite value (Xyce prints `nan` for a block whose
+    // fundamental vanishes) reads as `n/a`
+    std::string format_fourier_thd(const std::string& raw) {
+        // the file records a floating point percentage or the `nan` token, so
+        // the conversion never throws for real Xyce output
+        const double value = std::stod(raw);
+        // a non-finite value has no meaningful percentage
+        if (!std::isfinite(value))
+            return "n/a";
+        // format with a readable precision and append the percent unit
+        std::ostringstream stream;
+        stream << std::setprecision(4) << value << " %";
+        return stream.str();
+    }
+
+    // build the result tables of a Fourier output file: one block per signal and
+    // step, each carrying its THD and the harmonic rows, mirroring the columns
+    // of the .four file the table replaces (the chart renderer cannot plot the
+    // complex spectra)
+    std::vector<FourierSignalTable> build_fourier_tables(XyceOutputFile& file) {
+        // result blocks
+        std::vector<FourierSignalTable> tables;
         // step structure and expressions of the file
         const StepInformation& steps = file.step_information();
         ExpressionManager& manager = file.expression_manager();
         // number of steps the file holds
         const size_t step_count = steps.length();
-        // the step column is shown only for multi-step sweeps
+        // the step label is shown only for multi-step sweeps
         const bool show_step = step_count > 1;
         // the abscissa expression carries the harmonic frequency of every step
         Expression<double>& abscissa = manager.abscissa();
-        // emit a row per signal, step and harmonic; skipping the abscissa (a
-        // real expression) leaves only the complex spectra
+        // emit one block per signal and step; skipping the abscissa (a real
+        // expression) leaves only the complex spectra
         for (AnyExpression* any : manager.expressions()) {
             // keep only complex spectra
             auto* spectrum = std::get_if<Expression<std::complex<double>>>(any);
@@ -121,14 +138,19 @@ namespace
                 // abscissa and every spectrum from the same harmonic rows, so
                 // the two spans always have the same length
                 const std::span<const double> frequencies = abscissa.step_data(step);
+                // start the block of this signal and step
+                FourierSignalTable table;
+                // signal name (brace stripped by the parser)
+                table.signal = spectrum->name();
+                // step label only when several steps are present
+                table.step = show_step ? "Step " + std::to_string(step + 1) : std::string();
+                // the per-step THD the file records for this block; the parser
+                // stores one metadata map per step, so the index is always valid
+                table.thd = format_fourier_thd(spectrum->metadata()[step].at("THD"));
                 // walk every harmonic written for this signal
                 for (size_t harmonic = 0; harmonic < values.size(); ++harmonic) {
                     // build the row
                     FourierResultRow row;
-                    // step label only when several steps are present
-                    row.step = show_step ? "Step " + std::to_string(step + 1) : std::string();
-                    // signal name (brace stripped by the parser)
-                    row.signal = spectrum->name();
                     // harmonic index
                     row.harmonic = static_cast<int>(harmonic);
                     // harmonic frequency from the abscissa
@@ -138,12 +160,14 @@ namespace
                     // phase in degrees is the complex argument
                     row.phase = format_fourier_value(std::arg(values[harmonic]) * 180.0 / std::numbers::pi);
                     // append the row
-                    rows.push_back(std::move(row));
+                    table.rows.push_back(std::move(row));
                 }
+                // append the block
+                tables.push_back(std::move(table));
             }
         }
-        // return the assembled table
-        return rows;
+        // return the assembled blocks
+        return tables;
     }
 
     // suggested smith chart plots: one smith chart with the diagonal matrix entries (s11, s22, ...) which plot as reflection coefficients on the gamma plane; the equivalent entries of y/z parameter files map through the smith conversions
@@ -1346,10 +1370,11 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
         // cannot plot, so its results are presented as the read-only table the
         // .four file holds instead of the chart canvas
         if (file->plot_type() == PlotType::FOURIER) {
-            // build the per-harmonic rows and hand them to the table
-            const std::vector<FourierResultRow> rows = build_fourier_result_rows(*file);
-            // the step column is shown only for multi-step (swept) runs
-            m_view.show_fourier_results(file->title(), file->step_information().length() > 1, rows);
+            // build the per-signal and per-step blocks and hand them to the table
+            const std::vector<FourierSignalTable> tables = build_fourier_tables(*file);
+            // show the grouped table; the block header carries the signal, the
+            // step label and the THD
+            m_view.show_fourier_results(file->title(), tables);
         }
         else {
             // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots

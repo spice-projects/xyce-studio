@@ -2,18 +2,27 @@
 // .FOUR output file. The host shows this as the content view when a Fourier
 // dataset tab is active; the chart renderer cannot plot the complex spectra the
 // parser produces, so the results are presented as the table the .four file
-// itself holds (one row per harmonic of every signal and step).
+// itself holds. THD is reported per signal and step, so the table is grouped in
+// one block per signal and step whose header band carries the THD.
 import { Palette, ScrollView } from "std-widgets.slint";
 
-// one row of the Fourier results table; every numeric cell is pre-formatted by
-// the host so a row mirrors the text of the .four file
+// one harmonic row of a Fourier block; every numeric cell is pre-formatted by
+// the host so a row mirrors the text of the .four file. The signal, step and
+// THD live on the owning FourierSignalTable so they are not repeated per row
 export struct FourierResultRow {
-    step: string,
-    signal: string,
     harmonic: int,
     frequency: string,
     magnitude: string,
     phase: string,
+}
+
+// one signal/step block: its header (signal, optional step label and per-block
+// THD) plus one row per harmonic
+export struct FourierSignalTable {
+    signal: string,
+    step: string,
+    thd: string,
+    rows: [FourierResultRow],
 }
 
 // column header cell, left aligned like the .four table header
@@ -45,18 +54,15 @@ component FourierDataCell inherits Text {
 
 export component FourierResultsPanel inherits Rectangle {
     in property <string> title: "";
-    // the step column is hidden for single-step runs
-    in property <bool> show-step: false;
-    in property <[FourierResultRow]> rows: [];
+    // one block per signal and step, each carrying its own THD
+    in property <[FourierSignalTable]> tables: [];
 
     // fixed column widths shared by the header and the body rows so the columns
     // stay aligned regardless of the cell contents
-    private property <length> step-width: 90px;
-    private property <length> signal-width: 140px;
-    private property <length> harmonic-width: 90px;
-    private property <length> frequency-width: 170px;
-    private property <length> magnitude-width: 170px;
-    private property <length> phase-width: 170px;
+    private property <length> harmonic-width: 120px;
+    private property <length> frequency-width: 190px;
+    private property <length> magnitude-width: 190px;
+    private property <length> phase-width: 190px;
 
     background: Palette.background;
 
@@ -84,88 +90,90 @@ export component FourierResultsPanel inherits Rectangle {
             background: Palette.border;
         }
 
-        // column header row
-        Rectangle {
-            height: 28px;
-
-            HorizontalLayout {
-                if root.show-step: FourierHeaderCell {
-                    cell-width: root.step-width;
-                    text: "Step";
-                }
-                FourierHeaderCell {
-                    cell-width: root.signal-width;
-                    text: "Signal";
-                }
-
-                FourierHeaderCell {
-                    cell-width: root.harmonic-width;
-                    text: "Harmonic";
-                }
-
-                FourierHeaderCell {
-                    cell-width: root.frequency-width;
-                    text: "Frequency (Hz)";
-                }
-
-                FourierHeaderCell {
-                    cell-width: root.magnitude-width;
-                    text: "Magnitude";
-                }
-
-                FourierHeaderCell {
-                    cell-width: root.phase-width;
-                    text: "Phase (deg)";
-                }
-            }
-        }
-
-        Rectangle {
-            height: 1px;
-            background: Palette.border;
-        }
-
-        // body: one row per harmonic, scrolled when the table overflows
+        // body: one block per signal and step, scrolled when the table overflows
         ScrollView {
             vertical-stretch: 1;
 
             VerticalLayout {
-                for row[index] in root.rows: Rectangle {
-                    height: 24px;
-                    background: index.mod(2) == 1 ? Palette.foreground.with-alpha(0.04) : transparent;
+                for block[index] in root.tables: VerticalLayout {
+                    // block header band: signal, optional step and the block THD
+                    Rectangle {
+                        height: 30px;
+                        background: Palette.foreground.with-alpha(0.06);
 
-                    HorizontalLayout {
-                        if root.show-step: FourierDataCell {
-                            cell-width: root.step-width;
-                            text: row.step;
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-alignment: left;
+                            // the block identity and its THD, e.g.
+                            // "I(L1)  ·  Step 2  —  THD: 43.71 %"
+                            text: block.step == "" ? block.signal + "  —  THD: " + block.thd : block.signal + "  ·  " + block.step + "  —  THD: " + block.thd;
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: Palette.foreground;
                         }
-                        FourierDataCell {
-                            cell-width: root.signal-width;
-                            text: row.signal;
-                        }
+                    }
 
-                        FourierDataCell {
-                            cell-width: root.harmonic-width;
-                            align-right: true;
-                            text: row.harmonic;
-                        }
+                    // column header row
+                    Rectangle {
+                        height: 28px;
 
-                        FourierDataCell {
-                            cell-width: root.frequency-width;
-                            align-right: true;
-                            text: row.frequency;
-                        }
+                        HorizontalLayout {
+                            FourierHeaderCell {
+                                cell-width: root.harmonic-width;
+                                text: "Harmonic";
+                            }
 
-                        FourierDataCell {
-                            cell-width: root.magnitude-width;
-                            align-right: true;
-                            text: row.magnitude;
-                        }
+                            FourierHeaderCell {
+                                cell-width: root.frequency-width;
+                                text: "Frequency (Hz)";
+                            }
 
-                        FourierDataCell {
-                            cell-width: root.phase-width;
-                            align-right: true;
-                            text: row.phase;
+                            FourierHeaderCell {
+                                cell-width: root.magnitude-width;
+                                text: "Magnitude";
+                            }
+
+                            FourierHeaderCell {
+                                cell-width: root.phase-width;
+                                text: "Phase (deg)";
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Palette.border;
+                    }
+
+                    // one row per harmonic
+                    for row[row-index] in block.rows: Rectangle {
+                        height: 24px;
+                        background: row-index.mod(2) == 1 ? Palette.foreground.with-alpha(0.04) : transparent;
+
+                        HorizontalLayout {
+                            FourierDataCell {
+                                cell-width: root.harmonic-width;
+                                align-right: true;
+                                text: row.harmonic;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.frequency-width;
+                                align-right: true;
+                                text: row.frequency;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.magnitude-width;
+                                align-right: true;
+                                text: row.magnitude;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.phase-width;
+                                align-right: true;
+                                text: row.phase;
+                            }
                         }
                     }
                 }

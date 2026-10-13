@@ -420,27 +420,38 @@ void SlintMainWindowView::show_charts_view() {
     m_window->set_charts_visible(true);
 }
 
-void SlintMainWindowView::show_fourier_results(const std::string& title, bool show_step, const std::vector<FourierResultRow>& rows) {
-    // build the row model the table's for-loop iterates
-    auto model = std::make_shared<slint::VectorModel<main_window::FourierResultRow>>();
-    // copy every row into the model
-    for (const auto& row : rows) {
-        // create the slint row instance
-        main_window::FourierResultRow item;
-        // hand the pre-formatted cells to the table
-        item.step = slint::SharedString(row.step);
-        item.signal = slint::SharedString(row.signal);
-        item.harmonic = row.harmonic;
-        item.frequency = slint::SharedString(row.frequency);
-        item.magnitude = slint::SharedString(row.magnitude);
-        item.phase = slint::SharedString(row.phase);
-        // append the row to the model
+void SlintMainWindowView::show_fourier_results(const std::string& title, const std::vector<FourierSignalTable>& tables) {
+    // build the table model the panel's for-loop iterates
+    auto model = std::make_shared<slint::VectorModel<main_window::FourierSignalTable>>();
+    // copy every signal/step block into the model
+    for (const auto& table : tables) {
+        // create the slint table instance
+        main_window::FourierSignalTable item;
+        // carry the block header (signal, optional step label and THD)
+        item.signal = slint::SharedString(table.signal);
+        item.step = slint::SharedString(table.step);
+        item.thd = slint::SharedString(table.thd);
+        // build the harmonic row model of this block
+        auto rows = std::make_shared<slint::VectorModel<main_window::FourierResultRow>>();
+        for (const auto& row : table.rows) {
+            // create the slint row instance
+            main_window::FourierResultRow row_item;
+            // hand the pre-formatted cells to the table
+            row_item.harmonic = row.harmonic;
+            row_item.frequency = slint::SharedString(row.frequency);
+            row_item.magnitude = slint::SharedString(row.magnitude);
+            row_item.phase = slint::SharedString(row.phase);
+            // append the row to the block
+            rows->push_back(row_item);
+        }
+        // attach the block rows
+        item.rows = rows;
+        // append the block to the model
         model->push_back(item);
     }
     // publish the table state
     m_window->set_fourier_title(slint::SharedString(title));
-    m_window->set_fourier_show_step(show_step);
-    m_window->set_fourier_rows(model);
+    m_window->set_fourier_tables(model);
     // reveal the results area: the charts panel hosts the table in place of the
     // canvas, so it must be visible while the Fourier table is active
     m_window->set_charts_visible(true);

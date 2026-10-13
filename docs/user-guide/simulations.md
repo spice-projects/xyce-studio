@@ -500,8 +500,12 @@ harmonics. Results are written to `<netlist>.four#` files.
 After a transient run, Xyce Studio reads those files back and adds one
 **FOUR** tab per fundamental frequency to the charts panel. Because the
 complex spectra cannot be plotted, the tab shows a read-only table
-mirroring the `.four#` file — one row per harmonic of every signal, with
-a leading **Step** column when the run sweeps a parameter (`.STEP`).
+mirroring the `.four#` file. The table is grouped in one block per signal
+and per sweep step, and each block header carries the signal name, the
+step (`.STEP`) label when the run sweeps a parameter, and the block's
+**THD** — so the value stays unambiguous across several signals and
+steps. A block whose fundamental vanishes prints `THD: nan`, shown as
+`n/a`.
 
 ### .MEASURE directives
 

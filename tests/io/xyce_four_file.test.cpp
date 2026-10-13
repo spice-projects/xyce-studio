@@ -340,6 +340,20 @@ TEST(XyceFourFileTest, stores_the_analysis_metadata_per_signal_and_step) {
     ASSERT_EQ(step_metadata.at("No. Harmonics"), "3");
 }
 
+TEST(XyceFourFileTest, parses_a_non_finite_thd_token) {
+    // arrange — Xyce writes `nan` for a block whose fundamental vanishes
+    const TempDirRAII tmp;
+    tmp.write_file("nan-thd.four0", make_four_content("V(IN)", HARMONICS_1K, "nan"));
+    const StepInformation step_info = make_step_information(1);
+    // act
+    const auto result = xyce_four_file_parser(tmp.path() / "nan-thd.four*", &step_info);
+    // assert — the block parses and the raw token is preserved as metadata
+    ASSERT_TRUE(result.has_value());
+    auto* spectrum = evaluate_complex(result->front()->expression_manager(), "V(IN)");
+    ASSERT_NE(spectrum, nullptr);
+    ASSERT_EQ(spectrum->metadata()[0].at("THD"), "nan");
+}
+
 TEST(XyceFourFileTest, parses_multiple_signals_in_one_fundamental) {
     // arrange
     const TempDirRAII tmp;

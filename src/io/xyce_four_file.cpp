@@ -29,8 +29,10 @@ namespace
 {
     // regex pattern for the signal header line
     const std::regex RE_SIGNAL_HEADER(R"(^Fourier analysis for (.+):$)");
-    // regex pattern for the analysis metadata line
-    const std::regex RE_METADATA_LINE(R"(No\. Harmonics:\s*(\d+),\s*THD:\s*([0-9eE+\-.]+),\s*Gridsize:\s*(\d+),\s*Interpolation Type:\s*(.+)$)");
+    // regex pattern for the analysis metadata line; the THD field may be a
+    // non-finite token such as `nan`, so it is captured as anything up to the
+    // Gridsize separator rather than a numeric character class
+    const std::regex RE_METADATA_LINE(R"(No\. Harmonics:\s*(\d+),\s*THD:\s*([^,]+),\s*Gridsize:\s*(\d+),\s*Interpolation Type:\s*(.+)$)");
     // regex pattern for the numeric step suffix in file names
     const std::regex RE_FOUR_INDEX(R"(four(\d+)$)");
 
@@ -350,7 +352,7 @@ namespace
                         harmonics = static_cast<size_t>(std::stoull(match[1].str()));
                         // store the analysis metadata
                         (*metadata)["No. Harmonics"] = match[1].str();
-                        (*metadata)["THD"] = match[2].str();
+                        (*metadata)["THD"] = trim(match[2].str());
                         (*metadata)["Gridsize"] = match[3].str();
                         (*metadata)["Interpolation Type"] = trim(match[4].str());
                         found_metadata = true;

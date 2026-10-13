@@ -38,9 +38,10 @@ class FourierOutputSimulationChecks(unittest.TestCase):
             title = app.get_by_id("FourierResultsPanel::title-text")
             expect(title).to_have_text("FOUR: 1000 Hz", timeout=10.0)
             app.wait_for_condition(lambda: app.get_by_type("ChartView").count() == 0, timeout=10.0, message="expected the chart canvas to be replaced by the Fourier results table")
-            # assert: the table carries the signal cells Xyce wrote for the spectrum
+            # assert: the block header band carries the signal name and the THD
+            app.wait_for_condition(lambda: any(text.text().startswith("V(IN)") and "THD:" in text.text() for text in app.get_by_type("Text").all()), timeout=10.0, message="expected the signal/THD block header")
+            # assert: the harmonic rows carry the numbers Xyce wrote for the spectrum
             cells = [cell.text() for cell in app.get_by_type("FourierDataCell").all()]
-            self.assertIn("V(IN)", cells)
             self.assertIn("0.000000e+00", cells)
             # step 6: switch back to the analysis tab
             tabs.nth(0).click()
@@ -67,6 +68,6 @@ class FourierOutputSimulationChecks(unittest.TestCase):
             expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=30.0)
             # step 4: wait for the charts view to open; the Fourier dataset is the only one so the table shows directly
             app.get_by_id("MainWindow::charts").wait_for_exists(timeout=10.0)
-            # assert: the multi-step table labels the sweep step of every row
+            # assert: the multi-step table labels the sweep step in each block header
             expect(app.get_by_id("FourierResultsPanel::title-text")).to_have_text("FOUR: 1000 Hz", timeout=10.0)
-            app.wait_for_condition(lambda: "Step 1" in [cell.text() for cell in app.get_by_type("FourierDataCell").all()], timeout=10.0, message="expected the first sweep step label")
+            app.wait_for_condition(lambda: any("Step 1" in text.text() and "THD:" in text.text() for text in app.get_by_type("Text").all()), timeout=10.0, message="expected the first sweep step label")

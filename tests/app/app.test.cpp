@@ -26,7 +26,7 @@ namespace
         void set_simulation_progress(const SimulationProgress&) override {}
         void show_netlist_view() override {}
         void show_charts_view() override {}
-        void show_fourier_results(const std::string&, bool, const std::vector<FourierResultRow>&) override {}
+        void show_fourier_results(const std::string&, const std::vector<FourierSignalTable>&) override {}
         void set_netlist_editor_content(const std::string&) override {}
         std::string netlist_editor_content() const override { return {}; }
         void set_netlist_editor_read_only(bool) override {}
