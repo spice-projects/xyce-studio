@@ -507,6 +507,29 @@ std::optional<std::filesystem::path> SimulationConfig::fft_output_file_path_patt
     return std::visit(FftPathVisitor{netlist_file_path}, analysis);
 }
 
+std::optional<std::filesystem::path> SimulationConfig::four_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const {
+    struct FourPathVisitor
+    {
+        const std::filesystem::path& netlist_file_path;
+
+        std::optional<std::filesystem::path> operator()(const std::monostate&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const AcSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const DCSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const HbSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const LinSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const NoiseSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const OpSimulationParameters&) const { return std::nullopt; }
+        std::optional<std::filesystem::path> operator()(const TransientSimulationParameters& params) const {
+            if (params.four_parameters.empty()) {
+                return std::nullopt;
+            }
+            return netlist_file_path.string() + ".four*";
+        }
+    };
+
+    return std::visit(FourPathVisitor{netlist_file_path}, analysis);
+}
+
 std::optional<PrintParameters> SimulationConfig::pce_print_parameters() const {
     // the DC analysis carries the companion print inside its .PCE parameters
     if (const auto* dc = std::get_if<DCSimulationParameters>(&analysis); dc && dc->pce.has_value())
@@ -541,8 +564,8 @@ SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements()
         SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
-            // a .TRAN analysis with .FFT directives dumps the FFT calculation files and a .TRAN analysis with .PCE parameters and a companion print dumps the PCE statistics output
-            return {.fft = !params.fft_parameters.empty(), .pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
+            // a .TRAN analysis with .FFT directives dumps the FFT calculation files, a .TRAN analysis with .FOUR directives dumps the Fourier analysis files and a .TRAN analysis with .PCE parameters and a companion print dumps the PCE statistics output
+            return {.fft = !params.fft_parameters.empty(), .fourier = !params.four_parameters.empty(), .pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
         }
         SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {
             // a .LIN run with a touchstone format dumps one s-parameter file

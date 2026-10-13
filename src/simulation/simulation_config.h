@@ -49,6 +49,9 @@ public:
     // compute the expected FFT output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> fft_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 
+    // compute the expected FOUR output file path pattern for the configured analysis
+    [[nodiscard]] std::optional<std::filesystem::path> four_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
+
     // extract the .PRINT PCE parameters of the configured analysis (the companion print of the DC or TRAN .PCE directive), nullopt when no analysis is configured or no .PCE companion print is configured
     [[nodiscard]] std::optional<PrintParameters> pce_print_parameters() const;
 
@@ -62,6 +65,8 @@ public:
         bool s_parameters = false;
         // a .TRAN analysis with .FFT directives dumps the FFT calculation files
         bool fft = false;
+        // a .TRAN analysis with .FOUR directives dumps the Fourier analysis files
+        bool fourier = false;
         // a .TRAN or .DC analysis with .PCE parameters and a .PCE companion print dumps the PCE statistics output
         bool pce = false;
     };

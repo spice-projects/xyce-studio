@@ -498,6 +498,92 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_is_absent_for_other_analyses) {
 }
 
 // ========================================================================================
+// FOUR output file path pattern computation
+// ========================================================================================
+
+TEST(SimulationConfigFourPathChecks, four_pattern_requires_an_analysis) {
+    // arrange
+    const SimulationConfig config("", std::monostate{}, {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_requires_four_parameters) {
+    // arrange — a transient analysis without .FOUR directives
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_matches_transient_with_four_parameters) {
+    // arrange — a transient analysis carrying one .FOUR directive
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    ASSERT_TRUE(pattern.has_value());
+    EXPECT_EQ(pattern->generic_string(), "/tmp/net.cir.four*");
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_ac) {
+    // arrange
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_dc) {
+    // arrange
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_hb) {
+    // arrange
+    const SimulationConfig config("HB", HbSimulationParameters({}, {}, std::nullopt, std::nullopt, std::nullopt, std::nullopt, {}, {}), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_lin) {
+    // arrange
+    const SimulationConfig config("LIN", LinSimulationParameters(true, "SPICE", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_noise) {
+    // arrange
+    const SimulationConfig config("NOISE", NoiseSimulationParameters("out", "", "V1", "1", "100MEG", "10", "DEC", {DeviceNoiseOperator("DNI", "R1", "")}, "", PrintParameters("NOISE", "RAW", "out.raw", {"INOISE"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_op) {
+    // arrange
+    const SimulationConfig config("OP", OpSimulationParameters(false, false, false, {}, "", "", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
+    // assert
+    EXPECT_FALSE(pattern.has_value());
+}
+
+// ========================================================================================
 // PCE print parameter extraction
 // ========================================================================================
 
@@ -732,6 +818,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, no_analysis_produces_nothing) {
     // assert
     EXPECT_FALSE(produced.s_parameters);
     EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.fourier);
     EXPECT_FALSE(produced.pce);
 }
 
@@ -774,6 +861,18 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_pro
     // act
     const auto produced = config.produced_measurements();
     // assert
+    EXPECT_FALSE(produced.fft);
+    EXPECT_FALSE(produced.s_parameters);
+    EXPECT_FALSE(produced.pce);
+}
+
+TEST(SimulationConfigProducedMeasurementsChecks, tran_with_four_directives_produces_fourier) {
+    // arrange — a transient analysis carrying one .FOUR directive
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    // act
+    const auto produced = config.produced_measurements();
+    // assert
+    EXPECT_TRUE(produced.fourier);
     EXPECT_FALSE(produced.fft);
     EXPECT_FALSE(produced.s_parameters);
     EXPECT_FALSE(produced.pce);
