@@ -21,6 +21,10 @@ public:
     // path or std::nullopt when the user cancels
     [[nodiscard]] static std::optional<std::filesystem::path> open_xyce_executable();
 
+    // show a native dialog to select the MPI launcher used for parallel runs;
+    // returns the selected path or std::nullopt when the user cancels
+    [[nodiscard]] static std::optional<std::filesystem::path> open_mpi_launcher();
+
     // show a native dialog to choose the location and filename for saving an
     // untitled netlist; returns the selected path or std::nullopt when the
     // user cancels

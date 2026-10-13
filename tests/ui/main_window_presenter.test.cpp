@@ -126,10 +126,13 @@ namespace
         [[nodiscard]] std::optional<std::filesystem::path> request_netlist_save_path() override { return m_save_path_result; }
 
         // simulation process lifecycle (presenter decides when, the view wires the process events)
-        void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override {
+        void start_simulation_process(const std::vector<std::string>& argv, const std::filesystem::path& working_directory) override {
             m_started = true;
-            m_started_program = program;
-            m_started_netlist_path = netlist_path;
+            m_started_argv = argv;
+            // the netlist is always the final argument of the command
+            m_started_netlist_path = argv.empty() ? std::filesystem::path{} : std::filesystem::path(argv.back());
+            // the program is always the first argument of the command
+            m_started_program = argv.empty() ? std::string{} : argv.front();
             m_started_working_directory = working_directory;
         }
 
@@ -174,6 +177,7 @@ namespace
         std::optional<PluginConfig> m_plugin_config_result;
         std::optional<std::filesystem::path> m_save_path_result;
         bool m_started = false;
+        std::vector<std::string> m_started_argv;
         std::string m_started_program;
         std::filesystem::path m_started_netlist_path;
         std::filesystem::path m_started_working_directory;
@@ -339,6 +343,113 @@ TEST(SlintMainWindowPresenterChecks, run_simulation_with_transient_launches_proc
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_simulation_with_parallel_config_launches_the_mpi_launcher) {
+    // arrange — a parallel-capable configuration pointing at a real launcher
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory);
+    PluginConfig parallel(testing::internal::GetArgvs()[0]);
+    parallel.set_parallel_enabled(true);
+    parallel.set_mpi_launcher_path(testing::internal::GetArgvs()[0]);
+    parallel.set_process_count(4);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), parallel, nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert — the launcher wraps the simulator and the netlist is the final argument
+    ASSERT_TRUE(view.m_started);
+    ASSERT_EQ(view.m_started_argv.size(), 5u);
+    EXPECT_EQ(view.m_started_argv[0], testing::internal::GetArgvs()[0]);
+    EXPECT_EQ(view.m_started_argv[1], "-np");
+    EXPECT_EQ(view.m_started_argv[2], "4");
+    EXPECT_EQ(view.m_started_argv[3], testing::internal::GetArgvs()[0]);
+    EXPECT_EQ(view.m_started_argv[4], view.m_started_netlist_path.string());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_simulation_with_parallel_config_inserts_the_launcher_arguments) {
+    // arrange — extra launcher options are placed before -np
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory);
+    PluginConfig parallel(testing::internal::GetArgvs()[0]);
+    parallel.set_parallel_enabled(true);
+    parallel.set_mpi_launcher_path(testing::internal::GetArgvs()[0]);
+    parallel.set_process_count(2);
+    parallel.set_mpi_launcher_arguments("--oversubscribe  -x  FOO");
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), parallel, nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert — the run is refused because the recorded launcher rejects the extra arguments
+    ASSERT_TRUE(view.m_started);
+    ASSERT_EQ(view.m_started_argv.size(), 8u);
+    EXPECT_EQ(view.m_started_argv[0], testing::internal::GetArgvs()[0]);
+    EXPECT_EQ(view.m_started_argv[1], "--oversubscribe");
+    EXPECT_EQ(view.m_started_argv[2], "-x");
+    EXPECT_EQ(view.m_started_argv[3], "FOO");
+    EXPECT_EQ(view.m_started_argv[4], "-np");
+    EXPECT_EQ(view.m_started_argv[5], "2");
+    EXPECT_EQ(view.m_started_argv[6], testing::internal::GetArgvs()[0]);
+    EXPECT_EQ(view.m_started_argv[7], view.m_started_netlist_path.string());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_simulation_with_serial_config_launches_xyce_directly) {
+    // arrange — a serial configuration must not wrap the simulator
+    RecordingView view;
+    const auto working_directory = std::filesystem::temp_directory_path();
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", working_directory);
+    PluginConfig serial(testing::internal::GetArgvs()[0]);
+    serial.set_mpi_launcher_path(testing::internal::GetArgvs()[0]);
+    serial.set_process_count(4);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), serial, nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert
+    ASSERT_TRUE(view.m_started);
+    ASSERT_EQ(view.m_started_argv.size(), 2u);
+    EXPECT_EQ(view.m_started_argv[0], testing::internal::GetArgvs()[0]);
+    EXPECT_EQ(view.m_started_argv[1], view.m_started_netlist_path.string());
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_simulation_with_parallel_config_below_two_processes_is_refused) {
+    // arrange — a single process is not a parallel run
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", std::filesystem::temp_directory_path());
+    PluginConfig parallel(testing::internal::GetArgvs()[0]);
+    parallel.set_parallel_enabled(true);
+    parallel.set_mpi_launcher_path(testing::internal::GetArgvs()[0]);
+    parallel.set_process_count(1);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), parallel, nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert
+    EXPECT_FALSE(view.m_started);
+    EXPECT_NE(view.m_status_text.find("Parallel"), std::string::npos);
+}
+
+TEST(SlintMainWindowPresenterChecks, run_simulation_with_parallel_config_and_a_missing_launcher_is_refused) {
+    // arrange — the launcher path does not exist
+    RecordingView view;
+    StubNetlistSource* source = new StubNetlistSource("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.END\n", std::filesystem::temp_directory_path());
+    PluginConfig parallel(testing::internal::GetArgvs()[0]);
+    parallel.set_parallel_enabled(true);
+    parallel.set_mpi_launcher_path("/nonexistent/path/to/mpirun");
+    parallel.set_process_count(4);
+    SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), parallel, nullptr);
+    // act
+    presenter.on_run_simulation();
+    // assert
+    EXPECT_FALSE(view.m_started);
+    EXPECT_NE(view.m_status_text.find("Parallel"), std::string::npos);
 }
 
 TEST(SlintMainWindowPresenterChecks, pending_dialog_result_launches_the_simulation) {

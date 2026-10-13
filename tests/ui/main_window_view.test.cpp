@@ -63,6 +63,14 @@ TEST(SlintMainWindowViewChecks, start_simulation_process_is_virtual) {
     EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::start_simulation_process)>);
 }
 
+TEST(SlintMainWindowViewChecks, start_simulation_process_takes_a_command_and_a_working_directory) {
+    // the view forwards the whole command to the runner, so a parallel run keeps its launcher arguments
+    // arrange / act
+    using Signature = void (SlintMainWindowView::*)(const std::vector<std::string>&, const std::filesystem::path&);
+    // assert
+    EXPECT_TRUE((std::is_same_v<decltype(&SlintMainWindowView::start_simulation_process), Signature>));
+}
+
 TEST(SlintMainWindowViewChecks, cancel_simulation_process_is_virtual) {
     // cancel_simulation_process is a virtual override
     // arrange / act

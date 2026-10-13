@@ -695,7 +695,7 @@ void SlintMainWindowView::show_options_dialog(const OptionParameters& options) {
     m_options_dialog->show(options, *m_event_handler, [this] { end_modal_dialog(); });
 }
 
-void SlintMainWindowView::start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
+void SlintMainWindowView::start_simulation_process(const std::vector<std::string>& argv, const std::filesystem::path& working_directory) {
     // create a fresh runner for this run
     m_simulation_runner = std::make_unique<SimulationRunner>();
     // forward the process output and termination to the event handler; the
@@ -704,7 +704,7 @@ void SlintMainWindowView::start_simulation_process(const std::string& program, c
     m_simulation_runner->set_stderr_callback([this](const std::string& line) { m_event_handler->on_simulation_stderr(line); });
     m_simulation_runner->set_finished_callback([this](int exit_code, bool was_canceled) { m_event_handler->on_simulation_finished(exit_code, was_canceled); });
     // launch the child process
-    m_simulation_runner->start(program, netlist_path, working_directory);
+    m_simulation_runner->start(argv, working_directory);
 }
 
 void SlintMainWindowView::cancel_simulation_process() {

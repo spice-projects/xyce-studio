@@ -46,7 +46,7 @@ namespace
         std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig&) override { return std::nullopt; }
         void show_options_dialog(const OptionParameters&) override {}
         std::optional<std::filesystem::path> request_netlist_save_path() override { return std::nullopt; }
-        void start_simulation_process(const std::string&, const std::filesystem::path&, const std::filesystem::path&) override {}
+        void start_simulation_process(const std::vector<std::string>&, const std::filesystem::path&) override {}
         void cancel_simulation_process() override {}
         void spawn_raw_file_window(std::shared_ptr<XyceOutputFile>) override {}
         void set_event_handler(MainWindowViewDefEvents&) override {}

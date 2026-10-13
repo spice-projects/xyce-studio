@@ -7,10 +7,12 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <slint.h>
 #include <spdlog/spdlog.h>
 
+#include "../core/executable_probe.h"
 #include "simulation_runner.h"
 
 #if defined(_WIN32)
@@ -115,21 +117,27 @@ struct SimulationRunner::Impl
         remove_temp_netlist();
     }
 
-    void start(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& cwd) {
+    void start(const std::vector<std::string>& argv, const std::filesystem::path& cwd) {
         // reject a duplicate start
         if (running.load()) {
             spdlog::warn("SimulationRunner::start called while already running");
             return;
         }
-        // store the run paths
+        // reject a command with no program to execute
+        if (argv.empty()) {
+            spdlog::error("SimulationRunner::start called with an empty command");
+            finish_launch_failure();
+            return;
+        }
+        // store the run paths, the netlist is always the final argument of the command
         working_directory = cwd;
-        netlist_file_path = netlist_path;
-        temp_netlist_path = netlist_path;
+        netlist_file_path = argv.back();
+        temp_netlist_path = argv.back();
         // reset the run state
         exit_code = -1;
         canceled = false;
         // spawn the child with captured stdout and stderr
-        spawn_child(program, netlist_path, cwd);
+        spawn_child(argv, cwd);
     }
 
     void cancel() {
@@ -180,7 +188,10 @@ struct SimulationRunner::Impl
     }
 
 #if defined(_WIN32)
-    void spawn_child(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& cwd) {
+    void spawn_child(const std::vector<std::string>& argv, const std::filesystem::path& cwd) {
+        // the program being launched and the netlist it was handed
+        const std::string& program = argv.front();
+        const std::string netlist_path = argv.back().string();
         // inheritable security attributes for the pipe write ends
         SECURITY_ATTRIBUTES security_attributes{};
         security_attributes.nLength = sizeof(security_attributes);
@@ -200,7 +211,7 @@ struct SimulationRunner::Impl
                 CloseHandle(err_read);
             if (err_write)
                 CloseHandle(err_write);
-            spdlog::error("SimulationRunner::start failed to create pipes: {} {}", program, netlist_path.string());
+            spdlog::error("SimulationRunner::start failed to create pipes: {} {}", program, netlist_path);
             finish_launch_failure();
             return;
         }
@@ -214,10 +225,15 @@ struct SimulationRunner::Impl
         startup_info.hStdOutput = out_write;
         startup_info.hStdError = err_write;
         startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-        // build the command line with both paths quoted
-        const std::wstring program_wide = std::filesystem::path(program).wstring();
-        const std::wstring netlist_wide = netlist_path.wstring();
-        std::wstring command = L"\"" + program_wide + L"\" \"" + netlist_wide + L"\"";
+        // build the command line with every argument quoted
+        std::wstring command;
+        for (const auto& argument : argv) {
+            const std::wstring wide_argument = std::filesystem::path(argument).wstring();
+            // separate the quoted arguments with a space
+            if (!command.empty())
+                command += L" ";
+            command += L"\"" + wide_argument + L"\"";
+        }
         const std::wstring cwd_wide = cwd.empty() ? std::wstring() : cwd.wstring();
         // launch the process without a console window
         PROCESS_INFORMATION process_info{};
@@ -227,7 +243,7 @@ struct SimulationRunner::Impl
             CloseHandle(out_write);
             CloseHandle(err_read);
             CloseHandle(err_write);
-            spdlog::error("SimulationRunner::start failed to launch: {} {}", program, netlist_path.string());
+            spdlog::error("SimulationRunner::start failed to launch: {} {}", program, netlist_path);
             finish_launch_failure();
             return;
         }
@@ -287,7 +303,10 @@ struct SimulationRunner::Impl
         spdlog::info("Xyce simulation finished (exit code {}, canceled {})", static_cast<int>(code), was_canceled);
     }
 #else
-    void spawn_child(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& cwd) {
+    void spawn_child(const std::vector<std::string>& argv, const std::filesystem::path& cwd) {
+        // the program being launched and the netlist it was handed
+        const std::string& program = argv.front();
+        const std::string& netlist_path = argv.back();
         // create the stdout and stderr pipes
         int out_pipe[2] = {-1, -1};
         int err_pipe[2] = {-1, -1};
@@ -301,7 +320,7 @@ struct SimulationRunner::Impl
                 ::close(err_pipe[0]);
                 ::close(err_pipe[1]);
             }
-            spdlog::error("SimulationRunner::start failed to create pipes: {} {}", program, netlist_path.string());
+            spdlog::error("SimulationRunner::start failed to create pipes: {} {}", program, netlist_path);
             finish_launch_failure();
             return;
         }
@@ -313,7 +332,7 @@ struct SimulationRunner::Impl
             ::close(out_pipe[1]);
             ::close(err_pipe[0]);
             ::close(err_pipe[1]);
-            spdlog::error("SimulationRunner::start failed to fork: {} {}", program, netlist_path.string());
+            spdlog::error("SimulationRunner::start failed to fork: {} {}", program, netlist_path);
             finish_launch_failure();
             return;
         }
@@ -329,12 +348,10 @@ struct SimulationRunner::Impl
             ::close(out_pipe[1]);
             ::close(err_pipe[0]);
             ::close(err_pipe[1]);
-            // arguments: [program, netlist_path, nullptr]
-            const std::string prog = program;
-            const std::string net = netlist_path.string();
-            const char* argv[] = {prog.c_str(), net.c_str(), nullptr};
+            // arguments: the program followed by every argument of the command
+            const auto child_argv = build_exec_argv(argv);
             // execute the program, replacing the child image
-            ::execv(prog.c_str(), const_cast<char* const*>(argv));
+            ::execv(program.c_str(), const_cast<char* const*>(child_argv.data()));
             // exec failed, report the failure
             _exit(127);
         }
@@ -394,7 +411,7 @@ SimulationRunner::SimulationRunner() :
 
 SimulationRunner::~SimulationRunner() = default;
 
-void SimulationRunner::start(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) { m_impl->start(program, netlist_path, working_directory); }
+void SimulationRunner::start(const std::vector<std::string>& argv, const std::filesystem::path& working_directory) { m_impl->start(argv, working_directory); }
 
 void SimulationRunner::cancel() { m_impl->cancel(); }
 

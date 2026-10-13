@@ -371,11 +371,29 @@ export component MainWindow inherits Window {
     in property <string> plugin-config-error-message: "";
     in property <bool> plugin-config-browse-enabled: true;
 
+    // parallel simulation section: the capability line the binary reported, its
+    // classification, and the MPI launcher settings seeded from the configuration
+    in property <string> plugin-config-capabilities-text: "";
+    in property <bool> plugin-config-parallel-capable: false;
+    in property <bool> plugin-config-capabilities-unknown: false;
+    in-out property <bool> plugin-config-parallel-enabled: false;
+    in-out property <string> plugin-config-launcher-path: "";
+    in property <bool> plugin-config-launcher-browse-enabled: true;
+    in property <string> plugin-config-launcher-version: "";
+    in property <int> plugin-config-available-slots: 0;
+    in property <bool> plugin-config-slots-known: false;
+    in-out property <int> plugin-config-process-count: 4;
+    in-out property <string> plugin-config-launcher-arguments: "";
+
     // forwarded from the inline plugin config panel to the view adapter
     callback plugin-config-accepted();
     callback plugin-config-dismissed();
     callback plugin-config-browse-clicked();
     callback plugin-config-path-edited(string);
+    callback plugin-config-launcher-browse-clicked();
+    callback plugin-config-parallel-toggled(bool);
+    callback plugin-config-process-count-edited(int);
+    callback plugin-config-launcher-arguments-edited(string);
 
     // add plot expression panel rendered inline as a modal overlay (no separate
     // OS window); driven from the view adapter
@@ -893,10 +911,25 @@ export component MainWindow inherits Window {
             show-error: root.plugin-config-show-error;
             error-message: root.plugin-config-error-message;
             browse-enabled: root.plugin-config-browse-enabled;
+            capabilities-text: root.plugin-config-capabilities-text;
+            parallel-capable: root.plugin-config-parallel-capable;
+            capabilities-unknown: root.plugin-config-capabilities-unknown;
+            parallel-enabled <=> root.plugin-config-parallel-enabled;
+            launcher-path <=> root.plugin-config-launcher-path;
+            launcher-browse-enabled: root.plugin-config-launcher-browse-enabled;
+            launcher-version: root.plugin-config-launcher-version;
+            available-slots: root.plugin-config-available-slots;
+            slots-known: root.plugin-config-slots-known;
+            process-count <=> root.plugin-config-process-count;
+            launcher-arguments <=> root.plugin-config-launcher-arguments;
             accepted => { root.plugin-config-accepted(); }
             dismissed => { root.plugin-config-dismissed(); }
             browse-clicked => { root.plugin-config-browse-clicked(); }
             path-edited(text) => { root.plugin-config-path-edited(text); }
+            launcher-browse-clicked => { root.plugin-config-launcher-browse-clicked(); }
+            parallel-toggled(enabled) => { root.plugin-config-parallel-toggled(enabled); }
+            process-count-edited(count) => { root.plugin-config-process-count-edited(count); }
+            launcher-arguments-edited(text) => { root.plugin-config-launcher-arguments-edited(text); }
         }
 
         // add plot expression panel rendered as an inline modal overlay: a dimmed

@@ -125,6 +125,9 @@ private:
     // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
 
+    // build the command line for a run of the given netlist, inserting the MPI launcher and its process count when the configuration asks for a parallel run and handing back the plain Xyce invocation otherwise; the netlist is always the final argument
+    [[nodiscard]] std::vector<std::string> build_simulation_argv(const std::filesystem::path& netlist_path) const;
+
     // merge the quantities declared by the .PLOT directives of the given topology into the analysis print so the plotted expressions always have data; a netlist without .PLOT directives leaves the print untouched and the print is only created when the creation is allowed
     void augment_analysis_print_with_plot_directives(SimulationConfig& config, const NetlistTopology& topology, bool create_print) const;
 

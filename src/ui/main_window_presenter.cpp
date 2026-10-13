@@ -262,6 +262,13 @@ void SlintMainWindowPresenter::on_run_simulation() {
         // exit
         return;
     }
+    // a parallel run needs a launcher that can actually start several processes
+    if (!m_plugin_config.is_parallel_configuration_valid()) {
+        // update the statusbar with an error
+        m_view.set_status_text("Parallel execution is enabled but the MPI launcher configuration is invalid");
+        // exit
+        return;
+    }
     // load the netlist source content
     const auto [reloaded, content] = m_netlist_source->load_netlist();
     // re-parse when the schematic changed, when no cached state exists yet (e.g. the first run exited early on an empty netlist) or when the editor content changed since the last parse — an edit made after a run must be simulated instead of being overwritten by the stale cache
@@ -377,13 +384,48 @@ void SlintMainWindowPresenter::launch_simulation() {
     // reset the log for this run
     m_view.clear_simulation_output();
     // launch the simulation through the view, which wires the runner
-    m_view.start_simulation_process(m_plugin_config.xyce_executable_path(), temp_path, working_directory);
+    m_view.start_simulation_process(build_simulation_argv(temp_path), working_directory);
     // refresh toolbar/menu states
     refresh_action_states();
     // announce the run with an empty progress, the console log fills it in
     publish_simulation_progress();
     // clear the statusbar message, the progress indicator on its right already reports the run
     m_view.set_status_text("");
+}
+
+std::vector<std::string> SlintMainWindowPresenter::build_simulation_argv(const std::filesystem::path& netlist_path) const {
+    // a serial run invokes the configured Xyce binary directly
+    if (!m_plugin_config.parallel_enabled()) {
+        // log the resolved command line
+        spdlog::info("Xyce simulation command: {} {}", m_plugin_config.xyce_executable_path(), netlist_path.string());
+        return {m_plugin_config.xyce_executable_path(), netlist_path.string()};
+    }
+    // the command being assembled for a parallel run
+    std::vector<std::string> argv;
+    // the launcher wraps the simulator, so it has to come first
+    argv.push_back(m_plugin_config.mpi_launcher_path());
+    // the launcher options the user typed, tokenized on whitespace
+    for (const auto& argument : tokenize_owned(m_plugin_config.mpi_launcher_arguments()))
+        argv.push_back(argument);
+    // the launcher starts this many copies of the simulator
+    argv.push_back("-np");
+    // the process count, already clamped to what the launcher offers when the dialog was accepted
+    argv.push_back(std::to_string(m_plugin_config.process_count()));
+    // the parallel-capable Xyce binary every one of those copies runs
+    argv.push_back(m_plugin_config.xyce_executable_path());
+    // the netlist is always the final argument
+    argv.push_back(netlist_path.string());
+    // join the command so the log records one readable line
+    std::string joined;
+    for (const auto& argument : argv) {
+        // separate the arguments with a space
+        if (!joined.empty())
+            joined += " ";
+        joined += argument;
+    }
+    // log the resolved command line
+    spdlog::info("Parallel Xyce simulation command: {}", joined);
+    return argv;
 }
 
 void SlintMainWindowPresenter::on_configure_simulation() {
@@ -455,9 +497,11 @@ void SlintMainWindowPresenter::on_configure_plugin() {
 
 void SlintMainWindowPresenter::on_plugin_config_dialog_result(const PluginConfig& config) {
     // log the update before applying
-    spdlog::info("Plugin configuration updated: Xyce path = {}", m_plugin_config.xyce_executable_path());
+    spdlog::info("Plugin configuration updated: Xyce path = {}", config.xyce_executable_path());
     // store the updated plugin configuration
     m_plugin_config = config;
+    // record the parallel settings, so the resolved command line can be traced back to the configuration
+    spdlog::info("Parallel execution {}, launcher = {}, processes = {}", m_plugin_config.parallel_enabled() ? "enabled" : "disabled", m_plugin_config.mpi_launcher_path(), m_plugin_config.process_count());
 }
 
 void SlintMainWindowPresenter::on_simulation_parameters_dialog_result(const SimulationConfig& config) {

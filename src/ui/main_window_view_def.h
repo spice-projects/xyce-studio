@@ -117,8 +117,8 @@ public:
     // ask the user for the save location and filename of an untitled netlist
     [[nodiscard]] virtual std::optional<std::filesystem::path> request_netlist_save_path() = 0;
 
-    // simulation process lifecycle (presenter decides when, the view wires the process events)
-    virtual void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) = 0;
+    // simulation process lifecycle (presenter decides when, the view wires the process events); argv holds the whole command, so a serial run is {Xyce, netlist} and a parallel one is {mpirun, -np, N, Xyce, netlist}, with the netlist always last
+    virtual void start_simulation_process(const std::vector<std::string>& argv, const std::filesystem::path& working_directory) = 0;
 
     // cancel the running simulation process owned by the view
     virtual void cancel_simulation_process() = 0;

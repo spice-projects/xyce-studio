@@ -77,7 +77,7 @@ public:
     std::optional<PluginConfig> show_plugin_config_dialog(const PluginConfig& current) override;
     void show_options_dialog(const OptionParameters& options) override;
     std::optional<std::filesystem::path> request_netlist_save_path() override;
-    void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override;
+    void start_simulation_process(const std::vector<std::string>& argv, const std::filesystem::path& working_directory) override;
     void cancel_simulation_process() override;
     void spawn_raw_file_window(std::shared_ptr<XyceOutputFile> raw_file) override;
 

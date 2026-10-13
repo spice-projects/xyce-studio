@@ -2,20 +2,48 @@
 // main window. inherits the common modal panel chrome (title bar, close
 // button, dimmed backdrop, OK/Cancel footer) from ModalPanel; only the
 // form content and panel-specific properties/callbacks are defined here.
-import { Button, LineEdit, Palette } from "std-widgets.slint";
+import {
+    Button,
+    CheckBox,
+    LineEdit,
+    Palette,
+    SpinBox,
+} from "std-widgets.slint";
 import { ModalPanel } from "../components/modal_panel.slint";
 
 export component PluginConfigPanel inherits ModalPanel {
 
-    title: "Plugin Configuration";
+    title: "Xyce Configuration";
     card-width: 540px;
-    card-height: 216px;
+    card-height: 440px;
 
     in-out property <string> xyce-path: "";
     in property <bool> browse-enabled: true;
 
+    // the first line of `Xyce -capabilities`, empty while the probe is in flight
+    in property <string> capabilities-text: "";
+    // the binary reports it was built with MPI support
+    in property <bool> parallel-capable: false;
+    // the probe could not classify the binary at all
+    in property <bool> capabilities-unknown: false;
+
+    // the parallel run toggle is in-out so the panel can own the checkbox state the user is dragging
+    in-out property <bool> parallel-enabled: false;
+    in-out property <string> launcher-path: "";
+    in property <bool> launcher-browse-enabled: true;
+    in property <string> launcher-version: "";
+    // the process slots the launcher reported, empty when it reported none
+    in property <int> available-slots: 0;
+    in property <bool> slots-known: false;
+    in-out property <int> process-count: 4;
+    in-out property <string> launcher-arguments: "";
+
     callback browse-clicked;
     callback path-edited(string);
+    callback launcher-browse-clicked;
+    callback parallel-toggled(bool);
+    callback process-count-edited(int);
+    callback launcher-arguments-edited(string);
 
     // form row: Xyce path label, read-only field, and browse button
     HorizontalLayout {
@@ -45,6 +73,139 @@ export component PluginConfigPanel inherits ModalPanel {
         Button {
             text: "Browse...";
             clicked => { root.browse-clicked(); }
+        }
+    }
+
+    // capability line: what the configured binary reported it was built with
+    Text {
+        text: root.capabilities-text;
+        font-size: 12px;
+        color: root.capabilities-unknown ? #cc6600 : Palette.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        overflow: TextOverflow.elide;
+    }
+
+    // parallel section, only meaningful for a binary built with MPI support
+    if root.parallel-capable: VerticalLayout {
+        spacing: 10px;
+
+        // the checkbox binds the in-out flag directly and reports the change through the callback
+        parallel-toggle := CheckBox {
+            text: "Run simulations in parallel";
+            font-weight: 600;
+            checked <=> root.parallel-enabled;
+            toggled => { root.parallel-toggled(self.checked); }
+        }
+
+        if parallel-toggle.checked: VerticalLayout {
+            padding-left: 24px;
+            spacing: 10px;
+
+            // form row: MPI launcher path label, read-only field, and browse button
+            HorizontalLayout {
+                spacing: 10px;
+
+                Text {
+                    text: "Launcher:";
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.foreground;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    min-width: 80px;
+                    overflow: TextOverflow.elide;
+                }
+
+                LineEdit {
+                    horizontal-stretch: 1;
+                    height: 28px;
+                    text <=> root.launcher-path;
+                    read-only: true;
+                    enabled: root.launcher-browse-enabled;
+                }
+
+                Button {
+                    text: "Browse...";
+                    clicked => { root.launcher-browse-clicked(); }
+                }
+            }
+
+            // the launcher identified itself, or nothing was reported for it
+            if root.launcher-version != "": Text {
+                text: root.launcher-version;
+                font-size: 11px;
+                color: Palette.foreground;
+                horizontal-alignment: left;
+                overflow: TextOverflow.elide;
+            }
+
+            // form row: process count spinner with the slot ceiling the launcher reported
+            HorizontalLayout {
+                spacing: 10px;
+
+                Text {
+                    text: "Processes:";
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.foreground;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    min-width: 80px;
+                    overflow: TextOverflow.elide;
+                }
+
+                SpinBox {
+                    width: 90px;
+                    height: 28px;
+                    minimum: 2;
+                    // keep the ceiling at or above the floor, a launcher that reported too few slots is reported by validation instead of inverting the range
+                    maximum: root.slots-known ? Math.max(root.available-slots, 2) : 1024;
+                    value <=> root.process-count;
+                }
+
+                Text {
+                    text: root.slots-known ? (root.available-slots < 2 ? "the MPI launcher reports fewer than two slots, so a parallel run cannot start" : "the MPI launcher reports " + root.available-slots + " slots on this machine") : "the MPI launcher did not report a slot count";
+                    font-size: 11px;
+                    color: root.slots-known && root.available-slots < 2 ? #cc6600 : Palette.foreground;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    overflow: TextOverflow.elide;
+                }
+            }
+
+            // form row: additional launcher arguments, passed through verbatim
+            HorizontalLayout {
+                spacing: 10px;
+
+                Text {
+                    text: "Arguments:";
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: Palette.foreground;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    min-width: 80px;
+                    overflow: TextOverflow.elide;
+                }
+
+                LineEdit {
+                    horizontal-stretch: 1;
+                    height: 28px;
+                    placeholder-text: "--oversubscribe";
+                    text <=> root.launcher-arguments;
+                    edited => { root.launcher-arguments-edited(self.text); }
+                    accepted => { root.launcher-arguments-edited(self.text); }
+                }
+            }
+
+            Text {
+                text: "Additional launcher arguments are inserted before -np, for example --oversubscribe or --hostfile.";
+                font-size: 11px;
+                color: Palette.foreground;
+                horizontal-alignment: left;
+                overflow: TextOverflow.elide;
+            }
         }
     }
 

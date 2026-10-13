@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // platform-neutral Xyce simulation runner for the slint ui. The child process
 // is spawned with stdout
@@ -25,12 +26,14 @@ public:
 
     SimulationRunner& operator=(const SimulationRunner&) = delete;
 
-    // launch the program with the netlist path as its only argument; the
-    // working directory becomes the child's current directory so Xyce writes
-    // its output files next to the temporary netlist. Output lines and the
-    // process end are delivered through the registered callbacks on the slint
-    // event loop thread.
-    void start(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory);
+    // launch the command described by argv, whose first element is the program
+    // to execute and whose last element is the netlist handed to it — a serial
+    // run is {Xyce, netlist} and a parallel one is {mpirun, -np, N, Xyce,
+    // netlist}. the working directory becomes the child's current directory so
+    // Xyce writes its output files next to the temporary netlist. Output lines
+    // and the process end are delivered through the registered callbacks on the
+    // slint event loop thread.
+    void start(const std::vector<std::string>& argv, const std::filesystem::path& working_directory);
 
     // request a graceful shutdown of the running child process
     void cancel();
