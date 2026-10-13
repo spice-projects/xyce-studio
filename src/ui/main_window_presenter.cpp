@@ -13,6 +13,7 @@
 #include "../io/xyce_csd_file.h"
 #include "../io/xyce_csv_file.h"
 #include "../io/xyce_fft_file.h"
+#include "../io/xyce_four_file.h"
 #include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
 #include "../io/xyce_tecplot_file.h"
@@ -125,6 +126,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_analysis_measurements = std::nullopt;
         // remove the parsed FFT calculation files, they belong to a previous run
         m_fft_measurements.clear();
+        // remove the parsed Fourier analysis files, they belong to a previous run
+        m_four_measurements.clear();
         // remove the parsed touchstone file, it belongs to a previous file
         m_s_parameter_measurements = std::nullopt;
         // drop every dataset chart state, they belong to a previous file
@@ -360,6 +363,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     }
     // clear the parsed FFT calculation files, they belong to the previous run
     m_fft_measurements.clear();
+    // clear the parsed Fourier analysis files, they belong to the previous run
+    m_four_measurements.clear();
     // clear the parsed PCE output file, it belongs to the previous run
     m_pce_measurements = std::nullopt;
     // clear the parsed touchstone file, it belongs to the previous run
@@ -762,6 +767,7 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
         return;
     // drop existing datasets and chart state before loading a new raw file
     m_fft_measurements.clear();
+    m_four_measurements.clear();
     m_pce_measurements = std::nullopt;
     m_s_parameter_measurements = std::nullopt;
     m_analysis_measurements = std::nullopt;
@@ -821,6 +827,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         }
         // clear any previously loaded companion measurements
         m_fft_measurements.clear();
+        m_four_measurements.clear();
         m_pce_measurements = std::nullopt;
         m_s_parameter_measurements = std::nullopt;
         m_analysis_measurements = std::nullopt;
@@ -858,10 +865,12 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             load_s_parameter_measurements(analysis_steps);
         if (produced.fft)
             load_fft_measurements();
+        if (produced.fourier)
+            load_four_measurements();
         if (produced.pce)
             load_pce_measurements(*m_simulation_config.pce_print_parameters());
         // 6. the run produced no data at all
-        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && !m_pce_measurements.has_value()) {
+        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && m_four_measurements.empty() && !m_pce_measurements.has_value()) {
             // update the statusbar and show the output panel so the user can inspect the log
             m_view.set_status_text("Simulation finished but output file could not be found");
             m_view.show_simulation_output_panel();
@@ -1046,6 +1055,31 @@ void SlintMainWindowPresenter::load_fft_measurements() {
     spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_measurements.size());
 }
 
+void SlintMainWindowPresenter::load_four_measurements() {
+    // resolve the Fourier analysis output file path pattern from the .TRAN config; the caller only invokes this when the analysis declares .FOUR directives, so the pattern always resolves
+    const auto four_pattern = *m_simulation_config.four_output_file_path_pattern(m_simulation_netlist_path);
+    // the Fourier data maps onto the analysis output's step slices when the run produced one; a run without a .PRINT directive produces no analysis output and the files' own step structure then drives the parsing
+    const bool has_analysis_output = !m_plot_datasets.empty() && m_plot_datasets[0].file != nullptr;
+    const StepInformation* analysis_steps = has_analysis_output ? &m_plot_datasets[0].file->step_information() : nullptr;
+    ExpressionManager* analysis_expressions = has_analysis_output ? &m_plot_datasets[0].file->expression_manager() : nullptr;
+    // parse the matching Fourier output files; the .TRAN analysis with .FOUR directives dumps one file per step and the parser groups the blocks by fundamental
+    if (auto parsed_files = xyce_four_file_parser(four_pattern, analysis_steps, analysis_expressions)) {
+        // store the parsed Fourier files
+        m_four_measurements = std::move(*parsed_files);
+        // render one tab per Fourier output file, as non-closable datasets
+        for (auto& four_file : m_four_measurements)
+            m_plot_datasets.push_back(PlotDataset{
+                .id = m_next_dataset_id++,
+                .file = four_file,
+                .closable = false,
+            });
+        // synchronize plot tabs with view
+        sync_plot_tabs_with_view();
+    }
+    // log the number of loaded Fourier files
+    spdlog::info("Loaded {} Xyce Fourier analysis file(s)", m_four_measurements.size());
+}
+
 void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_print) {
     // resolve the produced PCE output file path from the .PCE companion print
     const auto pce_path = m_simulation_config.pce_output_file_path(m_simulation_netlist_path);
@@ -1152,6 +1186,11 @@ const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::
 const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::fft_measurements() const {
     // return the parsed FFT calculation output files
     return m_fft_measurements;
+}
+
+const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::four_measurements() const {
+    // return the parsed Fourier analysis output files
+    return m_four_measurements;
 }
 
 const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::pce_measurements() const {

@@ -2806,6 +2806,116 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
 }
 
 // ========================================================================================
+// Fourier companion output loading
+// ========================================================================================
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_without_print_loads_fourier_tabs) {
+    // arrange — a transient run with a .FOUR directive and no .PRINT: Xyce produces only the Fourier analysis file, no analysis output
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the Fourier output file Xyce produces (the hand-written content mirrors a real Xyce .FOUR dump)
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 1.000000e-05, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the Fourier tab is rendered even though no analysis output exists
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    ASSERT_EQ(presenter.four_measurements().size(), 1u);
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "FOUR: 1000 Hz");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(four0_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_without_output_file_reports_missing_output) {
+    // arrange — a transient run with a .FOUR directive but no .PRINT and no Fourier file written by the run
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the run produced no Fourier file, so the missing-output message is reported and no tab is rendered
+    EXPECT_FALSE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_TRUE(presenter.four_measurements().empty());
+    ASSERT_EQ(view.m_plot_tabs.size(), 0u);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_with_analysis_output_loads_both_tabs) {
+    // arrange — a transient run with a raw print and a .FOUR directive
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.PRINT TRAN FORMAT=RAW V(*)\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the raw output and the Fourier file the run produces
+    const auto raw_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream raw_file(raw_path, std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Test Circuit\n";
+        raw_file << "Plotname: Transient Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 2\n";
+        raw_file << "No. Points: 3\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\ttime\ttime\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0\n";
+        raw_file << " 1  0.001  2.0\n";
+        raw_file << " 2  0.002  3.0\n";
+    }
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 1.000000e-05, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the transient tab and the Fourier tab are rendered
+    EXPECT_TRUE(presenter.analysis_measurements().has_value());
+    ASSERT_EQ(presenter.four_measurements().size(), 1u);
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_plot_tabs[1].title, "FOUR: 1000 Hz");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(raw_path, ec);
+    std::filesystem::remove(four0_path, ec);
+}
+
+// ========================================================================================
 // PCE companion output loading
 // ========================================================================================
 
