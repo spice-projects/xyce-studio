@@ -24,6 +24,31 @@ struct PlotTabItem
     bool closable = false;
 };
 
+// one row of a Fourier results table: the per-harmonic numbers of a single
+// signal and step; every numeric cell is pre-formatted by the presenter so the
+// table mirrors the columns of the .four output file. The signal name, the step
+// label and the THD live on the owning FourierSignalTable, so they are shown
+// once per block instead of repeated on every row
+struct FourierResultRow
+{
+    int harmonic = 0;
+    std::string frequency;
+    std::string magnitude;
+    std::string phase;
+};
+
+// one signal/step block of a Fourier results file: the block header (signal,
+// optional step label and THD) plus its harmonic rows. THD is reported per
+// signal and step, so a block per signal and step keeps the value unambiguous
+// when a run carries several signals or a .STEP sweep
+struct FourierSignalTable
+{
+    std::string signal;
+    std::string step;
+    std::string thd;
+    std::vector<FourierResultRow> rows;
+};
+
 // live information about a running simulation, distilled from the Xyce console log and shown in the
 // statusbar and the header of the simulation output panel
 struct SimulationProgress
@@ -69,6 +94,12 @@ public:
     [[nodiscard]] virtual std::string netlist_editor_content() const = 0;
     virtual void set_netlist_editor_read_only(bool read_only) = 0;
     [[nodiscard]] virtual bool charts_shown() const = 0;
+
+    // Fourier results panel: shown in place of the chart canvas when a Fourier
+    // dataset is active; the chart renderer cannot plot the complex spectra the
+    // parser produces, so this read-only table mirrors the columns of the .four
+    // output file, one block per signal and step carrying its THD
+    virtual void show_fourier_results(const std::string& title, const std::vector<FourierSignalTable>& tables) = 0;
 
     // simulation output panel / log
     virtual void show_simulation_output_panel() = 0;

@@ -400,8 +400,9 @@ void SlintMainWindowView::apply_action_enablement(const ActionStateEnablement& e
 }
 
 void SlintMainWindowView::show_netlist_view() {
-    // reveal the netlist panel and hide the charts panel
+    // reveal the netlist panel and hide the charts and Fourier panels
     m_window->set_charts_visible(false);
+    m_window->set_fourier_visible(false);
     // stop publishing stale frames when the panel is hidden
     if (m_charts_renderer)
         m_charts_renderer->reset_viewport();
@@ -412,9 +413,49 @@ void SlintMainWindowView::show_charts_view() {
     // this must happen before set_charts_visible so the viewport-changed
     // callback is wired when the panel's init handler fires
     ensure_charts_renderer();
+    // the charts panel and the Fourier results panel are mutually exclusive
+    m_window->set_fourier_visible(false);
     // reveal the charts panel in the content area; the init handler inside
     // charts_panel.slint fires viewport-changed with the initial geometry
     m_window->set_charts_visible(true);
+}
+
+void SlintMainWindowView::show_fourier_results(const std::string& title, const std::vector<FourierSignalTable>& tables) {
+    // build the table model the panel's for-loop iterates
+    auto model = std::make_shared<slint::VectorModel<main_window::FourierSignalTable>>();
+    // copy every signal/step block into the model
+    for (const auto& table : tables) {
+        // create the slint table instance
+        main_window::FourierSignalTable item;
+        // carry the block header (signal, optional step label and THD)
+        item.signal = slint::SharedString(table.signal);
+        item.step = slint::SharedString(table.step);
+        item.thd = slint::SharedString(table.thd);
+        // build the harmonic row model of this block
+        auto rows = std::make_shared<slint::VectorModel<main_window::FourierResultRow>>();
+        for (const auto& row : table.rows) {
+            // create the slint row instance
+            main_window::FourierResultRow row_item;
+            // hand the pre-formatted cells to the table
+            row_item.harmonic = row.harmonic;
+            row_item.frequency = slint::SharedString(row.frequency);
+            row_item.magnitude = slint::SharedString(row.magnitude);
+            row_item.phase = slint::SharedString(row.phase);
+            // append the row to the block
+            rows->push_back(row_item);
+        }
+        // attach the block rows
+        item.rows = rows;
+        // append the block to the model
+        model->push_back(item);
+    }
+    // publish the table state
+    m_window->set_fourier_title(slint::SharedString(title));
+    m_window->set_fourier_tables(model);
+    // reveal the results area: the charts panel hosts the table in place of the
+    // canvas, so it must be visible while the Fourier table is active
+    m_window->set_charts_visible(true);
+    m_window->set_fourier_visible(true);
 }
 
 void SlintMainWindowView::set_netlist_editor_content(const std::string& content) {

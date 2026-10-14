@@ -1,9 +1,15 @@
 #include <algorithm>
+#include <cmath>
+#include <complex>
 #include <filesystem>
+#include <iomanip>
 #include <memory>
+#include <numbers>
 #include <span>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -13,6 +19,7 @@
 #include "../io/xyce_csd_file.h"
 #include "../io/xyce_csv_file.h"
 #include "../io/xyce_fft_file.h"
+#include "../io/xyce_four_file.h"
 #include "../io/xyce_prn_file.h"
 #include "../io/xyce_raw_file.h"
 #include "../io/xyce_tecplot_file.h"
@@ -73,6 +80,96 @@ namespace
         }
     }
 
+    // format a Fourier table numeric cell like the .four file prints it
+    std::string format_fourier_value(double value) {
+        // scientific notation with six decimals mirrors the file columns
+        std::ostringstream stream;
+        // match the .four column formatting
+        stream << std::scientific << std::setprecision(6) << value;
+        // return the formatted cell
+        return stream.str();
+    }
+
+    // format the per-block THD: the file already writes a percentage, so the
+    // unit is appended; a non-finite value (Xyce prints `nan` for a block whose
+    // fundamental vanishes) reads as `n/a`
+    std::string format_fourier_thd(const std::string& raw) {
+        // the file records a floating point percentage or the `nan` token, so
+        // the conversion never throws for real Xyce output
+        const double value = std::stod(raw);
+        // a non-finite value has no meaningful percentage
+        if (!std::isfinite(value))
+            return "n/a";
+        // format with a readable precision and append the percent unit
+        std::ostringstream stream;
+        stream << std::setprecision(4) << value << " %";
+        return stream.str();
+    }
+
+    // build the result tables of a Fourier output file: one block per signal and
+    // step, each carrying its THD and the harmonic rows, mirroring the columns
+    // of the .four file the table replaces (the chart renderer cannot plot the
+    // complex spectra)
+    std::vector<FourierSignalTable> build_fourier_tables(XyceOutputFile& file) {
+        // result blocks
+        std::vector<FourierSignalTable> tables;
+        // step structure and expressions of the file
+        const StepInformation& steps = file.step_information();
+        ExpressionManager& manager = file.expression_manager();
+        // number of steps the file holds
+        const size_t step_count = steps.length();
+        // the step label is shown only for multi-step sweeps
+        const bool show_step = step_count > 1;
+        // the abscissa expression carries the harmonic frequency of every step
+        Expression<double>& abscissa = manager.abscissa();
+        // emit one block per signal and step; skipping the abscissa (a real
+        // expression) leaves only the complex spectra
+        for (AnyExpression* any : manager.expressions()) {
+            // keep only complex spectra
+            auto* spectrum = std::get_if<Expression<std::complex<double>>>(any);
+            // skip the abscissa and any real expression
+            if (spectrum == nullptr)
+                continue;
+            // walk every step of this signal
+            for (size_t step = 0; step < step_count; ++step) {
+                // complex magnitude/phase pairs of this step
+                const std::span<const std::complex<double>> values = spectrum->step_data(step);
+                // harmonic frequencies of this step; the parser builds the
+                // abscissa and every spectrum from the same harmonic rows, so
+                // the two spans always have the same length
+                const std::span<const double> frequencies = abscissa.step_data(step);
+                // start the block of this signal and step
+                FourierSignalTable table;
+                // signal name (brace stripped by the parser)
+                table.signal = spectrum->name();
+                // step label only when several steps are present
+                table.step = show_step ? "Step " + std::to_string(step + 1) : std::string();
+                // the per-step THD the file records for this block; the parser
+                // stores one metadata map per step, so the index is always valid
+                table.thd = format_fourier_thd(spectrum->metadata()[step].at("THD"));
+                // walk every harmonic written for this signal
+                for (size_t harmonic = 0; harmonic < values.size(); ++harmonic) {
+                    // build the row
+                    FourierResultRow row;
+                    // harmonic index
+                    row.harmonic = static_cast<int>(harmonic);
+                    // harmonic frequency from the abscissa
+                    row.frequency = format_fourier_value(frequencies[harmonic]);
+                    // magnitude is the complex modulus
+                    row.magnitude = format_fourier_value(std::abs(values[harmonic]));
+                    // phase in degrees is the complex argument
+                    row.phase = format_fourier_value(std::arg(values[harmonic]) * 180.0 / std::numbers::pi);
+                    // append the row
+                    table.rows.push_back(std::move(row));
+                }
+                // append the block
+                tables.push_back(std::move(table));
+            }
+        }
+        // return the assembled blocks
+        return tables;
+    }
+
     // suggested smith chart plots: one smith chart with the diagonal matrix entries (s11, s22, ...) which plot as reflection coefficients on the gamma plane; the equivalent entries of y/z parameter files map through the smith conversions
     std::vector<std::vector<std::string>> smith_suggested_plots(const XyceOutputFile& file) {
         // parameter type prefix (s/y/z) from the file metadata
@@ -125,6 +222,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_analysis_measurements = std::nullopt;
         // remove the parsed FFT calculation files, they belong to a previous run
         m_fft_measurements.clear();
+        // remove the parsed Fourier analysis files, they belong to a previous run
+        m_four_measurements.clear();
         // remove the parsed touchstone file, it belongs to a previous file
         m_s_parameter_measurements = std::nullopt;
         // drop every dataset chart state, they belong to a previous file
@@ -234,8 +333,8 @@ void SlintMainWindowPresenter::on_show_netlist() {
 }
 
 void SlintMainWindowPresenter::on_show_charts() {
-    // switch to the charts view
-    m_view.show_charts_view();
+    // switch to the results view matching the active dataset
+    show_active_dataset_view();
     // refresh state
     refresh_action_states();
 }
@@ -360,6 +459,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     }
     // clear the parsed FFT calculation files, they belong to the previous run
     m_fft_measurements.clear();
+    // clear the parsed Fourier analysis files, they belong to the previous run
+    m_four_measurements.clear();
     // clear the parsed PCE output file, it belongs to the previous run
     m_pce_measurements = std::nullopt;
     // clear the parsed touchstone file, it belongs to the previous run
@@ -762,6 +863,7 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
         return;
     // drop existing datasets and chart state before loading a new raw file
     m_fft_measurements.clear();
+    m_four_measurements.clear();
     m_pce_measurements = std::nullopt;
     m_s_parameter_measurements = std::nullopt;
     m_analysis_measurements = std::nullopt;
@@ -821,6 +923,7 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         }
         // clear any previously loaded companion measurements
         m_fft_measurements.clear();
+        m_four_measurements.clear();
         m_pce_measurements = std::nullopt;
         m_s_parameter_measurements = std::nullopt;
         m_analysis_measurements = std::nullopt;
@@ -858,10 +961,12 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             load_s_parameter_measurements(analysis_steps);
         if (produced.fft)
             load_fft_measurements();
+        if (produced.fourier)
+            load_four_measurements();
         if (produced.pce)
             load_pce_measurements(*m_simulation_config.pce_print_parameters());
         // 6. the run produced no data at all
-        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && !m_pce_measurements.has_value()) {
+        if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && m_four_measurements.empty() && !m_pce_measurements.has_value()) {
             // update the statusbar and show the output panel so the user can inspect the log
             m_view.set_status_text("Simulation finished but output file could not be found");
             m_view.show_simulation_output_panel();
@@ -877,8 +982,9 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // 8. copy every recorded FILE= destination from the default file the run produced for its .PRINT statement
         for (const auto& copy : m_simulation_output_copies)
             copy_simulation_output_to_destination(copy);
-        // switch to the charts view
-        m_view.show_charts_view();
+        // switch to the results view matching the active dataset (charts, or the
+        // Fourier results table when the run produced only Fourier output)
+        show_active_dataset_view();
         // hide the output panel — it is only shown on failure
         m_view.hide_simulation_output_panel();
         // update the statusbar
@@ -1046,6 +1152,31 @@ void SlintMainWindowPresenter::load_fft_measurements() {
     spdlog::info("Loaded {} Xyce FFT calculation file(s)", m_fft_measurements.size());
 }
 
+void SlintMainWindowPresenter::load_four_measurements() {
+    // resolve the Fourier analysis output file path pattern from the .TRAN config; the caller only invokes this when the analysis declares .FOUR directives, so the pattern always resolves
+    const auto four_pattern = *m_simulation_config.four_output_file_path_pattern(m_simulation_netlist_path);
+    // the Fourier data maps onto the analysis output's step slices when the run produced one; a run without a .PRINT directive produces no analysis output and the files' own step structure then drives the parsing
+    const bool has_analysis_output = !m_plot_datasets.empty() && m_plot_datasets[0].file != nullptr;
+    const StepInformation* analysis_steps = has_analysis_output ? &m_plot_datasets[0].file->step_information() : nullptr;
+    ExpressionManager* analysis_expressions = has_analysis_output ? &m_plot_datasets[0].file->expression_manager() : nullptr;
+    // parse the matching Fourier output files; the .TRAN analysis with .FOUR directives dumps one file per step and the parser groups the blocks by fundamental
+    if (auto parsed_files = xyce_four_file_parser(four_pattern, analysis_steps, analysis_expressions)) {
+        // store the parsed Fourier files
+        m_four_measurements = std::move(*parsed_files);
+        // render one tab per Fourier output file, as non-closable datasets
+        for (auto& four_file : m_four_measurements)
+            m_plot_datasets.push_back(PlotDataset{
+                .id = m_next_dataset_id++,
+                .file = four_file,
+                .closable = false,
+            });
+        // synchronize plot tabs with view
+        sync_plot_tabs_with_view();
+    }
+    // log the number of loaded Fourier files
+    spdlog::info("Loaded {} Xyce Fourier analysis file(s)", m_four_measurements.size());
+}
+
 void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_print) {
     // resolve the produced PCE output file path from the .PCE companion print
     const auto pce_path = m_simulation_config.pce_output_file_path(m_simulation_netlist_path);
@@ -1154,6 +1285,11 @@ const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::ff
     return m_fft_measurements;
 }
 
+const std::vector<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::four_measurements() const {
+    // return the parsed Fourier analysis output files
+    return m_four_measurements;
+}
+
 const std::optional<std::shared_ptr<XyceOutputFile>>& SlintMainWindowPresenter::pce_measurements() const {
     // return the parsed PCE output file
     return m_pce_measurements;
@@ -1230,13 +1366,43 @@ void SlintMainWindowPresenter::activate_plot_dataset(size_t index) {
     auto* file = m_plot_datasets[index].file.get();
     // check the file is present
     if (file != nullptr) {
-        // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots
-        m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
+        // a Fourier analysis output carries complex spectra the chart renderer
+        // cannot plot, so its results are presented as the read-only table the
+        // .four file holds instead of the chart canvas
+        if (file->plot_type() == PlotType::FOURIER) {
+            // build the per-signal and per-step blocks and hand them to the table
+            const std::vector<FourierSignalTable> tables = build_fourier_tables(*file);
+            // show the grouped table; the block header carries the signal, the
+            // step label and the THD
+            m_view.show_fourier_results(file->title(), tables);
+        }
+        else {
+            // activate the dataset in the renderer; switching back to a dataset restores its charts with zoom windows, plots and step selections intact; smith datasets suggest the diagonal entries instead of the rectangular plots
+            m_view.update_charts(m_plot_datasets[index].id, file->expression_manager(), file->step_information(), file->abscissa_scale(), m_plot_datasets[index].smith ? smith_suggested_plots(*file) : file->suggested_plots(), m_plot_datasets[index].smith);
+            // reveal the chart canvas, which the previous dataset may have replaced with the Fourier table
+            m_view.show_charts_view();
+        }
         // update the active tab in the view
         m_view.set_active_plot_tab(static_cast<int>(index));
         // update the base title from the dataset title
         set_base_title(file->title());
     }
+}
+
+void SlintMainWindowPresenter::show_active_dataset_view() {
+    // the active dataset decides which results view is shown: a Fourier dataset
+    // has no plottable spectra and is presented as the results table, any other
+    // (or a missing) dataset is presented as charts
+    auto* file = active_dataset_file();
+    // a Fourier dataset routes through the activation branch that builds the table
+    if (file != nullptr && file->plot_type() == PlotType::FOURIER) {
+        // re-activate the active index to refresh the table contents
+        activate_plot_dataset(m_active_dataset_index);
+        // exit
+        return;
+    }
+    // reveal the charts panel for a plottable or missing dataset
+    m_view.show_charts_view();
 }
 
 void SlintMainWindowPresenter::show_simulation_output_view() {

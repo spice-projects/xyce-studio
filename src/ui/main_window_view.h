@@ -51,6 +51,7 @@ public:
     void set_simulation_progress(const SimulationProgress& progress) override;
     void show_netlist_view() override;
     void show_charts_view() override;
+    void show_fourier_results(const std::string& title, const std::vector<FourierSignalTable>& tables) override;
     void set_netlist_editor_content(const std::string& content) override;
     [[nodiscard]] std::string netlist_editor_content() const override;
     void set_netlist_editor_read_only(bool read_only) override;

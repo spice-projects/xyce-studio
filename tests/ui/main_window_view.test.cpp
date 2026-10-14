@@ -47,6 +47,15 @@ TEST(SlintMainWindowViewChecks, show_charts_view_is_virtual) {
     EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::show_charts_view)>);
 }
 
+TEST(SlintMainWindowViewChecks, show_fourier_results_is_virtual) {
+    // show_fourier_results is a virtual override
+    // of MainWindowView, it hosts the Fourier results table
+    // arrange / act
+    using ViewT = SlintMainWindowView;
+    // assert
+    EXPECT_TRUE(std::is_member_function_pointer_v<decltype(&ViewT::show_fourier_results)>);
+}
+
 TEST(SlintMainWindowViewChecks, update_charts_is_virtual) {
     // update_charts is a virtual override
     // arrange / act

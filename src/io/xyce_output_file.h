@@ -27,6 +27,7 @@ enum class PlotType
     NOISE,
     DC_OPERATING_POINT,
     FFT,
+    FOURIER,
     PCE
 };
 

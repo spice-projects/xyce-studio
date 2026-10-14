@@ -98,6 +98,7 @@ public:
     // accessors
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& analysis_measurements() const;
     [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& fft_measurements() const;
+    [[nodiscard]] const std::vector<std::shared_ptr<XyceOutputFile>>& four_measurements() const;
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& pce_measurements() const;
     [[nodiscard]] const std::optional<std::shared_ptr<XyceOutputFile>>& s_parameter_measurements() const;
     [[nodiscard]] size_t active_dataset_index() const { return m_active_dataset_index; }
@@ -121,6 +122,10 @@ private:
 
     // activate the dataset at the given index and update charts in the view
     void activate_plot_dataset(size_t index);
+
+    // reveal the results view matching the active dataset: the Fourier results
+    // table for a Fourier dataset, the charts panel otherwise
+    void show_active_dataset_view();
 
     // launch the simulation with the configured analysis and the stored parse result; used by on_run_simulation and by the pending dialog result
     void launch_simulation();
@@ -169,6 +174,9 @@ private:
     // load the FFT calculation files a .TRAN run with .FFT directives wrote and render one tab per file; the FFT data maps onto the analysis output's step slices
     void load_fft_measurements();
 
+    // load the Fourier analysis files a .TRAN run with .FOUR directives wrote and render one tab per fundamental; the Fourier data maps onto the analysis output's step slices
+    void load_four_measurements();
+
     // load the PCE statistics file a DC or transient run with .PCE parameters and a .PCE companion print wrote and render its tab; pce_print carries the configured print so the parser matches the output format
     void load_pce_measurements(const PrintParameters& pce_print);
 
@@ -187,6 +195,8 @@ private:
     // analysis output of the last run or the loaded output file in this window; it is NOT the active tab, the active dataset file is resolved through active_dataset_file()
     std::optional<std::shared_ptr<XyceOutputFile>> m_analysis_measurements;
     std::vector<std::shared_ptr<XyceOutputFile>> m_fft_measurements;
+    // Fourier analysis measurements produced by a transient run; a .FOUR run dumps one file per step and the parser groups the blocks by fundamental into one output file each
+    std::vector<std::shared_ptr<XyceOutputFile>> m_four_measurements;
     // pce measurements produced by a DC or transient run; a single run produces at most one .PCE companion output file
     std::optional<std::shared_ptr<XyceOutputFile>> m_pce_measurements;
     // s-parameter measurements produced by a .LIN run; a single run produces at most one file (a .STEP run concatenates all steps into the same file)

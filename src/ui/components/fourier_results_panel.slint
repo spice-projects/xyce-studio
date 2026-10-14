@@ -1,0 +1,189 @@
+// Fourier results panel: a read-only table mirroring the columns of an Xyce
+// .FOUR output file. The host shows this as the content view when a Fourier
+// dataset tab is active; the chart renderer cannot plot the complex spectra the
+// parser produces, so the results are presented as the table the .four file
+// itself holds. THD is reported per signal and step, so the table is grouped in
+// one block per signal and step whose header band carries the THD.
+import { Palette, ScrollView } from "std-widgets.slint";
+
+// one harmonic row of a Fourier block; every numeric cell is pre-formatted by
+// the host so a row mirrors the text of the .four file. The signal, step and
+// THD live on the owning FourierSignalTable so they are not repeated per row
+export struct FourierResultRow {
+    harmonic: int,
+    frequency: string,
+    magnitude: string,
+    phase: string,
+}
+
+// one signal/step block: its header (signal, optional step label and per-block
+// THD) plus one row per harmonic
+export struct FourierSignalTable {
+    signal: string,
+    step: string,
+    thd: string,
+    rows: [FourierResultRow],
+}
+
+// column header cell; the numeric columns are right aligned like their body
+// cells, so a value renders below its title
+component FourierHeaderCell inherits Text {
+    in property <length> cell-width;
+    in property <bool> align-right: false;
+    width: cell-width;
+    height: 100%;
+    vertical-alignment: center;
+    horizontal-alignment: self.align-right ? right : left;
+    font-size: 12px;
+    font-weight: 600;
+    color: Palette.foreground;
+    wrap: no-wrap;
+}
+
+// body cell; numeric columns are right aligned like the .four table
+component FourierDataCell inherits Text {
+    in property <length> cell-width;
+    in property <bool> align-right: false;
+    width: cell-width;
+    height: 100%;
+    vertical-alignment: center;
+    horizontal-alignment: self.align-right ? right : left;
+    font-family: "JetBrains Mono";
+    font-size: 13px;
+    color: Palette.foreground;
+    wrap: no-wrap;
+}
+
+export component FourierResultsPanel inherits Rectangle {
+    in property <string> title: "";
+    // one block per signal and step, each carrying its own THD
+    in property <[FourierSignalTable]> tables: [];
+
+    // fixed column widths shared by the header and the body rows so the columns
+    // stay aligned regardless of the cell contents
+    private property <length> harmonic-width: 120px;
+    private property <length> frequency-width: 190px;
+    private property <length> magnitude-width: 190px;
+    private property <length> phase-width: 190px;
+
+    background: Palette.background;
+
+    VerticalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+
+        // header: the file title
+        Rectangle {
+            height: 40px;
+
+            // carries an element id so the automation can read the title as text
+            title-text := Text {
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                text: root.title;
+                font-size: 14px;
+                font-weight: 600;
+                color: Palette.foreground;
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Palette.border;
+        }
+
+        // body: one block per signal and step, scrolled when the table overflows
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                for block[index] in root.tables: VerticalLayout {
+                    // block header band: signal, optional step and the block THD
+                    Rectangle {
+                        height: 30px;
+                        background: Palette.foreground.with-alpha(0.06);
+
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-alignment: left;
+                            // the block identity and its THD, e.g.
+                            // "I(L1)  ·  Step 2  —  THD: 43.71 %"
+                            text: block.step == "" ? block.signal + "  —  THD: " + block.thd : block.signal + "  ·  " + block.step + "  —  THD: " + block.thd;
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                        }
+                    }
+
+                    // column header row
+                    Rectangle {
+                        height: 28px;
+
+                        HorizontalLayout {
+                            FourierHeaderCell {
+                                cell-width: root.harmonic-width;
+                                align-right: true;
+                                text: "Harmonic";
+                            }
+
+                            FourierHeaderCell {
+                                cell-width: root.frequency-width;
+                                align-right: true;
+                                text: "Frequency (Hz)";
+                            }
+
+                            FourierHeaderCell {
+                                cell-width: root.magnitude-width;
+                                align-right: true;
+                                text: "Magnitude";
+                            }
+
+                            FourierHeaderCell {
+                                cell-width: root.phase-width;
+                                align-right: true;
+                                text: "Phase (deg)";
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Palette.border;
+                    }
+
+                    // one row per harmonic
+                    for row[row-index] in block.rows: Rectangle {
+                        height: 24px;
+                        background: row-index.mod(2) == 1 ? Palette.foreground.with-alpha(0.04) : transparent;
+
+                        HorizontalLayout {
+                            FourierDataCell {
+                                cell-width: root.harmonic-width;
+                                align-right: true;
+                                text: row.harmonic;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.frequency-width;
+                                align-right: true;
+                                text: row.frequency;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.magnitude-width;
+                                align-right: true;
+                                text: row.magnitude;
+                            }
+
+                            FourierDataCell {
+                                cell-width: root.phase-width;
+                                align-right: true;
+                                text: row.phase;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

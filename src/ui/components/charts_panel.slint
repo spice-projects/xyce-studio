@@ -1,5 +1,9 @@
 import { Palette } from "std-widgets.slint";
 import { ChartView, ChartFrameData } from "chart_view.slint";
+import {
+    FourierSignalTable,
+    FourierResultsPanel,
+} from "fourier_results_panel.slint";
 
 // re-export the frame structs so root widgets can declare their properties
 export { ChartFrameData }
@@ -204,15 +208,26 @@ export component ChartsPanel inherits Rectangle {
     // slint native chart frames published by the host chart layout engine
     in property <[ChartFrameData]> charts;
 
+    // a Fourier dataset has no plottable spectra: when this flag is set the
+    // chart canvas is replaced by the read-only Fourier results table while the
+    // plot tab bar stays in place so the user can switch back to another tab
+    in property <bool> fourier-active: false;
+    in property <string> fourier-title: "";
+    in property <[FourierSignalTable]> fourier-tables: [];
+
     // fires with the panel size whenever the geometry changes, so the host
     // renderer can resize its offscreen surface and recompute limits
     callback viewport-changed(width: float, height: float);
 
     // compute chart position as a relative Y float [0..1] from a length
     function compute_chart_position(y: length) -> float {
-        if canvas-rect.height <= 0px { return 0.0; }
-        return min(1.0, max(0.0, y / canvas-rect.height));
+        if root.canvas-height <= 0px { return 0.0; }
+        return min(1.0, max(0.0, y / root.canvas-height));
     }
+
+    // height of the chart canvas, tracked as a property because the canvas is a
+    // conditional element that cannot be referenced from the context-menu handlers
+    private property <length> canvas-height: 0px;
 
     // store the Y position where the context menu was triggered
     private property <length> context-menu-y;
@@ -260,20 +275,23 @@ export component ChartsPanel inherits Rectangle {
             }
         }
 
-        canvas-rect := Rectangle {
+        if !root.fourier-active: canvas-rect := Rectangle {
             vertical-stretch: 1;
             background: root.chart-background;
 
             // fire the initial viewport notification when this component is first
             // instantiated; `changed` handlers do not fire on initial value assignment
             init => {
+                root.canvas-height = self.height;
                 root.viewport-changed(self.width / 1px, self.height / 1px);
             }
             // fire again whenever the canvas is resized
             changed width => {
+                root.canvas-height = self.height;
                 root.viewport-changed(self.width / 1px, self.height / 1px);
             }
             changed height => {
+                root.canvas-height = self.height;
                 root.viewport-changed(self.width / 1px, self.height / 1px);
             }
 
@@ -645,6 +663,12 @@ export component ChartsPanel inherits Rectangle {
                     invoke(position) => { ChartsPanelActions.new-window(position); }
                 }
             }
+        }
+
+        if root.fourier-active: FourierResultsPanel {
+            vertical-stretch: 1;
+            title: root.fourier-title;
+            tables: root.fourier-tables;
         }
     }
 }

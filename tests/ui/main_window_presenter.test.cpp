@@ -44,9 +44,21 @@ namespace
         void show_netlist_view() override {
             m_netlist_view_shown = true;
             m_charts_view_shown = false;
+            m_fourier_shown = false;
         }
 
         void show_charts_view() override {
+            m_charts_view_shown = true;
+            m_netlist_view_shown = false;
+            m_fourier_shown = false;
+        }
+
+        void show_fourier_results(const std::string& title, const std::vector<FourierSignalTable>& tables) override {
+            m_fourier_shown = true;
+            m_fourier_title = title;
+            m_fourier_tables = tables;
+            // the Fourier table is hosted by the charts panel, so the charts
+            // view stays shown while the table replaces the canvas
             m_charts_view_shown = true;
             m_netlist_view_shown = false;
         }
@@ -149,6 +161,9 @@ namespace
         bool m_simulation_running_ui = false;
         bool m_netlist_view_shown = false;
         bool m_charts_view_shown = false;
+        bool m_fourier_shown = false;
+        std::string m_fourier_title;
+        std::vector<FourierSignalTable> m_fourier_tables;
         std::string m_editor_content;
         bool m_editor_read_only = true;
         bool m_output_panel_hidden = true;
@@ -2803,6 +2818,240 @@ TEST(SlintMainWindowPresenterChecks, rerun_without_analysis_output_drops_stale_p
     std::filesystem::remove(fft0_path_second_run, ec);
     std::filesystem::remove(raw_path, ec);
     std::filesystem::remove(fft0_path, ec);
+}
+
+// ========================================================================================
+// Fourier companion output loading
+// ========================================================================================
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_without_print_loads_fourier_tabs) {
+    // arrange — a transient run with a .FOUR directive and no .PRINT: Xyce produces only the Fourier analysis file, no analysis output
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the Fourier output file Xyce produces (the hand-written content mirrors a real Xyce .FOUR dump)
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 1.000000e-05, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the Fourier tab is rendered even though no analysis output exists
+    EXPECT_TRUE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    ASSERT_EQ(presenter.four_measurements().size(), 1u);
+    ASSERT_EQ(view.m_plot_tabs.size(), 1u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "FOUR: 1000 Hz");
+    EXPECT_FALSE(view.m_plot_tabs[0].closable);
+    EXPECT_EQ(view.m_active_plot_tab, 0);
+    // assert — the single-step Fourier table is shown in place of the charts
+    EXPECT_TRUE(view.m_fourier_shown);
+    EXPECT_EQ(view.m_fourier_title, "FOUR: 1000 Hz");
+    ASSERT_EQ(view.m_fourier_tables.size(), 1u);
+    const FourierSignalTable& block = view.m_fourier_tables[0];
+    EXPECT_EQ(block.signal, "V(IN)");
+    EXPECT_EQ(block.step, "");
+    EXPECT_EQ(block.thd, "1e-05 %");
+    ASSERT_EQ(block.rows.size(), 3u);
+    EXPECT_EQ(block.rows[0].harmonic, 0);
+    EXPECT_EQ(block.rows[0].frequency, "0.000000e+00");
+    EXPECT_EQ(block.rows[0].magnitude, "0.000000e+00");
+    EXPECT_EQ(block.rows[0].phase, "0.000000e+00");
+    EXPECT_EQ(block.rows[1].harmonic, 1);
+    EXPECT_EQ(block.rows[1].frequency, "1.000000e+03");
+    EXPECT_EQ(block.rows[1].magnitude, "1.000000e+00");
+    EXPECT_EQ(block.rows[2].harmonic, 2);
+    EXPECT_EQ(block.rows[2].magnitude, "2.000000e-01");
+    EXPECT_EQ(block.rows[2].phase, "9.000000e+01");
+    // act — showing the charts re-activates the Fourier dataset and rebuilds the table
+    presenter.on_show_charts();
+    // assert — the Fourier table is shown again rather than the chart canvas
+    EXPECT_TRUE(view.m_fourier_shown);
+    EXPECT_EQ(view.m_fourier_tables.size(), 1u);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(four0_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_with_multiple_steps_labels_each_step) {
+    // arrange — a transient run with a .FOUR directive and no .PRINT; a .STEP sweep makes Xyce dump one Fourier file per step
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.STEP R1 100 200 100\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the two Fourier output files Xyce produces, one per sweep step
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    const auto four1_path = view.m_started_netlist_path.string() + ".four1";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 1.000000e-05, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+    }
+    {
+        std::ofstream four1(four1_path, std::ios::out | std::ios::trunc);
+        four1 << "Fourier analysis for V(IN):\n";
+        four1 << "  No. Harmonics: 3, THD: nan, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four1 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four1 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four1 << "   1    1.000000e+03    5.000000e-01    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four1 << "   2    2.000000e+03    1.000000e-01    4.500000e+01    0.000000e+00    0.000000e+00\n";
+        four1 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the multi-step Fourier table holds one block per step, each with its own THD
+    ASSERT_EQ(presenter.four_measurements().size(), 1u);
+    EXPECT_TRUE(view.m_fourier_shown);
+    ASSERT_EQ(view.m_fourier_tables.size(), 2u);
+    EXPECT_EQ(view.m_fourier_tables[0].signal, "V(IN)");
+    EXPECT_EQ(view.m_fourier_tables[0].step, "Step 1");
+    EXPECT_EQ(view.m_fourier_tables[0].thd, "1e-05 %");
+    ASSERT_EQ(view.m_fourier_tables[0].rows.size(), 3u);
+    EXPECT_EQ(view.m_fourier_tables[0].rows[1].magnitude, "1.000000e+00");
+    EXPECT_EQ(view.m_fourier_tables[1].signal, "V(IN)");
+    EXPECT_EQ(view.m_fourier_tables[1].step, "Step 2");
+    // assert — a non-finite THD reads as n/a instead of the raw nan token
+    EXPECT_EQ(view.m_fourier_tables[1].thd, "n/a");
+    ASSERT_EQ(view.m_fourier_tables[1].rows.size(), 3u);
+    EXPECT_EQ(view.m_fourier_tables[1].rows[1].magnitude, "5.000000e-01");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(four0_path, ec);
+    std::filesystem::remove(four1_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_with_multiple_signals_builds_one_block_per_signal) {
+    // arrange — a transient run whose .FOUR file carries two signals, each with its own THD
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.FOUR 1k V(IN) I(L1)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the Fourier output file with a voltage and a current block
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 2.500000e+00, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+        four0 << "Fourier analysis for I(L1):\n";
+        four0 << "  No. Harmonics: 3, THD: 4.370842e+01, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00   -2.707233e-23    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    4.706139e-03   -1.698953e+02    1.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    1.542676e-03    1.705542e+02    3.278008e-01    3.404494e+02\n";
+        four0 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — one block per signal, each carrying its own THD and signal name
+    EXPECT_TRUE(view.m_fourier_shown);
+    ASSERT_EQ(view.m_fourier_tables.size(), 2u);
+    EXPECT_EQ(view.m_fourier_tables[0].signal, "V(IN)");
+    EXPECT_EQ(view.m_fourier_tables[0].step, "");
+    EXPECT_EQ(view.m_fourier_tables[0].thd, "2.5 %");
+    ASSERT_EQ(view.m_fourier_tables[0].rows.size(), 3u);
+    EXPECT_EQ(view.m_fourier_tables[1].signal, "I(L1)");
+    EXPECT_EQ(view.m_fourier_tables[1].thd, "43.71 %");
+    ASSERT_EQ(view.m_fourier_tables[1].rows.size(), 3u);
+    // assert — a negative magnitude is preserved through the complex round trip
+    EXPECT_EQ(view.m_fourier_tables[1].rows[0].magnitude, "2.707233e-23");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(four0_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_without_output_file_reports_missing_output) {
+    // arrange — a transient run with a .FOUR directive but no .PRINT and no Fourier file written by the run
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the run produced no Fourier file, so the missing-output message is reported and no tab is rendered
+    EXPECT_FALSE(view.m_charts_view_shown);
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_TRUE(presenter.four_measurements().empty());
+    ASSERT_EQ(view.m_plot_tabs.size(), 0u);
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, fourier_run_with_analysis_output_loads_both_tabs) {
+    // arrange — a transient run with a raw print and a .FOUR directive
+    RecordingView view;
+    const std::string netlist_content = "V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 N1 0 1uF\n.TRAN 1u 20m 0\n.PRINT TRAN FORMAT=RAW V(*)\n.FOUR 1k V(IN)\n.END\n";
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    // arrange — write the raw output and the Fourier file the run produces
+    const auto raw_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream raw_file(raw_path, std::ios::out | std::ios::trunc);
+        raw_file << "Title: Presenter Test Circuit\n";
+        raw_file << "Plotname: Transient Analysis\n";
+        raw_file << "Flags: real\n";
+        raw_file << "No. Variables: 2\n";
+        raw_file << "No. Points: 3\n";
+        raw_file << "Variables:\n";
+        raw_file << "\t0\ttime\ttime\n";
+        raw_file << "\t1\tV(1)\tvoltage\n";
+        raw_file << "Values:\n";
+        raw_file << " 0  0.0  1.0\n";
+        raw_file << " 1  0.001  2.0\n";
+        raw_file << " 2  0.002  3.0\n";
+    }
+    const auto four0_path = view.m_started_netlist_path.string() + ".four0";
+    {
+        std::ofstream four0(four0_path, std::ios::out | std::ios::trunc);
+        four0 << "Fourier analysis for V(IN):\n";
+        four0 << "  No. Harmonics: 3, THD: 1.000000e-05, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four0 << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four0 << "   0    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   1    1.000000e+03    1.000000e+00    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four0 << "   2    2.000000e+03    2.000000e-01    9.000000e+01    0.000000e+00    0.000000e+00\n";
+        four0 << "\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the transient tab and the Fourier tab are rendered
+    EXPECT_TRUE(presenter.analysis_measurements().has_value());
+    ASSERT_EQ(presenter.four_measurements().size(), 1u);
+    ASSERT_EQ(view.m_plot_tabs.size(), 2u);
+    EXPECT_EQ(view.m_plot_tabs[0].title, "Transient");
+    EXPECT_EQ(view.m_plot_tabs[1].title, "FOUR: 1000 Hz");
+    EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+    // cleanup
+    std::error_code ec;
+    std::filesystem::remove(view.m_started_netlist_path, ec);
+    std::filesystem::remove(raw_path, ec);
+    std::filesystem::remove(four0_path, ec);
 }
 
 // ========================================================================================
