@@ -72,7 +72,7 @@ jobs:
 
       - name: Configure CMake
         shell: bash
-        run: cmake --preset profile -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
+        run: cmake --preset profile --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
 
       - name: Build C++ Target
         run: cmake --build --preset profile --target xyce-studio-tests

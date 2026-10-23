@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            cmake --preset release -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
+            cmake --preset release --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
           else
             cmake --preset release
           fi
