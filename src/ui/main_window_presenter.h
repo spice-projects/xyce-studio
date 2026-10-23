@@ -84,6 +84,9 @@ public:
     // load the analysis output into this window and switch to the charts view; used to seed windows spawned through App::new_window
     void load_analysis_measurements(std::shared_ptr<XyceOutputFile> file);
 
+    // release every result dataset, used by the application shutdown path before its window leak
+    void release_results();
+
     // simulation lifecycle events (forwarded by the view from the runner)
     void on_simulation_finished(int exit_code, bool was_canceled) override;
     void on_simulation_stdout(const std::string& line) override;
@@ -159,8 +162,8 @@ private:
     // recompute and forward the action enablement to the view
     void refresh_action_states();
 
-    // copy the produced default output file of a recorded .PRINT FILE= destination, the application maps the produced file (which is never rewritten by a later run) while the copy keeps the user-visible file up to date
-    void copy_simulation_output_to_destination(const PrintOutputCopy& copy);
+    // copy the produced default output file of a recorded .PRINT FILE= destination, the application maps the produced file (which is never rewritten by a later run) while the copy keeps the user-visible file up to date; false only when an existing produced file could not be copied
+    [[nodiscard]] bool copy_simulation_output_to_destination(const PrintOutputCopy& copy);
 
     // resolve, parse and prepare the analysis print output file for the configured format; the returned instance is ready for rendering: the tab plot type follows the configured analysis print, not the produced file, so the label is identical regardless of the .PRINT format
     [[nodiscard]] std::optional<std::shared_ptr<XyceOutputFile>> resolve_analysis_output(const std::filesystem::path& netlist_path);
@@ -221,6 +224,10 @@ private:
     std::filesystem::path m_simulation_working_directory;
     std::filesystem::path m_simulation_netlist_path;
     std::vector<PrintOutputCopy> m_simulation_output_copies;
+    // temporary directory owning every output of the running simulation, reset once loading and copying finish
+    std::shared_ptr<TempOutputDirectory> m_active_run_artifacts;
+    // true after application shutdown released the results, ignores a late runner callback
+    bool m_results_released = false;
     // parser distilling the progress and the diagnostics out of the Xyce console log of the running simulation
     XyceLogParser m_log_parser;
     // Xyce writes every console message to stdout and to stderr, so the two streams carry the same log twice; the tail of what was shown is kept here with the stream each line arrived on, so the second copy is dropped no matter which pipe delivered it first

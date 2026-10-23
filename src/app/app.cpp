@@ -158,6 +158,12 @@ int App::run() {
     // as soon as the charts context menu has been opened once. Intentionally leak every window (the
     // main window and any spawned through new_window()) so the window adapters are never destroyed;
     // the process is exiting and the OS reclaims the memory. Remove once the slint bug is fixed.
+    // cancel and reap every simulation runner before releasing results and leaking the windows
+    for (auto& window : m_windows)
+        window->view->stop_simulation_process();
+    // release every result dataset before the windows are leaked so their temporary run directories are deleted unless pinned
+    for (auto& window : m_windows)
+        window->presenter->release_results();
     // release the gpu context on every window before leaking it; the gpu
     // context must be torn down before static destructors or skia's
     // grmanagedresource trace asserts during teardown

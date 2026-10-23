@@ -806,6 +806,42 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_resolves_from_parsed
     EXPECT_EQ(path->generic_string(), "/tmp/work/lin-simple-01.s2p");
 }
 
+TEST(SimulationConfigSParameterPathChecks, user_defined_output_is_reported_for_lin_file) {
+    // arrange — a LIN analysis with an explicit FILE=
+    const auto config = SimulationConfig::from_xyce_directives({".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=user.s2p"});
+    // act
+    const bool user_defined = config.s_parameter_output_file_is_user_defined();
+    // assert
+    EXPECT_TRUE(user_defined);
+}
+
+TEST(SimulationConfigSParameterPathChecks, user_defined_output_is_reported_for_lin_filename_synonym) {
+    // arrange — FILENAME= is the HSPICE synonym for FILE=
+    const auto config = SimulationConfig::from_xyce_directives({".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILENAME=user.s2p"});
+    // act
+    const bool user_defined = config.s_parameter_output_file_is_user_defined();
+    // assert
+    EXPECT_TRUE(user_defined);
+}
+
+TEST(SimulationConfigSParameterPathChecks, user_defined_output_is_absent_for_default_lin_name) {
+    // arrange — a LIN analysis without FILE=/FILENAME=
+    const auto config = SimulationConfig::from_xyce_directives({".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI"});
+    // act
+    const bool user_defined = config.s_parameter_output_file_is_user_defined();
+    // assert
+    EXPECT_FALSE(user_defined);
+}
+
+TEST(SimulationConfigSParameterPathChecks, user_defined_output_is_absent_for_other_analyses) {
+    // arrange — an AC analysis carries no s-parameter output name
+    const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 1MEG"});
+    // act
+    const bool user_defined = config.s_parameter_output_file_is_user_defined();
+    // assert
+    EXPECT_FALSE(user_defined);
+}
+
 // ========================================================================================
 // produced measurements
 // ========================================================================================

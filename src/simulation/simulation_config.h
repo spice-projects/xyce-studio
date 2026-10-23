@@ -77,6 +77,9 @@ public:
     // compute the s-parameter output file path for the configured analysis, LIN runs with a touchstone FORMAT produce a touchstone file — with FILE=/FILENAME= the value is used verbatim resolved against the working directory (Xyce's process cwd), otherwise Xyce writes <netlist>.sNp next to the netlist with N being the port count, nullopt when the analysis produces no s-parameter output
     [[nodiscard]] std::optional<std::filesystem::path> s_parameter_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory, int num_ports = 2) const;
 
+    // true when the .LIN analysis carries a user FILE=/FILENAME= output name
+    [[nodiscard]] bool s_parameter_output_file_is_user_defined() const;
+
     // collect all print parameters that produce .prn output (STD, NOINDEX, GNUPLOT, SPLOT formats), including the analysis print and any unassociated .PRINT directives, empty when no .prn output is configured
     [[nodiscard]] std::vector<PrintParameters> prn_print_parameters() const;
 

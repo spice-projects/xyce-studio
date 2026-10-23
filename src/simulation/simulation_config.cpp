@@ -610,6 +610,16 @@ std::optional<std::filesystem::path> SimulationConfig::s_parameter_output_file_p
     return std::visit(SParameterPathVisitor{netlist_file_path, working_directory, num_ports}, analysis);
 }
 
+bool SimulationConfig::s_parameter_output_file_is_user_defined() const {
+    // only a LIN analysis writes a touchstone output
+    const auto* params = std::get_if<LinSimulationParameters>(&analysis);
+    // every other analysis carries no user file name
+    if (params == nullptr)
+        return false;
+    // a FILE=/FILENAME= value names a user path
+    return !params->file.empty();
+}
+
 std::vector<PrintParameters> SimulationConfig::prn_print_parameters() const {
     // result vector for print parameters that produce .prn output
     std::vector<PrintParameters> result;

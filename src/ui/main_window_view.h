@@ -85,6 +85,9 @@ public:
     // release the gpu context before the view is intentionally leaked at exit
     void release_gpu_resources();
 
+    // cancel and reap the runner before the application leaks the windows
+    void stop_simulation_process();
+
 private:
     // open file action (file dialog)
     void handle_open();
