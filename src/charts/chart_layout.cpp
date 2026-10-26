@@ -56,7 +56,7 @@ namespace
     float im_remap(const float v, const float v0, const float v1, const float r0, const float r1) { return r0 + (v - v0) * (r1 - r0) / (v1 - v0); }
 
     // format one tick label through the shared si metric formatter
-    std::string format_tick_label(const double value, const std::string& unit) { return ChartEngine::format_metric(value, unit); }
+    std::string format_tick_label(const double value, const std::string& unit, const int extraSignificantDigits = 0) { return ChartEngine::format_metric(value, unit, extraSignificantDigits); }
 
     // implot Locator_Default: evenly spaced nice ticks with minor subdivisions
     void locator_default(std::vector<ChartTick>& ticks, const double range_min, const double range_max, const float pixels, const bool vertical, const std::string& unit, const ChartLayout::TextMeasurer& measure) {
@@ -83,6 +83,10 @@ namespace
         // total label extent accumulated for the prune decision; horizontal
         // axes compare widths, vertical axes compare text heights
         float total_size = 0.0f;
+
+        int extraSignificantDigits = 0;
+        std::string lastMajorLabel = "";
+
         // loop majors and their minor subdivisions
         for (double major = graphmin; major < graphmax + 0.5 * interval; major += interval) {
             // snap a major landing next to zero exactly to zero
@@ -99,11 +103,26 @@ namespace
                 tick.value = major;
                 tick.major = true;
                 tick.show_label = true;
-                tick.label = format_tick_label(major, unit);
+                tick.label = format_tick_label(major, unit, extraSignificantDigits);
+
+                if (lastMajorLabel == tick.label) {
+                    // we need to increase precision and redo everything in this range
+                    spdlog::info("we here now wut1");
+                    extraSignificantDigits += 1;
+                    ticks.clear();
+                    lastMajorLabel = "";
+                    major = graphmin - interval;
+                    continue;
+                }
+
+                lastMajorLabel = tick.label;
                 tick.label_width = measure(tick.label);
                 total_size += vertical ? CHART_TEXT_HEIGHT : tick.label_width;
                 ticks.push_back(tick);
             }
+
+            std::string lastTickLabel = "";
+
             // add the minor subdivisions between this major and the next
             for (int i = 1; i < N_MINOR; ++i) {
                 const double minor = major + i * interval / N_MINOR;
@@ -114,7 +133,18 @@ namespace
                     tick.value = minor;
                     tick.major = false;
                     tick.show_label = true;
-                    tick.label = format_tick_label(minor, unit);
+                    tick.label = format_tick_label(minor, unit, extraSignificantDigits);
+
+                    if (lastTickLabel == tick.label) {
+                        // we need to increase precision and redo everything in this range
+                        spdlog::info("we here now wut");
+                        extraSignificantDigits += 1;
+                        ticks.clear();
+                        major = graphmin - interval;
+                        break;
+                    }
+
+                    lastTickLabel = tick.label;
                     tick.label_width = measure(tick.label);
                     total_size += vertical ? CHART_TEXT_HEIGHT : tick.label_width;
                     ticks.push_back(tick);

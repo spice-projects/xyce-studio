@@ -187,6 +187,7 @@ TEST(ChartRatioTest, hovered_series_text_after_zoom) {
 
 TEST(ChartFormatTest, metric_places_space_before_unit) {
     // si format: value + space + prefix + unit
+    EXPECT_EQ(ChartEngine::format_metric(0.0001111, "A", 1), "111.1 µA");
     EXPECT_EQ(ChartEngine::format_metric(0.001, "A"), "1 mA");
     EXPECT_EQ(ChartEngine::format_metric(1.5, "A"), "1.5 A");
     EXPECT_EQ(ChartEngine::format_metric(12.345, "A"), "12.3 A");
