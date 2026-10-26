@@ -129,7 +129,7 @@ namespace
     }
 } // namespace
 
-std::string ChartEngine::format_metric(const double value, const std::string_view unit) {
+std::string ChartEngine::format_metric(const double value, const std::string_view unit, const int extraSignificantDigits) {
     // dividers
     static constexpr double v[] = {1e9, 1e6, 1e3, 1.0, 1e-3, 1e-6, 1e-9, 1e-12};
     // prefixes (SI, µ for micro)
@@ -146,12 +146,12 @@ std::string ChartEngine::format_metric(const double value, const std::string_vie
             // mantissa rounding up to the next decade belongs to the next prefix (avoids 1e+03uA for 1mA)
             if (std::fabs(scaled) >= 999.5 && i > 0) {
                 scaled /= 1000.0;
-                return std::format("{:.3g} {}{}", scaled, p[i - 1], unit);
+                return std::format("{:.{}g} {}{}", scaled, std::max(1, 3 + extraSignificantDigits), p[i - 1], unit);
             }
-            return std::format("{:.3g} {}{}", scaled, p[i], unit);
+            return std::format("{:.{}g} {}{}", scaled, std::max(1, 3 + extraSignificantDigits), p[i], unit);
         }
     }
-    return std::format("{:.3g} {}{}", value / v[7], p[7], unit);
+    return std::format("{:.{}g} {}{}", value / v[7], std::max(1, 3 + extraSignificantDigits), p[7], unit);
 }
 
 std::vector<double> ChartEngine::log2_major_ticks(const double x_left, const double x_right, const int max_ticks) {
