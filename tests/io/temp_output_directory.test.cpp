@@ -17,8 +17,12 @@ TEST(TempOutputDirectoryChecks, create_writes_the_netlist_and_release_removes_th
     const auto netlist_path = directory->netlist_path();
     // act
     const bool written = directory->write_netlist("* test\n.END\n");
-    std::ifstream netlist(netlist_path);
-    const std::string content((std::istreambuf_iterator<char>(netlist)), std::istreambuf_iterator<char>());
+    std::string content;
+    {
+        // keep the netlist stream scoped so Windows releases the file before removal
+        std::ifstream netlist(netlist_path);
+        content.assign(std::istreambuf_iterator<char>(netlist), std::istreambuf_iterator<char>());
+    }
     // assert
     EXPECT_TRUE(written);
     EXPECT_TRUE(std::filesystem::is_directory(path));
