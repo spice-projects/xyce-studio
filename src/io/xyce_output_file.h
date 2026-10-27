@@ -11,6 +11,8 @@
 #include "../expression/expression_manager.h"
 #include "mapped_file.h"
 
+class TempOutputDirectory;
+
 enum class AbscissaScale
 {
     LINEAR,
@@ -72,6 +74,9 @@ public:
     // analysis-type header in the file itself)
     void set_title(std::string title);
 
+    // attach the temporary run directory that owns this file, null for user-owned files
+    void set_temp_output_directory(std::shared_ptr<TempOutputDirectory> directory);
+
     // set the plot type (used by the presenter for .prn outputs)
     void set_plot_type(PlotType plot_type);
 
@@ -87,6 +92,8 @@ private:
     AbscissaScale m_abscissa_scale;
     ExpressionManager m_expression_manager;
 
+    // temporary run directory that owns this file, null for user-owned files; declared before the mapping so it is released after the mapping on destruction
+    std::shared_ptr<TempOutputDirectory> m_temp_output_directory;
     std::unique_ptr<MappedFile> m_mapped_file;
     std::unordered_map<std::string, std::string> m_metadata;
     std::vector<std::vector<std::string>> m_suggested_plots;

@@ -1,10 +1,7 @@
 #include <atomic>
 #include <chrono>
-#include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -90,29 +87,24 @@ struct SimulationRunner::Impl
     // run paths
     std::filesystem::path working_directory;
     std::filesystem::path netlist_file_path;
-    std::filesystem::path temp_netlist_path;
 
     // child process handle
 #if defined(_WIN32)
-    HANDLE child_process = nullptr;
+    std::atomic<HANDLE> child_process{nullptr};
 #else
-    pid_t child_pid = -1;
+    std::atomic<pid_t> child_pid{-1};
 #endif
 
     // worker threads; the monitor joins the readers after the child exits
     std::thread reader_out;
     std::thread reader_err;
     std::thread monitor;
+    // POSIX fallback timer that force-kills a child ignoring SIGTERM
+    std::thread kill_timer;
 
     ~Impl() {
-        // stop a still-running child so the monitor thread terminates
-        if (running.load())
-            cancel();
-        // wait for the monitor to drain the remaining output
-        if (monitor.joinable())
-            monitor.join();
-        // remove the temporary netlist when it was never cleaned up
-        remove_temp_netlist();
+        // stop and reap the child so the monitor thread terminates
+        stop_and_wait();
     }
 
     void start(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& cwd) {
@@ -121,10 +113,12 @@ struct SimulationRunner::Impl
             spdlog::warn("SimulationRunner::start called while already running");
             return;
         }
+        // reap a previous finished run before reusing the runner
+        if (monitor.joinable() || reader_out.joinable() || reader_err.joinable() || kill_timer.joinable())
+            stop_and_wait();
         // store the run paths
         working_directory = cwd;
         netlist_file_path = netlist_path;
-        temp_netlist_path = netlist_path;
         // reset the run state
         exit_code = -1;
         canceled = false;
@@ -139,31 +133,56 @@ struct SimulationRunner::Impl
 #if defined(_WIN32)
         // terminate the child process
         spdlog::info("Canceling simulation");
-        TerminateProcess(child_process, 1);
+        const auto handle = child_process.load();
+        // reject a child that already exited
+        if (handle != nullptr)
+            TerminateProcess(handle, 1);
 #else
         // send SIGTERM for a graceful shutdown
-        spdlog::info("Canceling simulation (pid {})", static_cast<int>(child_pid));
-        ::kill(child_pid, SIGTERM);
-        // fallback SIGKILL after a short delay in case the child ignores SIGTERM
-        std::thread([pid = child_pid] {
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-            ::kill(pid, SIGKILL);
-        }).detach();
+        const auto pid = child_pid.load();
+        // reject a child that already exited
+        if (pid <= 0)
+            return;
+        spdlog::info("Canceling simulation (pid {})", static_cast<int>(pid));
+        ::kill(pid, SIGTERM);
+        // replace any previous fallback timer
+        if (kill_timer.joinable())
+            kill_timer.join();
+        // force-kill the child when it ignores SIGTERM for two seconds
+        kill_timer = std::thread([this] {
+            // poll the running state so a clean exit ends the timer early
+            for (int attempt = 0; attempt < 200 && running.load(); ++attempt)
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // force-kill a child that is still running
+            if (running.load()) {
+                // load the current child identifier
+                const auto current_pid = child_pid.load();
+                // guard against an already reaped child
+                if (current_pid > 0)
+                    ::kill(current_pid, SIGKILL);
+            }
+        });
 #endif
     }
 
-    // remove the temporary netlist file created for this run
-    void remove_temp_netlist() {
-        // check a temporary netlist was recorded
-        if (temp_netlist_path.empty())
-            return;
-        // attempt to remove the file
-        std::error_code ec;
-        std::filesystem::remove(temp_netlist_path, ec);
-        if (ec)
-            spdlog::warn("Failed to remove temp netlist: {}", temp_netlist_path.string());
-        // clear the recorded path
-        temp_netlist_path.clear();
+    // cancel the child when needed and wait for the monitor to reap it
+    void stop_and_wait() {
+        // request cancellation when the child is still running
+        if (running.load())
+            cancel();
+        // wait for the monitor to drain the remaining output
+        if (monitor.joinable())
+            monitor.join();
+        // wait for the POSIX fallback timer
+        if (kill_timer.joinable())
+            kill_timer.join();
+        // wait for any reader the monitor did not own
+        if (reader_out.joinable())
+            reader_out.join();
+        if (reader_err.joinable())
+            reader_err.join();
+        // the child is reaped at this point
+        running = false;
     }
 
     // post a launch failure result on the ui thread
@@ -171,12 +190,19 @@ struct SimulationRunner::Impl
         // record the failure state
         running = false;
         exit_code = 127;
-        // deliver the result on the ui thread; capture the callback by value so
-        // a queued event never outlives this Impl
-        slint::invoke_from_event_loop([callback = finished_callback]() {
-            if (callback)
-                callback(127, false);
-        });
+#if defined(_WIN32)
+        // clear the unused child handle
+        child_process = nullptr;
+#else
+        // clear the unused child identifier
+        child_pid = -1;
+#endif
+        // deliver the result on the ui thread when a callback is registered; capture it by value so a queued event never outlives this Impl
+        if (finished_callback)
+            slint::invoke_from_event_loop([callback = finished_callback]() {
+                if (callback)
+                    callback(127, false);
+            });
     }
 
 #if defined(_WIN32)
@@ -236,12 +262,13 @@ struct SimulationRunner::Impl
         CloseHandle(err_write);
         child_process = process_info.hProcess;
         CloseHandle(process_info.hThread);
+        // mark the run active before the monitor can observe a fast exit
+        running = true;
         // drain stdout and stderr on dedicated reader threads
         reader_out = std::thread([this, out_read] { read_lines_win(out_read, stdout_callback); });
         reader_err = std::thread([this, err_read] { read_lines_win(err_read, stderr_callback); });
         // wait for the child and report the result
         monitor = std::thread([this] { monitor_win(); });
-        running = true;
         spdlog::info("Xyce simulation started");
     }
 
@@ -262,28 +289,29 @@ struct SimulationRunner::Impl
 
     void monitor_win() {
         // wait for the child process to exit
-        WaitForSingleObject(child_process, INFINITE);
+        const auto handle = child_process.load();
+        WaitForSingleObject(handle, INFINITE);
         // read the exit code
         DWORD code = 1;
-        GetExitCodeProcess(child_process, &code);
-        CloseHandle(child_process);
+        GetExitCodeProcess(handle, &code);
+        CloseHandle(handle);
         child_process = nullptr;
+        // mark the child as reaped before draining the readers
+        running = false;
         // drain the remaining buffered output
         if (reader_out.joinable())
             reader_out.join();
         if (reader_err.joinable())
             reader_err.join();
-        // clean up the temporary netlist
-        remove_temp_netlist();
         // record and deliver the result
         exit_code = static_cast<int>(code);
-        running = false;
         const bool was_canceled = canceled.load();
         // capture the callback by value so a queued event never outlives this Impl
-        slint::invoke_from_event_loop([callback = finished_callback, code, was_canceled]() {
-            if (callback)
-                callback(static_cast<int>(code), was_canceled);
-        });
+        if (finished_callback)
+            slint::invoke_from_event_loop([callback = finished_callback, code, was_canceled]() {
+                if (callback)
+                    callback(static_cast<int>(code), was_canceled);
+            });
         spdlog::info("Xyce simulation finished (exit code {}, canceled {})", static_cast<int>(code), was_canceled);
     }
 #else
@@ -342,12 +370,13 @@ struct SimulationRunner::Impl
         ::close(out_pipe[1]);
         ::close(err_pipe[1]);
         child_pid = pid;
+        // mark the run active before the monitor can observe a fast exit
+        running = true;
         // drain stdout and stderr on dedicated reader threads
         reader_out = std::thread([this, out_fd = out_pipe[0]] { read_lines_posix(out_fd, stdout_callback); });
         reader_err = std::thread([this, err_fd = err_pipe[0]] { read_lines_posix(err_fd, stderr_callback); });
         // wait for the child and report the result
         monitor = std::thread([this] { monitor_posix(); });
-        running = true;
         spdlog::info("Xyce simulation started (pid {})", static_cast<int>(pid));
     }
 
@@ -360,8 +389,13 @@ struct SimulationRunner::Impl
 
     void monitor_posix() {
         // wait for the child process to exit
+        const auto pid = child_pid.load();
         int status = 0;
-        ::waitpid(child_pid, &status, 0);
+        ::waitpid(pid, &status, 0);
+        // clear the reaped identifier before draining the readers
+        child_pid = -1;
+        // mark the child as reaped before draining the readers
+        running = false;
         // translate the wait status to an exit code
         int code = -1;
         if (WIFEXITED(status))
@@ -373,17 +407,15 @@ struct SimulationRunner::Impl
             reader_out.join();
         if (reader_err.joinable())
             reader_err.join();
-        // clean up the temporary netlist
-        remove_temp_netlist();
         // record and deliver the result
         exit_code = code;
-        running = false;
         const bool was_canceled = canceled.load();
         // capture the callback by value so a queued event never outlives this Impl
-        slint::invoke_from_event_loop([callback = finished_callback, code, was_canceled]() {
-            if (callback)
-                callback(code, was_canceled);
-        });
+        if (finished_callback)
+            slint::invoke_from_event_loop([callback = finished_callback, code, was_canceled]() {
+                if (callback)
+                    callback(code, was_canceled);
+            });
         spdlog::info("Xyce simulation finished (exit code {}, canceled {})", code, was_canceled);
     }
 #endif
@@ -397,6 +429,8 @@ SimulationRunner::~SimulationRunner() = default;
 void SimulationRunner::start(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) { m_impl->start(program, netlist_path, working_directory); }
 
 void SimulationRunner::cancel() { m_impl->cancel(); }
+
+void SimulationRunner::stop_and_wait() { m_impl->stop_and_wait(); }
 
 bool SimulationRunner::is_running() const { return m_impl->running.load(); }
 
@@ -413,25 +447,3 @@ void SimulationRunner::set_stdout_callback(LineCallback callback) { m_impl->stdo
 void SimulationRunner::set_stderr_callback(LineCallback callback) { m_impl->stderr_callback = std::move(callback); }
 
 void SimulationRunner::set_finished_callback(FinishedCallback callback) { m_impl->finished_callback = std::move(callback); }
-
-std::filesystem::path SimulationRunner::create_temp_netlist(std::string_view text) {
-    // unique name from the process id, a monotonic counter and the clock
-    static std::atomic<uint64_t> counter{0};
-#if defined(_WIN32)
-    const auto pid = static_cast<long long>(GetCurrentProcessId());
-#else
-    const auto pid = static_cast<long long>(getpid());
-#endif
-    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    const auto name = "xyce_" + std::to_string(pid) + "_" + std::to_string(now) + "_" + std::to_string(counter.fetch_add(1)) + ".cir";
-    // build the full temporary path
-    const auto path = std::filesystem::temp_directory_path() / name;
-    // write the netlist content
-    std::ofstream file(path, std::ios::out | std::ios::binary);
-    if (!file.is_open())
-        return {};
-    file.write(text.data(), static_cast<std::streamsize>(text.size()));
-    file.close();
-    // return the path as std::filesystem::path
-    return path;
-}

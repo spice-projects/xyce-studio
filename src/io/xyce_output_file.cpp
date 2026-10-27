@@ -1,9 +1,10 @@
 #include "xyce_output_file.h"
 #include "../core/step_information.h"
 #include "../expression/expression.h"
+#include "temp_output_directory.h"
 
 XyceOutputFile::XyceOutputFile(XyceOutputFile&& other) noexcept :
-    m_filename(std::move(other.m_filename)), m_title(std::move(other.m_title)), m_is_complex(other.m_is_complex), m_step_information(std::move(other.m_step_information)), m_plot_type(other.m_plot_type), m_abscissa_scale(other.m_abscissa_scale), m_expression_manager(std::move(other.m_expression_manager)), m_mapped_file(std::move(other.m_mapped_file)), m_metadata(std::move(other.m_metadata)), m_suggested_plots(std::move(other.m_suggested_plots)) {}
+    m_filename(std::move(other.m_filename)), m_title(std::move(other.m_title)), m_is_complex(other.m_is_complex), m_step_information(std::move(other.m_step_information)), m_plot_type(other.m_plot_type), m_abscissa_scale(other.m_abscissa_scale), m_expression_manager(std::move(other.m_expression_manager)), m_temp_output_directory(std::move(other.m_temp_output_directory)), m_mapped_file(std::move(other.m_mapped_file)), m_metadata(std::move(other.m_metadata)), m_suggested_plots(std::move(other.m_suggested_plots)) {}
 
 XyceOutputFile::XyceOutputFile(std::filesystem::path filename, std::string title, const bool is_complex, StepInformation&& step_info, const PlotType plot_type, const AbscissaScale abscissa_scale, ExpressionManager&& expression_manager, std::unique_ptr<MappedFile>&& mapped_file, std::vector<std::vector<std::string>> suggested_plots, std::unordered_map<std::string, std::string> metadata) :
     m_filename(std::move(filename)), m_title(std::move(title)), m_is_complex(is_complex), m_step_information(std::move(step_info)), m_plot_type(plot_type), m_abscissa_scale(abscissa_scale), m_expression_manager(std::move(expression_manager)), m_mapped_file(std::move(mapped_file)), m_metadata(std::move(metadata)), m_suggested_plots(std::move(suggested_plots)) {}
@@ -11,6 +12,9 @@ XyceOutputFile::XyceOutputFile(std::filesystem::path filename, std::string title
 XyceOutputFile::~XyceOutputFile() = default;
 
 XyceOutputFile& XyceOutputFile::operator=(XyceOutputFile&& other) noexcept {
+    // ignore self assignment
+    if (this == &other)
+        return *this;
     // move all field values to this instance
     m_filename = std::move(other.m_filename);
     m_title = std::move(other.m_title);
@@ -19,7 +23,9 @@ XyceOutputFile& XyceOutputFile::operator=(XyceOutputFile&& other) noexcept {
     m_plot_type = other.m_plot_type;
     m_abscissa_scale = other.m_abscissa_scale;
     m_expression_manager = std::move(other.m_expression_manager);
+    // release the old mapping before the old run directory lease can delete its file
     m_mapped_file = std::move(other.m_mapped_file);
+    m_temp_output_directory = std::move(other.m_temp_output_directory);
     m_metadata = std::move(other.m_metadata);
     m_suggested_plots = std::move(other.m_suggested_plots);
     // exit
@@ -71,6 +77,14 @@ const std::unordered_map<std::string, std::string>& XyceOutputFile::metadata() c
 const std::vector<std::vector<std::string>>& XyceOutputFile::suggested_plots() const { return m_suggested_plots; }
 
 void XyceOutputFile::set_title(std::string title) { m_title = std::move(title); }
+
+void XyceOutputFile::set_temp_output_directory(std::shared_ptr<TempOutputDirectory> directory) {
+    // ignore a directory that does not own this file
+    if (directory && !directory->owns(m_filename))
+        return;
+    // attach the run directory lease
+    m_temp_output_directory = std::move(directory);
+}
 
 void XyceOutputFile::set_plot_type(const PlotType plot_type) { m_plot_type = plot_type; }
 

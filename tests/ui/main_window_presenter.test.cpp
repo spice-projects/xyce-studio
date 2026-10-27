@@ -140,6 +140,7 @@ namespace
         // simulation process lifecycle (presenter decides when, the view wires the process events)
         void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override {
             m_started = true;
+            m_start_count++;
             m_started_program = program;
             m_started_netlist_path = netlist_path;
             m_started_working_directory = working_directory;
@@ -189,6 +190,7 @@ namespace
         std::optional<PluginConfig> m_plugin_config_result;
         std::optional<std::filesystem::path> m_save_path_result;
         bool m_started = false;
+        int m_start_count = 0;
         std::string m_started_program;
         std::filesystem::path m_started_netlist_path;
         std::filesystem::path m_started_working_directory;
@@ -455,6 +457,8 @@ TEST(SlintMainWindowPresenterChecks, run_after_an_editor_edit_simulates_the_edit
     SlintMainWindowPresenter presenter(view, std::move(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
+    // finish the first run before the user edits the netlist
+    presenter.on_simulation_finished(1, false);
     // cleanup the temp netlist from the first run
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
@@ -2289,6 +2293,469 @@ TEST(SlintMainWindowPresenterChecks, prn_ac_default_format_looks_for_fd_prn) {
     std::filesystem::remove(prn_path, ec);
 }
 
+TEST(SlintMainWindowPresenterChecks, previous_run_directory_is_removed_when_a_new_result_replaces_it) {
+    // arrange — a transient raw run with a valid produced file
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    RecordingView view;
+    std::filesystem::path first_run_directory;
+    std::filesystem::path second_run_directory;
+    {
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        // act — finish the first run
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        const auto first_netlist_path = view.m_started_netlist_path;
+        first_run_directory = first_netlist_path.parent_path();
+        {
+            std::ofstream produced(first_netlist_path.string() + ".raw", std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        presenter.on_simulation_finished(0, false);
+        ASSERT_TRUE(std::filesystem::exists(first_run_directory));
+        ASSERT_TRUE(std::filesystem::exists(first_netlist_path));
+        // act — finish a second run that replaces the primary dataset
+        view.m_started = false;
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        const auto second_netlist_path = view.m_started_netlist_path;
+        second_run_directory = second_netlist_path.parent_path();
+        {
+            std::ofstream produced(second_netlist_path.string() + ".raw", std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        presenter.on_simulation_finished(0, false);
+        // assert — the previous run is gone while the current dataset keeps its directory alive
+        EXPECT_FALSE(std::filesystem::exists(first_run_directory));
+        EXPECT_TRUE(std::filesystem::exists(second_run_directory));
+        EXPECT_TRUE(std::filesystem::exists(second_netlist_path));
+    }
+    // assert — releasing the window releases the latest run directory
+    EXPECT_FALSE(std::filesystem::exists(second_run_directory));
+}
+
+TEST(SlintMainWindowPresenterChecks, canceled_run_directory_is_removed) {
+    // arrange — launch a simulation and keep its run directory
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    ASSERT_TRUE(std::filesystem::exists(run_directory));
+    // act
+    presenter.on_simulation_finished(1, true);
+    // assert
+    EXPECT_EQ(view.m_status_text, "Simulation canceled");
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+}
+
+TEST(SlintMainWindowPresenterChecks, failed_run_directory_is_removed) {
+    // arrange — launch a simulation and keep its run directory
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    ASSERT_TRUE(std::filesystem::exists(run_directory));
+    // act
+    presenter.on_simulation_finished(1, false);
+    // assert
+    EXPECT_EQ(view.m_status_text, "Simulation failed (exit code 1)");
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+}
+
+TEST(SlintMainWindowPresenterChecks, successful_run_without_output_releases_its_directory) {
+    // arrange — launch a simulation without producing any output file
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    ASSERT_TRUE(std::filesystem::exists(run_directory));
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+}
+
+TEST(SlintMainWindowPresenterChecks, second_launch_is_rejected_while_a_run_is_in_flight) {
+    // arrange
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto first_netlist_path = view.m_started_netlist_path;
+    // act
+    presenter.on_run_simulation();
+    // assert — the in-flight run keeps its runner and run directory
+    EXPECT_EQ(view.m_start_count, 1);
+    EXPECT_EQ(view.m_started_netlist_path, first_netlist_path);
+    presenter.on_simulation_finished(1, false);
+}
+
+TEST(SlintMainWindowPresenterChecks, no_output_run_still_copies_user_file_destinations) {
+    // arrange — a run whose only print is unassociated with the transient analysis
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_no_output_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT DC FORMAT=RAW FILE=dc.raw V(1)\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+    {
+        std::ofstream produced(produced_path, std::ios::binary);
+        produced << "Title: DC\nPlotname: DC Sweep\nFlags: real\nNo. Variables: 2\nNo. Points: 1\nVariables:\n\t0\tV1\tsweep\n\t1\tV(1)\tvoltage\nValues:\n 0 0 1\n";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the user destination is updated even though no dataset was loaded
+    EXPECT_EQ(view.m_status_text, "Simulation finished but output file could not be found");
+    EXPECT_TRUE(std::filesystem::exists(working_directory / "dc.raw"));
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+    std::error_code ec;
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, failed_destination_copy_pins_the_run_directory) {
+    // arrange — a destination whose parent path is a regular file makes the copy fail
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_failed_copy_retention_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    {
+        std::ofstream blocked(working_directory / "blocked", std::ios::out | std::ios::trunc);
+        blocked << "not a directory";
+    }
+    RecordingView view;
+    std::filesystem::path run_directory;
+    std::filesystem::path user_netlist_path;
+    {
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=blocked/out.raw V(1)\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        run_directory = view.m_started_netlist_path.parent_path();
+        const auto produced_path = view.m_started_netlist_path.string() + ".raw";
+        const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+        {
+            std::ofstream produced(produced_path, std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        presenter.on_simulation_finished(0, false);
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+        user_netlist_path = working_directory / "user.cir";
+        {
+            std::ofstream user_netlist(user_netlist_path, std::ios::out | std::ios::trunc);
+            user_netlist << "V1 1 0 5\nR1 1 0 1K\n.END\n";
+        }
+        // act — opening a user netlist drops the dataset, which would normally release the run directory
+        presenter.on_open_xyce_file(user_netlist_path);
+        // assert — the failed copy pinned the directory
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+    }
+    std::error_code ec;
+    std::filesystem::remove_all(run_directory, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, explicitly_opened_run_output_pins_its_directory) {
+    // arrange — run a transient raw simulation and produce a valid output file
+    const std::string netlist_content = "V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    RecordingView view;
+    std::filesystem::path run_directory;
+    std::filesystem::path produced_path;
+    {
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        const auto netlist_path = view.m_started_netlist_path;
+        run_directory = netlist_path.parent_path();
+        produced_path = netlist_path.string() + ".raw";
+        {
+            std::ofstream produced(produced_path, std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        presenter.on_simulation_finished(0, false);
+        ASSERT_TRUE(std::filesystem::exists(produced_path));
+        // act — explicitly open the produced file, which is user-owned from now on
+        presenter.on_open_xyce_file(produced_path);
+        // assert — the old dataset released its lease without deleting the user-opened file
+        EXPECT_TRUE(presenter.analysis_measurements().has_value());
+        EXPECT_TRUE(std::filesystem::exists(produced_path));
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+    }
+    // assert — the pinned directory survives the window release
+    EXPECT_TRUE(std::filesystem::exists(produced_path));
+    std::error_code ec;
+    std::filesystem::remove_all(run_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, default_temporary_s_parameter_file_is_released_with_the_run) {
+    // arrange — a LIN run without FILE= writes the default <netlist>.s2p in the run directory
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("* LIN default s-parameter test\nP1 port1 0 port=1 z0=50 AC 1\nL1 port1 port2 25nH\nC1 port2 0 10pF\nP2 port2 0 port=2 z0=100\n.AC DEC 200 100meg 1.5g\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI WIDTH=16 PRECISION=8\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto s2p_path = view.m_started_netlist_path.string() + ".s2p";
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    {
+        std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
+        s2p_file << "# Hz S RI R 50\n";
+        s2p_file << "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+    }
+    presenter.on_simulation_finished(0, false);
+    ASSERT_TRUE(presenter.s_parameter_measurements().has_value());
+    ASSERT_TRUE(std::filesystem::exists(run_directory));
+    // act
+    presenter.release_results();
+    // assert — the temporary s-parameter file is app-owned
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+}
+
+TEST(SlintMainWindowPresenterChecks, shared_dataset_keeps_the_run_directory_alive_across_windows) {
+    // arrange — a completed raw run and a second presenter holding the same dataset
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    RecordingView first_view;
+    RecordingView second_view;
+    std::filesystem::path run_directory;
+    {
+        SlintMainWindowPresenter first(first_view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        first.on_run_simulation();
+        ASSERT_TRUE(first_view.m_started);
+        const auto netlist_path = first_view.m_started_netlist_path;
+        run_directory = netlist_path.parent_path();
+        {
+            std::ofstream produced(netlist_path.string() + ".raw", std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        first.on_simulation_finished(0, false);
+        ASSERT_TRUE(first.analysis_measurements().has_value());
+        auto shared_file = *first.analysis_measurements();
+        SlintMainWindowPresenter second(second_view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        second.load_analysis_measurements(shared_file);
+        // act — release the first window while the second still displays the dataset
+        first.release_results();
+        // assert — the shared lease keeps the directory alive
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+        second.release_results();
+        // the test copy still holds the dataset lease
+        shared_file.reset();
+        EXPECT_FALSE(std::filesystem::exists(run_directory));
+    }
+}
+
+TEST(SlintMainWindowPresenterChecks, user_opened_raw_file_survives_release_results) {
+    // arrange — a user-owned raw file outside any run directory
+    const auto raw_path = std::filesystem::temp_directory_path() / "xyce_studio_user_raw_release_test.raw";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    {
+        std::ofstream raw_file(raw_path, std::ios::binary);
+        raw_file.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        raw_file.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+    }
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_open_xyce_file(raw_path);
+    ASSERT_TRUE(presenter.analysis_measurements().has_value());
+    // act
+    presenter.release_results();
+    // assert
+    EXPECT_TRUE(std::filesystem::exists(raw_path));
+    std::error_code ec;
+    std::filesystem::remove(raw_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, opening_the_run_netlist_pins_its_directory) {
+    // arrange — run a raw simulation and keep its netlist and output in the run directory
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    RecordingView view;
+    std::filesystem::path run_directory;
+    std::filesystem::path run_netlist_path;
+    {
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        run_netlist_path = view.m_started_netlist_path;
+        run_directory = run_netlist_path.parent_path();
+        {
+            std::ofstream produced(run_netlist_path.string() + ".raw", std::ios::binary);
+            produced.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            produced.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+        }
+        presenter.on_simulation_finished(0, false);
+        ASSERT_TRUE(std::filesystem::exists(run_netlist_path));
+        // act — explicitly open the run netlist, then another user netlist that releases the old dataset
+        presenter.on_open_xyce_file(run_netlist_path);
+        const auto user_netlist_path = std::filesystem::temp_directory_path() / "xyce_studio_run_netlist_pin_user.cir";
+        {
+            std::ofstream user_netlist(user_netlist_path, std::ios::out | std::ios::trunc);
+            user_netlist << "V1 1 0 5\nR1 1 0 1K\n.END\n";
+        }
+        presenter.on_open_xyce_file(user_netlist_path);
+        // assert — the explicitly opened netlist pinned the run directory
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+        EXPECT_TRUE(std::filesystem::exists(run_netlist_path));
+        std::error_code ec;
+        std::filesystem::remove(user_netlist_path, ec);
+    }
+    std::error_code ec;
+    std::filesystem::remove_all(run_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, failed_analysis_parse_preserves_every_copy_sharing_its_produced_file) {
+    // arrange — analysis and unassociated prints sharing the same raw produced file, with sentinel user copies
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_shared_raw_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    {
+        std::ofstream analysis_copy(working_directory / "analysis.raw", std::ios::out | std::ios::trunc);
+        analysis_copy << "analysis sentinel";
+    }
+    {
+        std::ofstream other_copy(working_directory / "other.raw", std::ios::out | std::ios::trunc);
+        other_copy << "other sentinel";
+    }
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW FILE=analysis.raw V(1)\n.PRINT DC FORMAT=RAW FILE=other.raw V(1)\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ofstream produced(view.m_started_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+        produced << "unparseable raw payload";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — neither destination was overwritten by the failed analysis output
+    std::ifstream analysis_copy(working_directory / "analysis.raw");
+    const std::string analysis_content((std::istreambuf_iterator<char>(analysis_copy)), std::istreambuf_iterator<char>());
+    std::ifstream other_copy(working_directory / "other.raw");
+    const std::string other_content((std::istreambuf_iterator<char>(other_copy)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(analysis_content, "analysis sentinel");
+    EXPECT_EQ(other_content, "other sentinel");
+    std::error_code ec;
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, failed_analysis_without_file_preserves_a_sharing_print_destination) {
+    // arrange — the analysis print has no FILE= while the unassociated print shares its produced raw path
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_shared_raw_default_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    {
+        std::ofstream other_copy(working_directory / "other.raw", std::ios::out | std::ios::trunc);
+        other_copy << "other sentinel";
+    }
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT TRAN FORMAT=RAW V(1)\n.PRINT DC FORMAT=RAW FILE=other.raw V(1)\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    {
+        std::ofstream produced(view.m_started_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+        produced << "unparseable raw payload";
+    }
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the shared produced file was not copied over the user destination
+    std::ifstream other_copy(working_directory / "other.raw");
+    const std::string other_content((std::istreambuf_iterator<char>(other_copy)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(other_content, "other sentinel");
+    std::error_code ec;
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, no_output_run_with_failed_copy_pins_its_directory) {
+    // arrange — the only print is unassociated and its destination parent is a regular file
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_no_output_failed_copy_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    {
+        std::ofstream blocked(working_directory / "blocked", std::ios::out | std::ios::trunc);
+        blocked << "not a directory";
+    }
+    RecordingView view;
+    std::filesystem::path run_directory;
+    {
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.TRAN 1u 1m\n.PRINT DC FORMAT=RAW FILE=blocked/out.raw V(1)\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        run_directory = view.m_started_netlist_path.parent_path();
+        {
+            std::ofstream produced(view.m_started_netlist_path.string() + ".raw", std::ios::out | std::ios::trunc);
+            produced << "unassociated raw payload";
+        }
+        // act
+        presenter.on_simulation_finished(0, false);
+        // assert — the failed copy pinned the directory even through the no-output return
+        EXPECT_TRUE(std::filesystem::exists(run_directory));
+    }
+    EXPECT_TRUE(std::filesystem::exists(run_directory));
+    std::error_code ec;
+    std::filesystem::remove_all(run_directory, ec);
+    std::filesystem::remove_all(working_directory, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, late_finish_callback_after_release_results_is_ignored) {
+    // arrange — load a user raw dataset, then release the results as application shutdown does
+    const auto raw_path = std::filesystem::temp_directory_path() / "xyce_studio_late_finish_test.raw";
+    const std::string payload = "Title: Test\nPlotname: Transient Analysis\nFlags: real\nNo. Variables: 2\nNo. Points: 2\nVariables:\n\t0\ttime\ttime\n\t1\tV(1)\tvoltage\nBinary:\n";
+    {
+        std::ofstream raw_file(raw_path, std::ios::binary);
+        raw_file.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+        raw_file.write("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 32);
+    }
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_open_xyce_file(raw_path);
+    presenter.release_results();
+    view.m_status_text = "shutdown";
+    // act
+    presenter.on_simulation_finished(0, false);
+    // assert — the late callback touched no state
+    EXPECT_EQ(view.m_status_text, "shutdown");
+    EXPECT_FALSE(presenter.analysis_measurements().has_value());
+    std::error_code ec;
+    std::filesystem::remove(raw_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, user_lin_output_is_not_removed_when_the_dataset_is_released) {
+    // arrange — a LIN run whose touchstone output names a user path
+    const auto working_directory = std::filesystem::temp_directory_path() / "xyce_studio_user_lin_cleanup_test";
+    std::filesystem::remove_all(working_directory);
+    std::filesystem::create_directories(working_directory);
+    const auto s2p_path = working_directory / "user-lin-output.s2p";
+    {
+        std::ofstream s2p_file(s2p_path, std::ios::out | std::ios::trunc);
+        s2p_file << "# Hz S RI R 50\n";
+        s2p_file << "1.0  0.5  0.1  0.8  0.2  0.3  0.4  0.7  0.05\n";
+        s2p_file << "2.0  0.4  0.2  0.7  0.3  0.2  0.5  0.6  0.1\n";
+    }
+    {
+        RecordingView view;
+        SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 1 0 5\nR1 1 0 1K\n.AC DEC 10 1 100k\n.LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=user-lin-output.s2p\n.END\n", working_directory), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+        presenter.on_run_simulation();
+        ASSERT_TRUE(view.m_started);
+        const auto run_directory = view.m_started_netlist_path.parent_path();
+        // act
+        presenter.on_simulation_finished(0, false);
+        // assert — the user file is loaded and the temporary run directory is released
+        EXPECT_EQ(view.m_status_text, "Simulation finished successfully");
+        EXPECT_TRUE(presenter.s_parameter_measurements().has_value());
+        EXPECT_TRUE(std::filesystem::exists(s2p_path));
+        EXPECT_FALSE(std::filesystem::exists(run_directory));
+    }
+    // assert — releasing the window leaves the user-owned touchstone file in place
+    EXPECT_TRUE(std::filesystem::exists(s2p_path));
+    std::error_code ec;
+    std::filesystem::remove_all(working_directory, ec);
+}
+
 TEST(SlintMainWindowPresenterChecks, default_format_print_file_is_stripped_for_xyce_and_copied_on_finish) {
     // arrange — netlist with an AC analysis whose default-format print carries an output file
     RecordingView view;
@@ -2703,6 +3170,7 @@ TEST(SlintMainWindowPresenterChecks, fft_run_without_print_loads_fft_tabs) {
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
     // arrange — write the FFT output files Xyce produces, one per abscissa configuration (the hand-written content mirrors a real Xyce .FFT dump)
     const auto fft0_path = view.m_started_netlist_path.string() + ".fft0";
     {
@@ -2735,6 +3203,10 @@ TEST(SlintMainWindowPresenterChecks, fft_run_without_print_loads_fft_tabs) {
     EXPECT_FALSE(view.m_plot_tabs[0].closable);
     EXPECT_FALSE(view.m_plot_tabs[1].closable);
     EXPECT_EQ(view.m_active_plot_tab, 0);
+    // assert — the FFT files keep the run directory alive until the dataset is released
+    EXPECT_TRUE(std::filesystem::exists(run_directory));
+    presenter.release_results();
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
@@ -2831,6 +3303,7 @@ TEST(SlintMainWindowPresenterChecks, fourier_run_without_print_loads_fourier_tab
     SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>(netlist_content, std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
+    const auto run_directory = view.m_started_netlist_path.parent_path();
     // arrange — write the Fourier output file Xyce produces (the hand-written content mirrors a real Xyce .FOUR dump)
     const auto four0_path = view.m_started_netlist_path.string() + ".four0";
     {
@@ -2878,6 +3351,10 @@ TEST(SlintMainWindowPresenterChecks, fourier_run_without_print_loads_fourier_tab
     // assert — the Fourier table is shown again rather than the chart canvas
     EXPECT_TRUE(view.m_fourier_shown);
     EXPECT_EQ(view.m_fourier_tables.size(), 1u);
+    // assert — the Fourier file keeps the run directory alive until the dataset is released
+    EXPECT_TRUE(std::filesystem::exists(run_directory));
+    presenter.release_results();
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
     // cleanup
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
@@ -3089,6 +3566,38 @@ TEST(SlintMainWindowPresenterChecks, pce_run_without_analysis_print_loads_pce_ta
     std::error_code ec;
     std::filesystem::remove(view.m_started_netlist_path, ec);
     std::filesystem::remove(pce_path, ec);
+}
+
+TEST(SlintMainWindowPresenterChecks, opening_a_netlist_clears_the_stale_pce_owner) {
+    // arrange — a PCE-only run whose output is loaded as the sole dataset
+    RecordingView view;
+    SlintMainWindowPresenter presenter(view, std::make_unique<StubNetlistSource>("V1 IN 0 PULSE(0 5 0 1n 1n 10m 20m)\nR1 IN N1 100\nC1 IN 0 1u\n.TRAN 10u 1m 0\n.PCE param=R1 type=normal means=100 std_deviations=10\n.PRINT PCE V(IN)\n.END\n", std::filesystem::temp_directory_path()), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
+    presenter.on_run_simulation();
+    ASSERT_TRUE(view.m_started);
+    const auto pce_path = view.m_started_netlist_path.string() + ".PCE.prn";
+    const auto run_directory = view.m_started_netlist_path.parent_path();
+    {
+        std::ofstream pce_file(pce_path, std::ios::out | std::ios::trunc);
+        pce_file << "Index TIME V(IN) {V(IN)}_mean {V(IN)}_stddev\n";
+        pce_file << "0 0.0 0.0 0.0 0.0\n";
+        pce_file << "1 1e-6 5.0 4.9 0.1\n";
+        pce_file << ".\n";
+    }
+    presenter.on_simulation_finished(0, false);
+    ASSERT_TRUE(presenter.pce_measurements().has_value());
+    ASSERT_TRUE(std::filesystem::exists(run_directory));
+    const auto user_netlist_path = std::filesystem::temp_directory_path() / "xyce_studio_pce_owner_user.cir";
+    {
+        std::ofstream user_netlist(user_netlist_path, std::ios::out | std::ios::trunc);
+        user_netlist << "V1 1 0 5\nR1 1 0 1K\n.END\n";
+    }
+    // act
+    presenter.on_open_xyce_file(user_netlist_path);
+    // assert — the PCE owner no longer keeps the run directory alive
+    EXPECT_FALSE(presenter.pce_measurements().has_value());
+    EXPECT_FALSE(std::filesystem::exists(run_directory));
+    std::error_code ec;
+    std::filesystem::remove(user_netlist_path, ec);
 }
 
 TEST(SlintMainWindowPresenterChecks, tran_and_pce_prints_render_transient_and_pce_tabs) {
@@ -3675,6 +4184,8 @@ TEST(SlintMainWindowPresenterChecks, a_netlist_without_an_analysis_still_prints_
     SlintMainWindowPresenter presenter(view, std::unique_ptr<StubNetlistSource>(source), PluginConfig(testing::internal::GetArgvs()[0]), nullptr);
     presenter.on_run_simulation();
     ASSERT_TRUE(view.m_started);
+    // finish the first run before the netlist changes
+    presenter.on_simulation_finished(1, false);
     std::filesystem::remove(view.m_started_netlist_path);
     // act — the netlist drops its analysis directive but declares a chart, so the accepted analysis is retained
     source->m_content = "V1 1 0 5\nR1 1 0 1K\n.PRINT TRAN FORMAT=RAW V(1)\n.PLOT abs(I(R1))\n.END\n";

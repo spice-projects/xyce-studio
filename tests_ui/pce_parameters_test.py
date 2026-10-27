@@ -290,10 +290,10 @@ class PceRunChecks(unittest.TestCase):
             app.get_by_type("ToolbarButton").nth(5).click()
             status = app.get_by_id("MainWindow::status-message")
             expect(status).to_have_property("accessibleLabel", "Simulation finished successfully", timeout=60.0)
-            # step 9: find the .PCE.prn file Xyce produced next to the temporary
-            # netlist after the run started and show its content
-            produced = sorted((path for path in Path(tempfile.gettempdir()).glob("xyce_*.PCE.prn") if path.stat().st_mtime >= pre_run), key=lambda path: path.stat().st_mtime)
-            self.assertTrue(produced, "expected a .PCE.prn file next to the temporary netlist")
+            # step 9: find the .PCE.prn file Xyce produced inside the temporary
+            # run directory after the run started and show its content
+            produced = sorted((path for path in Path(tempfile.gettempdir()).glob("xyce-studio-*/netlist.cir.PCE.prn") if path.stat().st_mtime >= pre_run), key=lambda path: path.stat().st_mtime)
+            self.assertTrue(produced, "expected a .PCE.prn file inside the temporary run directory")
             content = produced[-1].read_text()
             self.assertIn("V(1)", content)
             print("--- produced file:", produced[-1])

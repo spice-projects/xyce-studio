@@ -67,6 +67,14 @@ jobs:
         if: ${{ matrix.build_enabled }}
         uses: actions/checkout@v7
 
+      - name: Select macOS toolchain
+        if: ${{ matrix.build_enabled && runner.os == 'macOS' }}
+        shell: bash
+        run: |
+          sudo xcode-select -s /Library/Developer/CommandLineTools
+          clang --version
+          echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+
       - name: Run clang-format check
         if: ${{ matrix.build_enabled && matrix.os == 'macos-26' }}
         shell: bash
@@ -140,9 +148,14 @@ jobs:
           arch: x64
 
       - name: Configure CMake
-        if: ${{ matrix.build_enabled && hashFiles('.build-release/CMakeCache.txt') == '' }}
+        if: ${{ matrix.build_enabled }}
         shell: bash
-        run: cmake --preset release
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cmake --preset release --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
+          else
+            cmake --preset release
+          fi
 
       - name: Build C++ Target
         if: ${{ matrix.build_enabled }}

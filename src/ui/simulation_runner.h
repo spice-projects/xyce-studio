@@ -4,7 +4,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <string_view>
 
 // platform-neutral Xyce simulation runner for the slint ui. The child process
 // is spawned with stdout
@@ -35,6 +34,9 @@ public:
     // request a graceful shutdown of the running child process
     void cancel();
 
+    // cancel a running child and wait for the runner threads to finish
+    void stop_and_wait();
+
     [[nodiscard]] bool is_running() const;
 
     [[nodiscard]] bool was_canceled() const;
@@ -50,10 +52,6 @@ public:
     void set_stderr_callback(LineCallback callback);
 
     void set_finished_callback(FinishedCallback callback);
-
-    // write the given text to a unique temporary file and return its path, or
-    // an empty path when the file could not be created
-    [[nodiscard]] static std::filesystem::path create_temp_netlist(std::string_view text);
 
 private:
     struct Impl;

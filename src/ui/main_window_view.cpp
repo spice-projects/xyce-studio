@@ -754,6 +754,12 @@ void SlintMainWindowView::cancel_simulation_process() {
         m_simulation_runner->cancel();
 }
 
+void SlintMainWindowView::stop_simulation_process() {
+    // cancel and reap the running child before the window is leaked
+    if (m_simulation_runner)
+        m_simulation_runner->stop_and_wait();
+}
+
 void SlintMainWindowView::spawn_raw_file_window(std::shared_ptr<XyceOutputFile> raw_file) {
     // delegate the new-window creation to the app, which owns the window wiring
     // (create the view/presenter pair, bind, show) in a single place

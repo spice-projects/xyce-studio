@@ -15,6 +15,7 @@
 
 #include "../core/util.h"
 #include "../dsp/fft.h"
+#include "../io/temp_output_directory.h"
 #include "../io/touchstone_file.h"
 #include "../io/xyce_csd_file.h"
 #include "../io/xyce_csv_file.h"
@@ -210,6 +211,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_view.set_netlist_editor_read_only(false);
         // load the netlist content
         const auto [reloaded, content] = m_netlist_source->load_netlist();
+        // an explicitly opened netlist is user-owned, pin any active run directory that contains it before the old datasets are cleared
+        TempOutputDirectory::pin_path(path);
         // set the editor content to the loaded netlist
         update_netlist_editor_content(content, false);
         // clear the parse cache so the next run re-parses the new content
@@ -224,6 +227,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         m_fft_measurements.clear();
         // remove the parsed Fourier analysis files, they belong to a previous run
         m_four_measurements.clear();
+        // remove the parsed PCE output file, it belongs to a previous run
+        m_pce_measurements = std::nullopt;
         // remove the parsed touchstone file, it belongs to a previous file
         m_s_parameter_measurements = std::nullopt;
         // drop every dataset chart state, they belong to a previous file
@@ -248,6 +253,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         auto raw_file = xyce_raw_file_parser(path);
         // check raw file was parsed
         if (raw_file.has_value()) {
+            // an explicitly opened file is user-owned, pin any active run directory that contains it
+            TempOutputDirectory::pin_path(path);
             // load the parsed raw file
             load_analysis_measurements(std::move(raw_file.value()));
         }
@@ -259,6 +266,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         auto csd_file = xyce_csd_file_parser(path);
         // check csd file was parsed
         if (csd_file.has_value()) {
+            // an explicitly opened file is user-owned, pin any active run directory that contains it
+            TempOutputDirectory::pin_path(path);
             // load the parsed csd file
             load_analysis_measurements(std::move(csd_file.value()));
         }
@@ -270,6 +279,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         auto prn_file = xyce_prn_file_parser(path);
         // check prn file was parsed
         if (prn_file.has_value()) {
+            // an explicitly opened file is user-owned, pin any active run directory that contains it
+            TempOutputDirectory::pin_path(path);
             // load the parsed prn file
             load_analysis_measurements(std::move(prn_file.value()));
         }
@@ -281,6 +292,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         auto csv_file = xyce_csv_file_parser(path);
         // check csv file was parsed
         if (csv_file.has_value()) {
+            // an explicitly opened file is user-owned, pin any active run directory that contains it
+            TempOutputDirectory::pin_path(path);
             // load the parsed csv file
             load_analysis_measurements(std::move(csv_file.value()));
         }
@@ -292,6 +305,8 @@ void SlintMainWindowPresenter::on_open_xyce_file(const std::filesystem::path& pa
         auto tecplot_file = xyce_tecplot_file_parser(path);
         // check tecplot file was parsed
         if (tecplot_file.has_value()) {
+            // an explicitly opened file is user-owned, pin any active run directory that contains it
+            TempOutputDirectory::pin_path(path);
             // load the parsed tecplot file
             load_analysis_measurements(std::move(tecplot_file.value()));
         }
@@ -432,6 +447,11 @@ void SlintMainWindowPresenter::on_cancel_simulation() {
 }
 
 void SlintMainWindowPresenter::launch_simulation() {
+    // reject a second launch while a run is still in flight
+    if (m_simulation_running)
+        return;
+    // accept runner callbacks again for this run
+    m_results_released = false;
     // build the directives from the config with topology expansion
     const auto directives = m_simulation_config.to_xyce_directives(m_pending_topology);
     // merge the directives into the sanitized netlist before .END for the editor, the .PLOT chart directives join them there so the editor shows every interpreted directive in one block
@@ -448,13 +468,22 @@ void SlintMainWindowPresenter::launch_simulation() {
         refresh_action_states();
     // working directory for the netlist source
     const auto working_directory = m_netlist_source->working_directory();
-    // create a temporary netlist file for the runner
-    const auto temp_path = SimulationRunner::create_temp_netlist(simulation_netlist);
-    // check the temporary netlist was created
-    if (temp_path.empty()) {
+    // create the private directory for every output of this run
+    const auto run_artifacts = TempOutputDirectory::create();
+    // check the run directory was created
+    if (!run_artifacts) {
+        // update the statusbar with an error
+        m_view.set_status_text("Failed to create temporary output directory");
+        // exit
+        return;
+    }
+    // build the temporary netlist path inside the run directory
+    const auto temp_path = run_artifacts->netlist_path();
+    // write the netlist handed to Xyce
+    if (!run_artifacts->write_netlist(simulation_netlist)) {
         // update the statusbar with an error
         m_view.set_status_text("Failed to create temporary netlist file");
-        // exit
+        // exit and let the run directory owner remove the empty directory
         return;
     }
     // clear the parsed FFT calculation files, they belong to the previous run
@@ -468,6 +497,8 @@ void SlintMainWindowPresenter::launch_simulation() {
     // remember the run paths for the finished handler; the view owns the runner
     m_simulation_working_directory = working_directory;
     m_simulation_netlist_path = temp_path;
+    // keep the run directory alive until the produced files are loaded and copied
+    m_active_run_artifacts = run_artifacts;
     // record the FILE= destination of every .PRINT statement with the default file the run produces for it
     m_simulation_output_copies = collect_print_file_copies(directives, temp_path, working_directory);
     // mark the simulation as running
@@ -882,7 +913,29 @@ void SlintMainWindowPresenter::load_analysis_measurements(std::shared_ptr<XyceOu
     show_simulation_output_view();
 }
 
+void SlintMainWindowPresenter::release_results() {
+    // release every chart before dropping the datasets backing them
+    m_view.release_all_charts();
+    // drop the datasets, releasing their temporary run directory leases
+    m_plot_datasets.clear();
+    // reset the active tab
+    m_active_dataset_index = 0;
+    // drop the duplicated measurement owners
+    m_analysis_measurements = std::nullopt;
+    m_fft_measurements.clear();
+    m_four_measurements.clear();
+    m_pce_measurements = std::nullopt;
+    m_s_parameter_measurements = std::nullopt;
+    // release a run that never reached its finish handler; the application stops the runner before calling this at shutdown
+    m_active_run_artifacts.reset();
+    // ignore a late runner callback after this point
+    m_results_released = true;
+}
+
 void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_canceled) {
+    // ignore a late callback after application shutdown released the results
+    if (m_results_released)
+        return;
     // mark the simulation as no longer running
     m_simulation_running = false;
     // hand the final progress to the view, the run indicator disappears with it
@@ -893,6 +946,8 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         m_view.show_simulation_output_panel();
         // update the statusbar
         m_view.set_status_text("Simulation canceled");
+        // release the canceled run directory, no dataset references its outputs
+        m_active_run_artifacts.reset();
         // refresh toolbar/menu states
         refresh_action_states();
         // exit
@@ -965,23 +1020,46 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
             load_four_measurements();
         if (produced.pce)
             load_pce_measurements(*m_simulation_config.pce_print_parameters());
-        // 6. the run produced no data at all
+        // resolve the analysis print destination so a failed parse does not overwrite any user copy sharing its produced file
+        const auto analysis_print = m_simulation_config.analysis_print_parameters();
+        std::filesystem::path analysis_output_path;
+        if (analysis_print.has_value())
+            analysis_output_path = default_print_output_file(*analysis_print, m_simulation_netlist_path);
+        // 6. copy every recorded FILE= destination from the default file the run produced for its .PRINT statement
+        bool copy_failed = false;
+        for (const auto& copy : m_simulation_output_copies) {
+            // preserve every user copy of the produced analysis file when the analysis output could not be parsed
+            if (!m_analysis_measurements.has_value() && !analysis_output_path.empty() && copy.produced_file == analysis_output_path)
+                continue;
+            // remember any failed destination copy so its produced file is not deleted
+            if (!copy_simulation_output_to_destination(copy))
+                copy_failed = true;
+        }
+        // retain the run directory when a copy failed, the produced file is the only remaining source
+        if (copy_failed && m_active_run_artifacts) {
+            // pin the directory so its files survive this process
+            m_active_run_artifacts->pin();
+            // surface the retained source path in the log
+            spdlog::warn("Retained temporary run directory after a failed destination copy: {}", m_active_run_artifacts->path().string());
+        }
+        // 7. the run produced no data at all
         if (!analysis_measurements.has_value() && !m_s_parameter_measurements.has_value() && m_fft_measurements.empty() && m_four_measurements.empty() && !m_pce_measurements.has_value()) {
             // update the statusbar and show the output panel so the user can inspect the log
             m_view.set_status_text("Simulation finished but output file could not be found");
             m_view.show_simulation_output_panel();
+            // release the run directory, no dataset references its outputs
+            m_active_run_artifacts.reset();
             refresh_action_states();
             // exit
             return;
         }
-        // 7. when the analysis output is missing the first companion tab becomes active
+        // 8. when the analysis output is missing the first companion tab becomes active
         if (!analysis_measurements.has_value()) {
             m_active_dataset_index = 0;
             activate_plot_dataset(0);
         }
-        // 8. copy every recorded FILE= destination from the default file the run produced for its .PRINT statement
-        for (const auto& copy : m_simulation_output_copies)
-            copy_simulation_output_to_destination(copy);
+        // release the run directory, the loaded datasets keep it alive until they are released
+        m_active_run_artifacts.reset();
         // switch to the results view matching the active dataset (charts, or the
         // Fourier results table when the run produced only Fourier output)
         show_active_dataset_view();
@@ -998,26 +1076,36 @@ void SlintMainWindowPresenter::on_simulation_finished(int exit_code, bool was_ca
         // simulation failed with a non-zero exit code
         m_view.set_status_text("Simulation failed (exit code " + std::to_string(exit_code) + ")");
     }
+    // release the failed run directory, no dataset references its outputs
+    m_active_run_artifacts.reset();
     // show the output panel so the user can inspect the log on failure
     m_view.show_simulation_output_panel();
     // refresh toolbar/menu states
     refresh_action_states();
 }
 
-void SlintMainWindowPresenter::copy_simulation_output_to_destination(const PrintOutputCopy& copy) {
+bool SlintMainWindowPresenter::copy_simulation_output_to_destination(const PrintOutputCopy& copy) {
     // no copy needed when the destination is the produced file itself
     if (copy.destination_file == copy.produced_file)
-        return;
+        return true;
     // the produced file must exist
     std::error_code ec;
+    // a missing produced file means there is no source to copy, not a failed copy
     if (!std::filesystem::exists(copy.produced_file))
-        return;
+        return true;
     // create the destination parent directory when missing
     std::filesystem::create_directories(copy.destination_file.parent_path(), ec);
     // copy the produced file, overwriting the previous run's copy
     std::filesystem::copy_file(copy.produced_file, copy.destination_file, std::filesystem::copy_options::overwrite_existing, ec);
-    if (ec)
-        spdlog::warn("Failed to copy output file to '{}': {}", copy.destination_file.string(), ec.message());
+    // report a failed copy so the produced file is retained
+    if (ec) {
+        // log the destination that could not be updated and the source that is retained
+        spdlog::warn("Failed to copy output file to '{}' from '{}': {}", copy.destination_file.string(), copy.produced_file.string(), ec.message());
+        // report the failure
+        return false;
+    }
+    // report the successful copy
+    return true;
 }
 
 std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve_analysis_output(const std::filesystem::path& netlist_path) {
@@ -1050,8 +1138,13 @@ std::optional<std::shared_ptr<XyceOutputFile>> SlintMainWindowPresenter::resolve
         return {};
     // parse the file with the appropriate parser and prepare the instance: the tab plot type follows the configured analysis print type, not the produced file, so the label is identical for every format
     auto measurements = is_probe_format ? xyce_csd_file_parser(output_path) : is_csv_format ? xyce_csv_file_parser(output_path) : is_tecplot_format ? xyce_tecplot_file_parser(output_path) : (is_prn_format ? xyce_prn_file_parser(output_path) : xyce_raw_file_parser(output_path));
+    // attach the run directory lease when the produced file belongs to this run
+    if (measurements.has_value())
+        (*measurements)->set_temp_output_directory(m_active_run_artifacts);
+    // stamp the configured analysis metadata on the parsed file
     if (measurements.has_value())
         apply_analysis_print_metadata(**measurements);
+    // return the parsed analysis output
     return measurements;
 }
 
@@ -1106,6 +1199,9 @@ void SlintMainWindowPresenter::load_s_parameter_measurements(const StepInformati
         spdlog::warn("Failed to parse s-parameter output file '{}'", s_parameter_path->string());
         return;
     }
+    // attach the run directory lease only to the default temporary s-parameter file
+    if (m_active_run_artifacts && !m_simulation_config.s_parameter_output_file_is_user_defined())
+        (*measurements)->set_temp_output_directory(m_active_run_artifacts);
     // store the parsed measurements and render the tabs: the LIN Analysis tab with the suggested rectangular plots, followed by the Smith Chart tab plotting the same data on the gamma plane with the diagonal entries
     m_s_parameter_measurements = *measurements;
     m_plot_datasets.push_back(PlotDataset{
@@ -1136,6 +1232,9 @@ void SlintMainWindowPresenter::load_fft_measurements() {
     ExpressionManager* analysis_expressions = has_analysis_output ? &m_plot_datasets[0].file->expression_manager() : nullptr;
     // parse the matching FFT output files; the .TRAN analysis with .FFT directives dumps one file per abscissa group
     if (auto parsed_files = xyce_fft_file_parser(*fft_pattern, analysis_steps, analysis_expressions)) {
+        // attach the run directory lease to every produced FFT file
+        for (auto& fft_file : *parsed_files)
+            fft_file->set_temp_output_directory(m_active_run_artifacts);
         // store the parsed FFT files
         m_fft_measurements = std::move(*parsed_files);
         // render one tab per FFT output file, as non-closable datasets
@@ -1161,6 +1260,9 @@ void SlintMainWindowPresenter::load_four_measurements() {
     ExpressionManager* analysis_expressions = has_analysis_output ? &m_plot_datasets[0].file->expression_manager() : nullptr;
     // parse the matching Fourier output files; the .TRAN analysis with .FOUR directives dumps one file per step and the parser groups the blocks by fundamental
     if (auto parsed_files = xyce_four_file_parser(four_pattern, analysis_steps, analysis_expressions)) {
+        // attach the run directory lease to every produced Fourier file
+        for (auto& four_file : *parsed_files)
+            four_file->set_temp_output_directory(m_active_run_artifacts);
         // store the parsed Fourier files
         m_four_measurements = std::move(*parsed_files);
         // render one tab per Fourier output file, as non-closable datasets
@@ -1186,6 +1288,8 @@ void SlintMainWindowPresenter::load_pce_measurements(const PrintParameters& pce_
     // parse the produced file with the parser matching the configured print format; the default format (empty) writes the prn table
     const auto format = to_upper(pce_print.print_format);
     if (auto measurements = format == "CSV" ? xyce_csv_file_parser(*pce_path) : format == "TECPLOT" ? xyce_tecplot_file_parser(*pce_path) : xyce_prn_file_parser(*pce_path)) {
+        // attach the run directory lease to the produced PCE file
+        (*measurements)->set_temp_output_directory(m_active_run_artifacts);
         // stamp the dedicated PCE plot type: the analysis print metadata would mislabel the tab as the analysis and the parsers classify by filename, which carries no PCE marker
         (*measurements)->set_plot_type(PlotType::PCE);
         // store the parsed PCE output file
