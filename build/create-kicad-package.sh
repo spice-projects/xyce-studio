@@ -51,8 +51,8 @@ mkdir -p "$temp_dir"/resources
 cp plugin-icon-64x64.png "$temp_dir"/resources/icon.png
 
 # copy plugin manifest and icons
-sed "s|ENTRYPOINT_NAME|$ENTRYPOINT_NAME|g" src/plugin.json > "$temp_dir"/plugins/plugin.json
-cp src/plugin-icon-24x24.png "$temp_dir"/plugins/
+sed "s|ENTRYPOINT_NAME|$ENTRYPOINT_NAME|g" slint/src/plugin.json > "$temp_dir"/plugins/plugin.json
+cp slint/src/plugin-icon-24x24.png "$temp_dir"/plugins/
 
 # copy the compiled executable under the entrypoint name
 cp -r "$EXECUTABLE" "$temp_dir"/plugins/

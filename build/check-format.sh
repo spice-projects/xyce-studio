@@ -9,7 +9,7 @@ cd "$ROOT"
 
 # generated sources that clang-format must not reformat
 EXCLUDED=(
-    "src/ui/font_data.h"
+    "slint/src/ui/font_data.h"
 )
 
 # collect the C++ sources of the working tree, dropping the generated files.  untracked files are
@@ -19,7 +19,7 @@ files=()
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     files+=("$file")
-done < <(git ls-files --cached --others --exclude-standard 'src/**' 'core/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
+done < <(git ls-files --cached --others --exclude-standard 'slint/**' 'core/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "error: no C++ source files found" >&2

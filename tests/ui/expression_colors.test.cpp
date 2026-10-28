@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "../../src/ui/expression_colors.h"
+#include "ui/expression_colors.h"
 
 TEST(ExpressionColorsChecks, empty_unit_is_gray_misc) {
     // arrange / act

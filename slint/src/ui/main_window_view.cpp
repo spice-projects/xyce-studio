@@ -10,7 +10,7 @@
 
 #include <slint.h>
 
-#include "../app/app.h"
+#include "app/app.h"
 #include "charts/chart_palette.h"
 #include "clipboard.h"
 #include "file_dialog.h"

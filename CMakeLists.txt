@@ -132,31 +132,31 @@ set(KICAD_PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/kicad-proto")
 protobuf_generate(PROTOS "${KICAD_PROTO_DIR}/common/envelope.proto" "${KICAD_PROTO_DIR}/common/commands/base_commands.proto" "${KICAD_PROTO_DIR}/common/types/base_types.proto" IMPORT_DIRS "${KICAD_PROTO_DIR}" PROTOC_OUT_DIR "${KICAD_PROTO_OUT_DIR}" OUT_VAR KICAD_PROTO_GENERATED_SOURCES)
 
 # gather cpp sources (all platforms)
-file(GLOB_RECURSE CPP_SOURCES "src/*.cpp" "core/src/*.cpp")
+file(GLOB_RECURSE CPP_SOURCES "slint/src/*.cpp" "core/src/*.cpp")
 
 # header only library: pocketfft
 find_path(POCKETFFT_INCLUDE_DIRS "pocketfft_hdronly.h")
 
-# include should be relative to src and core/src
-include_directories("src" "core/src")
+# include should be relative to slint/src and core/src
+include_directories("slint/src" "core/src")
 
 if(APPLE)
     # gather objective-c++ sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "src/*.osx.mm")
+    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.osx.mm")
 elseif (WIN32)
     # gather win32 sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "src/*.win32.c++")
+    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.win32.c++")
 elseif (LINUX)
     # opengl is required on linux
     find_package(OpenGL REQUIRED)
     # gather linux sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "src/*.linux.c++")
+    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.linux.c++")
 endif()
 
 # combine remaining cpp sources with .mm sources
 set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
 # remove platform-specific main() sources from the shared library, they are compiled into the executable only
-list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.osx.mm" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.win32.c++" "${CMAKE_CURRENT_SOURCE_DIR}/src/main.linux.c++")
+list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.osx.mm" "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.win32.c++" "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.linux.c++")
 
 # compile the generated proto sources into a library shared by the app and tests
 add_library(kicad-proto STATIC ${KICAD_PROTO_GENERATED_SOURCES})
@@ -176,7 +176,7 @@ endif()
 # shared application code, compiled once and linked into both consumers
 add_library(xyce-studio-core STATIC ${SOURCE_FILES})
 # expose the application header directory to consumers (executable and tests)
-target_include_directories(xyce-studio-core PUBLIC "src" "core/src")
+target_include_directories(xyce-studio-core PUBLIC "slint/src" "core/src")
 # link the core library with the vendored pocketfft library
 target_include_directories(xyce-studio-core PRIVATE ${POCKETFFT_INCLUDE_DIRS})
 # expose slint's headers as system directories (see note above the slint fetch)
@@ -213,7 +213,7 @@ endif()
 set_property(TARGET xyce-studio-core PROPERTY SLINT_EMBED_RESOURCES embed-files)
 
 # only slint files in the widgets directory are compiled into the library
-file(GLOB_RECURSE SLINT_WIDGET_SOURCES "src/ui/widgets/*.slint")
+file(GLOB_RECURSE SLINT_WIDGET_SOURCES "slint/src/ui/widgets/*.slint")
 foreach(widget_source IN LISTS SLINT_WIDGET_SOURCES)
     # use the .slint file name (without extension) as the namespace for the generated C++ code
     get_filename_component(widget_namespace ${widget_source} NAME_WE)
@@ -234,17 +234,17 @@ endif()
 
 if(APPLE)
     # declare application
-    add_executable(xyce-studio src/main.osx.mm)
+    add_executable(xyce-studio slint/src/main.osx.mm)
 elseif(WIN32)
     # declare application
-    add_executable(xyce-studio src/main.win32.c++)
+    add_executable(xyce-studio slint/src/main.win32.c++)
     # set Windows API version to Windows 10 for CommandLineToArgW
     target_compile_definitions(xyce-studio PRIVATE _WIN32_WINNT=0x0A00)
     # mark it as win32 executable
     set_target_properties(xyce-studio PROPERTIES WIN32_EXECUTABLE TRUE)
 elseif(LINUX)
     # declare application
-    add_executable(xyce-studio src/main.linux.c++)
+    add_executable(xyce-studio slint/src/main.linux.c++)
 endif()
 
 # link with the core library defined above
