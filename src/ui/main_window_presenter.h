@@ -8,14 +8,14 @@
 #include <string>
 #include <vector>
 
-#include "../config/plugin_config.h"
-#include "../dsp/fft.h"
-#include "../io/xyce_output_file.h"
-#include "../netlist/netlist.h"
-#include "../netlist/netlist_source.h"
-#include "../simulation/simulation_config.h"
-#include "../simulation/xyce_log_parser.h"
+#include "config/plugin_config.h"
+#include "dsp/fft.h"
+#include "io/xyce_output_file.h"
 #include "main_window_view_def.h"
+#include "netlist/netlist.h"
+#include "netlist/netlist_source.h"
+#include "simulation/simulation_config.h"
+#include "simulation/xyce_log_parser.h"
 
 class KiCadSession;
 

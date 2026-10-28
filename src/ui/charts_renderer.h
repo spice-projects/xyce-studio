@@ -10,8 +10,8 @@
 
 #include <slint.h>
 
-#include "../charts/chart_engine.h"
-#include "../charts/chart_layout.h"
+#include "charts/chart_engine.h"
+#include "charts/chart_layout.h"
 
 class ExpressionManager;
 class StepInformation;

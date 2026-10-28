@@ -8,13 +8,13 @@
 #include <slint.h>
 #include <spdlog/spdlog.h>
 
-#include "../core/util.h"
 #include "app.h"
+#include "core/util.h"
 
-#include "../kicad/kicad_session.h"
-#include "../netlist/editor_netlist_source.h"
 #include "../ui/main_window_presenter.h"
 #include "../ui/main_window_view.h"
+#include "kicad/kicad_session.h"
+#include "netlist/editor_netlist_source.h"
 
 // extract the value of a long option, accepting both "--option VALUE" and "--option=VALUE" forms
 static std::optional<std::string> option_value(int argc, char** argv, int& i, std::string_view name) {

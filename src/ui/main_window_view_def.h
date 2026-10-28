@@ -7,15 +7,15 @@
 #include <string>
 #include <vector>
 
-#include "../config/plugin_config.h"
-#include "../core/step_information.h"
-#include "../dsp/fft.h"
-#include "../expression/expression.h"
-#include "../expression/expression_manager.h"
-#include "../io/xyce_output_file.h"
-#include "../simulation/simulation_config.h"
-#include "../simulation/xyce_log_parser.h"
+#include "config/plugin_config.h"
+#include "core/step_information.h"
+#include "dsp/fft.h"
+#include "expression/expression.h"
+#include "expression/expression_manager.h"
+#include "io/xyce_output_file.h"
 #include "main_window_state.h"
+#include "simulation/simulation_config.h"
+#include "simulation/xyce_log_parser.h"
 
 struct PlotTabItem
 {

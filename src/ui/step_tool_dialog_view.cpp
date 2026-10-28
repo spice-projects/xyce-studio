@@ -7,7 +7,7 @@
 
 #include <main_window.h>
 
-#include "../core/util.h"
+#include "core/util.h"
 #include "step_tool_dialog_view.h"
 
 namespace step_tool_dialog_view

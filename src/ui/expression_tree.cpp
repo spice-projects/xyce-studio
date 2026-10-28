@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-#include "../core/util.h"
+#include "core/util.h"
 
 // extract the argument text of a probe name, e.g. "V(XU1:23)" -> "XU1:23";
 // returns an empty view when the name is not a simple "(...)" probe — the

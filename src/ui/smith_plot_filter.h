@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "../expression/expression.h"
+#include "expression/expression.h"
 
 // whether the expression may plot on a smith chart: only the complex diagonal
 // parameter entries (sii, yii, zii) carry a gamma-plane value; any other

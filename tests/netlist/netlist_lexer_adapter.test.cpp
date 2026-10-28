@@ -3,7 +3,7 @@
 #include <chrono>
 
 #include "netlist/netlist_lexer.h"
-#include "netlist/netlist_lexer_adapter.h"
+#include "ui/netlist_lexer_adapter.h"
 
 // test foreground colour used for tokens that follow the editor text
 static const slint::Color TEST_FOREGROUND = slint::Color::from_rgb_uint8(0x12, 0x34, 0x56);

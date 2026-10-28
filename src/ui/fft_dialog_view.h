@@ -7,9 +7,9 @@
 
 #include <main_window.h>
 
-#include "../dsp/fft.h"
-#include "../expression/expression.h"
 #include "charts_renderer.h"
+#include "dsp/fft.h"
+#include "expression/expression.h"
 #include "main_window_view_def.h"
 
 namespace fft_dialog_view

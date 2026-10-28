@@ -11,9 +11,9 @@
 
 #include <main_window.h>
 
-#include "../simulation/option_catalog.h"
-#include "../simulation/option_parameters.h"
 #include "main_window_view_def.h"
+#include "simulation/option_catalog.h"
+#include "simulation/option_parameters.h"
 
 namespace options_dialog_view
 {

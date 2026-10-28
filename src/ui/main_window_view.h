@@ -11,18 +11,18 @@
 
 #include <slint.h>
 
-#include "../config/plugin_config.h"
-#include "../netlist/netlist_lexer.h"
-#include "../netlist/netlist_source.h"
-#include "../simulation/xyce_log_parser.h"
 #include "add_plot_dialog_view.h"
 #include "charts_renderer.h"
+#include "config/plugin_config.h"
 #include "fft_dialog_view.h"
 #include "main_window_view_def.h"
+#include "netlist/netlist_lexer.h"
+#include "netlist/netlist_source.h"
 #include "options_dialog_view.h"
 #include "plugin_config_dialog_view.h"
+#include "runner/simulation_runner.h"
+#include "simulation/xyce_log_parser.h"
 #include "simulation_parameters_dialog_view.h"
-#include "simulation_runner.h"
 #include "step_tool_dialog_view.h"
 
 class SlintMainWindowView : public MainWindowViewDef

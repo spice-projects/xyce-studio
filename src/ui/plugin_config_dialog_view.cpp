@@ -4,7 +4,7 @@
 
 #include <main_window.h>
 
-#include "../config/plugin_config.h"
+#include "config/plugin_config.h"
 #include "file_dialog.h"
 #include "main_window_view_def.h"
 #include "plugin_config_dialog_view.h"

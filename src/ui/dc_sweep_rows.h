@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "../simulation/dc_simulation_parameters.h"
+#include "simulation/dc_simulation_parameters.h"
 
 // one editable row of the DC sweep dialog's nested-sweep table;
 // a view-layer projection of DcSweep with string-only fields

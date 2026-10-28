@@ -9,8 +9,8 @@
 
 #include <main_window.h>
 
-#include "../dsp/fft.h"
-#include "../expression/expression.h"
+#include "dsp/fft.h"
+#include "expression/expression.h"
 #include "expression_colors.h"
 #include "expression_tree.h"
 #include "fft_dialog_view.h"

@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include "ui/simulation_runner.h"
+#include "runner/simulation_runner.h"
 
 #if !defined(_WIN32)
 TEST(SimulationRunnerChecks, stop_and_wait_reaps_a_running_child_and_is_idempotent) {

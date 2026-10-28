@@ -127,18 +127,18 @@ endforeach()
 list(APPEND SLINT_SYSTEM_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}")
 
 # generate C++ code from the vendored KiCad API protos
-set(KICAD_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/kicad/proto")
+set(KICAD_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core/src/kicad/proto")
 set(KICAD_PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/kicad-proto")
 protobuf_generate(PROTOS "${KICAD_PROTO_DIR}/common/envelope.proto" "${KICAD_PROTO_DIR}/common/commands/base_commands.proto" "${KICAD_PROTO_DIR}/common/types/base_types.proto" IMPORT_DIRS "${KICAD_PROTO_DIR}" PROTOC_OUT_DIR "${KICAD_PROTO_OUT_DIR}" OUT_VAR KICAD_PROTO_GENERATED_SOURCES)
 
 # gather cpp sources (all platforms)
-file(GLOB_RECURSE CPP_SOURCES "src/*.cpp")
+file(GLOB_RECURSE CPP_SOURCES "src/*.cpp" "core/src/*.cpp")
 
 # header only library: pocketfft
 find_path(POCKETFFT_INCLUDE_DIRS "pocketfft_hdronly.h")
 
-# include should be relative to src
-include_directories("src")
+# include should be relative to src and core/src
+include_directories("src" "core/src")
 
 if(APPLE)
     # gather objective-c++ sources
@@ -176,7 +176,7 @@ endif()
 # shared application code, compiled once and linked into both consumers
 add_library(xyce-studio-core STATIC ${SOURCE_FILES})
 # expose the application header directory to consumers (executable and tests)
-target_include_directories(xyce-studio-core PUBLIC "src")
+target_include_directories(xyce-studio-core PUBLIC "src" "core/src")
 # link the core library with the vendored pocketfft library
 target_include_directories(xyce-studio-core PRIVATE ${POCKETFFT_INCLUDE_DIRS})
 # expose slint's headers as system directories (see note above the slint fetch)

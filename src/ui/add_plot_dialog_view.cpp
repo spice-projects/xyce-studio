@@ -9,8 +9,8 @@
 
 #include <main_window.h>
 
-#include "../core/util.h"
 #include "add_plot_dialog_view.h"
+#include "core/util.h"
 #include "expression_colors.h"
 #include "expression_tree.h"
 #include "smith_plot_filter.h"

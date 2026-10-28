@@ -7,8 +7,8 @@
 
 #include <main_window.h>
 
-#include "../core/step_information.h"
 #include "charts_renderer.h"
+#include "core/step_information.h"
 #include "main_window_view_def.h"
 
 namespace step_tool_dialog_view

@@ -12,11 +12,11 @@
 
 #include <main_window.h>
 
-#include "../core/util.h"
-#include "../simulation/option_catalog.h"
-#include "../simulation/option_parameters.h"
+#include "core/util.h"
 #include "main_window_view_def.h"
 #include "options_dialog_view.h"
+#include "simulation/option_catalog.h"
+#include "simulation/option_parameters.h"
 
 namespace options_dialog_view
 {

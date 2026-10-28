@@ -11,12 +11,12 @@
 #include <slint.h>
 
 #include "../app/app.h"
-#include "../charts/chart_palette.h"
-#include "../netlist/netlist_lexer.h"
-#include "../netlist/netlist_lexer_adapter.h"
+#include "charts/chart_palette.h"
 #include "clipboard.h"
 #include "file_dialog.h"
 #include "main_window_view.h"
+#include "netlist/netlist_lexer.h"
+#include "ui/netlist_lexer_adapter.h"
 
 namespace
 {
@@ -737,8 +737,8 @@ void SlintMainWindowView::show_options_dialog(const OptionParameters& options) {
 }
 
 void SlintMainWindowView::start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {
-    // create a fresh runner for this run
-    m_simulation_runner = std::make_unique<SimulationRunner>();
+    // create a fresh runner for this run with the slint event loop dispatcher
+    m_simulation_runner = std::make_unique<SimulationRunner>([](auto fn) { slint::invoke_from_event_loop(std::move(fn)); });
     // forward the process output and termination to the event handler; the
     // callbacks are already marshalled to the slint event loop thread by the runner
     m_simulation_runner->set_stdout_callback([this](const std::string& line) { m_event_handler->on_simulation_stdout(line); });

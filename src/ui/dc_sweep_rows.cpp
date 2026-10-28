@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string_view>
 
-#include "../core/util.h"
+#include "core/util.h"
 
 namespace
 {
