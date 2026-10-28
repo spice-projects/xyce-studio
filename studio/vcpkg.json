@@ -1,0 +1,26 @@
+{
+  "name": "xyce-studio-next",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "spdlog",
+      "version>=": "1.17.0#1"
+    },
+    {
+      "name": "pocketfft",
+      "version>=": "2024-11-30"
+    },
+    {
+      "name": "gtest",
+      "version>=": "1.17.0#2"
+    },
+    {
+      "name": "nng",
+      "version>=": "1.8.0"
+    },
+    {
+      "name": "protobuf",
+      "version>=": "6.33.4#2"
+    }
+  ]
+}
