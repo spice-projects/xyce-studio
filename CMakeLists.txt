@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.25)
 
-# use overlay triplets (in ./triplets) on all platforms. the macOS triplets
+# use overlay triplets (in .triplets) on all platforms. the macOS triplets
 # build skia as a dynamic library (its static archive corrupts __unwind_info
 # tables on arm64, breaking C++ exception unwinding);
-set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets" FORCE)
-# overlay ports: .ports/skia floors skia's hardcoded macOS target triple at 13.3
-# (gn/skia/BUILD.gn passes -target <cpu>-apple-macos11, which otherwise makes
-# libskia.dylib ship minos 11.0 instead of 13.3) -- see .ports/skia/portfile.cmake
-set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports" FORCE)
+if(NOT DEFINED VCPKG_OVERLAY_TRIPLETS)
+    set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets")
+endif()
+if(NOT DEFINED VCPKG_OVERLAY_PORTS)
+    set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports")
+endif()
 
 if(APPLE)
     # minimum os version for the apple binaries
@@ -52,308 +53,32 @@ if(APPLE)
 endif()
 
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
+option(BUILD_STUDIO_FRONTEND "Build new framework frontend" ON)
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(nng CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
-find_package(unofficial-skia CONFIG REQUIRED)
-find_package(nfd CONFIG REQUIRED)
 
 if(APPLE)
-    # slint style
-    set(SLINT_STYLE "cupertino" CACHE STRING "Slint widget style" FORCE)
-elseif (WIN32)
-    # slint style
-    set(SLINT_STYLE "fluent" CACHE STRING "Slint widget style" FORCE)
-elseif (LINUX)
-    # slint style
-    set(SLINT_STYLE "cupertino" CACHE STRING "Slint widget style" FORCE)
-endif()
-
-# slint renderer
-set(SLINT_FEATURE_RENDERER_SKIA ON CACHE BOOL "Include Skia renderer" FORCE)
-
-# disable unneeded Slint features to reduce Rust compilation time
-set(SLINT_FEATURE_RENDERER_FEMTOVG OFF CACHE BOOL "Disable FemtoVG renderer (use Skia only)" FORCE)
-set(SLINT_FEATURE_ACCESSIBILITY OFF CACHE BOOL "Disable OS accessibility APIs" FORCE)
-set(SLINT_FEATURE_TESTING OFF CACHE BOOL "Disable Slint testing API" FORCE)
-set(SLINT_FEATURE_SOFTWARE_RENDERER_PATH OFF CACHE BOOL "Disable path rendering in software renderer" FORCE)
-
-# check debug build type
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # slint live-preview: debug builds can load/reload .slint files from disk at runtime
-    set(SLINT_FEATURE_LIVE_PREVIEW ON CACHE BOOL "Enable Slint live-preview" FORCE)
-    # slint mcp server: debug builds can be inspected/driven by AI agents over HTTP
-    set(SLINT_FEATURE_MCP ON CACHE BOOL "Enable Slint embedded MCP server" FORCE)
-    # interpreter is required for live-preview
-    set(SLINT_FEATURE_INTERPRETER ON CACHE BOOL "Enable Slint interpreter" FORCE)
-else()
-    # slint live-preview: release/profile builds keep the ahead-of-time compiled designs
-    set(SLINT_FEATURE_LIVE_PREVIEW OFF CACHE BOOL "Enable Slint live-preview" FORCE)
-    # slint mcp server: disabled in release/profile builds for security reasons (no HTTP server listening on a port)
-    set(SLINT_FEATURE_MCP OFF CACHE BOOL "Enable Slint embedded MCP server" FORCE)
-    # interpreter is not needed when we compile .slint ahead-of-time
-    set(SLINT_FEATURE_INTERPRETER OFF CACHE BOOL "Enable Slint interpreter" FORCE)
-endif()
-
-# enable rpath install_name on macOS so that the dylib is found in the build tree
-set(SLINT_IS_TOPLEVEL_BUILD ON CACHE BOOL "Build Slint with rpath install_name on macOS" FORCE)
-
-# slint
-# slint: pinned to the immutable v1.18.1 tag; the release/1 moving branch
-# breaks the CI dependency caches whenever upstream publishes a new release
-# onto it (the FetchContent git-update rebase hits upstream conflicts and the
-# new toolchain version changes the generated code and deprecation warnings)
-include(FetchContent)
-FetchContent_Declare(Slint GIT_REPOSITORY https://github.com/slint-ui/slint.git GIT_TAG v1.18.1 SOURCE_SUBDIR api/cpp)
-FetchContent_MakeAvailable(Slint)
-
-# slint's generated internal headers trigger -Wgnu-anonymous-struct and -Wextra-semi
-# under our warning set; collect slint's interface include directories here and expose
-# them as system directories on the core library below, so warnings from slint headers
-# are suppressed for the core library and every consumer of it.
-# slint_target_sources additionally adds the build dir itself as a plain include
-# directory for the generated widget headers (main_window.h, ...); those are generated
-# code too, so treat them as system headers as well (e.g. the unused private
-# 'live_preview' field emitted when live-preview is enabled)
-set(SLINT_SYSTEM_INCLUDE_DIRS)
-get_target_property(SLINT_INTERFACE_INCLUDES Slint INTERFACE_INCLUDE_DIRECTORIES)
-foreach(include_dir IN LISTS SLINT_INTERFACE_INCLUDES)
-    # keep build-interface paths only; install-interface paths never apply to this build
-    if(include_dir MATCHES "^\\$<BUILD_INTERFACE:(.+)>$")
-        list(APPEND SLINT_SYSTEM_INCLUDE_DIRS "${CMAKE_MATCH_1}")
-    endif()
-endforeach()
-list(APPEND SLINT_SYSTEM_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}")
-
-# generate C++ code from the vendored KiCad API protos
-set(KICAD_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core/src/kicad/proto")
-set(KICAD_PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/kicad-proto")
-protobuf_generate(PROTOS "${KICAD_PROTO_DIR}/common/envelope.proto" "${KICAD_PROTO_DIR}/common/commands/base_commands.proto" "${KICAD_PROTO_DIR}/common/types/base_types.proto" IMPORT_DIRS "${KICAD_PROTO_DIR}" PROTOC_OUT_DIR "${KICAD_PROTO_OUT_DIR}" OUT_VAR KICAD_PROTO_GENERATED_SOURCES)
-
-# gather cpp sources (all platforms)
-file(GLOB_RECURSE CPP_SOURCES "slint/src/*.cpp" "core/src/*.cpp")
-
-# header only library: pocketfft
-find_path(POCKETFFT_INCLUDE_DIRS "pocketfft_hdronly.h")
-
-# include should be relative to slint/src and core/src
-include_directories("slint/src" "core/src")
-
-if(APPLE)
-    # gather objective-c++ sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.osx.mm")
-elseif (WIN32)
-    # gather win32 sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.win32.c++")
-elseif (LINUX)
-    # opengl is required on linux
-    find_package(OpenGL REQUIRED)
-    # gather linux sources
-    file(GLOB_RECURSE PLATFORM_SOURCES "slint/src/*.linux.c++")
-endif()
-
-# combine remaining cpp sources with .mm sources
-set(SOURCE_FILES ${CPP_SOURCES} ${PLATFORM_SOURCES})
-# remove platform-specific main() sources from the shared library, they are compiled into the executable only
-list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.osx.mm" "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.win32.c++" "${CMAKE_CURRENT_SOURCE_DIR}/slint/src/main.linux.c++")
-
-# compile the generated proto sources into a library shared by the app and tests
-add_library(kicad-proto STATIC ${KICAD_PROTO_GENERATED_SOURCES})
-
-# expose the generated proto headers
-target_include_directories(kicad-proto PUBLIC "${KICAD_PROTO_OUT_DIR}")
-target_link_libraries(kicad-proto PUBLIC protobuf::libprotobuf)
-
-# clang-cl (LLVM) raises -Winvalid-offsetof when compiling protobuf's generated
-# TcParser tables, which reference private impl-members on non-standard-layout
-# message classes. This is generated third-party code, so silence it for this
-# target only under clang-cl on Windows.
-if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(kicad-proto PRIVATE -Wno-invalid-offsetof)
-endif()
-
-# shared application code, compiled once and linked into both consumers
-add_library(xyce-studio-core STATIC ${SOURCE_FILES})
-# expose the application header directory to consumers (executable and tests)
-target_include_directories(xyce-studio-core PUBLIC "slint/src" "core/src")
-# link the core library with the vendored pocketfft library
-target_include_directories(xyce-studio-core PRIVATE ${POCKETFFT_INCLUDE_DIRS})
-# expose slint's headers as system directories (see note above the slint fetch)
-target_include_directories(xyce-studio-core SYSTEM PUBLIC ${SLINT_SYSTEM_INCLUDE_DIRS})
-
-# msvc uses /W4, gnu-style frontends (g++, clang++) use -Wall -Wextra -Wpedantic
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(xyce-studio-core PRIVATE /W4)
-else()
-    target_compile_options(xyce-studio-core PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-# third-party dependencies, PUBLIC so both the executable and the tests transitively link the same set of libraries
-target_link_libraries(xyce-studio-core PUBLIC Slint::Slint spdlog::spdlog nng::nng kicad-proto unofficial::skia::skia nfd::nfd)
-
-if(WIN32)
-    # prevent Windows headers from defining min/max macros that conflict with std::numeric_limits
-    target_compile_definitions(xyce-studio-core PRIVATE NOMINMAX)
-endif()
-
-if(APPLE)
-    # link AppKit for NSApp dock icon and other cocoa apis, OpenGL for CGL (via Winit), Carbon for TIS/LMGetKbdType (via Winit)
-    target_link_libraries(xyce-studio-core PUBLIC "-framework AppKit" "-framework Metal" "-framework MetalKit" "-framework GameController" "-framework UniformTypeIdentifiers" "-framework QuartzCore" "-framework OpenGL" "-framework Carbon")
-    # suppress duplicate library warnings on macOS, which are emitted when linking against the same framework multiple times (e.g. AppKit and Metal)
-    target_link_options(xyce-studio-core PUBLIC "-Wl,-no_warn_duplicate_libraries")
-elseif(WIN32)
-    # link windows graphics and system libraries required by the ui backend
-    target_link_libraries(xyce-studio-core PUBLIC d3d11 d3d12 d3dcompiler dxgi gdi32 user32 shell32 ole32 oleaut32 uuid comdlg32 advapi32 version ws2_32 wininet oleacc uxtheme)
-elseif(LINUX)
-    target_link_libraries(xyce-studio-core PUBLIC OpenGL::GL expat)
-endif()
-
-# slint: embed images/fonts referenced with @image-url() into the binary
-set_property(TARGET xyce-studio-core PROPERTY SLINT_EMBED_RESOURCES embed-files)
-
-# only slint files in the widgets directory are compiled into the library
-file(GLOB_RECURSE SLINT_WIDGET_SOURCES "slint/src/ui/widgets/*.slint")
-foreach(widget_source IN LISTS SLINT_WIDGET_SOURCES)
-    # use the .slint file name (without extension) as the namespace for the generated C++ code
-    get_filename_component(widget_namespace ${widget_source} NAME_WE)
-    # generate C++ code from the .slint file and add it to the core library
-    slint_target_sources(xyce-studio-core ${widget_source} NAMESPACE ${widget_namespace})
-    # silence all warnings for this fully generated code
-    if(MSVC)
-        set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/slint_generated_${widget_namespace}_1.cpp" PROPERTIES COMPILE_OPTIONS "/W0")
-    else()
-        set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/slint_generated_${widget_namespace}_1.cpp" PROPERTIES COMPILE_OPTIONS "-w")
-    endif()
-endforeach()
-
-if(APPLE)
-    # skia and slint are dynamic libraries: point the runtime loader at the vcpkg install dir and slint build dir so executables find the dylibs in the build tree
-    set(CMAKE_BUILD_RPATH "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" "${CMAKE_CURRENT_BINARY_DIR}/_deps/slint-build")
-endif()
-
-if(APPLE)
-    # declare application
-    add_executable(xyce-studio slint/src/main.osx.mm)
-elseif(WIN32)
-    # declare application
-    add_executable(xyce-studio slint/src/main.win32.c++)
-    # set Windows API version to Windows 10 for CommandLineToArgW
-    target_compile_definitions(xyce-studio PRIVATE _WIN32_WINNT=0x0A00)
-    # mark it as win32 executable
-    set_target_properties(xyce-studio PROPERTIES WIN32_EXECUTABLE TRUE)
-elseif(LINUX)
-    # declare application
-    add_executable(xyce-studio slint/src/main.linux.c++)
-endif()
-
-# link with the core library defined above
-target_link_libraries(xyce-studio PRIVATE xyce-studio-core)
-
-if(APPLE)
-    set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "@loader_path")
-elseif(UNIX)
-    set_target_properties(xyce-studio PROPERTIES INSTALL_RPATH "$ORIGIN")
-    # legacy DT_RPATH instead of DT_RUNPATH (--disable-new-dtags): an
-    # executable's RPATH is consulted for transitive lookups too, while its
-    # RUNPATH is not. libslint_cpp.so is built by cargo and carries no rpath
-    # of its own, so without this its deps (libfontconfig, libfreetype) are
-    # resolved from the host instead of from the copies shipped next to the
-    # executable -- the package then fails to start on any host that does not
-    # happen to have them installed. BUILD_RPATH additionally keeps the
-    # automatic build-tree entries (vcpkg/slint dirs) so in-tree tests still
-    # resolve; only the DT_RPATH tag matters, verified to survive install().
-    set_target_properties(xyce-studio PROPERTIES BUILD_RPATH "$ORIGIN")
-    target_link_options(xyce-studio PRIVATE "LINKER:--disable-new-dtags")
+    set(CMAKE_BUILD_RPATH "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" "${CMAKE_BINARY_DIR}/_deps/slint-build")
 endif()
 
 # profile build type, activate with `cmake --preset debug -DCMAKE_BUILD_TYPE=Profile` && `cmake --build --preset debug`
 set(CMAKE_CXX_FLAGS_PROFILE "-O2 -fprofile-instr-generate -fcoverage-mapping")
 set(CMAKE_EXE_LINKER_FLAGS_PROFILE "-fprofile-instr-generate")
 
-if (BUILD_TESTS)
+add_subdirectory(core)
+
+if(BUILD_SLINT_FRONTEND)
+    add_subdirectory(slint)
+endif()
+
+if(BUILD_STUDIO_FRONTEND)
+    add_subdirectory(studio)
+endif()
+
+if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
-
-# Runtime dependency gathering for CI packaging. Invoked via
-# `cmake --install .build-release --component RuntimeDeps --prefix .build-release`
-# during CI to copy all transitively-linked shared libraries into artifacts/
-# next to the executable. The whole artifacts/ directory is uploaded.
-if(POLICY CMP0207)
-    cmake_policy(SET CMP0207 NEW)
-endif()
-# artifacts/ lives inside the build tree that CI restores from actions/cache.
-# install() only ever writes, so a file that a new exclusion rule stops
-# producing still ships as a leftover from the cached run before it -- this is
-# exactly how libc.so.6/libm.so.6/ld-linux-x86-64.so.2 kept appearing after the
-# glibc PRE_EXCLUDE below was added (the exclusion itself verified working).
-# Wipe the destination first so the packaged artifact is exactly what this run
-# produced and nothing else.
-install(CODE [[file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/artifacts")]] COMPONENT RuntimeDeps)
-
-install(TARGETS xyce-studio RUNTIME_DEPENDENCY_SET xyce-studio-deps RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps BUNDLE DESTINATION artifacts COMPONENT RuntimeDeps)
-
-# directories searched by the runtime dependency walk below
-set(XYCE_RUNTIME_DEPENDENCY_DIRS $<TARGET_FILE_DIR:xyce-studio> ${CMAKE_BINARY_DIR}/_deps/slint-build ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
-
-if(WIN32)
-    # app-local c++ runtime: msvcp140/vcruntime140(_1) are neither inbox (like
-    # the api-ms-win-crt ucrt forwarders) nor part of vcpkg. the walk resolves
-    # them against the excluded system dirs (and drops them via the exclude
-    # regexes), so install them explicitly instead: search next to the
-    # compiler/linker (the toolchain bin dir ships them) and in the msvc
-    # redistributable. app-local deployment of the c++ runtime is explicitly
-    # permitted by the visual studio license.
-    set(XYCE_APPLOCAL_CRT_DLLS "")
-    foreach(XYCE_CRT_TOOL IN ITEMS "${CMAKE_CXX_COMPILER}" "${CMAKE_LINKER}")
-        get_filename_component(XYCE_CRT_TOOL_DIR "${XYCE_CRT_TOOL}" DIRECTORY)
-        if(XYCE_CRT_TOOL_DIR)
-            file(GLOB XYCE_CRT_TOOL_DLLS "${XYCE_CRT_TOOL_DIR}/msvcp140*.dll" "${XYCE_CRT_TOOL_DIR}/vcruntime140*.dll")
-            list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_TOOL_DLLS})
-        endif()
-    endforeach()
-    if(DEFINED ENV{VCToolsRedistDir})
-        file(GLOB XYCE_CRT_REDIST_DLLS "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/msvcp140*.dll" "$ENV{VCToolsRedistDir}x64/Microsoft.VC*/CRT/vcruntime140*.dll")
-        list(APPEND XYCE_APPLOCAL_CRT_DLLS ${XYCE_CRT_REDIST_DLLS})
-    endif()
-    list(REMOVE_DUPLICATES XYCE_APPLOCAL_CRT_DLLS)
-    # fail loudly instead of silently shipping a package that dies on a clean
-    # machine with "vcruntime140.dll was not found"
-    if(NOT XYCE_APPLOCAL_CRT_DLLS)
-        message(FATAL_ERROR "windows: app-local c++ runtime dlls (msvcp140/vcruntime140) not found next to the compiler/linker or in VCToolsRedistDir; the packaged app would not run without the vc++ redistributable")
-    endif()
-    install(FILES ${XYCE_APPLOCAL_CRT_DLLS} DESTINATION artifacts COMPONENT RuntimeDeps)
-endif()
-
-install(RUNTIME_DEPENDENCY_SET xyce-studio-deps
-  DIRECTORIES ${XYCE_RUNTIME_DEPENDENCY_DIRS}
-  PRE_EXCLUDE_REGEXES
-    [[api-ms-.*]]
-    [[ext-ms-.*]]
-    [[vcruntime.*]]
-    [[msvcp.*]]
-    [[ucrtbase.*]]
-    # glibc belongs to the host: the dynamic loader (/lib64/ld-linux-*.so.2)
-    # is always taken from the host, so shipping libc/libm next to it pairs
-    # two different glibc builds and breaks startup on hosts both OLDER and
-    # NEWER than the build machine (verified: ubuntu 22.04 dies with a
-    # GLIBC_PRIVATE symbol error, fedora 44 with "version `GLIBC_2.43' not
-    # found (required by /lib64/libglib-2.0.so.0)"). libgcc/libstdc++ are not
-    # glibc and stay bundled.
-    [[libc\.so\..*]]
-    [[libm\.so\..*]]
-    [[ld-linux-.*\.so\..*]]
-    [[libpthread\.so\..*]]
-    [[libdl\.so\..*]]
-    [[librt\.so\..*]]
-    [[libresolv\.so\..*]]
-  POST_EXCLUDE_REGEXES
-    [[^/usr/lib]]
-    [[^/System]]
-    [[.*system32/.*]]
-    [[.*windows/.*]]
-  RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps
-  LIBRARY DESTINATION artifacts COMPONENT RuntimeDeps
-  FRAMEWORK DESTINATION artifacts COMPONENT RuntimeDeps
-)

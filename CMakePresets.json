@@ -33,6 +33,36 @@
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
+        },
+        {
+            "name": "studio-debug",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/.build-studio-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_MANIFEST_DIR": "${sourceDir}/studio",
+                "BUILD_SLINT_FRONTEND": "OFF",
+                "BUILD_STUDIO_FRONTEND": "ON",
+                "BUILD_TESTS": "OFF",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            }
+        },
+        {
+            "name": "studio-release",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/.build-studio-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_MANIFEST_DIR": "${sourceDir}/studio",
+                "BUILD_SLINT_FRONTEND": "OFF",
+                "BUILD_STUDIO_FRONTEND": "ON",
+                "BUILD_TESTS": "OFF",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            }
         }
     ],
     "buildPresets": [
@@ -72,6 +102,28 @@
             "targets": [
                 "xyce-studio",
                 "xyce-studio-tests"
+            ],
+            "configuration": "Release",
+            "inheritConfigureEnvironment": true
+        },
+        {
+            "name": "studio-debug",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "studio-debug",
+            "targets": [
+                "xyce-studio-next"
+            ],
+            "configuration": "Debug",
+            "inheritConfigureEnvironment": true
+        },
+        {
+            "name": "studio-release",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "studio-release",
+            "targets": [
+                "xyce-studio-next"
             ],
             "configuration": "Release",
             "inheritConfigureEnvironment": true
