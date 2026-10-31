@@ -53,6 +53,7 @@ jobs:
         include:
           - name: macos-arm64
             os: macos-15
+            arch: arm64
             enable: true
             preset: release
             vcpkg-root: /usr/local/share/vcpkg
@@ -67,6 +68,7 @@ jobs:
             unit-tests: ./.build-release/tests/xyce-studio-tests
           - name: macos-intel
             os: macos-15-intel
+            arch: x64
             enable: true
             preset: release
             vcpkg-root: /usr/local/share/vcpkg
@@ -81,6 +83,7 @@ jobs:
             unit-tests: ./.build-release/tests/xyce-studio-tests
           - name: windows
             os: windows-latest
+            arch: x64
             enable: true
             preset: release
             vcpkg-root: C:\vcpkg
@@ -92,6 +95,7 @@ jobs:
             unit-tests: ./.build-release/tests/xyce-studio-tests.exe --gtest_filter=-Ui*
           - name: linux
             os: ubuntu-latest
+            arch: x64
             enable: false
             preset: release
             vcpkg-root: /usr/local/share/vcpkg
@@ -128,18 +132,18 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-
+            vcpkg-${{ runner.os }}-${{ matrix.arch }}-
 
       - name: restore the ccache directory
         if: matrix.enable
         uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ runner.os }}-${{ matrix.preset }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.preset }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ matrix.preset }}-
+            ccache-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.preset }}-
 
       - name: configure
         if: matrix.enable
