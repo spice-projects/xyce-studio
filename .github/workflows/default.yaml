@@ -155,7 +155,6 @@ jobs:
 
       - name: unit tests
         if: matrix.enable
-        working-directory: .build-${{ matrix.preset }}/tests
         run: |
           # run unit tests
           ${{ matrix.unit-tests }}
