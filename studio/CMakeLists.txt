@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
 
-# new UI framework target: xyce-studio-next
-
 file(GLOB_RECURSE STUDIO_CPP_SOURCES "src/*.cpp")
 
 add_executable(xyce-studio-next ${STUDIO_CPP_SOURCES})

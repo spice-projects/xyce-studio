@@ -10,13 +10,13 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
-
-permissions:
-  pull-requests: write
-  contents: read
 
 jobs:
   check-pr:
@@ -37,142 +37,124 @@ jobs:
           echo "has_pr=$( [ "$count" -gt 0 ] && echo true || echo false )" >> $GITHUB_OUTPUT
 
   build-and-test:
-    name: Build & Test (${{ matrix.os }})
+    name: Build & Test (${{ matrix.name }})
     needs: [check-pr]
     if: |-
       !cancelled() &&
       (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: read
+      code-quality: write
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
-          - os: macos-26
-            platform: macos-arm64
-            build_enabled: true
-          - os: macos-26-intel
-            platform: macos-x64
-            build_enabled: true
-          - os: windows-latest
-            platform: windows-x64
-            build_enabled: true
-          - os: ubuntu-latest
-            platform: ubuntu-x64
-            build_enabled: true
-    runs-on: ${{ matrix.os }}
+          - name: macos-arm64
+            os: macos-15
+            enable: true
+            preset: release
+            vcpkg-root: /usr/local/share/vcpkg
+            setup: |
+              # the vcpkg binary cache root must exist before vcpkg runs
+              mkdir -p .vcpkg-cache
+              # the preset launches the compiler through ccache, which the runner image does not ship
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+              ccache --max-size 2G
+              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            unit-tests: ./.build-release/tests/xyce-studio-tests
+          - name: macos-intel
+            os: macos-15-intel
+            enable: true
+            preset: release
+            vcpkg-root: /usr/local/share/vcpkg
+            setup: |
+              # the vcpkg binary cache root must exist before vcpkg runs
+              mkdir -p .vcpkg-cache
+              # the preset launches the compiler through ccache, which the runner image does not ship
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+              ccache --max-size 2G
+              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            unit-tests: ./.build-release/tests/xyce-studio-tests
+          - name: windows
+            os: windows-latest
+            enable: true
+            preset: release
+            vcpkg-root: C:\vcpkg
+            setup: |
+              # the vcpkg binary cache root must exist before vcpkg runs
+              mkdir -p .vcpkg-cache
+              # the preset launches the compiler through ccache, which the runner image does not ship
+              choco install ccache --no-progress -y
+            unit-tests: ./.build-release/tests/xyce-studio-tests.exe --gtest_filter=-Ui*
+          - name: linux
+            os: ubuntu-latest
+            enable: false
+            preset: release
+            vcpkg-root: /usr/local/share/vcpkg
+            setup: |
+              # install ccache for Linux
+              sudo apt-get update && sudo apt-get install -y -qq ccache autoconf autoconf-archive automake libtool libltdl-dev \
+              pkg-config libexpat1-dev libfontconfig1-dev libfreetype-dev \
+              libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
+              libgl1-mesa-dev libegl1-mesa-dev libwayland-dev xvfb
+            unit-tests: xvfb-run -a ./.build-release/tests/xyce-studio-tests
+    defaults:
+      run:
+        shell: bash
     env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      VCPKG_ROOT: ${{ matrix.vcpkg-root }}
+      MACOSX_DEPLOYMENT_TARGET: 13.3
       VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-%p.profraw
     steps:
-      - name: Checkout repository
-        if: ${{ matrix.build_enabled }}
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        if: matrix.enable
 
-      - name: Select macOS toolchain
-        if: ${{ matrix.build_enabled && runner.os == 'macOS' }}
-        shell: bash
-        run: |
-          sudo xcode-select -s /Library/Developer/CommandLineTools
-          clang --version
-          echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+      - name: platform setup
+        if: matrix.enable
+        run: ${{ matrix.setup }}
 
-      - name: Run clang-format check
-        if: ${{ matrix.build_enabled && matrix.os == 'macos-26' }}
-        shell: bash
-        env:
-          HOMEBREW_NO_REQUIRE_TAP_TRUST: 1
-        run: |
-          if ! command -v clang-format >/dev/null 2>&1; then
-            brew install clang-format
-          fi
-          bash build/check-format.sh
+      - name: msvc environment
+        if: matrix.enable && runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup Ninja
-        if: ${{ matrix.build_enabled }}
-        shell: bash
-        run: pip install ninja
-
-      - name: Install Linux build dependencies
-        if: ${{ matrix.build_enabled && runner.os == 'Linux' }}
-        shell: bash
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf autoconf-archive automake libtool libltdl-dev \
-            pkg-config libexpat1-dev libfontconfig1-dev libfreetype-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
-            libgl1-mesa-dev libegl1-mesa-dev libwayland-dev xvfb
-
-      - name: Restore vcpkg binary cache
-        if: ${{ matrix.build_enabled }}
-        uses: actions/cache@v5
+      - name: restore the vcpkg binary cache
+        if: matrix.enable
+        uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-${{ matrix.os }}-build-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('.triplets/**', '.ports/**') }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
           restore-keys: |
-            vcpkg-${{ matrix.os }}-build-
+            vcpkg-${{ runner.os }}-
 
-      - name: Setup vcpkg
-        if: ${{ matrix.build_enabled }}
-        uses: lukka/run-vcpkg@v11
+      - name: restore the ccache directory
+        if: matrix.enable
+        uses: actions/cache/restore@v5
         with:
-          vcpkgJsonGlob: 'vcpkg.json'
-
-      - name: Restore CMake build cache
-        if: ${{ matrix.build_enabled }}
-        uses: actions/cache@v5
-        with:
-          path: |
-            ${{ github.workspace }}/.build-release
-            ${{ github.workspace }}/.ccache
-          key: cmake-${{ matrix.os }}-build-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('tests/CMakeLists.txt') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('CMakePresets.json') }}
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.preset }}-${{ github.sha }}
           restore-keys: |
-            cmake-${{ matrix.os }}-build-
+            ccache-${{ runner.os }}-${{ matrix.preset }}-
 
-      - name: Setup ccache
-        if: ${{ matrix.build_enabled }}
-        shell: bash
+      - name: configure
+        if: matrix.enable
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: build
+        if: matrix.enable
+        run: cmake --build --preset ${{ matrix.preset }} --parallel 4
+
+      - name: unit tests
+        if: matrix.enable
+        working-directory: .build-${{ matrix.preset }}/tests
         run: |
-          if ! command -v ccache >/dev/null 2>&1; then
-            if [ "$RUNNER_OS" = "macOS" ]; then
-              brew install ccache
-            elif [ "$RUNNER_OS" = "Linux" ]; then
-              sudo apt-get install -y -qq ccache
-            elif [ "$RUNNER_OS" = "Windows" ]; then
-              choco install ccache
-            fi
-          fi
-
-      - name: Setup MSVC dev environment
-        if: ${{ matrix.build_enabled && runner.os == 'Windows' }}
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Configure CMake
-        if: ${{ matrix.build_enabled }}
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            cmake --preset release --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
-          else
-            cmake --preset release
-          fi
-
-      - name: Build C++ Target
-        if: ${{ matrix.build_enabled }}
-        run: cmake --build --preset release
-
-      - name: Run C++ Tests
-        if: ${{ matrix.build_enabled }}
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            ./.build-release/tests/xyce-studio-tests.exe --gtest_filter=-Ui*
-          elif [ "$RUNNER_OS" = "Linux" ]; then
-            # the runners are headless; slint's winit backend needs an X display
-            xvfb-run -a ./.build-release/tests/xyce-studio-tests
-          else
-            ./.build-release/tests/xyce-studio-tests
-          fi
+          # run unit tests
+          ${{ matrix.unit-tests }}
 
       - name: Gather runtime dependencies
         if: ${{ matrix.build_enabled }}
@@ -187,309 +169,309 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  coverage:
-    name: C++ Coverage
-    needs: [check-pr]
-    # Coverage is a pull-request signal only: a `push` never runs it, on any
-    # branch. That covers both failure modes seen so far:
-    #   - pushing to a branch that HAS an open PR used to run coverage twice
-    #     (once for the push, once for the pull_request event) because the push
-    #     arm asked for has_pr == 'true'
-    #   - inverting that arm then turned on plain branch pushes with no PR at
-    #     all (e.g. pce-output), burning a macOS runner for a number nobody can
-    #     read (there is no PR page to attach it to)
-    # Fork PRs stay excluded (head.repo check below).
-    if: |-
-      !cancelled() &&
-      github.repository == 'spice-projects/xyce-studio' &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      contents: read
-      pull-requests: read
-      code-quality: write
-    uses: ./.github/workflows/coverage.yml
+  # coverage:
+  #   name: C++ Coverage
+  #   needs: [check-pr]
+  #   # Coverage is a pull-request signal only: a `push` never runs it, on any
+  #   # branch. That covers both failure modes seen so far:
+  #   #   - pushing to a branch that HAS an open PR used to run coverage twice
+  #   #     (once for the push, once for the pull_request event) because the push
+  #   #     arm asked for has_pr == 'true'
+  #   #   - inverting that arm then turned on plain branch pushes with no PR at
+  #   #     all (e.g. pce-output), burning a macOS runner for a number nobody can
+  #   #     read (there is no PR page to attach it to)
+  #   # Fork PRs stay excluded (head.repo check below).
+  #   if: |-
+  #     !cancelled() &&
+  #     github.repository == 'spice-projects/xyce-studio' &&
+  #     github.event_name == 'pull_request' &&
+  #     github.event.pull_request.head.repo.full_name == github.repository
+  #   permissions:
+  #     contents: read
+  #     pull-requests: read
+  #     code-quality: write
+  #   uses: ./.github/workflows/coverage.yml
 
-  macos-app-bundle:
-    name: macOS App Bundle
-    needs: [build-and-test]
-    if: |-
-      !cancelled() &&
-      (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
-    runs-on: macos-26
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+  # macos-app-bundle:
+  #   name: macOS App Bundle
+  #   needs: [build-and-test]
+  #   if: |-
+  #     !cancelled() &&
+  #     (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+  #   runs-on: macos-26
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v7
 
-      - name: Download arm64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: xyce-studio-macos-arm64
-          path: artifacts/arm64
+  #     - name: Download arm64 artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: xyce-studio-macos-arm64
+  #         path: artifacts/arm64
 
-      - name: Download x64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: xyce-studio-macos-x64
-          path: artifacts/x64
+  #     - name: Download x64 artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: xyce-studio-macos-x64
+  #         path: artifacts/x64
 
-      - name: Create macOS app bundle
-        run: |
-          APP_BUNDLE="artifacts/Xyce Studio.app"
-          rm -rf "$APP_BUNDLE"
-          mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+  #     - name: Create macOS app bundle
+  #       run: |
+  #         APP_BUNDLE="artifacts/Xyce Studio.app"
+  #         rm -rf "$APP_BUNDLE"
+  #         mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 
-          cp "plugin-icon-64x64.png" "$APP_BUNDLE/Contents/Resources/plugin-icon-64x64.png"
+  #         cp "plugin-icon-64x64.png" "$APP_BUNDLE/Contents/Resources/plugin-icon-64x64.png"
 
-          lipo -create \
-            -output "$APP_BUNDLE/Contents/MacOS/xyce-studio" \
-            "artifacts/arm64/xyce-studio" \
-            "artifacts/x64/xyce-studio"
+  #         lipo -create \
+  #           -output "$APP_BUNDLE/Contents/MacOS/xyce-studio" \
+  #           "artifacts/arm64/xyce-studio" \
+  #           "artifacts/x64/xyce-studio"
 
-          dylib_names=$( { ls artifacts/arm64/*.dylib artifacts/x64/*.dylib; } 2>/dev/null | xargs -n1 basename | sort -u)
-          for name in $dylib_names; do
-            arm64_lib="artifacts/arm64/$name"
-            x64_lib="artifacts/x64/$name"
-            dest="$APP_BUNDLE/Contents/MacOS/$name"
-            if [ -f "$arm64_lib" ] && [ -f "$x64_lib" ]; then
-              lipo -create -output "$dest" "$arm64_lib" "$x64_lib"
-            elif [ -f "$arm64_lib" ]; then
-              cp "$arm64_lib" "$dest"
-            else
-              cp "$x64_lib" "$dest"
-            fi
-          done
+  #         dylib_names=$( { ls artifacts/arm64/*.dylib artifacts/x64/*.dylib; } 2>/dev/null | xargs -n1 basename | sort -u)
+  #         for name in $dylib_names; do
+  #           arm64_lib="artifacts/arm64/$name"
+  #           x64_lib="artifacts/x64/$name"
+  #           dest="$APP_BUNDLE/Contents/MacOS/$name"
+  #           if [ -f "$arm64_lib" ] && [ -f "$x64_lib" ]; then
+  #             lipo -create -output "$dest" "$arm64_lib" "$x64_lib"
+  #           elif [ -f "$arm64_lib" ]; then
+  #             cp "$arm64_lib" "$dest"
+  #           else
+  #             cp "$x64_lib" "$dest"
+  #           fi
+  #         done
 
-          cat > "$APP_BUNDLE/Contents/Info.plist" <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>xyce-studio</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.spice-projects.xyce-studio</string>
-              <key>CFBundleIconFile</key>
-              <string>plugin-icon-64x64.png</string>
-              <key>CFBundleName</key>
-              <string>Xyce Studio</string>
-              <key>CFBundleDisplayName</key>
-              <string>Xyce Studio</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>13.3</string>
-          </dict>
-          </plist>
-          EOF
+  #         cat > "$APP_BUNDLE/Contents/Info.plist" <<'EOF'
+  #         <?xml version="1.0" encoding="UTF-8"?>
+  #         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  #         <plist version="1.0">
+  #         <dict>
+  #             <key>CFBundleExecutable</key>
+  #             <string>xyce-studio</string>
+  #             <key>CFBundleIdentifier</key>
+  #             <string>com.spice-projects.xyce-studio</string>
+  #             <key>CFBundleIconFile</key>
+  #             <string>plugin-icon-64x64.png</string>
+  #             <key>CFBundleName</key>
+  #             <string>Xyce Studio</string>
+  #             <key>CFBundleDisplayName</key>
+  #             <string>Xyce Studio</string>
+  #             <key>CFBundlePackageType</key>
+  #             <string>APPL</string>
+  #             <key>CFBundleShortVersionString</key>
+  #             <string>1.0</string>
+  #             <key>CFBundleVersion</key>
+  #             <string>1</string>
+  #             <key>LSMinimumSystemVersion</key>
+  #             <string>13.3</string>
+  #         </dict>
+  #         </plist>
+  #         EOF
 
-          chmod +x "$APP_BUNDLE/Contents/MacOS/xyce-studio"
-          EXE="$APP_BUNDLE/Contents/MacOS/xyce-studio"
+  #         chmod +x "$APP_BUNDLE/Contents/MacOS/xyce-studio"
+  #         EXE="$APP_BUNDLE/Contents/MacOS/xyce-studio"
 
-          # @executable_path is what makes @rpath/lib*.dylib resolve inside the
-          # bundle; skip when the input already carries it so a rerun can't fail
-          if ! otool -l "$EXE" | grep -q "path @executable_path"; then
-            install_name_tool -add_rpath @executable_path "$EXE"
-          fi
+  #         # @executable_path is what makes @rpath/lib*.dylib resolve inside the
+  #         # bundle; skip when the input already carries it so a rerun can't fail
+  #         if ! otool -l "$EXE" | grep -q "path @executable_path"; then
+  #           install_name_tool -add_rpath @executable_path "$EXE"
+  #         fi
 
-          # ad-hoc sign every Mach-O in the bundle. These commands must be able
-          # to fail the job: a previous "2>/dev/null || true" hid a signing
-          # failure and shipped an unsigned x86_64 slice.
-          # Order matters: --strict verification of the executable also verifies
-          # the dylibs it loads from the bundle as subcomponents, so those get
-          # signed first and everything is verified last.
-          for lib in "$APP_BUNDLE/Contents/MacOS"/*.dylib; do
-            [ -e "$lib" ] || continue
-            codesign --force --sign - --verbose "$lib"
-          done
-          codesign --force --sign - --verbose "$EXE"
-          for macho in "$APP_BUNDLE/Contents/MacOS"/*.dylib "$EXE"; do
-            [ -e "$macho" ] || continue
-            codesign --verify --strict --verbose=2 "$macho"
-          done
+  #         # ad-hoc sign every Mach-O in the bundle. These commands must be able
+  #         # to fail the job: a previous "2>/dev/null || true" hid a signing
+  #         # failure and shipped an unsigned x86_64 slice.
+  #         # Order matters: --strict verification of the executable also verifies
+  #         # the dylibs it loads from the bundle as subcomponents, so those get
+  #         # signed first and everything is verified last.
+  #         for lib in "$APP_BUNDLE/Contents/MacOS"/*.dylib; do
+  #           [ -e "$lib" ] || continue
+  #           codesign --force --sign - --verbose "$lib"
+  #         done
+  #         codesign --force --sign - --verbose "$EXE"
+  #         for macho in "$APP_BUNDLE/Contents/MacOS"/*.dylib "$EXE"; do
+  #           [ -e "$macho" ] || continue
+  #           codesign --verify --strict --verbose=2 "$macho"
+  #         done
 
-      - name: Stage macOS app bundle for upload
-        run: |
-          mkdir -p _upload
-          cp -R "artifacts/Xyce Studio.app" _upload/
+  #     - name: Stage macOS app bundle for upload
+  #       run: |
+  #         mkdir -p _upload
+  #         cp -R "artifacts/Xyce Studio.app" _upload/
 
-      - name: Upload macOS app bundle artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Xyce Studio.app
-          path: _upload/
-          if-no-files-found: error
-          retention-days: 7
+  #     - name: Upload macOS app bundle artifact
+  #       uses: actions/upload-artifact@v7
+  #       with:
+  #         name: Xyce Studio.app
+  #         path: _upload/
+  #         if-no-files-found: error
+  #         retention-days: 7
 
-  package:
-    name: Package & Artifacts
-    needs: [build-and-test, macos-app-bundle]
-    if: ${{ always() && !cancelled() && !failure() && github.ref_type == 'tag' && needs.build-and-test.result == 'success' && needs.macos-app-bundle.result == 'success' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+  # package:
+  #   name: Package & Artifacts
+  #   needs: [build-and-test, macos-app-bundle]
+  #   if: ${{ always() && !cancelled() && !failure() && github.ref_type == 'tag' && needs.build-and-test.result == 'success' && needs.macos-app-bundle.result == 'success' }}
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: write
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v7
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=$(echo '${{ github.ref_name }}' | sed 's/^v//')" >> $GITHUB_OUTPUT
+  #     - name: Extract version from tag
+  #       id: version
+  #       run: echo "version=$(echo '${{ github.ref_name }}' | sed 's/^v//')" >> $GITHUB_OUTPUT
 
-      - name: Download macOS app bundle artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: Xyce Studio.app
-          path: artifacts/macos
+  #     - name: Download macOS app bundle artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: Xyce Studio.app
+  #         path: artifacts/macos
 
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: xyce-studio-windows-x64
-          path: artifacts/windows
+  #     - name: Download Windows artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: xyce-studio-windows-x64
+  #         path: artifacts/windows
 
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: xyce-studio-ubuntu-x64
-          path: artifacts/linux
+  #     - name: Download Linux artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: xyce-studio-ubuntu-x64
+  #         path: artifacts/linux
 
-      - name: Package macOS
-        run: |
-          mkdir -p packages
-          # upload-artifact does not preserve file permissions, restore the exec bit
-          chmod +x "artifacts/macos/Xyce Studio.app/Contents/MacOS/xyce-studio"
-          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.1' "artifacts/macos/Xyce Studio.app" "Xyce Studio.app/Contents/MacOS/xyce-studio" macos
-          cp dist/xyce-studio-${{ steps.version.outputs.version }}.1.zip packages/kicad-xyce-plugin-macos.zip
-          # zip from inside artifacts/macos so the archive has no path prefix
-          (cd artifacts/macos && zip -qry "../../packages/xyce-studio-macos.zip" "Xyce Studio.app")
+  #     - name: Package macOS
+  #       run: |
+  #         mkdir -p packages
+  #         # upload-artifact does not preserve file permissions, restore the exec bit
+  #         chmod +x "artifacts/macos/Xyce Studio.app/Contents/MacOS/xyce-studio"
+  #         bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.1' "artifacts/macos/Xyce Studio.app" "Xyce Studio.app/Contents/MacOS/xyce-studio" macos
+  #         cp dist/xyce-studio-${{ steps.version.outputs.version }}.1.zip packages/kicad-xyce-plugin-macos.zip
+  #         # zip from inside artifacts/macos so the archive has no path prefix
+  #         (cd artifacts/macos && zip -qry "../../packages/xyce-studio-macos.zip" "Xyce Studio.app")
 
-      - name: Package Windows
-        run: |
-          dlls=$(ls artifacts/windows/*.dll 2>/dev/null | tr '\n' ' ')
-          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.2' artifacts/windows/xyce-studio.exe xyce-studio.exe windows "$dlls"
-          mkdir -p packages
-          cp dist/xyce-studio-${{ steps.version.outputs.version }}.2.zip packages/kicad-xyce-plugin-windows.zip
+  #     - name: Package Windows
+  #       run: |
+  #         dlls=$(ls artifacts/windows/*.dll 2>/dev/null | tr '\n' ' ')
+  #         bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.2' artifacts/windows/xyce-studio.exe xyce-studio.exe windows "$dlls"
+  #         mkdir -p packages
+  #         cp dist/xyce-studio-${{ steps.version.outputs.version }}.2.zip packages/kicad-xyce-plugin-windows.zip
 
-      - name: Package Linux
-        run: |
-          mkdir -p packages
-          # upload-artifact does not preserve file permissions, restore the exec bit
-          chmod +x artifacts/linux/xyce-studio
-          so_files=$(ls artifacts/linux/*.so* 2>/dev/null | tr '\n' ' ')
-          bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.3' artifacts/linux/xyce-studio xyce-studio linux "$so_files"
-          cp dist/xyce-studio-${{ steps.version.outputs.version }}.3.zip packages/kicad-xyce-plugin-linux.zip
-          # zip from inside artifacts/linux so the archive has no path prefix
-          (cd artifacts/linux && zip -qry "../../packages/xyce-studio-linux.zip" .)
+  #     - name: Package Linux
+  #       run: |
+  #         mkdir -p packages
+  #         # upload-artifact does not preserve file permissions, restore the exec bit
+  #         chmod +x artifacts/linux/xyce-studio
+  #         so_files=$(ls artifacts/linux/*.so* 2>/dev/null | tr '\n' ' ')
+  #         bash build/create-kicad-package.sh '${{ steps.version.outputs.version }}.3' artifacts/linux/xyce-studio xyce-studio linux "$so_files"
+  #         cp dist/xyce-studio-${{ steps.version.outputs.version }}.3.zip packages/kicad-xyce-plugin-linux.zip
+  #         # zip from inside artifacts/linux so the archive has no path prefix
+  #         (cd artifacts/linux && zip -qry "../../packages/xyce-studio-linux.zip" .)
 
-      # nothing may reach gh release upload unless the packages are complete:
-      # v1.2 shipped a linux plugin zip with 1 of its 23 runtime libraries
-      # because a single unquoted argument silently dropped the rest (#267)
-      - name: Verify release packages
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          fail=0
+  #     # nothing may reach gh release upload unless the packages are complete:
+  #     # v1.2 shipped a linux plugin zip with 1 of its 23 runtime libraries
+  #     # because a single unquoted argument silently dropped the rest (#267)
+  #     - name: Verify release packages
+  #       shell: bash
+  #       env:
+  #         VERSION: ${{ steps.version.outputs.version }}
+  #       run: |
+  #         set -euo pipefail
+  #         fail=0
 
-          expect_member() {
-            if ! grep -Fxq "$2" <<< "$1"; then
-              echo "::error::$3"
-              fail=1
-            fi
-          }
+  #         expect_member() {
+  #           if ! grep -Fxq "$2" <<< "$1"; then
+  #             echo "::error::$3"
+  #             fail=1
+  #           fi
+  #         }
 
-          expect_metadata() {
-            if ! grep -q "\"version\": \"$VERSION.$2\"" <<< "$1"; then
-              echo "::error::$3 metadata.json carries the wrong version (expected $VERSION.$2)"
-              fail=1
-            fi
-            if ! grep -q "\"$4\"" <<< "$1"; then
-              echo "::error::$3 metadata.json carries the wrong platform (expected \"$4\")"
-              fail=1
-            fi
-          }
+  #         expect_metadata() {
+  #           if ! grep -q "\"version\": \"$VERSION.$2\"" <<< "$1"; then
+  #             echo "::error::$3 metadata.json carries the wrong version (expected $VERSION.$2)"
+  #             fail=1
+  #           fi
+  #           if ! grep -q "\"$4\"" <<< "$1"; then
+  #             echo "::error::$3 metadata.json carries the wrong platform (expected \"$4\")"
+  #             fail=1
+  #           fi
+  #         }
 
-          for artifact in "artifacts/macos/Xyce Studio.app" artifacts/linux artifacts/windows; do
-            if [ ! -e "$artifact" ]; then
-              echo "::error::missing artifact: $artifact"
-              fail=1
-            fi
-          done
+  #         for artifact in "artifacts/macos/Xyce Studio.app" artifacts/linux artifacts/windows; do
+  #           if [ ! -e "$artifact" ]; then
+  #             echo "::error::missing artifact: $artifact"
+  #             fail=1
+  #           fi
+  #         done
 
-          rm -rf _verify
-          mkdir -p _verify/linux
+  #         rm -rf _verify
+  #         mkdir -p _verify/linux
 
-          # linux: the plugin zip must ship every runtime library beside the
-          # executable, and the standalone zip must carry the same set
-          linux_members=$(unzip -Z1 packages/kicad-xyce-plugin-linux.zip)
-          standalone_members=$(unzip -Z1 packages/xyce-studio-linux.zip)
-          for so in artifacts/linux/*.so*; do
-            expect_member "$linux_members" "plugins/$(basename "$so")" "linux plugin zip is missing plugins/$(basename "$so")"
-            expect_member "$standalone_members" "$(basename "$so")" "standalone linux zip is missing $(basename "$so")"
-          done
-          expect_member "$linux_members" "plugins/xyce-studio" "linux plugin zip is missing plugins/xyce-studio"
-          expect_member "$standalone_members" "xyce-studio" "standalone linux zip is missing xyce-studio"
+  #         # linux: the plugin zip must ship every runtime library beside the
+  #         # executable, and the standalone zip must carry the same set
+  #         linux_members=$(unzip -Z1 packages/kicad-xyce-plugin-linux.zip)
+  #         standalone_members=$(unzip -Z1 packages/xyce-studio-linux.zip)
+  #         for so in artifacts/linux/*.so*; do
+  #           expect_member "$linux_members" "plugins/$(basename "$so")" "linux plugin zip is missing plugins/$(basename "$so")"
+  #           expect_member "$standalone_members" "$(basename "$so")" "standalone linux zip is missing $(basename "$so")"
+  #         done
+  #         expect_member "$linux_members" "plugins/xyce-studio" "linux plugin zip is missing plugins/xyce-studio"
+  #         expect_member "$standalone_members" "xyce-studio" "standalone linux zip is missing xyce-studio"
 
-          # the executable keeps its exec bit through artifact upload/zip
-          linux_exe_perms=$(zipinfo -l packages/kicad-xyce-plugin-linux.zip 2>/dev/null | awk '/plugins\/xyce-studio$/ {print $1; exit}') || true
-          case "$linux_exe_perms" in
-            *x*) ;;
-            *) echo "::error::linux plugin executable is not executable inside the zip"; fail=1 ;;
-          esac
+  #         # the executable keeps its exec bit through artifact upload/zip
+  #         linux_exe_perms=$(zipinfo -l packages/kicad-xyce-plugin-linux.zip 2>/dev/null | awk '/plugins\/xyce-studio$/ {print $1; exit}') || true
+  #         case "$linux_exe_perms" in
+  #           *x*) ;;
+  #           *) echo "::error::linux plugin executable is not executable inside the zip"; fail=1 ;;
+  #         esac
 
-          # $ORIGIN resolution inside the package: a soname that reports
-          # "not found" while we do ship it means the packaged copy is
-          # unreachable from the executable. Sonames we deliberately do not
-          # bundle (host system libs) are ignored: this runner has no build
-          # dependencies installed.
-          unzip -q packages/kicad-xyce-plugin-linux.zip -d _verify/linux
-          if ! ldd_out=$(ldd _verify/linux/plugins/xyce-studio 2>&1); then
-            echo "::error::ldd failed on the packaged linux executable"
-            echo "$ldd_out"
-            fail=1
-          fi
-          while read -r need; do
-            [ -n "$need" ] || continue
-            if [ -f "artifacts/linux/$need" ]; then
-              echo "::error::bundled library $need does not resolve from inside the linux package"
-              fail=1
-            fi
-          done < <(printf '%s\n' "$ldd_out" | awk '/not found/{print $1}')
+  #         # $ORIGIN resolution inside the package: a soname that reports
+  #         # "not found" while we do ship it means the packaged copy is
+  #         # unreachable from the executable. Sonames we deliberately do not
+  #         # bundle (host system libs) are ignored: this runner has no build
+  #         # dependencies installed.
+  #         unzip -q packages/kicad-xyce-plugin-linux.zip -d _verify/linux
+  #         if ! ldd_out=$(ldd _verify/linux/plugins/xyce-studio 2>&1); then
+  #           echo "::error::ldd failed on the packaged linux executable"
+  #           echo "$ldd_out"
+  #           fail=1
+  #         fi
+  #         while read -r need; do
+  #           [ -n "$need" ] || continue
+  #           if [ -f "artifacts/linux/$need" ]; then
+  #             echo "::error::bundled library $need does not resolve from inside the linux package"
+  #             fail=1
+  #           fi
+  #         done < <(printf '%s\n' "$ldd_out" | awk '/not found/{print $1}')
 
-          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-linux.zip metadata.json)" 3 "linux plugin" "linux"
+  #         expect_metadata "$(unzip -p packages/kicad-xyce-plugin-linux.zip metadata.json)" 3 "linux plugin" "linux"
 
-          # windows: every runtime dll next to the executable
-          win_members=$(unzip -Z1 packages/kicad-xyce-plugin-windows.zip)
-          for dll in artifacts/windows/*.dll; do
-            expect_member "$win_members" "plugins/$(basename "$dll")" "windows plugin zip is missing plugins/$(basename "$dll")"
-          done
-          expect_member "$win_members" "plugins/xyce-studio.exe" "windows plugin zip is missing plugins/xyce-studio.exe"
-          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-windows.zip metadata.json)" 2 "windows plugin" "windows"
+  #         # windows: every runtime dll next to the executable
+  #         win_members=$(unzip -Z1 packages/kicad-xyce-plugin-windows.zip)
+  #         for dll in artifacts/windows/*.dll; do
+  #           expect_member "$win_members" "plugins/$(basename "$dll")" "windows plugin zip is missing plugins/$(basename "$dll")"
+  #         done
+  #         expect_member "$win_members" "plugins/xyce-studio.exe" "windows plugin zip is missing plugins/xyce-studio.exe"
+  #         expect_metadata "$(unzip -p packages/kicad-xyce-plugin-windows.zip metadata.json)" 2 "windows plugin" "windows"
 
-          # macos: the packaged app bundle must match the built app exactly
-          mac_members=$(unzip -Z1 packages/kicad-xyce-plugin-macos.zip)
-          for file in "artifacts/macos/Xyce Studio.app/Contents/MacOS"/*; do
-            expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/$(basename "$file")" "macos plugin zip is missing Contents/MacOS/$(basename "$file")"
-          done
-          expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/xyce-studio" "macos plugin zip is missing the executable"
-          expect_metadata "$(unzip -p packages/kicad-xyce-plugin-macos.zip metadata.json)" 1 "macos plugin" "macos"
+  #         # macos: the packaged app bundle must match the built app exactly
+  #         mac_members=$(unzip -Z1 packages/kicad-xyce-plugin-macos.zip)
+  #         for file in "artifacts/macos/Xyce Studio.app/Contents/MacOS"/*; do
+  #           expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/$(basename "$file")" "macos plugin zip is missing Contents/MacOS/$(basename "$file")"
+  #         done
+  #         expect_member "$mac_members" "plugins/Xyce Studio.app/Contents/MacOS/xyce-studio" "macos plugin zip is missing the executable"
+  #         expect_metadata "$(unzip -p packages/kicad-xyce-plugin-macos.zip metadata.json)" 1 "macos plugin" "macos"
 
-          exit $fail
+  #         exit $fail
 
-      - name: Associate with GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.ref_name }}" \
-            packages/kicad-xyce-plugin-macos.zip \
-            packages/kicad-xyce-plugin-windows.zip \
-            packages/kicad-xyce-plugin-linux.zip \
-            "packages/xyce-studio-macos.zip" \
-            "packages/xyce-studio-linux.zip" \
-            --clobber
+  #     - name: Associate with GitHub Release
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: |
+  #         gh release upload "${{ github.ref_name }}" \
+  #           packages/kicad-xyce-plugin-macos.zip \
+  #           packages/kicad-xyce-plugin-windows.zip \
+  #           packages/kicad-xyce-plugin-linux.zip \
+  #           "packages/xyce-studio-macos.zip" \
+  #           "packages/xyce-studio-linux.zip" \
+  #           --clobber

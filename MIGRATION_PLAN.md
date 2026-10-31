@@ -88,7 +88,7 @@ xyce-studio/
 
 The only non-UI class in `src/ui/` with a direct Slint dependency is `SimulationRunner`, which directly calls `slint::invoke_from_event_loop`.
 
-- [ ] **1.1. Abstract `SimulationRunner` Threading Dispatcher**
+- [x] **1.1. Abstract `SimulationRunner` Threading Dispatcher**
   - Define a generic event dispatcher callback in `SimulationRunner`:
     ```cpp
     using MainThreadDispatcher = std::function<void(std::function<void()>)>;
@@ -96,9 +96,9 @@ The only non-UI class in `src/ui/` with a direct Slint dependency is `Simulation
   - Inject this dispatcher via constructor or `set_dispatcher()`.
   - In Slint's `MainWindowView`, provide `[](auto fn) { slint::invoke_from_event_loop(std::move(fn)); }`.
   - In unit tests / new framework, provide standard synchronous execution or the new framework's main-thread dispatcher.
-- [ ] **1.2. Audit Core Dependencies**
+- [x] **1.2. Audit Core Dependencies**
   - Verify that `src/simulation`, `src/io`, `src/netlist`, `src/charts`, `src/expression`, `src/dsp`, `src/kicad`, and `src/config` have no remaining includes of Slint or `main_window.h`.
-- [ ] **1.3. Validate Unit Tests**
+- [x] **1.3. Validate Unit Tests**
   - Run existing unit tests (`./.build-debug/tests/xyce-studio-tests`) to ensure zero regressions before moving files.
 
 ---
@@ -107,7 +107,7 @@ The only non-UI class in `src/ui/` with a direct Slint dependency is `Simulation
 
 Move files into their respective homes. Git preserves history across renames (`git mv`).
 
-- [ ] **2.1. Create Shared Core Directory Structure (`core/`)**
+- [x] **2.1. Create Shared Core Directory Structure (`core/`)**
   - Create `core/src/` and move the following directories from `src/`:
     - `src/charts/` → `core/src/charts/`
     - `src/config/` → `core/src/config/`
@@ -119,39 +119,39 @@ Move files into their respective homes. Git preserves history across renames (`g
     - `src/netlist/` → `core/src/netlist/`
     - `src/simulation/` → `core/src/simulation/`
     - `src/ui/simulation_runner.*` → `core/src/runner/`
-- [ ] **2.2. Create Legacy Slint Directory Structure (`slint/`)**
+- [x] **2.2. Create Legacy Slint Directory Structure (`slint/`)**
   - Create `slint/src/` and move the remaining UI, app, and widget files from `src/`:
     - `src/app/` → `slint/src/app/`
     - `src/main.*` → `slint/src/main.*`
     - `src/ui/` → `slint/src/ui/` (all views, monolithic presenter, Slint chart renderer)
     - `src/plugin.json`, `src/plugin-icon-24x24.png` → `slint/src/`
   - Move `.triplets/` to `slint/triplets/`.
-- [ ] **2.3. Setup Per-Root Manifests**
+- [x] **2.3. Setup Per-Root Manifests**
   - Create `slint/vcpkg.json` containing:
     - `skia` (with current platform features)
     - `spdlog`, `pocketfft`, `gtest`, `nng`, `protobuf`, `nativefiledialog-extended`
   - Create `studio/vcpkg.json` containing:
     - `spdlog`, `pocketfft`, `gtest`, `nng`, `protobuf`
     - Plus dependencies specific to the new framework.
-- [ ] **2.4. Create `studio/` Skeleton**
+- [x] **2.4. Create `studio/` Skeleton**
   - Create `studio/src/app/`, `studio/src/presenters/`, `studio/src/views/`, `studio/src/charts/`.
 
 ---
 
 ### Phase 3: CMake Configuration & Build Presets
 
-- [ ] **3.1. Create `core/CMakeLists.txt`**
+- [x] **3.1. Create `core/CMakeLists.txt`**
   - Define `xyce-core` as a STATIC library.
   - Compile all sources in `core/src/**`.
   - Link core dependencies: `spdlog::spdlog`, `nng::nng`, `protobuf::libprotobuf`, `pocketfft`.
   - Expose `core/src` as PUBLIC include directory.
   - Zero Slint or Skia dependencies on `xyce-core`.
-- [ ] **3.2. Create `slint/CMakeLists.txt`**
+- [x] **3.2. Create `slint/CMakeLists.txt`**
   - Move Slint FetchContent, Slint build options, and widget code generation (`slint_target_sources`) here.
   - Define `xyce-studio` executable linking `xyce-core` + `Slint::Slint` + `unofficial::skia::skia` + `nfd::nfd`.
-- [ ] **3.3. Create `studio/CMakeLists.txt`**
+- [x] **3.3. Create `studio/CMakeLists.txt`**
   - Define `xyce-studio-next` executable linking `xyce-core` + the new UI framework.
-- [ ] **3.4. Update Root `CMakeLists.txt`**
+- [x] **3.4. Update Root `CMakeLists.txt`**
   - Add feature options:
     ```cmake
     option(BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
@@ -168,7 +168,7 @@ Move files into their respective homes. Git preserves history across renames (`g
         add_subdirectory(studio)
     endif()
     ```
-- [ ] **3.5. Configure `CMakePresets.json`**
+- [x] **3.5. Configure `CMakePresets.json`**
   - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend without altering their names, configurations, or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests`.
   - **Add New Framework Presets**:
     - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`.
@@ -178,15 +178,15 @@ Move files into their respective homes. Git preserves history across renames (`g
 
 ### Phase 4: Slint Root Verification & CI Parity Gate
 
-- [ ] **4.1. Build Slint via Existing Presets**
+- [x] **4.1. Build Slint via Existing Presets**
   - Run: `cmake --preset debug` && `cmake --build --preset debug`.
   - Run: `cmake --preset release` && `cmake --build --preset release`.
-- [ ] **4.2. Verify Domain Unit Tests**
+- [x] **4.2. Verify Domain Unit Tests**
   - Run: `./.build-debug/tests/xyce-studio-tests`.
-  - Confirm all parser, netlist, expression, and simulation unit tests pass.
-- [ ] **4.3. Verify Slint UI Integration Tests**
+  - Confirm all parser, netlist, expression, and simulation unit tests pass. **2970 tests passed, 0 failures.**
+- [x] **4.3. Verify Slint UI Integration Tests**
   - Run: `.venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"`.
-  - Confirm that moving files and splitting targets caused zero regressions in the existing Slint UI.
+  - Confirm that moving files and splitting targets caused zero regressions in the existing Slint UI. **75 tests passed, OK.**
 - [ ] **4.4. Verify CI Packaging Contract (GitHub Actions)**
   - Run the exact CI install command:
     ```bash

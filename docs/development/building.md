@@ -33,7 +33,7 @@ The binary runs in two modes:
   simulation output files through the file dialog.
 - **KiCad plugin mode**: launched by KiCad over IPC using the
   `KICAD_API_SOCKET` and `KICAD_API_TOKEN` environment variables; the
-  plugin entrypoint metadata lives in `src/plugin.json`.
+  plugin entrypoint metadata lives in `slint/src/plugin.json`.
 
 ## UI integration tests
 

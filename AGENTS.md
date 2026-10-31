@@ -46,15 +46,15 @@ After editing:
 
 ## UI (Slint)
 
-The UI is built with Slint and lives under `src/ui`:
+The UI is built with Slint and lives under `slint/src/ui`:
 
-- Root widgets (windows/dialogs): `src/ui/widgets/*.slint`
-- Shared components (imported only by roots): `src/ui/components/*.slint`
-- Host C++ (`slint.h`, wiring, platform backends): flat under `src/ui/` (views/presenters, dialog wrappers, `file_dialog.*`, `clipboard.*`, `charts_renderer.*`)
+- Root widgets (windows/dialogs): `slint/src/ui/widgets/*.slint`
+- Shared components (imported only by roots): `slint/src/ui/components/*.slint`
+- Host C++ (`slint.h`, wiring, platform backends): flat under `slint/src/ui/` (views/presenters, dialog wrappers, `file_dialog.*`, `clipboard.*`, `charts_renderer.*`)
 
 ### Build integration (`CMakeLists.txt`)
 
-- Only `src/ui/widgets/*.slint` are compiled via `slint_target_sources(... NAMESPACE <file-stem>)`. Components under `src/ui/components/` are imported by roots only; never register them standalone.
+- Only `slint/src/ui/widgets/*.slint` are compiled via `slint_target_sources(... NAMESPACE <file-stem>)`. Components under `slint/src/ui/components/` are imported by roots only; never register them standalone.
 - Each root widget becomes a C++ namespace named after its file stem (e.g. `main_window::MainWindow`); its generated header is included with angle brackets: `#include <main_window.h>`.
 - Slint names are kebab-case; generated C++ accessors/callbacks are camelCase: property `charts-visible` → `get_charts_visible()`/`set_charts_visible()`; callback `show-charts` → `on_show_charts()`.
 - `SLINT_STYLE=cupertino`, `SLINT_FEATURE_RENDERER_SKIA=ON`, Slint pinned to the immutable `v1.18.1` tag via FetchContent.
