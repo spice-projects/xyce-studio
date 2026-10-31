@@ -66,7 +66,7 @@ jobs:
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             unit-tests: ./.build-release/tests/xyce-studio-tests
-          - name: macos-intel
+          - name: macos-x64
             os: macos-15-intel
             arch: x64
             enable: true
@@ -81,7 +81,7 @@ jobs:
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             unit-tests: ./.build-release/tests/xyce-studio-tests
-          - name: windows
+          - name: windows-x64
             os: windows-latest
             arch: x64
             enable: true
@@ -93,10 +93,10 @@ jobs:
               # the preset launches the compiler through ccache, which the runner image does not ship
               choco install ccache --no-progress -y
             unit-tests: ./.build-release/tests/xyce-studio-tests.exe --gtest_filter=-Ui*
-          - name: linux
+          - name: linux-x64
             os: ubuntu-latest
             arch: x64
-            enable: false
+            enable: true
             preset: release
             vcpkg-root: /usr/local/share/vcpkg
             setup: |
@@ -161,15 +161,15 @@ jobs:
           ${{ matrix.unit-tests }}
 
       - name: Gather runtime dependencies
-        if: ${{ matrix.build_enabled }}
-        run: cmake --install .build-release --component RuntimeDeps --prefix .build-release
+        if: matrix.enable && matrix.preset != 'profile'
+        run: cmake --install .build-${{ matrix.preset }} --component RuntimeDeps --prefix .build-${{ matrix.preset }}
 
       - name: Upload build artifact
-        if: ${{ matrix.build_enabled }}
+        if: matrix.enable && matrix.preset != 'profile'
         uses: actions/upload-artifact@v7
         with:
           name: xyce-studio-${{ matrix.platform }}
-          path: .build-release/artifacts/
+          path: .build-${{ matrix.preset }}/artifacts/
           if-no-files-found: error
           retention-days: 7
 
