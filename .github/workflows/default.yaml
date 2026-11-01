@@ -141,7 +141,7 @@ jobs:
           test -f "$linker" || { echo "MSVC linker not found at '$linker'" >&2; exit 1; }
           echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$linker" >> "$GITHUB_ENV"
 
-      - name: restore the vcpkg binary cache
+      - name: restore - vcpkg cache
         if: matrix.enable
         uses: actions/cache/restore@v5
         with:
@@ -150,7 +150,7 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ matrix.arch }}-
 
-      - name: restore the ccache directory
+      - name: restore - ccache directory
         if: matrix.enable
         uses: actions/cache/restore@v5
         with:
@@ -173,11 +173,11 @@ jobs:
           # run unit tests
           ${{ matrix.unit-tests }}
 
-      - name: Gather runtime dependencies
+      - name: runtime dependencies
         if: matrix.enable && matrix.preset != 'profile'
         run: cmake --install .build-${{ matrix.preset }} --component RuntimeDeps --prefix .build-${{ matrix.preset }}
 
-      - name: Upload build artifact
+      - name: upload build artifact
         if: matrix.enable && matrix.preset != 'profile'
         uses: actions/upload-artifact@v7
         with:
@@ -185,6 +185,21 @@ jobs:
           path: .build-${{ matrix.preset }}/artifacts/
           if-no-files-found: error
           retention-days: 7
+
+      - name: save - vcpkg cache
+        if: matrix.enable && !cancelled()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ github.workspace }}/.vcpkg-cache
+          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+
+      - name: save - ccache directory
+        if: matrix.enable && !cancelled()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.preset }}-${{ github.sha }}
+
 
   # coverage:
   #   name: C++ Coverage
