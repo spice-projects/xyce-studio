@@ -181,7 +181,7 @@ jobs:
         if: matrix.enable && matrix.preset != 'profile'
         uses: actions/upload-artifact@v7
         with:
-          name: xyce-studio-${{ matrix.platform }}
+          name: xyce-studio-${{ matrix.name }}
           path: .build-${{ matrix.preset }}/artifacts/
           if-no-files-found: error
           retention-days: 7
@@ -354,7 +354,7 @@ jobs:
   #     - name: Download Linux artifact
   #       uses: actions/download-artifact@v8
   #       with:
-  #         name: xyce-studio-ubuntu-x64
+  #         name: xyce-studio-linux-x64
   #         path: artifacts/linux
 
   #     - name: Package macOS
