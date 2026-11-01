@@ -43,6 +43,7 @@ jobs:
       !cancelled() &&
       (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     permissions:
       contents: read
       pull-requests: read
@@ -56,7 +57,7 @@ jobs:
             arch: arm64
             enable: true
             preset: release
-            vcpkg-root: /usr/local/share/vcpkg
+            vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
             setup: |
               # the vcpkg binary cache root must exist before vcpkg runs
               mkdir -p .vcpkg-cache
@@ -65,13 +66,14 @@ jobs:
               ccache --max-size 2G
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            configure: cmake --preset release
             unit-tests: ./.build-release/tests/xyce-studio-tests
           - name: macos-x64
             os: macos-15-intel
             arch: x64
             enable: true
             preset: release
-            vcpkg-root: /usr/local/share/vcpkg
+            vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
             setup: |
               # the vcpkg binary cache root must exist before vcpkg runs
               mkdir -p .vcpkg-cache
@@ -80,13 +82,14 @@ jobs:
               ccache --max-size 2G
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            configure: cmake --preset release
             unit-tests: ./.build-release/tests/xyce-studio-tests
           - name: macos-arm64
             os: macos-15
             arch: arm64
             enable: true
             preset: profile
-            vcpkg-root: /usr/local/share/vcpkg
+            vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
             setup: |
               # the vcpkg binary cache root must exist before vcpkg runs
               mkdir -p .vcpkg-cache
@@ -95,41 +98,50 @@ jobs:
               ccache --max-size 2G
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
-            unit-tests: ./.build-profile/tests/xyce-studio-tests
+            configure: cmake --preset profile --fresh
+            unit-tests: ./.build-profile/tests/xyce-studio-tests --gtest_filter=-Ui*
           - name: windows-x64
             os: windows-latest
             arch: x64
             enable: true
             preset: release
-            vcpkg-root: C:\vcpkg
+            vcpkg-commit: 8c5c88430ac864cf4fe8de4be61f69f003d23ffe
             setup: |
               # the vcpkg binary cache root must exist before vcpkg runs
               mkdir -p .vcpkg-cache
               # the preset launches the compiler through ccache, which the runner image does not ship
               choco install ccache --no-progress -y
+            configure: cmake --preset release
             unit-tests: ./.build-release/tests/xyce-studio-tests.exe --gtest_filter=-Ui*
           - name: linux-x64
             os: ubuntu-latest
             arch: x64
             enable: true
             preset: release
-            vcpkg-root: /usr/local/share/vcpkg
+            vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
             setup: |
               # install ccache for Linux
               sudo apt-get update && sudo apt-get install -y -qq ccache autoconf autoconf-archive automake libtool libltdl-dev \
               pkg-config libexpat1-dev libfontconfig1-dev libfreetype-dev \
               libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
               libgl1-mesa-dev libegl1-mesa-dev libwayland-dev xvfb
+            configure: cmake --preset release
             unit-tests: xvfb-run -a ./.build-release/tests/xyce-studio-tests
     defaults:
       run:
         shell: bash
     env:
-      VCPKG_ROOT: ${{ matrix.vcpkg-root }}
+      # the pinned tools are the ABI inputs vcpkg caches by; the vcpkg commit is per platform because each image seeds its own
+      CMAKE_VERSION: 4.4.4
+      NINJA_VERSION: 1.13.2
+      MSVC_TOOLSET: 14.51.36231
+      WINDOWS_SDK: 10.0.26100.0
+      VCPKG_ABI_POLICY: pinned-toolchain-v1
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       MACOSX_DEPLOYMENT_TARGET: 13.3
       VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-%p.profraw
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage.profraw
     steps:
       - uses: actions/checkout@v7
         if: matrix.enable
@@ -141,6 +153,30 @@ jobs:
       - name: msvc environment
         if: matrix.enable && runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: ${{ env.MSVC_TOOLSET }}
+          sdk: ${{ env.WINDOWS_SDK }}
+
+      - name: pinned cmake
+        if: matrix.enable
+        uses: lukka/get-cmake@v4.4.4
+        with:
+          cmakeVersion: ${{ env.CMAKE_VERSION }}
+          ninjaVersion: ${{ env.NINJA_VERSION }}
+
+      - name: pinned vcpkg
+        if: matrix.enable
+        uses: lukka/run-vcpkg@v11.6
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+          vcpkgGitCommitId: ${{ matrix.vcpkg-commit }}
+          vcpkgJsonGlob: slint/vcpkg.json
+          doNotCache: true
+
+      # the msvc action repoints VCPKG_ROOT at the image's bundled vcpkg, so the pinned checkout is restored here
+      - name: pin the vcpkg root
+        if: matrix.enable
+        run: echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
 
       - name: rust linker
         if: matrix.enable && runner.os == 'Windows'
@@ -156,13 +192,19 @@ jobs:
           test -f "$linker" || { echo "MSVC linker not found at '$linker'" >&2; exit 1; }
           echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$linker" >> "$GITHUB_ENV"
 
+      - name: toolchain fingerprint
+        id: toolchain
+        if: matrix.enable
+        run: echo "fingerprint=$(bash build/toolchain-fingerprint.sh)" >> "$GITHUB_OUTPUT"
+
       - name: restore - vcpkg cache
         if: matrix.enable
         uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('slint/vcpkg.json', 'slint/vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
           restore-keys: |
+            vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ steps.toolchain.outputs.fingerprint }}-
             vcpkg-${{ runner.os }}-${{ matrix.arch }}-
 
       - name: restore - ccache directory
@@ -175,8 +217,9 @@ jobs:
             ccache-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.preset }}-
 
       - name: configure
+        id: configure
         if: matrix.enable
-        run: cmake --preset ${{ matrix.preset }}
+        run: ${{ matrix.configure }} ${{ runner.os == 'Windows' && '-DVCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions' || '' }}
 
       - name: build
         if: matrix.enable
@@ -202,11 +245,11 @@ jobs:
           retention-days: 7
 
       - name: save - vcpkg cache
-        if: matrix.enable && !cancelled()
+        if: matrix.enable && !cancelled() && steps.configure.outcome == 'success'
         uses: actions/cache/save@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('slint/vcpkg.json', 'slint/vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
 
       - name: save - ccache directory
         if: matrix.enable && !cancelled()
