@@ -81,6 +81,21 @@ jobs:
               # the preset is c++23, so take the newest xcode the image carries rather than its default
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             unit-tests: ./.build-release/tests/xyce-studio-tests
+          - name: macos-arm64
+            os: macos-15
+            arch: arm64
+            enable: true
+            preset: profile
+            vcpkg-root: /usr/local/share/vcpkg
+            setup: |
+              # the vcpkg binary cache root must exist before vcpkg runs
+              mkdir -p .vcpkg-cache
+              # the preset launches the compiler through ccache, which the runner image does not ship
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+              ccache --max-size 2G
+              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            unit-tests: ./.build-profile/tests/xyce-studio-tests
           - name: windows-x64
             os: windows-latest
             arch: x64
