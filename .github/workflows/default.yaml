@@ -127,6 +127,20 @@ jobs:
         if: matrix.enable && runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: rust linker
+        if: matrix.enable && runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Slint is built from source with cargo, and rustc resolves `link.exe` through
+          # PATH. Git Bash prepends its own /usr/bin (which ships coreutils' `link`) to
+          # PATH, so rustc would pick that instead of MSVC's linker and fail with
+          # "extra operand". Point cargo at the linker that sits next to cl.exe.
+          cl="$(command -v cl.exe || true)"
+          test -n "$cl" || { echo "cl.exe is not on PATH: the msvc environment step did not run" >&2; exit 1; }
+          linker="$(cygpath -m "$(dirname "$cl")")/link.exe"
+          test -f "$linker" || { echo "MSVC linker not found at '$linker'" >&2; exit 1; }
+          echo "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$linker" >> "$GITHUB_ENV"
+
       - name: restore the vcpkg binary cache
         if: matrix.enable
         uses: actions/cache/restore@v5
