@@ -37,7 +37,7 @@ jobs:
           echo "has_pr=$( [ "$count" -gt 0 ] && echo true || echo false )" >> $GITHUB_OUTPUT
 
   build-and-test:
-    name: Build & Test (${{ matrix.name }})
+    name: ${{ matrix.name }}-${{ matrix.preset }}
     needs: [check-pr]
     if: |-
       !cancelled() &&
