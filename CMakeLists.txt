@@ -53,6 +53,7 @@ if(APPLE)
 endif()
 
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_STUDIO_TESTS "Build the studio unit tests" OFF)
 option(BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
 option(BUILD_STUDIO_FRONTEND "Build new framework frontend" ON)
 
@@ -76,6 +77,10 @@ endif()
 
 if(BUILD_STUDIO_FRONTEND)
     add_subdirectory(studio)
+endif()
+
+if(BUILD_STUDIO_TESTS)
+    add_subdirectory(studio-tests)
 endif()
 
 if(BUILD_TESTS)

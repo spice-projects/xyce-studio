@@ -1,0 +1,78 @@
+// the shell of the Albor frontend; the charts view and the output panel arrive in later slices
+component MainWindow {
+    // toolbar actions the presenter drives
+    signal open_clicked();
+    signal save_clicked();
+    signal plugin_settings_clicked();
+
+    // raised while the user edits the netlist text, which marks the netlist dirty
+    signal netlist_edited();
+
+    // the netlist text the editor edits, fed back to the host on every edit
+    inout property<string> netlist_text: "";
+    // whether the editor refuses edits, which the connected KiCad slice drives
+    in property<bool> netlist_read_only: false;
+    // the toolbar enablement, which the action states refresh
+    in property<bool> open_enabled: true;
+    in property<bool> save_enabled: false;
+    // the one line status the shell reports
+    in property<string> status: "Ready";
+
+    Column {
+        spacing: 0px;
+
+        ToolBar {
+            Button {
+                id: main_open;
+                text: "Open";
+                disabled: !open_enabled;
+                on_clicked: {
+                    open_clicked();
+                }
+            }
+
+            Button {
+                id: main_save;
+                text: "Save";
+                disabled: !save_enabled;
+                on_clicked: {
+                    save_clicked();
+                }
+            }
+
+            Button {
+                id: main_plugin_settings;
+                text: "Plugin Settings";
+                on_clicked: {
+                    plugin_settings_clicked();
+                }
+            }
+        }
+
+        // the editor is the content surface; it scrolls its own viewport once
+        // the column caps its height
+        TextField {
+            id: netlist_editor;
+            multiline: true;
+            value: netlist_text;
+            read_only: netlist_read_only;
+            font_family: "JetBrains Mono";
+            font_size: 13px;
+            horizontal_align: Align.stretch;
+            vertical_align: Align.stretch;
+            on_changed: {
+                netlist_text = value;
+                netlist_edited();
+            }
+        }
+
+        Panel {
+            padding: 8px;
+
+            Label {
+                id: main_status;
+                text: status;
+            }
+        }
+    }
+}

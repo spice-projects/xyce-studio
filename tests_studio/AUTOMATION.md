@@ -103,6 +103,48 @@ app.wait_for_condition(lambda: app.is_running() is False, timeout=10.0, message=
 
 ## Recipes
 
+### Load and edit a netlist (from `netlist_editor_test.py`)
+
+The shell always shows the netlist editor; `--netlist` opens a file through
+the same dispatch the toolbar Open action uses. Work on a scratch copy so the
+scenario never mutates the fixture, and assert the state through the save
+tool's `disabled` flag, which the presenter refreshes with the dirty state:
+
+```python
+netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+with tempfile.TemporaryDirectory() as scratch:
+    working_copy = Path(scratch) / "tran-simple-01.cir"
+    shutil.copy(netlist, working_copy)
+    self.start_session(launch(args=["--netlist", str(working_copy)]))
+    app = self._app
+    editor = app.get_by_id("netlist_editor")
+    editor.wait_for_exists()
+    save = app.get_by_id("main_save")
+    expect(editor).to_have_value(netlist.read_text())
+    expect(save).to_have_state("disabled")
+    edited = netlist.read_text() + "* typed by the scenario\n"
+    editor.fill(edited)
+    expect(save).not_().to_have_state("disabled")
+    save.click()
+    app.wait_for_condition(lambda: working_copy.read_text() == edited, timeout=5.0, message="expected the save to write the edited netlist")
+    expect(save).to_have_state("disabled")
+```
+
+- `editor.fill(...)` replaces the whole value through the edit path, so it
+  raises the shell's edit signal exactly like a keystroke — the dirty marker
+  follows.
+- The save lands inside the click handler, so poll the file on disk with
+  `app.wait_for_condition` instead of reading it once.
+- An untitled editor (launched without `--netlist`) starts empty and clean;
+  its save flow runs the native save panel, which automation cannot drive —
+  that decision logic is covered by the presenter unit tests in
+  `studio-tests/main_window_presenter.test.cpp` instead.
+- The open panel is native too; scenarios reach the open dispatch through
+  `--netlist`, which the presenter treats identically.
+- Semantic ids of the shell (from `studio/src/views/main_window/main_window.ui`):
+  `main_open`, `main_save`, `main_plugin_settings` (toolbar), `netlist_editor`
+  (multiline text field), `main_status` (status row).
+
 ### Open the plugin configuration dialog (from `plugin_config_test.py`)
 
 The dialog opens from the main window toolbar button; the field resolves
@@ -118,7 +160,7 @@ expect(field).to_have_value("/bin/echo")
 Semantic ids of the dialog (from `studio/src/views/plugin_config/plugin_config_dialog.ui`):
 `plugin_config_path` (text box), `plugin_config_browse`, `plugin_config_error`
 (validation message, absent until validation fails), `plugin_config_cancel`,
-`plugin_config_ok`. The main window toolbar trigger is `main_plugin_settings`.
+`plugin_config_ok`.
 
 ### Edit a text field and persist the value across launches (from `plugin_config_test.py`)
 

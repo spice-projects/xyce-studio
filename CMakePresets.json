@@ -48,6 +48,8 @@
                 "BUILD_SLINT_FRONTEND": "OFF",
                 "BUILD_STUDIO_FRONTEND": "ON",
                 "BUILD_TESTS": "OFF",
+                "BUILD_STUDIO_TESTS": "ON",
+                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
@@ -63,6 +65,7 @@
                 "BUILD_SLINT_FRONTEND": "OFF",
                 "BUILD_STUDIO_FRONTEND": "ON",
                 "BUILD_TESTS": "OFF",
+                "BUILD_STUDIO_TESTS": "OFF",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
@@ -115,7 +118,8 @@
             "displayName": "",
             "configurePreset": "studio-debug",
             "targets": [
-                "xyce-studio-next"
+                "xyce-studio-next",
+                "studio-tests"
             ],
             "configuration": "Debug",
             "inheritConfigureEnvironment": true

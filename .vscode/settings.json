@@ -3,7 +3,7 @@
   "C_Cpp.clang_format_style": "file",
   "editor.defaultFormatter": "ms-vscode.cpptools",
   "clangd.arguments": [
-    "--compile-commands-dir=${workspaceFolder}/.build-debug"
+    "--compile-commands-dir=${workspaceFolder}/.build-studio-debug"
   ],
   "[cpp]": {
     "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"

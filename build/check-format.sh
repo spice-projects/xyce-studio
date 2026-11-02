@@ -19,7 +19,7 @@ files=()
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     files+=("$file")
-done < <(git ls-files --cached --others --exclude-standard 'slint/**' 'core/**' 'studio/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
+done < <(git ls-files --cached --others --exclude-standard 'slint/**' 'core/**' 'studio/**' 'studio-tests/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "error: no C++ source files found" >&2
