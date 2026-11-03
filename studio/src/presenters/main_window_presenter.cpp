@@ -1,7 +1,5 @@
 #include "presenters/main_window_presenter.h"
 
-#include <utility>
-
 #include "netlist/editor_netlist_source.h"
 
 studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view) :
