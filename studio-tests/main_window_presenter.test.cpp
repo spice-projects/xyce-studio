@@ -44,6 +44,11 @@ namespace
 
         void set_simulation_running(bool running) override { running_label = running; }
 
+        void set_simulation_progress(const studio::SimulationProgress& progress) override {
+            progress_count++;
+            progress_last = progress;
+        }
+
         void show_output_panel() override { output_panel_visible = true; }
 
         void hide_output_panel() override { output_panel_visible = false; }
@@ -93,6 +98,10 @@ namespace
         bool save_enabled = false;
         bool run_enabled = false;
         bool running_label = false;
+
+        // the run state the presenter last published
+        int progress_count = 0;
+        studio::SimulationProgress progress_last;
 
         // the output panel visibility and the log the presenter appended
         bool output_panel_visible = false;

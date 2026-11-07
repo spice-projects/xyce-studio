@@ -5,50 +5,44 @@ from .log import configure_from_environment
 from .session import TestSession
 
 
+# the optional unittest adapter over the runner neutral TestSession; suites use
+# the session directly (see albor_automation/session.py) and never inherit this
 class AlborTestCase(unittest.TestCase):
-    # the unittest adapter over the runner neutral TestSession; the base class
-    # closes the application and collects artifacts when a test fails
 
     def setUp(self) -> None:
-        # arrange: initialize the base test case hooks
-        super().setUp()
-        # arrange: enable debug protocol logging when the environment asks for it
+        # enable debug protocol logging when the environment requests it
         configure_from_environment()
         # subclasses must start the app session in their setUp
         self._session: TestSession | None = None
 
-    def start_session(self, app: AlborApplication) -> None:
-        # the test asks the framework to own the application lifecycle
+    def tearDown(self) -> None:
+        # finish the session, collecting failure artifacts on test failures
         if self._session is not None:
-            # a prior session is finished first, which closes its application;
-            # a scenario that relaunches (persistence checks) uses this
             self._session.finish(self._test_failed())
-        self._app = app
-        self._session = TestSession(app, self.id())
-        # the session is finished through the cleanup hook, which unittest
-        # runs even when the test method failed; the tearDown hook is skipped
-        # in that case on python 3.11+, which would leak the application
-        self.addCleanup(self._finish_session)
-        # baseline the failures the run has already recorded, which is how the
-        # cleanup decides whether this test failed
-        self._failure_baseline = self._recorded_failures()
+        # drop the session reference after the test
+        self._session = None
 
-    def _finish_session(self) -> None:
-        # the session collects failure artifacts and closes the application
-        if self._session is not None:
-            self._session.finish(self._test_failed())
-            self._session = None
+    def start_session(self, app: AlborApplication) -> None:
+        # expose the app for the test body
+        self._app = app
+        # wrap the app in a session scoped by the test id
+        self._session = TestSession(app, self.id())
 
     def _test_failed(self) -> bool:
-        # a test failed when the run recorded more failures than the baseline
-        # taken when the session started; the outcome success flag cannot be
-        # read from a cleanup because unittest resets it before every cleanup
-        # part, and the result object accumulates every failure of the whole
-        # run, so the baseline is what keeps other tests' failures out
-        return self._recorded_failures() > self._failure_baseline
-
-    def _recorded_failures(self) -> int:
-        # count the failures and errors the current run has recorded so far
+        # read the runner outcome recorded for this test
         outcome = getattr(self, "_outcome", None)
-        result = getattr(outcome, "result", None) if outcome is not None else None
-        return len(getattr(result, "failures", ())) + len(getattr(result, "errors", ()))
+        # report no failure when the runner outcome is unavailable
+        if outcome is None:
+            return False
+        # read the result object carrying the recorded failures
+        result = getattr(outcome, "result", None)
+        # report no failure when the runner result is unavailable
+        if result is None:
+            return False
+        # report failure when this test was recorded with a failure or error
+        for entry in list(result.failures) + list(result.errors):
+            # match the recorded entry to this test instance
+            if entry[0] is self:
+                return True
+        # report no failure when nothing was recorded for this test
+        return False

@@ -79,6 +79,9 @@ namespace studio
         // swap the run action label between run and stop
         void set_simulation_running(bool running) override;
 
+        // render the live run state in the status bar and the output header
+        void set_simulation_progress(const SimulationProgress& progress) override;
+
         // reveal the simulation output panel over the lower part of the shell
         void show_output_panel() override;
 
@@ -106,6 +109,18 @@ namespace studio
     private:
         // flush every buffered output line into the facade in one pass
         void flush_output();
+
+        // reapply the installed theme over the tree after a conditional subtree mounts (albor issue #173)
+        void apply_runtime_theme();
+
+        // rebuild the netlist token colours after a load, edit or theme change
+        void rebuild_netlist_highlight();
+
+        // queue one highlight rebuild per event loop iteration, which coalesces typing
+        void schedule_netlist_highlight();
+
+        // copy the log selection, or the whole log when nothing is selected
+        void copy_output();
 
         // run the open panel and hand the chosen file to the presenter
         void handle_open();
@@ -146,6 +161,21 @@ namespace studio
 
         // whether a flush task is already queued, which keeps one flush per batch
         bool m_output_flush_scheduled = false;
+
+        // whether the output panel is currently mounted
+        bool m_output_visible = false;
+
+        // whether the run action currently reads stop
+        bool m_simulation_running = false;
+
+        // whether the status bar currently carries the run indicator
+        bool m_progress_visible = false;
+
+        // whether a highlight rebuild task is already queued, which coalesces typing
+        bool m_netlist_highlight_scheduled = false;
+
+        // whether a conditional subtree mounted since the last theme pass (albor issue #173)
+        bool m_runtime_theme_pending = false;
 
         // the simulation process, recreated for every run
         std::unique_ptr<SimulationRunner> m_simulation_runner;

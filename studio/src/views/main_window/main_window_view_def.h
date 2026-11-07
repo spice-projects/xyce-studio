@@ -10,6 +10,24 @@
 
 namespace studio
 {
+    // the run state the status bar renders while a simulation is live
+    struct SimulationProgress
+    {
+        // whether the run is still in flight, which reveals the indicator
+        bool running = false;
+        // whether Xyce reported a completion percentage, which makes the bar determinate
+        bool determinate = false;
+        // the reported completion percentage in the 0..100 range
+        double percentage = 0.0;
+        // the estimate Xyce spelled out, empty until it reported one
+        std::string eta;
+        // the analysis phase Xyce announced last, empty until it announced one
+        std::string phase;
+        // the warnings and errors reported so far
+        int warnings = 0;
+        int errors = 0;
+    };
+
     // the interactions the shell reports to its presenter
     class MainWindowViewEvents
     {
@@ -77,6 +95,9 @@ namespace studio
 
         // swap the run action label between run and stop, which the running state drives
         virtual void set_simulation_running(bool running) = 0;
+
+        // render the live run state in the status bar and the output header
+        virtual void set_simulation_progress(const SimulationProgress& progress) = 0;
 
         // reveal the simulation output panel over the lower part of the shell
         virtual void show_output_panel() = 0;

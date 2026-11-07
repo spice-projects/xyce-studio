@@ -6,23 +6,31 @@ component MainWindow {
     signal plugin_settings_clicked();
     // the run action starts the simulation and becomes the stop action while it runs
     signal run_clicked();
+    // the exit action closes the shell window
+    signal exit_clicked();
+    // the output action reveals the simulation output panel again
+    signal output_clicked();
 
     // raised while the user edits the netlist text, which marks the netlist dirty
     signal netlist_edited();
     // the user closed the output panel
     signal output_close_clicked();
+    // the user copied the selection or the whole output log
+    signal output_copy_clicked();
 
     // the netlist text the editor edits, fed back to the host on every edit
     inout property<string> netlist_text: "";
     // whether the editor refuses edits, which the connected KiCad slice drives
     in property<bool> netlist_read_only: false;
+    // the styled ranges over the netlist, one per highlighted token
+    in property<vector<TextDecoration>> netlist_decorations: [];
     // the toolbar enablement, which the action states refresh
     in property<bool> open_enabled: true;
     in property<bool> save_enabled: false;
-    // the run action only lights up when a netlist is loaded; the label reads
-    // run or stop, which the host drives because the grammar carries no ternary
-    in property<string> run_label: "Run";
+    // the run action only lights up when a netlist is loaded
     in property<bool> run_enabled: false;
+    // whether a simulation is live, which swaps the run action for the stop action
+    in property<bool> simulation_running: false;
     // the one line status the shell reports
     in property<string> status: "Ready";
 
@@ -30,21 +38,41 @@ component MainWindow {
     // finished simulation; the panel remounts on every show and the host owns
     // its content through the properties below
     in property<bool> output_visible: false;
+    // whether the toolbar output action can reveal a log the shell still holds
+    in property<bool> output_available: false;
     // the whole log as one string, one line per row
     in property<string> output_text: "";
     // the styled ranges over the log, one per warning or error line
     in property<vector<TextDecoration>> output_decorations: [];
+    // the header title, which carries the warning and error counts because authored colours are ignored (albor issue #174)
+    in property<string> output_title_text: "Simulation Output";
     // the scroll offset the log pins to; a value past the content end clamps
     // into the range, which is what keeps the viewport on the last line
     in property<float> output_pin_offset: 1000000.0;
+
+    // the live run progress the status bar shows while a simulation is live
+    in property<bool> progress_visible: false;
+    // whether Xyce reported a completion percentage, which makes the bar determinate
+    in property<bool> progress_determinate: false;
+    // the completion fraction the determinate bar fills to
+    in property<float> progress_value: 0.0;
+    // the phase, percentage, estimate and counts folded into one run
+    in property<string> progress_text: "";
 
     Column {
         spacing: 0px;
 
         ToolBar {
+            padding: 12px;
+            spacing: 2px;
+            corner_radius: 0px;
+            vertical_align: Align.start;
+
+            // icon-only actions announce their element id until albor carries a tooltip (albor issue #178)
             Button {
                 id: main_open;
-                text: "Open";
+                icon: @image("icons/directory_open_48.png");
+                icon_size: 20px;
                 disabled: !open_enabled;
                 on_clicked: {
                     open_clicked();
@@ -53,7 +81,8 @@ component MainWindow {
 
             Button {
                 id: main_save;
-                text: "Save";
+                icon: @image("icons/save_48.png");
+                icon_size: 20px;
                 disabled: !save_enabled;
                 on_clicked: {
                     save_clicked();
@@ -61,19 +90,57 @@ component MainWindow {
             }
 
             Button {
-                id: main_run;
-                text: run_label;
-                disabled: !run_enabled;
+                id: main_output;
+                icon: @image("icons/sim_command_48.png");
+                icon_size: 20px;
+                disabled: !output_available;
                 on_clicked: {
-                    run_clicked();
+                    output_clicked();
+                }
+            }
+
+            // the run action is replaced by the stop action while a simulation
+            // lives, which also swaps the icon the plate draws
+            if !simulation_running {
+                Button {
+                    id: main_run;
+                    text: "Run";
+                    icon: @image("icons/sim_run_48.png");
+                    icon_size: 16px;
+                    disabled: !run_enabled;
+                    on_clicked: {
+                        run_clicked();
+                    }
+                }
+            }
+
+            if simulation_running {
+                Button {
+                    id: main_run;
+                    text: "Stop";
+                    icon: @image("icons/cancel_48.png");
+                    icon_size: 16px;
+                    on_clicked: {
+                        run_clicked();
+                    }
                 }
             }
 
             Button {
                 id: main_plugin_settings;
-                text: "Plugin Settings";
+                icon: @image("icons/preference_48.png");
+                icon_size: 20px;
                 on_clicked: {
                     plugin_settings_clicked();
+                }
+            }
+
+            Button {
+                id: main_exit;
+                icon: @image("icons/exit_48.png");
+                icon_size: 20px;
+                on_clicked: {
+                    exit_clicked();
                 }
             }
         }
@@ -85,6 +152,7 @@ component MainWindow {
             multiline: true;
             value: netlist_text;
             read_only: netlist_read_only;
+            decorations: netlist_decorations;
             font_family: "JetBrains Mono";
             font_size: 13px;
             horizontal_align: Align.stretch;
@@ -100,27 +168,44 @@ component MainWindow {
         if output_visible {
             Panel {
                 id: output_panel;
-                padding: 8px;
-                spacing: 8px;
+                padding: 0px;
+                spacing: 0px;
+                corner_radius: 0px;
+                vertical_align: Align.start;
 
-                Row {
-                    spacing: 8px;
+                Padding {
+                    padding: 8px;
 
-                    Label {
-                        id: output_title;
-                        text: "Simulation Output";
-                    }
+                    Row {
+                        spacing: 8px;
 
-                    // the stretch spacer pushes the close action to the far end
-                    Label {
-                        horizontal_align: Align.stretch;
-                    }
+                        Label {
+                            id: output_title;
+                            text: output_title_text;
+                            font_size: 13px;
+                            vertical_align: Align.center;
+                        }
 
-                    Button {
-                        id: output_close;
-                        text: "Close";
-                        on_clicked: {
-                            output_close_clicked();
+                        // the stretch spacer pushes the actions to the far end
+                        Label {
+                            horizontal_align: Align.stretch;
+                        }
+
+                        Button {
+                            id: output_copy;
+                            text: "Copy";
+                            on_clicked: {
+                                output_copy_clicked();
+                            }
+                        }
+
+                        Button {
+                            id: output_close;
+                            icon: @image("icons/cancel_16.png");
+                            icon_size: 12px;
+                            on_clicked: {
+                                output_close_clicked();
+                            }
                         }
                     }
                 }
@@ -129,7 +214,7 @@ component MainWindow {
                     id: output_scroll;
                     // the viewport is the fixed extent the log reads through,
                     // which is what pins the panel while the content scrolls
-                    viewport_height: 200px;
+                    viewport_height: 152px;
 
                     // the offset pins the log to its bottom: the presented
                     // offset clamps into the content range, which is what keeps
@@ -151,11 +236,44 @@ component MainWindow {
         }
 
         Panel {
-            padding: 8px;
+            padding: 4px;
+            corner_radius: 0px;
+            vertical_align: Align.start;
 
-            Label {
-                id: main_status;
-                text: status;
+            Row {
+                spacing: 12px;
+
+                Label {
+                    id: main_status;
+                    text: status;
+                    vertical_align: Align.center;
+                }
+
+                // the stretch spacer pushes the run progress to the far end
+                Label {
+                    horizontal_align: Align.stretch;
+                }
+
+                if progress_visible {
+                    Row {
+                        spacing: 8px;
+                        vertical_align: Align.center;
+
+                        if progress_determinate {
+                            ProgressBar {
+                                id: main_progress_bar;
+                                value: progress_value;
+                                vertical_align: Align.center;
+                            }
+                        }
+
+                        Label {
+                            id: main_progress;
+                            text: progress_text;
+                            vertical_align: Align.center;
+                        }
+                    }
+                }
             }
         }
     }

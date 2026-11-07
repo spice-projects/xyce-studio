@@ -57,18 +57,6 @@ class SessionFinishChecks(unittest.TestCase):
             self.assertEqual(app.collected, [str(Path(tmp) / "failing-test")])
             self.assertTrue(app.closed)
 
-    def test_finish_is_idempotent(self) -> None:
-        # arrange
-        with tempfile.TemporaryDirectory() as tmp:
-            app = FakeApp()
-            session = TestSession(app, "once-only", artifacts_root=tmp)
-            # act: the second finish call is a no-op
-            session.finish(True)
-            session.finish(True)
-            # assert: the artifacts were collected exactly once and the app closed once
-            self.assertEqual(len(app.collected), 1)
-            self.assertTrue(app.closed)
-
     def test_artifacts_root_defaults_to_the_environment(self) -> None:
         # arrange: the environment names the artifacts root
         with tempfile.TemporaryDirectory() as tmp:

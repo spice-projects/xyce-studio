@@ -11,12 +11,10 @@ from .errors import (
 from .locator import Locator, LocatorError as _LocatorError
 from .mcp_client import McpClient
 from .session import TestSession
-from .test_case import AlborTestCase
 
 __all__ = [
     "AlborApplication",
     "AlborClient",
-    "AlborTestCase",
     "AlborAssertionError",
     "AlborTestError",
     "ApplicationStartupError",

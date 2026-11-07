@@ -11,7 +11,9 @@ component PluginConfigDialog {
     signal accepted();
     signal dismissed();
 
-    Panel {
+    // the column is the dialog body, which lets the footer stretch spacer pin
+    // the actions to the bottom edge of the fixed size window
+    Column {
         padding: 16px;
         spacing: 12px;
 
@@ -19,14 +21,11 @@ component PluginConfigDialog {
             spacing: 10px;
             horizontal_align: Align.stretch;
 
-            Label {
-                text: "Xyce path:";
-                vertical_align: Align.center;
-            }
-
+            // the placeholder names the field because a caption label would take the initial focus (albor issue #176)
             TextField {
                 id: plugin_config_path;
                 value: path;
+                placeholder: "Xyce executable path";
                 horizontal_align: Align.stretch;
                 on_changed: {
                     path = value;

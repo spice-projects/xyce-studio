@@ -1,15 +1,22 @@
 #include "views/main_window/main_window_view.h"
 
+#include <cmath>
 #include <filesystem>
 #include <utility>
 
 #include "albor/application/application.h"
 #include "albor/application/file_dialog.h"
+#include "albor/core/clipboard.h"
+#include "albor/core/color_scheme.h"
 #include "albor/core/paint.h"
+#include "albor/ui/ui_node.h"
+#include "albor/widgets/text_field.h"
 #include "albor/widgets/theme_controller.h"
+#include "albor/widgets/widget.h"
 #include "albor/window/window.h"
 #include "app/theme.h"
 #include "main_window.h"
+#include "netlist/netlist_lexer.h"
 
 namespace
 {
@@ -46,6 +53,121 @@ namespace
     // the red the error lines carry
     albor::Color error_color() { return albor::Color::rgb(0xe0 / 255.0f, 0x5b / 255.0f, 0x4b / 255.0f); }
 
+    // the colour a netlist token draws with, matching the slint palette
+    albor::Color netlist_token_color(NetlistTokenType type, bool dark_mode) {
+        if (dark_mode) {
+            switch (type) {
+            case NetlistTokenType::COMMENT:
+                return albor::Color::rgb(0x8b / 255.0f, 0x94 / 255.0f, 0x9e / 255.0f);
+            case NetlistTokenType::DIRECTIVE:
+                return albor::Color::rgb(0x79 / 255.0f, 0xc0 / 255.0f, 0xff / 255.0f);
+            case NetlistTokenType::DEVICE:
+                return albor::Color::rgb(0xff / 255.0f, 0xa6 / 255.0f, 0x57 / 255.0f);
+            case NetlistTokenType::NUMBER:
+                return albor::Color::rgb(0xa5 / 255.0f, 0xd6 / 255.0f, 0xff / 255.0f);
+            case NetlistTokenType::EXPRESSION:
+                return albor::Color::rgb(0xff / 255.0f, 0x7b / 255.0f, 0x72 / 255.0f);
+            case NetlistTokenType::STRING_LITERAL:
+                return albor::Color::rgb(0x7e / 255.0f, 0xe7 / 255.0f, 0x87 / 255.0f);
+            case NetlistTokenType::CONTINUATION:
+                return albor::Color::rgb(0xd2 / 255.0f, 0xa8 / 255.0f, 0xff / 255.0f);
+            case NetlistTokenType::KEYWORD:
+                return albor::Color::rgb(0xff / 255.0f, 0x88 / 255.0f, 0x88 / 255.0f);
+            case NetlistTokenType::MODEL:
+                return albor::Color::rgb(0xa5 / 255.0f, 0xd6 / 255.0f, 0xff / 255.0f);
+            case NetlistTokenType::OPERATOR:
+                return albor::Color::rgb(0xe0 / 255.0f, 0xe0 / 255.0f, 0xe0 / 255.0f);
+            default:
+                return {};
+            }
+        }
+        switch (type) {
+        case NetlistTokenType::COMMENT:
+            return albor::Color::rgb(0x6a / 255.0f, 0x73 / 255.0f, 0x7d / 255.0f);
+        case NetlistTokenType::DIRECTIVE:
+            return albor::Color::rgb(0x05 / 255.0f, 0x50 / 255.0f, 0xae / 255.0f);
+        case NetlistTokenType::DEVICE:
+            return albor::Color::rgb(0x95 / 255.0f, 0x38 / 255.0f, 0x00 / 255.0f);
+        case NetlistTokenType::NUMBER:
+            return albor::Color::rgb(0x0a / 255.0f, 0x30 / 255.0f, 0x69 / 255.0f);
+        case NetlistTokenType::EXPRESSION:
+            return albor::Color::rgb(0xcf / 255.0f, 0x22 / 255.0f, 0x2e / 255.0f);
+        case NetlistTokenType::STRING_LITERAL:
+            return albor::Color::rgb(0x11 / 255.0f, 0x63 / 255.0f, 0x29 / 255.0f);
+        case NetlistTokenType::CONTINUATION:
+            return albor::Color::rgb(0x82 / 255.0f, 0x50 / 255.0f, 0xdf / 255.0f);
+        case NetlistTokenType::KEYWORD:
+            return albor::Color::rgb(0xcc / 255.0f, 0x22 / 255.0f, 0x22 / 255.0f);
+        case NetlistTokenType::MODEL:
+            return albor::Color::rgb(0x0a / 255.0f, 0x30 / 255.0f, 0x69 / 255.0f);
+        case NetlistTokenType::OPERATOR:
+            return albor::Color::rgb(0x22 / 255.0f, 0x22 / 255.0f, 0x22 / 255.0f);
+        default:
+            return {};
+        }
+    }
+
+    // build the styled ranges over a netlist, one per highlighted token
+    std::vector<albor::TextDecoration> build_netlist_decorations(std::string_view text, bool dark_mode) {
+        std::vector<albor::TextDecoration> decorations;
+        std::size_t offset = 0;
+        for (const NetlistTokenLine& line : tokenize_netlist(text)) {
+            for (const NetlistToken& token : line.m_tokens) {
+                // the plain tokens follow the field text, so they need no range
+                if (token.m_type != NetlistTokenType::WHITESPACE && token.m_type != NetlistTokenType::NODE && token.m_type != NetlistTokenType::PLAIN_TEXT) {
+                    decorations.push_back(albor::TextDecoration{.start = offset, .end = offset + token.m_text.size(), .foreground = netlist_token_color(token.m_type, dark_mode)});
+                }
+                offset += token.m_text.size();
+            }
+            offset += line.m_line_ending.size();
+        }
+        return decorations;
+    }
+
+    // fold the warning and error counts into the output panel title
+    std::string compose_output_title(int warnings, int errors) {
+        std::string title = "Simulation Output";
+        if (warnings > 0)
+            title += " · " + std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings");
+        if (errors > 0)
+            title += " · " + std::to_string(errors) + (errors == 1 ? " error" : " errors");
+        return title;
+    }
+
+    // fold the run state into the one line the status bar shows
+    std::string compose_progress_text(const studio::SimulationProgress& progress) {
+        std::string text;
+        if (progress.determinate) {
+            text = std::to_string(static_cast<int>(std::lround(progress.percentage))) + "%";
+            if (!progress.eta.empty())
+                text += " · ETA " + progress.eta;
+        }
+        else if (!progress.phase.empty()) {
+            text = progress.phase;
+        }
+        else {
+            text = "Running...";
+        }
+        if (progress.warnings > 0)
+            text += " · " + std::to_string(progress.warnings) + (progress.warnings == 1 ? " warning" : " warnings");
+        if (progress.errors > 0)
+            text += " · " + std::to_string(progress.errors) + (progress.errors == 1 ? " error" : " errors");
+        return text;
+    }
+
+    // find a text field by its author id, walking the retained tree
+    albor::TextField* find_text_field(albor::UiNode& node, std::string_view explicit_id) {
+        if (node.identity().explicit_id == explicit_id) {
+            if (auto* field = dynamic_cast<albor::TextField*>(&node))
+                return field;
+        }
+        for (const auto& child : node.children()) {
+            if (auto* found = find_text_field(*child, explicit_id))
+                return found;
+        }
+        return nullptr;
+    }
+
     // build the filter the open panel offers, which is the netlist format plus
     // every analysis output format the presenter dispatches by extension
     std::vector<albor::FileFilter> open_filters() { return {albor::FileFilter{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat"}}}; }
@@ -77,6 +199,18 @@ bool studio::MainWindowView::create() {
     }
     // theme the tree before the first frame, which is what keeps every chrome widget palette driven
     m_theme = install_theme(*m_app, m_handle);
+    // a scheme flip rebuilds the token colours, which the palette owns
+    if (m_theme != nullptr)
+        m_theme->set_scheme_changed_handler([this](albor::ColorScheme) { schedule_netlist_highlight(); });
+    // the frame hook reaches a freshly built conditional subtree, which the install pass missed (albor issue #173)
+    m_app->set_frame_hook(m_handle, [this] {
+        if (!m_runtime_theme_pending)
+            return;
+        m_runtime_theme_pending = false;
+        apply_runtime_theme();
+    });
+    // seed the editor highlight from the empty netlist
+    rebuild_netlist_highlight();
     // the shell is built but hidden, which the caller reveals once it is wired
     if (albor::Window* window = m_app->window(m_handle))
         window->show();
@@ -114,8 +248,9 @@ void studio::MainWindowView::set_event_handler(MainWindowViewEvents* handler) {
         if (m_events != nullptr)
             m_events->on_save();
     });
-    // an edit reports through the same seam
+    // an edit reports through the same seam, and rebuilds the token colours once per batch
     m_root->set_on_netlist_edited([this] {
+        schedule_netlist_highlight();
         if (m_events != nullptr)
             m_events->on_netlist_edited();
     });
@@ -124,17 +259,25 @@ void studio::MainWindowView::set_event_handler(MainWindowViewEvents* handler) {
         if (m_events != nullptr)
             m_events->on_run_clicked();
     });
+    // the output action reveals the panel the close action folded away
+    m_root->set_on_output_clicked([this] { show_output_panel(); });
     // the close action folds the output panel away
     m_root->set_on_output_close_clicked([this] {
         if (m_events != nullptr)
             m_events->on_output_close();
     });
+    // the copy action copies the selection, or the whole log when nothing is selected
+    m_root->set_on_output_copy_clicked([this] { copy_output(); });
+    // the exit action closes the shell window, which the application tears down
+    m_root->set_on_exit_clicked([this] { (void)m_app->request_close(m_handle); });
 }
 
 void studio::MainWindowView::set_netlist_text(std::string_view content) {
     if (m_root == nullptr)
         return;
     m_root->set_netlist_text(std::string(content));
+    // the loaded text carries its own token colours
+    rebuild_netlist_highlight();
 }
 
 std::string studio::MainWindowView::netlist_text() const {
@@ -178,18 +321,55 @@ void studio::MainWindowView::set_run_enabled(bool enabled) {
 void studio::MainWindowView::set_simulation_running(bool running) {
     if (m_root == nullptr)
         return;
-    // the action reads stop while the run lives, which the label carries
-    m_root->set_run_label(running ? "Stop" : "Run");
+    // an unchanged state leaves the toolbar subtree and the theme alone
+    if (m_simulation_running == running)
+        return;
+    // the action reads stop while the run lives, which swaps the toolbar subtree
+    m_simulation_running = running;
+    m_root->set_simulation_running(running);
+    // the rebuilt action carries no theme until the next frame hook walks the tree
+    m_runtime_theme_pending = true;
+}
+
+void studio::MainWindowView::set_simulation_progress(const SimulationProgress& progress) {
+    if (m_root == nullptr)
+        return;
+    // the output header folds the counts into its title
+    m_root->set_output_title_text(compose_output_title(progress.warnings, progress.errors));
+    // the status line carries the phase, the estimate and the counts
+    m_root->set_progress_text(compose_progress_text(progress));
+    m_root->set_progress_determinate(progress.determinate);
+    m_root->set_progress_value(progress.determinate ? static_cast<float>(progress.percentage / 100.0) : 0.0f);
+    // only a presence change rebuilds the indicator subtree
+    if (m_progress_visible != progress.running) {
+        m_progress_visible = progress.running;
+        m_root->set_progress_visible(progress.running);
+        m_runtime_theme_pending = true;
+    }
 }
 
 void studio::MainWindowView::show_output_panel() {
-    if (m_root != nullptr)
-        m_root->set_output_visible(true);
+    if (m_root == nullptr)
+        return;
+    // a revealed panel makes its log reachable from the toolbar
+    m_root->set_output_available(true);
+    // an already mounted panel needs no rebuild or theme pass
+    if (m_output_visible)
+        return;
+    m_output_visible = true;
+    m_root->set_output_visible(true);
+    // the rebuilt panel carries no theme until the next frame hook walks the tree
+    m_runtime_theme_pending = true;
 }
 
 void studio::MainWindowView::hide_output_panel() {
-    if (m_root != nullptr)
-        m_root->set_output_visible(false);
+    if (m_root == nullptr)
+        return;
+    // an already hidden panel leaves the tree and the theme alone
+    if (!m_output_visible)
+        return;
+    m_output_visible = false;
+    m_root->set_output_visible(false);
 }
 
 void studio::MainWindowView::clear_output() {
@@ -203,6 +383,9 @@ void studio::MainWindowView::clear_output() {
         return;
     m_root->set_output_text(m_output_text);
     m_root->set_output_decorations(m_output_decorations);
+    // an empty log has no content the toolbar action could reveal
+    m_root->set_output_available(false);
+    m_root->set_output_title_text("Simulation Output");
 }
 
 void studio::MainWindowView::append_output_line(std::string_view line, LogSeverity severity) {
@@ -262,6 +445,51 @@ void studio::MainWindowView::flush_output() {
     // the facade reads the log and its decorations as one binding each
     m_root->set_output_text(m_output_text);
     m_root->set_output_decorations(m_output_decorations);
+    // any log line makes the panel reachable from the toolbar again
+    m_root->set_output_available(true);
+}
+
+void studio::MainWindowView::apply_runtime_theme() {
+    // without a controller or a live window there is no theme to apply
+    if (m_theme == nullptr || !m_handle.valid())
+        return;
+    // the conditional subtrees carry the unthemed defaults until this pass reaches them (albor issue #173)
+    if (albor::UiNode* root = m_app->root(m_handle))
+        albor::apply_theme(*root, m_theme->theme());
+}
+
+void studio::MainWindowView::rebuild_netlist_highlight() {
+    // the queued task is running, so the next edit schedules its own
+    m_netlist_highlight_scheduled = false;
+    // the facade or the theme is gone, so there are no colours to resolve
+    if (m_root == nullptr || m_theme == nullptr)
+        return;
+    // the installed scheme decides which token palette applies
+    const bool dark_mode = m_theme->scheme() == albor::ColorScheme::Dark;
+    m_root->set_netlist_decorations(build_netlist_decorations(m_root->netlist_text(), dark_mode));
+}
+
+void studio::MainWindowView::schedule_netlist_highlight() {
+    // one rebuild per event loop iteration, which coalesces the per keystroke edits
+    if (m_netlist_highlight_scheduled)
+        return;
+    m_netlist_highlight_scheduled = true;
+    m_app->post([this] { rebuild_netlist_highlight(); });
+}
+
+void studio::MainWindowView::copy_output() {
+    // a selection in the log copies through the field, which keeps its own clipboard path
+    if (m_handle.valid()) {
+        if (albor::UiNode* root = m_app->root(m_handle)) {
+            if (albor::TextField* log = find_text_field(*root, "output_log"); log != nullptr && log->has_selection()) {
+                log->copy();
+                return;
+            }
+        }
+    }
+    // without a selection the whole log is the copy
+    if (albor::Clipboard* clipboard = albor::process_clipboard(); clipboard != nullptr && clipboard->ready())
+        clipboard->set_text(m_output_text);
 }
 
 void studio::MainWindowView::start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) {

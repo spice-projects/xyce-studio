@@ -30,18 +30,29 @@ test in `tests_studio/`; the referenced tests are the executable documentation.
 
 ### Sessions and launch
 
-Every test is an `AlborTestCase` and starts its application through
-`start_session`. The session finishes when the test ends — through the
-unittest cleanup hook, which runs even when the test method failed — closing
-the application and collecting failure artifacts (screenshot, tree dump,
-descriptor, stdout/stderr) into `artifacts/<test id>/` when the test failed.
+Tests derive from `unittest.TestCase` and scope the application with
+`TestSession` inside the test method — the same design as `slint_automation`:
 
 ```python
-class PluginConfigDialogChecks(AlborTestCase):
-    def setUp(self) -> None:
-        self.start_session(launch(args=["--xyce", "/bin/echo"]))
-        self.app = self._app
+class PluginConfigDialogChecks(unittest.TestCase):
+    def test_dialog_shows_configured_path_on_open(self) -> None:
+        # arrange: launch the application in a session scoped to this test
+        with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
+            app.get_by_id("main_plugin_settings").click()
+            field = app.get_by_id("plugin_config_path")
+            field.wait_for_exists()
+            expect(field).to_have_value("/bin/echo")
 ```
+
+The session owns the launch for the duration of the `with` block and closes it
+on exit, collecting failure artifacts (screenshot, tree dump, descriptor,
+stdout/stderr) into `artifacts/<test id>/` when the block raises. A scenario
+that relaunches uses two sequential `with` blocks, so one application instance
+is never shared across tests or across a launch boundary.
+
+`albor_automation/test_case.py` keeps an optional `AlborTestCase` adapter over
+the session for suites that prefer `setUp`-based launching; the scenarios in
+this folder do not use it.
 
 Launch variants (from `albor_automation.albor_application.launch`):
 
@@ -115,19 +126,18 @@ netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir
 with tempfile.TemporaryDirectory() as scratch:
     working_copy = Path(scratch) / "tran-simple-01.cir"
     shutil.copy(netlist, working_copy)
-    self.start_session(launch(args=["--netlist", str(working_copy)]))
-    app = self._app
-    editor = app.get_by_id("netlist_editor")
-    editor.wait_for_exists()
-    save = app.get_by_id("main_save")
-    expect(editor).to_have_value(netlist.read_text())
-    expect(save).to_have_state("disabled")
-    edited = netlist.read_text() + "* typed by the scenario\n"
-    editor.fill(edited)
-    expect(save).not_().to_have_state("disabled")
-    save.click()
-    app.wait_for_condition(lambda: working_copy.read_text() == edited, timeout=5.0, message="expected the save to write the edited netlist")
-    expect(save).to_have_state("disabled")
+    with TestSession(launch(args=["--netlist", str(working_copy)]), self.id()) as app:
+        editor = app.get_by_id("netlist_editor")
+        editor.wait_for_exists()
+        save = app.get_by_id("main_save")
+        expect(editor).to_have_value(netlist.read_text())
+        expect(save).to_have_state("disabled")
+        edited = netlist.read_text() + "* typed by the scenario\n"
+        editor.fill(edited)
+        expect(save).not_().to_have_state("disabled")
+        save.click()
+        app.wait_for_condition(lambda: working_copy.read_text() == edited, timeout=5.0, message="expected the save to write the edited netlist")
+        expect(save).to_have_state("disabled")
 ```
 
 - `editor.fill(...)` replaces the whole value through the edit path, so it
@@ -142,8 +152,10 @@ with tempfile.TemporaryDirectory() as scratch:
 - The open panel is native too; scenarios reach the open dispatch through
   `--netlist`, which the presenter treats identically.
 - Semantic ids of the shell (from `studio/src/views/main_window/main_window.ui`):
-  `main_open`, `main_save`, `main_plugin_settings` (toolbar), `netlist_editor`
-  (multiline text field), `main_status` (status row).
+  `main_open`, `main_save`, `main_output` (reveals the simulation log),
+  `main_run` (reads `Run` or `Stop`), `main_plugin_settings`, `main_exit`
+  (toolbar), `netlist_editor` (multiline text field), `main_status` (status
+  row), `main_progress` (status run readout, absent while no run is live).
 
 ### Open the plugin configuration dialog (from `plugin_config_test.py`)
 
@@ -151,10 +163,11 @@ The dialog opens from the main window toolbar button; the field resolves
 against the dialog's semantic ids once the dialog is up:
 
 ```python
-app.get_by_id("main_plugin_settings").click()
-field = app.get_by_id("plugin_config_path")
-field.wait_for_exists()
-expect(field).to_have_value("/bin/echo")
+with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
+    app.get_by_id("main_plugin_settings").click()
+    field = app.get_by_id("plugin_config_path")
+    field.wait_for_exists()
+    expect(field).to_have_value("/bin/echo")
 ```
 
 Semantic ids of the dialog (from `studio/src/views/plugin_config/plugin_config_dialog.ui`):
@@ -170,22 +183,19 @@ launches; the second launch must see the first run's persisted state.
 
 ```python
 with tempfile.TemporaryDirectory() as config_root:
-    self.start_session(launch(env={"XDG_CONFIG_HOME": config_root}))
-    app = self._app
-    app.get_by_id("main_plugin_settings").click()
-    field = app.get_by_id("plugin_config_path")
-    field.wait_for_exists()
-    field.fill("/bin/echo")
-    app.get_by_id("plugin_config_ok").click()
-    field.wait_for_gone()                  # dialog closed after acceptance
-    app.close()
+    with TestSession(launch(env={"XDG_CONFIG_HOME": config_root}), self.id()) as app:
+        app.get_by_id("main_plugin_settings").click()
+        field = app.get_by_id("plugin_config_path")
+        field.wait_for_exists()
+        field.fill("/bin/echo")
+        app.get_by_id("plugin_config_ok").click()
+        field.wait_for_gone()                  # dialog closed after acceptance
     # relaunch sharing the same configuration root
-    self.start_session(launch(env={"XDG_CONFIG_HOME": config_root}))
-    app = self._app
-    app.get_by_id("main_plugin_settings").click()
-    field = app.get_by_id("plugin_config_path")
-    field.wait_for_exists()
-    expect(field).to_have_value("/bin/echo")
+    with TestSession(launch(env={"XDG_CONFIG_HOME": config_root}), self.id()) as app:
+        app.get_by_id("main_plugin_settings").click()
+        field = app.get_by_id("plugin_config_path")
+        field.wait_for_exists()
+        expect(field).to_have_value("/bin/echo")
 ```
 
 Without the override each launch is fully isolated, so the dialog shows the
@@ -197,12 +207,16 @@ A rejected accept keeps the dialog open; the error label appears only after
 the refusal, so wait for it and assert its name:
 
 ```python
-field.fill("/nonexistent/xyce")
-app.get_by_id("plugin_config_ok").click()
-error = app.get_by_id("plugin_config_error")
-error.wait_for_exists()
-expect(error).to_have_name("Selected path is not an executable file")
-self.assertTrue(app.get_by_id("plugin_config_ok").exists())  # dialog stays open
+with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
+    app.get_by_id("main_plugin_settings").click()
+    field = app.get_by_id("plugin_config_path")
+    field.wait_for_exists()
+    field.fill("/nonexistent/xyce")
+    app.get_by_id("plugin_config_ok").click()
+    error = app.get_by_id("plugin_config_error")
+    error.wait_for_exists()
+    expect(error).to_have_name("Selected path is not an executable file")
+    self.assertTrue(app.get_by_id("plugin_config_ok").exists())  # dialog stays open
 ```
 
 ### Cancel reverts the edited value (from `plugin_config_test.py`)
@@ -211,22 +225,98 @@ Drive to the failing state first, then cancel, then reopen and compare
 against the configured value:
 
 ```python
-field.fill("/nonexistent/xyce")
-app.get_by_id("plugin_config_ok").click()
-app.get_by_id("plugin_config_error").wait_for_exists()
-app.get_by_id("plugin_config_cancel").click()
-field.wait_for_gone()                      # cancel closes the dialog
-app.get_by_id("main_plugin_settings").click()
-field = app.get_by_id("plugin_config_path")
-field.wait_for_exists()
-expect(field).to_have_value("/bin/echo")   # the rejected value was discarded
-expect(app.get_by_id("plugin_config_error")).not_().to_exist()
+with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
+    app.get_by_id("main_plugin_settings").click()
+    field = app.get_by_id("plugin_config_path")
+    field.wait_for_exists()
+    field.fill("/nonexistent/xyce")
+    app.get_by_id("plugin_config_ok").click()
+    app.get_by_id("plugin_config_error").wait_for_exists()
+    app.get_by_id("plugin_config_cancel").click()
+    field.wait_for_gone()                      # cancel closes the dialog
+    app.get_by_id("main_plugin_settings").click()
+    field = app.get_by_id("plugin_config_path")
+    field.wait_for_exists()
+    expect(field).to_have_value("/bin/echo")   # the rejected value was discarded
+    expect(app.get_by_id("plugin_config_error")).not_().to_exist()
+```
+
+### Run a simulation and read the live progress (from `simulation_output_test.py`)
+
+A fake `Xyce` script is the test double for the runner: point `--xyce` at it,
+give it a netlist, and press the run action. The console lines reach the output
+panel and the parsed state reaches the status bar.
+
+```python
+exe = Path(tmp) / "Xyce"
+exe.write_text(
+    "#!/bin/sh\n"
+    "echo '***** Percent complete: 40 %'\n"
+    "echo '***** Estimated time to completion: 12 sec.'\n"
+    "echo 'Netlist warning: parallel device count mismatch'\n"
+    "exec sleep 30\n"                      # keeps the run live for the assertions
+)
+os.chmod(exe, 0o755)
+with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+    expect(app.get_by_id("main_output")).to_have_state("disabled")
+    app.get_by_id("main_run").click()
+    progress = app.get_by_id("main_progress")
+    progress.wait_for_exists()
+    expect(progress).to_have_name("40% · ETA 12 sec. · 1 warning")
+    expect(app.get_by_id("output_title")).to_have_name("Simulation Output · 1 warning")
+    expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
+    app.get_by_id("main_run").click()          # the action reads Stop while the run lives
+    progress.wait_for_gone()                   # the live readout folds away on finish
+```
+
+- End the script with `exec sleep <n>` rather than `sleep <n>`: a shell that
+  stays alive around a child `sleep` leaves that child holding the pipes, so a
+  cancel waits for it instead of tearing the run down.
+- `main_progress` is the status readout, and `main_progress_bar` is the
+  determinate bar, both absent while no run is live.
+- The output header folds the reported counts into its own text, so assert the
+  counts on `output_title`, not on a badge.
+- Semantic ids of the output panel: `output_panel`, `output_title`,
+  `output_copy` (copies the selection or the whole log), `output_close`,
+  `output_scroll`, `output_log` (read-only multiline field).
+
+### Reopen the closed simulation log from the toolbar (from `simulation_output_test.py`)
+
+Closing the panel keeps the log in the shell; the toolbar output action reveals
+it again:
+
+```python
+with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+    app.get_by_id("main_run").click()
+    log = app.get_by_id("output_log")
+    log.wait_for_exists()
+    expect(log).to_have_value("*** Running Xyce simulation ***\nSimulation completed.\n")
+    app.get_by_id("output_close").click()
+    log.wait_for_gone()
+    app.get_by_id("main_output").click()
+    log.wait_for_exists()
+```
+
+### Open the plugin configuration dialog focused on the path (from `plugin_config_test.py`)
+
+The path field is the dialog's first control, so typing goes straight into it
+without a click:
+
+```python
+with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
+    app.get_by_id("main_plugin_settings").click()
+    field = app.get_by_id("plugin_config_path")
+    field.wait_for_exists()
+    expect(field).to_have_state("focused")
 ```
 
 ## Conventions
 
 - Every scenario starts with `# arrange`, uses `# step` for each interaction
   and `# assert` for each verification.
+- Tests derive from `unittest.TestCase` and own the application through
+  `with TestSession(launch(...), self.id()) as app:`; a test never holds the
+  application outside the block, and a relaunch uses a second block.
 - Test methods must be self-contained: no helper functions and no shared
   utilities between tests; test doubles (fake processes, fake transports) are
   the only shared objects, mirroring the framework unit tests in

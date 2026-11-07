@@ -140,6 +140,8 @@ void studio::MainWindowPresenter::run_simulation() {
     m_view->start_simulation_process(m_plugin_config.xyce_executable_path(), temp_path, m_netlist_source->working_directory());
     // refresh toolbar/menu states
     refresh_action_states();
+    // reveal the run indicator from the first line the parser sees
+    publish_simulation_progress();
     // clear the statusbar message, the output panel already reports the run
     m_view->set_status_text("");
 }
@@ -179,8 +181,18 @@ void studio::MainWindowPresenter::handle_simulation_log_line(const std::string& 
 }
 
 void studio::MainWindowPresenter::publish_simulation_progress() {
-    // the progress indicator arrives with the charts slice; the parser already
-    // distills the state for it
+    // the parser distills the percentage, the estimate, the phase and the counts
+    const XyceLogState& state = m_log_parser.state();
+    SimulationProgress progress;
+    progress.running = m_simulation_running;
+    progress.determinate = state.percentage.has_value();
+    progress.percentage = state.percentage.value_or(0.0);
+    progress.eta = state.eta;
+    progress.phase = state.phase;
+    progress.warnings = state.warnings;
+    progress.errors = state.errors;
+    // hand the refreshed run state to the status bar and the output header
+    m_view->set_simulation_progress(progress);
 }
 
 bool studio::MainWindowPresenter::is_cross_stream_duplicate(const std::string& line, const bool from_stderr) const {
@@ -195,6 +207,8 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
     m_simulation_running = false;
     // refresh states so the run action reads Run again
     refresh_action_states();
+    // fold the indicator away while the log keeps the final counts
+    publish_simulation_progress();
     // keep the output panel visible so the log can be inspected
     m_view->show_output_panel();
     // handle canceled simulations
