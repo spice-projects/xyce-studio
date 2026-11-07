@@ -1,9 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+
+#include "simulation/xyce_log_parser.h"
 
 namespace studio
 {
@@ -21,6 +24,22 @@ namespace studio
 
         // the user edited the netlist text
         virtual void on_netlist_edited() = 0;
+
+        // the user pressed the run action, which starts or stops the simulation
+        virtual void on_run_clicked() = 0;
+
+        // the user closed the simulation output panel
+        virtual void on_output_close() = 0;
+
+        // one console line the simulation process wrote, which the runner
+        // dispatched onto the ui thread
+        virtual void on_simulation_stdout(const std::string& line) = 0;
+
+        // one diagnostic line the simulation process wrote on its error stream
+        virtual void on_simulation_stderr(const std::string& line) = 0;
+
+        // the simulation process ended, either by itself or through a cancel
+        virtual void on_simulation_finished(int exit_code, bool was_canceled) = 0;
     };
 
     // the surface the main window presenter drives, abstracted from the window toolkit
@@ -52,6 +71,34 @@ namespace studio
 
         // enable or disable the save action
         virtual void set_save_enabled(bool enabled) = 0;
+
+        // enable or disable the run action, which the action states refresh
+        virtual void set_run_enabled(bool enabled) = 0;
+
+        // swap the run action label between run and stop, which the running state drives
+        virtual void set_simulation_running(bool running) = 0;
+
+        // reveal the simulation output panel over the lower part of the shell
+        virtual void show_output_panel() = 0;
+
+        // hide the simulation output panel
+        virtual void hide_output_panel() = 0;
+
+        // drop every buffered output line, which a new run starts from
+        virtual void clear_output() = 0;
+
+        // append one console line to the output log, styled by its severity
+        virtual void append_output_line(std::string_view line, LogSeverity severity) = 0;
+
+        // hand out how many lines the output log holds, which the parser rows are indexed by
+        [[nodiscard]] virtual std::size_t output_line_count() const = 0;
+
+        // launch the simulation process over the given netlist, which streams
+        // its console output through the simulation events
+        virtual void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) = 0;
+
+        // request a graceful shutdown of the running simulation process
+        virtual void cancel_simulation_process() = 0;
 
         // ask the user for the save location and filename of an untitled netlist
         [[nodiscard]] virtual std::optional<std::filesystem::path> request_netlist_save_path() = 0;

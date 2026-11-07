@@ -198,13 +198,13 @@ Move files into their respective homes. Git preserves history across renames (`g
 
 ### Phase 5: Bootstrap New Framework Root (`studio/`)
 
-- [ ] **5.1. Minimal Application Shell**
+- [x] **5.1. Minimal Application Shell**
   - Implement `studio/src/main.cpp` initializing the new UI framework runtime and event loop.
   - Create `App` lifecycle manager in `studio/src/app/`.
-- [ ] **5.2. Empty Main Window Shell**
+- [x] **5.2. Empty Main Window Shell**
   - Create `studio/src/views/main_window_view.*` opening the framework's native window.
   - Create a lightweight `studio/src/presenters/main_window_presenter.*` managing only main window actions.
-- [ ] **5.3. Build & Launch Verification**
+- [x] **5.3. Build & Launch Verification**
   - Run: `cmake --preset studio-debug` && `cmake --build --preset studio-debug`.
   - Launch `./.build-studio-debug/studio/xyce-studio-next` and verify the window appears.
 
@@ -214,7 +214,7 @@ Move files into their respective homes. Git preserves history across renames (`g
 
 Implement features in `studio/` piece by piece. For each feature, create dedicated presenter/view pairs.
 
-- [ ] **6.1. Window Chrome, Toolbar & Netlist Editor**
+- [x] **6.1. Window Chrome, Toolbar & Netlist Editor**
   - Implement netlist text editor view (binding to `EditorNetlistSource` from `xyce-core`).
   - Wire File Open / Save actions and netlist dirty tracking.
 - [ ] **6.2. Simulation Execution & Output Panel**

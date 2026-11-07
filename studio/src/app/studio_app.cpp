@@ -38,8 +38,9 @@ int studio::StudioApp::run() {
         std::fprintf(stderr, "xyce-studio: the main window could not be created\n");
         return 1;
     }
-    // the shell reports the netlist lifecycle to the presenter
-    m_main_presenter = std::make_unique<MainWindowPresenter>(*m_main_view);
+    // the shell reports the netlist lifecycle to the presenter, which reads the
+    // Xyce executable path from the plugin configuration
+    m_main_presenter = std::make_unique<MainWindowPresenter>(*m_main_view, m_plugin_config);
     m_main_view->set_event_handler(m_main_presenter.get());
     // the requested netlist reaches the shell through the same dispatch the open action uses
     if (!m_startup_netlist.empty())

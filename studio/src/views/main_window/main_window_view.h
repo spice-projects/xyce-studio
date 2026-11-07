@@ -1,13 +1,17 @@
 #pragma once
 
+#include <cstddef>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "albor/window/window_handle.h"
+#include "runner/simulation_runner.h"
 #include "views/main_window/main_window_view_def.h"
 
 namespace albor
@@ -15,12 +19,13 @@ namespace albor
     class Application;
     class MainWindow;
     class ThemeController;
+    struct TextDecoration;
 } // namespace albor
 
 namespace studio
 {
-    // the Albor shell window; it implements the surface the presenter drives
-    // and resolves the native file panels itself
+    // the Albor shell window; it implements the surface the presenter drives,
+    // resolves the native file panels itself and owns the simulation process
     class MainWindowView final : public MainWindowViewDef
     {
     public:
@@ -68,10 +73,40 @@ namespace studio
         // enable or disable the save action
         void set_save_enabled(bool enabled) override;
 
+        // enable or disable the run action
+        void set_run_enabled(bool enabled) override;
+
+        // swap the run action label between run and stop
+        void set_simulation_running(bool running) override;
+
+        // reveal the simulation output panel over the lower part of the shell
+        void show_output_panel() override;
+
+        // hide the simulation output panel
+        void hide_output_panel() override;
+
+        // drop every buffered output line, which a new run starts from
+        void clear_output() override;
+
+        // append one console line to the output log, styled by its severity
+        void append_output_line(std::string_view line, LogSeverity severity) override;
+
+        // hand out how many lines the output log holds
+        [[nodiscard]] std::size_t output_line_count() const override;
+
+        // launch the simulation process over the given netlist
+        void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) override;
+
+        // request a graceful shutdown of the running simulation process
+        void cancel_simulation_process() override;
+
         // ask the user for the save location and filename of an untitled netlist
         [[nodiscard]] std::optional<std::filesystem::path> request_netlist_save_path() override;
 
     private:
+        // flush every buffered output line into the facade in one pass
+        void flush_output();
+
         // run the open panel and hand the chosen file to the presenter
         void handle_open();
 
@@ -92,5 +127,27 @@ namespace studio
 
         // the theme bindings installed over the shell tree
         std::unique_ptr<albor::ThemeController> m_theme;
+
+        // the whole log as one string, one line per row
+        std::string m_output_text;
+
+        // the styled ranges over the log, one per warning or error line
+        std::vector<albor::TextDecoration> m_output_decorations;
+
+        // how many lines the log holds
+        std::size_t m_output_line_count = 0;
+
+        // the byte the kept log starts at, which the cap trim advances
+        std::size_t m_output_trim_offset = 0;
+
+        // the lines that arrived since the last flush, which coalesces the
+        // per line facade writes into one pass per event loop iteration
+        std::deque<std::pair<std::string, LogSeverity>> m_output_pending;
+
+        // whether a flush task is already queued, which keeps one flush per batch
+        bool m_output_flush_scheduled = false;
+
+        // the simulation process, recreated for every run
+        std::unique_ptr<SimulationRunner> m_simulation_runner;
     };
 } // namespace studio

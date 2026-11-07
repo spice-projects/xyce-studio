@@ -82,7 +82,3 @@ class PluginConfigDialogChecks(AlborTestCase):
         field.wait_for_exists()
         expect(field).to_have_value("/bin/echo")
         expect(app.get_by_id("plugin_config_error")).not_().to_exist()
-
-
-if __name__ == "__main__":
-    unittest.main()

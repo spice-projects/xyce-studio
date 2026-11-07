@@ -1,12 +1,16 @@
-// the shell of the Albor frontend; the charts view and the output panel arrive in later slices
+// the shell of the Albor frontend; the charts view arrives in a later slice
 component MainWindow {
     // toolbar actions the presenter drives
     signal open_clicked();
     signal save_clicked();
     signal plugin_settings_clicked();
+    // the run action starts the simulation and becomes the stop action while it runs
+    signal run_clicked();
 
     // raised while the user edits the netlist text, which marks the netlist dirty
     signal netlist_edited();
+    // the user closed the output panel
+    signal output_close_clicked();
 
     // the netlist text the editor edits, fed back to the host on every edit
     inout property<string> netlist_text: "";
@@ -15,8 +19,24 @@ component MainWindow {
     // the toolbar enablement, which the action states refresh
     in property<bool> open_enabled: true;
     in property<bool> save_enabled: false;
+    // the run action only lights up when a netlist is loaded; the label reads
+    // run or stop, which the host drives because the grammar carries no ternary
+    in property<string> run_label: "Run";
+    in property<bool> run_enabled: false;
     // the one line status the shell reports
     in property<string> status: "Ready";
+
+    // the simulation output panel holds the live console log of the running or
+    // finished simulation; the panel remounts on every show and the host owns
+    // its content through the properties below
+    in property<bool> output_visible: false;
+    // the whole log as one string, one line per row
+    in property<string> output_text: "";
+    // the styled ranges over the log, one per warning or error line
+    in property<vector<TextDecoration>> output_decorations: [];
+    // the scroll offset the log pins to; a value past the content end clamps
+    // into the range, which is what keeps the viewport on the last line
+    in property<float> output_pin_offset: 1000000.0;
 
     Column {
         spacing: 0px;
@@ -37,6 +57,15 @@ component MainWindow {
                 disabled: !save_enabled;
                 on_clicked: {
                     save_clicked();
+                }
+            }
+
+            Button {
+                id: main_run;
+                text: run_label;
+                disabled: !run_enabled;
+                on_clicked: {
+                    run_clicked();
                 }
             }
 
@@ -63,6 +92,61 @@ component MainWindow {
             on_changed: {
                 netlist_text = value;
                 netlist_edited();
+            }
+        }
+
+        // the output panel docks over the lower part of the shell while a
+        // simulation runs or its log holds content
+        if output_visible {
+            Panel {
+                id: output_panel;
+                padding: 8px;
+                spacing: 8px;
+
+                Row {
+                    spacing: 8px;
+
+                    Label {
+                        id: output_title;
+                        text: "Simulation Output";
+                    }
+
+                    // the stretch spacer pushes the close action to the far end
+                    Label {
+                        horizontal_align: Align.stretch;
+                    }
+
+                    Button {
+                        id: output_close;
+                        text: "Close";
+                        on_clicked: {
+                            output_close_clicked();
+                        }
+                    }
+                }
+
+                ScrollView {
+                    id: output_scroll;
+                    // the viewport is the fixed extent the log reads through,
+                    // which is what pins the panel while the content scrolls
+                    viewport_height: 200px;
+
+                    // the offset pins the log to its bottom: the presented
+                    // offset clamps into the content range, which is what keeps
+                    // the viewport on the last line
+                    offset: output_pin_offset;
+
+                    TextField {
+                        id: output_log;
+                        multiline: true;
+                        read_only: true;
+                        value: output_text;
+                        decorations: output_decorations;
+                        font_family: "JetBrains Mono";
+                        font_size: 13px;
+                        content_align: Align.start;
+                    }
+                }
             }
         }
 
