@@ -217,10 +217,11 @@ Implement features in `studio/` piece by piece. For each feature, create dedicat
 - [x] **6.1. Window Chrome, Toolbar & Netlist Editor**
   - Implement netlist text editor view (binding to `EditorNetlistSource` from `xyce-core`).
   - Wire File Open / Save actions and netlist dirty tracking.
-- [ ] **6.2. Simulation Execution & Output Panel**
+- [x] **6.2. Simulation Execution & Output Panel**
   - Wire `SimulationRunner` from `xyce-core` to the new framework's main-thread dispatcher.
   - Implement live log streaming panel with severity classification (`XyceLogParser`).
   - Implement simulation progress and status bar indicators.
+  - Note: the panel's pixel render is pending on albor #167 (declared viewport extent is all-or-nothing); state and behaviour are complete.
 - [ ] **6.3. Native Dialog: Simulation Parameters**
   - Create `SimulationParametersPresenter` (manages tab state, `.TRAN`, `.AC`, `.DC` validation).
   - Create `SimulationParametersDialog` (native secondary window).
