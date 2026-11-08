@@ -2,6 +2,8 @@
 
 import simulation_ui;
 
+import "form_label.ui";
+
 import "ground_replace_row.ui";
 import "ic_section.ui";
 import "measure_section.ui";
@@ -58,16 +60,15 @@ component DcParametersPanel {
                 }
 
                 if state.sweep_mode_index != 4 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_variable_caption;
                             text: "Variable";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_variable;
                             value: state.variable;
@@ -78,20 +79,20 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 0 || state.sweep_mode_index == 1 || state.sweep_mode_index == 2 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_start_caption;
                             text: "Start";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_start;
                             value: state.start;
@@ -102,13 +103,14 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
-
-                        Label {
+                        }
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_stop_caption;
                             text: "Stop";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_stop;
                             value: state.stop;
@@ -119,20 +121,20 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 0 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_step_caption;
                             text: "Step";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_step;
                             value: state.step;
@@ -143,20 +145,20 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 1 || state.sweep_mode_index == 2 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_points_caption;
                             text: "Points";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_points;
                             value: state.points;
@@ -167,20 +169,20 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 3 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_list_caption;
                             text: "Values";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_list;
                             value: state.list;
@@ -191,20 +193,20 @@ component DcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 4 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_dc_table_caption;
                             text: "Data table";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_dc_table;
                             value: state.data_table;
@@ -214,6 +216,7 @@ component DcParametersPanel {
                                 state.data_table = value;
                                 state_changed(state);
                             }
+                        }
                         }
                     }
                 }

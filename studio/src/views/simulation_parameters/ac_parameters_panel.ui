@@ -2,6 +2,8 @@
 
 import simulation_ui;
 
+import "form_label.ui";
+
 import "ground_replace_row.ui";
 import "measure_section.ui";
 import "options_section.ui";
@@ -48,16 +50,15 @@ component AcParametersPanel {
                 }
 
                 if state.sweep_mode_index != 3 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_ac_points_caption;
                             text: "Points";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_ac_points;
                             value: state.points;
@@ -68,13 +69,14 @@ component AcParametersPanel {
                                 state_changed(state);
                             }
                         }
-
-                        Label {
+                        }
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_ac_start_caption;
                             text: "Start";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_ac_start;
                             value: state.start;
@@ -85,13 +87,14 @@ component AcParametersPanel {
                                 state_changed(state);
                             }
                         }
-
-                        Label {
+                        }
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_ac_end_caption;
                             text: "End";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_ac_end;
                             value: state.end;
@@ -102,20 +105,20 @@ component AcParametersPanel {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
                 }
 
                 if state.sweep_mode_index == 3 {
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
                             id: simulation_ac_table_caption;
                             text: "Data table";
-                            vertical_align: Align.center;
                         }
-
                         TextField {
                             id: simulation_ac_table;
                             value: state.data_table;
@@ -125,6 +128,7 @@ component AcParametersPanel {
                                 state.data_table = value;
                                 state_changed(state);
                             }
+                        }
                         }
                     }
                 }

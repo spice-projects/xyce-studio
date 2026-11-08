@@ -2,6 +2,8 @@
 
 import simulation_ui;
 
+import "form_label.ui";
+
 component PrintSection {
     // the print state the host analysis owns
     inout property<PrintUi> state;
@@ -53,23 +55,22 @@ component PrintSection {
                     spacing: 8px;
 
                     if show_type {
-                        Grid {
-                            columns: 2;
+                        Column {
                             spacing: 8px;
-
-                            Label {
-                                text: "Print type";
+                            Row {
+                                spacing: 8px;
                                 vertical_align: Align.center;
+                            FormLabel {
+                                text: "Print type";
                             }
-
                             ComboBox {
                                 items: type_items;
                                 selected: state.type_index;
-                                horizontal_align: Align.stretch;
                                 on_selection_changed: {
                                     state.type_index = index;
                                     state_changed(state);
                                 }
+                            }
                             }
                         }
                     }
@@ -174,15 +175,14 @@ component PrintSection {
                         }
                     }
 
-                    Grid {
-                        columns: 2;
+                    Column {
                         spacing: 8px;
-
-                        Label {
-                            text: "Additional variables";
+                        Row {
+                            spacing: 8px;
                             vertical_align: Align.center;
+                        FormLabel {
+                            text: "Additional variables";
                         }
-
                         TextField {
                             value: state.specific_variables;
                             placeholder: "e.g. V(out) V(in)";
@@ -192,27 +192,28 @@ component PrintSection {
                                 state_changed(state);
                             }
                         }
-
-                        Label {
-                            text: "Format";
-                            vertical_align: Align.center;
                         }
-
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
+                            text: "Format";
+                        }
                         ComboBox {
                             items: format_items;
                             selected: state.format_index;
-                            horizontal_align: Align.stretch;
                             on_selection_changed: {
                                 state.format_index = index;
                                 state_changed(state);
                             }
                         }
-
-                        Label {
-                            text: "Output file";
-                            vertical_align: Align.center;
                         }
-
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                        FormLabel {
+                            text: "Output file";
+                        }
                         TextField {
                             value: state.output_file;
                             placeholder: "optional output file path";
@@ -222,18 +223,18 @@ component PrintSection {
                                 state_changed(state);
                             }
                         }
+                        }
                     }
 
                     if state.format_index != 5 {
-                        Grid {
-                            columns: 2;
+                        Column {
                             spacing: 8px;
-
-                            Label {
-                                text: "Extra options";
+                            Row {
+                                spacing: 8px;
                                 vertical_align: Align.center;
+                            FormLabel {
+                                text: "Extra options";
                             }
-
                             TextField {
                                 value: state.extra_options;
                                 placeholder: "e.g. WIDTH=20 PRECISION=12";
@@ -242,6 +243,7 @@ component PrintSection {
                                     state.extra_options = value;
                                     state_changed(state);
                                 }
+                            }
                             }
                         }
                     }

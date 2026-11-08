@@ -2,6 +2,8 @@
 
 import simulation_ui;
 
+import "form_label.ui";
+
 import "ground_replace_row.ui";
 import "print_section.ui";
 
@@ -42,15 +44,14 @@ component HbParametersPanel {
             border_width: 1px;
             vertical_align: Align.start;
 
-            Grid {
-                columns: 2;
+            Column {
                 spacing: 8px;
-
-                Label {
-                    text: "Frequencies";
+                Row {
+                    spacing: 8px;
                     vertical_align: Align.center;
+                FormLabel {
+                    text: "Frequencies";
                 }
-
                 TextField {
                     id: simulation_hb_frequencies;
                     value: state.frequencies;
@@ -61,12 +62,13 @@ component HbParametersPanel {
                         state_changed(state);
                     }
                 }
-
-                Label {
-                    text: "Harmonics / NUMFREQ";
-                    vertical_align: Align.center;
                 }
-
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+                FormLabel {
+                    text: "Harmonics / NUMFREQ";
+                }
                 TextField {
                     id: simulation_hb_harmonics;
                     value: state.harmonics;
@@ -77,12 +79,13 @@ component HbParametersPanel {
                         state_changed(state);
                     }
                 }
-
-                Label {
-                    text: "TAHB";
-                    vertical_align: Align.center;
                 }
-
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+                FormLabel {
+                    text: "TAHB";
+                }
                 TextField {
                     id: simulation_hb_tahb;
                     value: state.tahb;
@@ -93,12 +96,13 @@ component HbParametersPanel {
                         state_changed(state);
                     }
                 }
-
-                Label {
-                    text: "SELECTHARMS";
-                    vertical_align: Align.center;
                 }
-
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+                FormLabel {
+                    text: "SELECTHARMS";
+                }
                 TextField {
                     id: simulation_hb_selectharms;
                     value: state.selectharms;
@@ -109,12 +113,13 @@ component HbParametersPanel {
                         state_changed(state);
                     }
                 }
-
-                Label {
-                    text: "Startup periods";
-                    vertical_align: Align.center;
                 }
-
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+                FormLabel {
+                    text: "Startup periods";
+                }
                 TextField {
                     id: simulation_hb_startup_periods;
                     value: state.startup_periods;
@@ -124,6 +129,7 @@ component HbParametersPanel {
                         state.startup_periods = value;
                         state_changed(state);
                     }
+                }
                 }
             }
         }

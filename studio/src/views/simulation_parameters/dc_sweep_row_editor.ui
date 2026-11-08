@@ -2,6 +2,8 @@
 
 import simulation_ui;
 
+import "form_label.ui";
+
 component DcSweepRowEditor {
     // the sweep mode the row follows, where the mode hides the fields it cannot use
     in property<int> mode: 0;
@@ -43,15 +45,14 @@ component DcSweepRowEditor {
                 }
             }
 
-            Grid {
-                columns: 2;
+            Column {
                 spacing: 8px;
-
-                Label {
-                    text: "Variable";
+                Row {
+                    spacing: 8px;
                     vertical_align: Align.center;
+                FormLabel {
+                    text: "Variable";
                 }
-
                 TextField {
                     value: row_data.variable;
                     placeholder: "e.g. V1";
@@ -61,18 +62,18 @@ component DcSweepRowEditor {
                         edited(row_data.key, row_data);
                     }
                 }
+                }
             }
 
             if mode == 0 || mode == 1 || mode == 2 {
-                Grid {
-                    columns: 2;
+                Column {
                     spacing: 8px;
-
-                    Label {
-                        text: "Start";
+                    Row {
+                        spacing: 8px;
                         vertical_align: Align.center;
+                    FormLabel {
+                        text: "Start";
                     }
-
                     TextField {
                         value: row_data.start;
                         placeholder: "start value (e.g. 0)";
@@ -82,12 +83,13 @@ component DcSweepRowEditor {
                             edited(row_data.key, row_data);
                         }
                     }
-
-                    Label {
-                        text: "Stop";
-                        vertical_align: Align.center;
                     }
-
+                    Row {
+                        spacing: 8px;
+                        vertical_align: Align.center;
+                    FormLabel {
+                        text: "Stop";
+                    }
                     TextField {
                         value: row_data.stop;
                         placeholder: "stop value (e.g. 5)";
@@ -97,19 +99,19 @@ component DcSweepRowEditor {
                             edited(row_data.key, row_data);
                         }
                     }
+                    }
                 }
             }
 
             if mode == 0 {
-                Grid {
-                    columns: 2;
+                Column {
                     spacing: 8px;
-
-                    Label {
-                        text: "Step";
+                    Row {
+                        spacing: 8px;
                         vertical_align: Align.center;
+                    FormLabel {
+                        text: "Step";
                     }
-
                     TextField {
                         value: row_data.step;
                         placeholder: "step size (e.g. 0.1)";
@@ -119,19 +121,19 @@ component DcSweepRowEditor {
                             edited(row_data.key, row_data);
                         }
                     }
+                    }
                 }
             }
 
             if mode == 1 || mode == 2 {
-                Grid {
-                    columns: 2;
+                Column {
                     spacing: 8px;
-
-                    Label {
-                        text: "Points";
+                    Row {
+                        spacing: 8px;
                         vertical_align: Align.center;
+                    FormLabel {
+                        text: "Points";
                     }
-
                     TextField {
                         value: row_data.points;
                         placeholder: "points per decade/octave";
@@ -141,19 +143,19 @@ component DcSweepRowEditor {
                             edited(row_data.key, row_data);
                         }
                     }
+                    }
                 }
             }
 
             if mode == 3 {
-                Grid {
-                    columns: 2;
+                Column {
                     spacing: 8px;
-
-                    Label {
-                        text: "List values";
+                    Row {
+                        spacing: 8px;
                         vertical_align: Align.center;
+                    FormLabel {
+                        text: "List values";
                     }
-
                     TextField {
                         value: row_data.list_values;
                         placeholder: "space-separated values (e.g. 0 1 2 5)";
@@ -162,6 +164,7 @@ component DcSweepRowEditor {
                             row_data.list_values = value;
                             edited(row_data.key, row_data);
                         }
+                    }
                     }
                 }
             }

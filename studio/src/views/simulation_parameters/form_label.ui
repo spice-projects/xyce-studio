@@ -1,0 +1,21 @@
+// the fixed caption column every form grid shares
+
+component FormLabel {
+    // the caption the row shows
+    in property<string> text: "";
+
+    Column {
+        spacing: 0px;
+        horizontal_align: Align.start;
+
+        // the spacer fixes the caption column, which every field row shares
+        Canvas {
+            width: 110px;
+            height: 1px;
+        }
+
+        Label {
+            text: text;
+        }
+    }
+}
