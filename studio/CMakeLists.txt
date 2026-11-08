@@ -44,9 +44,18 @@ albor_build_font_assets(xyce-studio-next
         Inter regular "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inter-Regular.ttf"
         "JetBrains Mono" regular "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Regular.ttf")
 
+# the shared analysis rows generate first, because the panels compile against their headers
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/ground_replace_row.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/sweep_mode_row.ui")
+
+# the analysis panels generate next, each importing the shared rows it uses
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/transient_parameters_panel.ui" IMPORTS "ground_replace_row.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/dc_parameters_panel.ui" IMPORTS "ground_replace_row.ui" "sweep_mode_row.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/ac_parameters_panel.ui" IMPORTS "ground_replace_row.ui" "sweep_mode_row.ui")
+
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/main_window/main_window.ui")
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/plugin_config/plugin_config_dialog.ui")
-albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_parameters_dialog.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_parameters_dialog.ui" IMPORTS "transient_parameters_panel.ui" "dc_parameters_panel.ui" "ac_parameters_panel.ui")
 
 target_link_libraries(xyce-studio-next PRIVATE xyce::core spdlog::spdlog albor)
 

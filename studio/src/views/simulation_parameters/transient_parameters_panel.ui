@@ -1,0 +1,138 @@
+// the transient analysis panel, which edits one .TRAN directive
+
+import "ground_replace_row.ui";
+
+component TransientParametersPanel {
+    // the transient fields the dialog owns
+    in property<string> initial_step: "";
+    in property<string> final_time: "";
+    in property<string> start_time: "";
+    in property<string> step_ceiling: "";
+    in property<int> op_keyword: 0;
+    in property<bool> replace_ground: true;
+
+    // one signal per field, because a composed component cannot write the host property
+    signal initial_step_changed(string value);
+    signal final_time_changed(string value);
+    signal start_time_changed(string value);
+    signal step_ceiling_changed(string value);
+    signal op_keyword_changed(int value);
+    signal replace_ground_changed(bool value);
+
+    Column {
+        spacing: 10px;
+
+        Label {
+            text: "Transient Analysis (.TRAN)";
+            font_size: 13px;
+        }
+
+        Row {
+            spacing: 8px;
+
+            Label {
+                id: simulation_tran_initial_step_caption;
+                text: "Initial step";
+                vertical_align: Align.center;
+            }
+
+            TextField {
+                id: simulation_tran_initial_step;
+                value: initial_step;
+                placeholder: "e.g. 1n";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    initial_step_changed(value);
+                }
+            }
+        }
+
+        Row {
+            spacing: 8px;
+
+            Label {
+                id: simulation_tran_final_time_caption;
+                text: "Final time";
+                vertical_align: Align.center;
+            }
+
+            TextField {
+                id: simulation_tran_final_time;
+                value: final_time;
+                placeholder: "e.g. 1u";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    final_time_changed(value);
+                }
+            }
+        }
+
+        Row {
+            spacing: 8px;
+
+            Label {
+                id: simulation_tran_start_time_caption;
+                text: "Start time";
+                vertical_align: Align.center;
+            }
+
+            TextField {
+                id: simulation_tran_start_time;
+                value: start_time;
+                placeholder: "optional";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    start_time_changed(value);
+                }
+            }
+        }
+
+        Row {
+            spacing: 8px;
+
+            Label {
+                id: simulation_tran_step_ceiling_caption;
+                text: "Max time step";
+                vertical_align: Align.center;
+            }
+
+            TextField {
+                id: simulation_tran_step_ceiling;
+                value: step_ceiling;
+                placeholder: "optional";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    step_ceiling_changed(value);
+                }
+            }
+        }
+
+        Row {
+            spacing: 8px;
+
+            Label {
+                id: simulation_tran_op_keyword_caption;
+                text: "Initial condition";
+                vertical_align: Align.center;
+            }
+
+            ComboBox {
+                id: simulation_tran_op_keyword;
+                items: ["(default)", "NOOP", "UIC"];
+                selected: op_keyword;
+                horizontal_align: Align.stretch;
+                on_selection_changed: {
+                    op_keyword_changed(index);
+                }
+            }
+        }
+
+        GroundReplaceRow {
+            id: simulation_tran_replace_ground;
+            checked: replace_ground;
+            on_toggled: {
+                replace_ground_changed(value);
+            }
+        }
+    }
+}

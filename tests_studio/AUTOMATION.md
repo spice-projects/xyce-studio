@@ -183,6 +183,9 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
 - The dialog ids are `simulation_tran_*`, `simulation_dc_*` and `simulation_ac_*`
   for the three analysis tabs, with `simulation_parameters_error`,
   `simulation_parameters_ok` and `simulation_parameters_cancel` for the footer.
+- The dialog is assembled from the root `simulation_parameters_dialog.ui` and one
+  `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui` and
+  `ground_replace_row.ui` hold the rows more than one analysis uses.
 - `app.get_by_id("simulation_parameters_tabs").click("select_next")` moves to
   the next analysis tab.
 - A validation failure keeps the dialog open and writes its message into the

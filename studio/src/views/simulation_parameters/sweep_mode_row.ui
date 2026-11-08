@@ -1,0 +1,28 @@
+// the sweep mode row DC, AC and the other sweep analyses share
+
+component SweepModeRow {
+    // the modes in combo order
+    in property<vector<string>> items: [];
+    // the selected mode index the host analysis owns
+    in property<int> selected: 0;
+    // the index the user moved the combo to
+    signal selection_changed(int value);
+
+    Row {
+        spacing: 8px;
+
+        Label {
+            text: "Sweep mode";
+            vertical_align: Align.center;
+        }
+
+        ComboBox {
+            items: items;
+            selected: selected;
+            horizontal_align: Align.stretch;
+            on_selection_changed: {
+                selection_changed(index);
+            }
+        }
+    }
+}

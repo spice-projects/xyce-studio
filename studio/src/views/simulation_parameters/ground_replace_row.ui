@@ -1,0 +1,24 @@
+// the ground replacement row every analysis tab shares
+
+component GroundReplaceRow {
+    // the box state the host analysis owns
+    in property<bool> checked: true;
+    // the state the user moved the box to
+    signal toggled(bool value);
+
+    Row {
+        spacing: 8px;
+
+        CheckBox {
+            checked: checked;
+            on_toggled: {
+                toggled(checked);
+            }
+        }
+
+        Label {
+            text: "Replace ground node GND with 0";
+            vertical_align: Align.center;
+        }
+    }
+}

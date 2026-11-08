@@ -1,0 +1,210 @@
+// the DC sweep analysis panel, which edits one .DC directive
+
+import "ground_replace_row.ui";
+import "sweep_mode_row.ui";
+
+component DcParametersPanel {
+    // the DC sweep fields the dialog owns, where the mode is LIN, DEC, OCT, LIST or DATA
+    in property<int> mode: 0;
+    in property<string> variable: "";
+    in property<string> start: "";
+    in property<string> stop: "";
+    in property<string> step: "";
+    in property<string> points: "";
+    in property<string> list: "";
+    in property<string> table: "";
+    in property<bool> replace_ground: true;
+
+    // one signal per field, because a composed component cannot write the host property
+    signal mode_changed(int value);
+    signal variable_changed(string value);
+    signal start_changed(string value);
+    signal stop_changed(string value);
+    signal step_changed(string value);
+    signal points_changed(string value);
+    signal list_changed(string value);
+    signal table_changed(string value);
+    signal replace_ground_changed(bool value);
+
+    Column {
+        spacing: 10px;
+
+        Label {
+            text: "DC Analysis (.DC)";
+            font_size: 13px;
+        }
+
+        SweepModeRow {
+            id: simulation_dc_mode;
+            items: ["LIN", "DEC", "OCT", "LIST", "DATA"];
+            selected: mode;
+            on_selection_changed: {
+                mode_changed(value);
+            }
+        }
+
+        if mode != 4 {
+            Row {
+                spacing: 8px;
+
+                Label {
+                    id: simulation_dc_variable_caption;
+                    text: "Variable";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_dc_variable;
+                    value: variable;
+                    placeholder: "e.g. V1";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        variable_changed(value);
+                    }
+                }
+            }
+        }
+
+        if mode == 0 || mode == 1 || mode == 2 {
+            Column {
+                spacing: 10px;
+
+                Row {
+                    spacing: 8px;
+
+                    Label {
+                        id: simulation_dc_start_caption;
+                        text: "Start";
+                        vertical_align: Align.center;
+                    }
+
+                    TextField {
+                        id: simulation_dc_start;
+                        value: start;
+                        placeholder: "start value";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            start_changed(value);
+                        }
+                    }
+                }
+
+                Row {
+                    spacing: 8px;
+
+                    Label {
+                        id: simulation_dc_stop_caption;
+                        text: "Stop";
+                        vertical_align: Align.center;
+                    }
+
+                    TextField {
+                        id: simulation_dc_stop;
+                        value: stop;
+                        placeholder: "stop value";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            stop_changed(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        if mode == 0 {
+            Row {
+                spacing: 8px;
+
+                Label {
+                    id: simulation_dc_step_caption;
+                    text: "Step";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_dc_step;
+                    value: step;
+                    placeholder: "step size";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        step_changed(value);
+                    }
+                }
+            }
+        }
+
+        if mode == 1 || mode == 2 {
+            Row {
+                spacing: 8px;
+
+                Label {
+                    id: simulation_dc_points_caption;
+                    text: "Points";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_dc_points;
+                    value: points;
+                    placeholder: "points per decade or octave";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        points_changed(value);
+                    }
+                }
+            }
+        }
+
+        if mode == 3 {
+            Row {
+                spacing: 8px;
+
+                Label {
+                    id: simulation_dc_list_caption;
+                    text: "Values";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_dc_list;
+                    value: list;
+                    placeholder: "space separated values";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        list_changed(value);
+                    }
+                }
+            }
+        }
+
+        if mode == 4 {
+            Row {
+                spacing: 8px;
+
+                Label {
+                    id: simulation_dc_table_caption;
+                    text: "Data table";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_dc_table;
+                    value: table;
+                    placeholder: "table name";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        table_changed(value);
+                    }
+                }
+            }
+        }
+
+        GroundReplaceRow {
+            id: simulation_dc_replace_ground;
+            checked: replace_ground;
+            on_toggled: {
+                replace_ground_changed(value);
+            }
+        }
+    }
+}
