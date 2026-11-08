@@ -1,0 +1,169 @@
+// the operating point analysis panel, which edits one .OP directive
+
+import simulation_ui;
+
+import "ground_replace_row.ui";
+import "ic_section.ui";
+import "options_section.ui";
+import "print_section.ui";
+
+component OpParametersPanel {
+    // the operating point state the dialog owns
+    inout property<OpUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the operating point state the user changed
+    signal state_changed(OpUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+
+    Column {
+        spacing: 10px;
+
+        Label {
+            text: "Operating Point Analysis (.OP)";
+            font_size: 13px;
+        }
+
+        PrintSection {
+            state: print;
+            show_type: false;
+            on_state_changed: {
+                print_changed(value);
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 8px;
+
+                Row {
+                    spacing: 6px;
+
+                    CheckBox {
+                        checked: state.save_enabled;
+                        on_toggled: {
+                            state.save_enabled = checked;
+                            state_changed(state);
+                        }
+                    }
+
+                    Label {
+                        text: "Enable .SAVE operating point";
+                        vertical_align: Align.center;
+                    }
+                }
+
+                if state.save_enabled {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        ComboBox {
+                            items: ["Save as .NODESET", "Save as .IC"];
+                            selected: state.save_type_index;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                state.save_type_index = index;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "Save file";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            value: state.save_file;
+                            placeholder: "optional output file path";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.save_file = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "Level";
+                            vertical_align: Align.center;
+                        }
+
+                        ComboBox {
+                            items: ["(default)", "all", "none"];
+                            selected: state.save_level_index;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                state.save_level_index = index;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 6px;
+
+                Label {
+                    text: "Convergence Hints (.NODESET)";
+                }
+
+                Label {
+                    text: "Initial voltage/current guesses to help DC convergence";
+                    font_size: 12px;
+                }
+
+                TextField {
+                    id: simulation_op_nodeset;
+                    value: state.nodeset;
+                    placeholder: "e.g. V(1)=5.0 V(2)=3.3";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.nodeset = value;
+                        state_changed(state);
+                    }
+                }
+            }
+        }
+
+        IcSection {
+            text: state.initial_conditions;
+            description: "Initial conditions for operating-point analysis";
+            on_text_changed: {
+                state.initial_conditions = value;
+                state_changed(state);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS NONLIN package (one key=value per line)";
+            text: state.nonlin_options;
+            on_text_changed: {
+                state.nonlin_options = value;
+                state_changed(state);
+            }
+        }
+
+        GroundReplaceRow {
+            id: simulation_op_replace_ground;
+            checked: state.replace_ground;
+            on_toggled: {
+                state.replace_ground = value;
+                state_changed(state);
+            }
+        }
+    }
+}

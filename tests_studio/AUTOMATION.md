@@ -180,14 +180,21 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
                            message="expected the editor to carry the accepted directive")
 ```
 
-- The dialog ids are `simulation_tran_*`, `simulation_dc_*` and `simulation_ac_*`
-  for the three analysis tabs, with `simulation_parameters_error`,
-  `simulation_parameters_ok` and `simulation_parameters_cancel` for the footer.
+- The dialog ids are `simulation_op_*`, `simulation_dc_*`, `simulation_tran_*`,
+  `simulation_ac_*`, `simulation_noise_*`, `simulation_hb_*` and
+  `simulation_lin_*` for the seven analysis tabs, with
+  `simulation_parameters_error`, `simulation_parameters_ok`,
+  `simulation_parameters_cancel` and `simulation_parameters_close` for the
+  footer and the header action. The shared PCE fields are
+  `simulation_pce_parameters` and `simulation_pce_options`.
 - The dialog is assembled from the root `simulation_parameters_dialog.ui` and one
-  `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui` and
-  `ground_replace_row.ui` hold the rows more than one analysis uses.
-- `app.get_by_id("simulation_parameters_tabs").click("select_next")` moves to
-  the next analysis tab.
+  `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui`,
+  `ground_replace_row.ui`, `measure_section.ui`, `ic_section.ui`,
+  `print_section.ui`, `pce_section.ui` and `options_section.ui` hold the rows
+  more than one analysis uses.
+- The tab order is `.OP`, `.DC`, `.TRAN`, `.AC`, `.NOISE`, `.HB`, `.LIN`, so
+  `app.get_by_id("simulation_parameters_tabs").click("select_next")` moves one
+  analysis forward in that order.
 - A validation failure keeps the dialog open and writes its message into the
   error label, so the assertion reads `simulation_parameters_error` by name.
 - Cancelling leaves the editor untouched; the accepted configuration is the

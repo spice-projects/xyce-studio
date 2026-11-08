@@ -1,209 +1,274 @@
 // the DC sweep analysis panel, which edits one .DC directive
 
+import simulation_ui;
+
 import "ground_replace_row.ui";
+import "ic_section.ui";
+import "measure_section.ui";
+import "options_section.ui";
+import "pce_section.ui";
+import "print_section.ui";
 import "sweep_mode_row.ui";
 
 component DcParametersPanel {
-    // the DC sweep fields the dialog owns, where the mode is LIN, DEC, OCT, LIST or DATA
-    in property<int> mode: 0;
-    in property<string> variable: "";
-    in property<string> start: "";
-    in property<string> stop: "";
-    in property<string> step: "";
-    in property<string> points: "";
-    in property<string> list: "";
-    in property<string> table: "";
-    in property<bool> replace_ground: true;
-
-    // one signal per field, because a composed component cannot write the host property
-    signal mode_changed(int value);
-    signal variable_changed(string value);
-    signal start_changed(string value);
-    signal stop_changed(string value);
-    signal step_changed(string value);
-    signal points_changed(string value);
-    signal list_changed(string value);
-    signal table_changed(string value);
-    signal replace_ground_changed(bool value);
+    // the DC sweep state the dialog owns
+    inout property<DcUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the PCE state the dialog owns
+    inout property<PceUi> pce;
+    // the PCE print state the dialog owns
+    in property<PrintUi> pce_print;
+    // the DC sweep state the user changed
+    signal state_changed(DcUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+    // the PCE state the user changed
+    signal pce_changed(PceUi value);
+    // the PCE print state the user changed
+    signal pce_print_changed(PrintUi value);
 
     Column {
         spacing: 10px;
 
         Label {
-            text: "DC Analysis (.DC)";
+            text: "DC Sweep (.DC)";
             font_size: 13px;
         }
 
-        SweepModeRow {
-            id: simulation_dc_mode;
-            items: ["LIN", "DEC", "OCT", "LIST", "DATA"];
-            selected: mode;
-            on_selection_changed: {
-                mode_changed(value);
-            }
-        }
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
 
-        if mode != 4 {
-            Row {
-                spacing: 8px;
-
-                Label {
-                    id: simulation_dc_variable_caption;
-                    text: "Variable";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_dc_variable;
-                    value: variable;
-                    placeholder: "e.g. V1";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        variable_changed(value);
-                    }
-                }
-            }
-        }
-
-        if mode == 0 || mode == 1 || mode == 2 {
             Column {
-                spacing: 10px;
+                spacing: 8px;
 
-                Row {
-                    spacing: 8px;
-
-                    Label {
-                        id: simulation_dc_start_caption;
-                        text: "Start";
-                        vertical_align: Align.center;
+                SweepModeRow {
+                    id: simulation_dc_mode;
+                    items: ["LIN", "DEC", "OCT", "LIST", "DATA"];
+                    selected: state.sweep_mode_index;
+                    on_selection_changed: {
+                        state.sweep_mode_index = value;
+                        state_changed(state);
                     }
+                }
 
-                    TextField {
-                        id: simulation_dc_start;
-                        value: start;
-                        placeholder: "start value";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            start_changed(value);
+                if state.sweep_mode_index != 4 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_variable_caption;
+                            text: "Variable";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_variable;
+                            value: state.variable;
+                            placeholder: "e.g. V1";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.variable = value;
+                                state_changed(state);
+                            }
                         }
                     }
                 }
 
-                Row {
-                    spacing: 8px;
+                if state.sweep_mode_index == 0 || state.sweep_mode_index == 1 || state.sweep_mode_index == 2 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
 
-                    Label {
-                        id: simulation_dc_stop_caption;
-                        text: "Stop";
-                        vertical_align: Align.center;
+                        Label {
+                            id: simulation_dc_start_caption;
+                            text: "Start";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_start;
+                            value: state.start;
+                            placeholder: "start value";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.start = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            id: simulation_dc_stop_caption;
+                            text: "Stop";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_stop;
+                            value: state.stop;
+                            placeholder: "stop value";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.stop = value;
+                                state_changed(state);
+                            }
+                        }
                     }
+                }
 
-                    TextField {
-                        id: simulation_dc_stop;
-                        value: stop;
-                        placeholder: "stop value";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            stop_changed(value);
+                if state.sweep_mode_index == 0 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_step_caption;
+                            text: "Step";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_step;
+                            value: state.step;
+                            placeholder: "step size";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.step = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+
+                if state.sweep_mode_index == 1 || state.sweep_mode_index == 2 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_points_caption;
+                            text: "Points";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_points;
+                            value: state.points;
+                            placeholder: "points per decade or octave";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.points = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+
+                if state.sweep_mode_index == 3 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_list_caption;
+                            text: "Values";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_list;
+                            value: state.list;
+                            placeholder: "space separated values";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.list = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+
+                if state.sweep_mode_index == 4 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_table_caption;
+                            text: "Data table";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_dc_table;
+                            value: state.data_table;
+                            placeholder: "name of the data block to sweep";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.data_table = value;
+                                state_changed(state);
+                            }
                         }
                     }
                 }
             }
         }
 
-        if mode == 0 {
-            Row {
-                spacing: 8px;
-
-                Label {
-                    id: simulation_dc_step_caption;
-                    text: "Step";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_dc_step;
-                    value: step;
-                    placeholder: "step size";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        step_changed(value);
-                    }
-                }
+        MeasureSection {
+            text: state.measure;
+            placeholder: "e.g. .MEASURE DC vout_max MAX V(out)";
+            on_text_changed: {
+                state.measure = value;
+                state_changed(state);
             }
         }
 
-        if mode == 1 || mode == 2 {
-            Row {
-                spacing: 8px;
-
-                Label {
-                    id: simulation_dc_points_caption;
-                    text: "Points";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_dc_points;
-                    value: points;
-                    placeholder: "points per decade or octave";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        points_changed(value);
-                    }
-                }
+        PrintSection {
+            state: print;
+            type_items: ["DC", "HOMOTOPY"];
+            on_state_changed: {
+                print_changed(value);
             }
         }
 
-        if mode == 3 {
-            Row {
-                spacing: 8px;
-
-                Label {
-                    id: simulation_dc_list_caption;
-                    text: "Values";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_dc_list;
-                    value: list;
-                    placeholder: "space separated values";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        list_changed(value);
-                    }
-                }
+        IcSection {
+            text: state.initial_conditions;
+            on_text_changed: {
+                state.initial_conditions = value;
+                state_changed(state);
             }
         }
 
-        if mode == 4 {
-            Row {
-                spacing: 8px;
+        PceSection {
+            state: pce;
+            print: pce_print;
+            on_state_changed: {
+                pce_changed(value);
+            }
+            on_print_changed: {
+                pce_print_changed(value);
+            }
+        }
 
-                Label {
-                    id: simulation_dc_table_caption;
-                    text: "Data table";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_dc_table;
-                    value: table;
-                    placeholder: "table name";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        table_changed(value);
-                    }
-                }
+        OptionsSection {
+            title: ".OPTIONS NONLIN package (one key=value per line)";
+            text: state.nonlin_options;
+            on_text_changed: {
+                state.nonlin_options = value;
+                state_changed(state);
             }
         }
 
         GroundReplaceRow {
             id: simulation_dc_replace_ground;
-            checked: replace_ground;
+            checked: state.replace_ground;
             on_toggled: {
-                replace_ground_changed(value);
+                state.replace_ground = value;
+                state_changed(state);
             }
         }
     }

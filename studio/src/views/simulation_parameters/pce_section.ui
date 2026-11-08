@@ -1,0 +1,136 @@
+// the polynomial chaos expansion section the transient and DC panels share
+
+import simulation_ui;
+
+import "print_section.ui";
+
+component PceSection {
+    // the PCE state the dialog owns
+    inout property<PceUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the PCE state the user changed
+    signal state_changed(PceUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+
+    Column {
+        spacing: 10px;
+
+        Row {
+            spacing: 6px;
+
+            CheckBox {
+                checked: state.enabled;
+                on_toggled: {
+                    state.enabled = checked;
+                    state_changed(state);
+                }
+            }
+
+            Label {
+                text: "Enable PCE (.PCE)";
+                vertical_align: Align.center;
+            }
+        }
+
+        if state.enabled {
+            Column {
+                spacing: 8px;
+
+                Row {
+                    spacing: 6px;
+
+                    CheckBox {
+                        checked: state.use_expression;
+                        on_toggled: {
+                            state.use_expression = checked;
+                            state_changed(state);
+                        }
+                    }
+
+                    Label {
+                        text: "Use expression-based random inputs";
+                        vertical_align: Align.center;
+                    }
+                }
+
+                if !state.use_expression {
+                    Panel {
+                        padding: 10px;
+                        corner_radius: 6px;
+                        border_width: 1px;
+                        vertical_align: Align.start;
+
+                        Column {
+                            spacing: 6px;
+
+                            Label {
+                                text: "Uncertain parameters (one per line: name, distribution, first, second)";
+                            }
+
+                            ScrollView {
+                                viewport_height: 80px;
+
+                                TextField {
+                                    id: simulation_pce_parameters;
+                                    value: state.parameters_text;
+                                    placeholder: "e.g. R1, uniform, 900, 1100";
+                                    multiline: true;
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.parameters_text = value;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Panel {
+                    padding: 10px;
+                    corner_radius: 6px;
+                    border_width: 1px;
+                    vertical_align: Align.start;
+
+                    Column {
+                        spacing: 6px;
+
+                        Label {
+                            text: ".OPTIONS PCES package (one key=value per line)";
+                        }
+
+                        ScrollView {
+                            viewport_height: 64px;
+
+                            TextField {
+                                id: simulation_pce_options;
+                                value: state.pces_options;
+                                placeholder: "e.g. SEED=1";
+                                multiline: true;
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.pces_options = value;
+                                    state_changed(state);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                PrintSection {
+                    state: print;
+                    show_type: false;
+                    show_power: false;
+                    show_bjt: false;
+                    show_fet: false;
+                    format_items: ["(default)", "STD", "NOINDEX", "TECPLOT", "CSV", "GNUPLOT", "SPLOT"];
+                    on_state_changed: {
+                        print_changed(value);
+                    }
+                }
+            }
+        }
+    }
+}

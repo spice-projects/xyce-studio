@@ -1,0 +1,242 @@
+// the noise analysis panel, which edits one .NOISE directive
+
+import simulation_ui;
+
+import "ground_replace_row.ui";
+import "print_section.ui";
+
+component NoiseParametersPanel {
+    // the noise state the dialog owns
+    inout property<NoiseUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the noise state the user changed
+    signal state_changed(NoiseUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+
+    Column {
+        spacing: 10px;
+
+        Label {
+            text: "Noise Analysis (.NOISE)";
+            font_size: 13px;
+        }
+
+        PrintSection {
+            state: print;
+            type_items: ["NOISE"];
+            show_power: false;
+            show_bjt: false;
+            show_fet: false;
+            on_state_changed: {
+                print_changed(value);
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Grid {
+                columns: 2;
+                spacing: 8px;
+
+                Label {
+                    text: "Output node";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_noise_output_node;
+                    value: state.output_node;
+                    placeholder: "e.g. V(out)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.output_node = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Reference node";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_noise_ref_node;
+                    value: state.ref_node;
+                    placeholder: "e.g. V(0)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.ref_node = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Source name";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_noise_source_name;
+                    value: state.source_name;
+                    placeholder: "noise source (e.g. R1)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.source_name = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Sweep type";
+                    vertical_align: Align.center;
+                }
+
+                ComboBox {
+                    id: simulation_noise_sweep_type;
+                    items: ["LIN", "DEC", "OCT", "DATA"];
+                    selected: state.sweep_type_index;
+                    horizontal_align: Align.stretch;
+                    on_selection_changed: {
+                        state.sweep_type_index = index;
+                        state_changed(state);
+                    }
+                }
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 8px;
+
+                if state.sweep_type_index != 3 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            text: "Start frequency";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_noise_start_freq;
+                            value: state.start_freq;
+                            placeholder: "start frequency (e.g. 1)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.start_freq = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "End frequency";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_noise_end_freq;
+                            value: state.end_freq;
+                            placeholder: "end frequency (e.g. 10k)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.end_freq = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "Number of points";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_noise_num_points;
+                            value: state.num_points;
+                            placeholder: "points per decade/octave";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.num_points = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+
+                if state.sweep_type_index == 3 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            text: "Data table";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_noise_table;
+                            value: state.data_table;
+                            placeholder: "name of the data block to sweep";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.data_table = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 6px;
+
+                Label {
+                    text: "Device noise operators (one per line: DNI|DNO node source)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_noise_device_noise;
+                        value: state.device_noise;
+                        placeholder: "e.g. DNI 2 R1";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.device_noise = value;
+                            state_changed(state);
+                        }
+                    }
+                }
+            }
+        }
+
+        GroundReplaceRow {
+            id: simulation_noise_replace_ground;
+            checked: state.replace_ground;
+            on_toggled: {
+                state.replace_ground = value;
+                state_changed(state);
+            }
+        }
+    }
+}

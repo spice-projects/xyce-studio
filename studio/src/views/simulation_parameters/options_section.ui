@@ -1,0 +1,39 @@
+// one .OPTIONS package card, which the analyses that own a package share
+
+component OptionsSection {
+    // the card title, which names the package
+    in property<string> title: "";
+    // the key=value lines the host analysis owns
+    inout property<string> text: "";
+    // the lines the user changed
+    signal text_changed(string value);
+
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        border_width: 1px;
+        vertical_align: Align.start;
+
+        Column {
+            spacing: 6px;
+
+            Label {
+                text: title;
+            }
+
+            ScrollView {
+                viewport_height: 64px;
+
+                TextField {
+                    value: text;
+                    placeholder: "one KEY=value per line";
+                    multiline: true;
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        text_changed(value);
+                    }
+                }
+            }
+        }
+    }
+}

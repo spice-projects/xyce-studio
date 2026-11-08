@@ -1,0 +1,250 @@
+// the .PRINT card every analysis panel shares
+
+import simulation_ui;
+
+component PrintSection {
+    // the print state the host analysis owns
+    inout property<PrintUi> state;
+    // the print types the analysis offers, where the selected index names one
+    in property<vector<string>> type_items: [];
+    // whether the print type combo belongs in the card
+    in property<bool> show_type: true;
+    // the format choices, where the head is the default spelling
+    in property<vector<string>> format_items: ["(default)", "STD", "NOINDEX", "PROBE", "TECPLOT", "RAW", "CSV", "GNUPLOT", "SPLOT"];
+    // whether the analysis prints the power wildcard
+    in property<bool> show_power: true;
+    // whether the analysis prints the BJT lead wildcards
+    in property<bool> show_bjt: true;
+    // whether the analysis prints the FET lead wildcards
+    in property<bool> show_fet: true;
+    // the print state the user changed
+    signal state_changed(PrintUi value);
+
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        border_width: 1px;
+        vertical_align: Align.start;
+
+        Column {
+            spacing: 8px;
+
+            Row {
+                spacing: 6px;
+
+                CheckBox {
+                    checked: state.enabled;
+                    on_toggled: {
+                        state.enabled = checked;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Enable .PRINT output";
+                    vertical_align: Align.center;
+                }
+            }
+
+            if state.enabled {
+                Column {
+                    spacing: 8px;
+
+                    if show_type {
+                        Grid {
+                            columns: 2;
+                            spacing: 8px;
+
+                            Label {
+                                text: "Print type";
+                                vertical_align: Align.center;
+                            }
+
+                            ComboBox {
+                                items: type_items;
+                                selected: state.type_index;
+                                horizontal_align: Align.stretch;
+                                on_selection_changed: {
+                                    state.type_index = index;
+                                    state_changed(state);
+                                }
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 16px;
+
+                        Row {
+                            spacing: 4px;
+
+                            CheckBox {
+                                checked: state.all_nodes;
+                                on_toggled: {
+                                    state.all_nodes = checked;
+                                    state_changed(state);
+                                }
+                            }
+
+                            Label {
+                                text: "All voltages V(*)";
+                                font_size: 12px;
+                                vertical_align: Align.center;
+                            }
+                        }
+
+                        Row {
+                            spacing: 4px;
+
+                            CheckBox {
+                                checked: state.all_currents;
+                                on_toggled: {
+                                    state.all_currents = checked;
+                                    state_changed(state);
+                                }
+                            }
+
+                            Label {
+                                text: "All currents I(*)";
+                                font_size: 12px;
+                                vertical_align: Align.center;
+                            }
+                        }
+
+                        if show_power {
+                            Row {
+                                spacing: 4px;
+
+                                CheckBox {
+                                    checked: state.power;
+                                    on_toggled: {
+                                        state.power = checked;
+                                        state_changed(state);
+                                    }
+                                }
+
+                                Label {
+                                    text: "Power P(*)";
+                                    font_size: 12px;
+                                    vertical_align: Align.center;
+                                }
+                            }
+                        }
+
+                        if show_bjt {
+                            Row {
+                                spacing: 4px;
+
+                                CheckBox {
+                                    checked: state.bjt_leads;
+                                    on_toggled: {
+                                        state.bjt_leads = checked;
+                                        state_changed(state);
+                                    }
+                                }
+
+                                Label {
+                                    text: "BJT leads";
+                                    font_size: 12px;
+                                    vertical_align: Align.center;
+                                }
+                            }
+                        }
+
+                        if show_fet {
+                            Row {
+                                spacing: 4px;
+
+                                CheckBox {
+                                    checked: state.fet_leads;
+                                    on_toggled: {
+                                        state.fet_leads = checked;
+                                        state_changed(state);
+                                    }
+                                }
+
+                                Label {
+                                    text: "FET leads";
+                                    font_size: 12px;
+                                    vertical_align: Align.center;
+                                }
+                            }
+                        }
+                    }
+
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            text: "Additional variables";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            value: state.specific_variables;
+                            placeholder: "e.g. V(out) V(in)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.specific_variables = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "Format";
+                            vertical_align: Align.center;
+                        }
+
+                        ComboBox {
+                            items: format_items;
+                            selected: state.format_index;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                state.format_index = index;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            text: "Output file";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            value: state.output_file;
+                            placeholder: "optional output file path";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.output_file = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+
+                    if state.format_index != 5 {
+                        Grid {
+                            columns: 2;
+                            spacing: 8px;
+
+                            Label {
+                                text: "Extra options";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                value: state.extra_options;
+                                placeholder: "e.g. WIDTH=20 PRECISION=12";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.extra_options = value;
+                                    state_changed(state);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

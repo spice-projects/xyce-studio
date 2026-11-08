@@ -1,24 +1,22 @@
 // the AC sweep analysis panel, which edits one .AC directive
 
+import simulation_ui;
+
 import "ground_replace_row.ui";
+import "measure_section.ui";
+import "options_section.ui";
+import "print_section.ui";
 import "sweep_mode_row.ui";
 
 component AcParametersPanel {
-    // the AC sweep fields the dialog owns, where the mode is LIN, DEC, OCT or DATA
-    in property<int> mode: 0;
-    in property<string> points: "";
-    in property<string> start: "";
-    in property<string> end: "";
-    in property<string> table: "";
-    in property<bool> replace_ground: true;
-
-    // one signal per field, because a composed component cannot write the host property
-    signal mode_changed(int value);
-    signal points_changed(string value);
-    signal start_changed(string value);
-    signal end_changed(string value);
-    signal table_changed(string value);
-    signal replace_ground_changed(bool value);
+    // the AC sweep state the dialog owns
+    inout property<AcUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the AC sweep state the user changed
+    signal state_changed(AcUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
 
     Column {
         spacing: 10px;
@@ -28,108 +26,144 @@ component AcParametersPanel {
             font_size: 13px;
         }
 
-        SweepModeRow {
-            id: simulation_ac_mode;
-            items: ["LIN", "DEC", "OCT", "DATA"];
-            selected: mode;
-            on_selection_changed: {
-                mode_changed(value);
-            }
-        }
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
 
-        if mode != 3 {
             Column {
-                spacing: 10px;
-
-                Row {
-                    spacing: 8px;
-
-                    Label {
-                        id: simulation_ac_points_caption;
-                        text: "Points";
-                        vertical_align: Align.center;
-                    }
-
-                    TextField {
-                        id: simulation_ac_points;
-                        value: points;
-                        placeholder: "points per sweep";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            points_changed(value);
-                        }
-                    }
-                }
-
-                Row {
-                    spacing: 8px;
-
-                    Label {
-                        id: simulation_ac_start_caption;
-                        text: "Start";
-                        vertical_align: Align.center;
-                    }
-
-                    TextField {
-                        id: simulation_ac_start;
-                        value: start;
-                        placeholder: "start frequency";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            start_changed(value);
-                        }
-                    }
-                }
-
-                Row {
-                    spacing: 8px;
-
-                    Label {
-                        id: simulation_ac_end_caption;
-                        text: "End";
-                        vertical_align: Align.center;
-                    }
-
-                    TextField {
-                        id: simulation_ac_end;
-                        value: end;
-                        placeholder: "stop frequency";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            end_changed(value);
-                        }
-                    }
-                }
-            }
-        }
-
-        if mode == 3 {
-            Row {
                 spacing: 8px;
 
-                Label {
-                    id: simulation_ac_table_caption;
-                    text: "Data table";
-                    vertical_align: Align.center;
-                }
-
-                TextField {
-                    id: simulation_ac_table;
-                    value: table;
-                    placeholder: "table name";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        table_changed(value);
+                SweepModeRow {
+                    id: simulation_ac_mode;
+                    items: ["LIN", "DEC", "OCT", "DATA"];
+                    selected: state.sweep_mode_index;
+                    on_selection_changed: {
+                        state.sweep_mode_index = value;
+                        state_changed(state);
                     }
                 }
+
+                if state.sweep_mode_index != 3 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_ac_points_caption;
+                            text: "Points";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_ac_points;
+                            value: state.points;
+                            placeholder: "number of points per decade";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.points = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            id: simulation_ac_start_caption;
+                            text: "Start";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_ac_start;
+                            value: state.start;
+                            placeholder: "start frequency (e.g. 1k)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.start = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        Label {
+                            id: simulation_ac_end_caption;
+                            text: "End";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_ac_end;
+                            value: state.end;
+                            placeholder: "stop frequency (e.g. 100MEG)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.end = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+
+                if state.sweep_mode_index == 3 {
+                    Grid {
+                        columns: 2;
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_ac_table_caption;
+                            text: "Data table";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_ac_table;
+                            value: state.data_table;
+                            placeholder: "name of the data block to sweep";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.data_table = value;
+                                state_changed(state);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        MeasureSection {
+            text: state.measure;
+            placeholder: "e.g. .MEASURE AC vout_max MAX V(out)";
+            on_text_changed: {
+                state.measure = value;
+                state_changed(state);
+            }
+        }
+
+        PrintSection {
+            state: print;
+            type_items: ["AC", "AC_IC"];
+            show_power: false;
+            show_bjt: false;
+            show_fet: false;
+            on_state_changed: {
+                print_changed(value);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS LINSOL-AC package (one key=value per line)";
+            text: state.linsol_options;
+            on_text_changed: {
+                state.linsol_options = value;
+                state_changed(state);
             }
         }
 
         GroundReplaceRow {
             id: simulation_ac_replace_ground;
-            checked: replace_ground;
+            checked: state.replace_ground;
             on_toggled: {
-                replace_ground_changed(value);
+                state.replace_ground = value;
+                state_changed(state);
             }
         }
     }

@@ -1,0 +1,152 @@
+// the state records the simulation dialog passes between its root and panels
+
+record PrintUi {
+    key: string = "";
+    enabled: bool = false;
+    type_index: int = 0;
+    all_nodes: bool = false;
+    all_currents: bool = false;
+    power: bool = false;
+    bjt_leads: bool = false;
+    fet_leads: bool = false;
+    specific_variables: string = "";
+    format_index: int = 0;
+    output_file: string = "";
+    extra_options: string = "";
+}
+
+record TranUi {
+    key: string = "";
+    initial_step: string = "";
+    final_time: string = "";
+    start_time: string = "";
+    step_ceiling: string = "";
+    op_keyword_index: int = 0;
+    schedule: string = "";
+    fft: string = "";
+    four: string = "";
+    measure: string = "";
+    initial_conditions: string = "";
+    replace_ground: bool = true;
+    timeint_options: string = "";
+    nonlin_tran_options: string = "";
+    loca_options: string = "";
+    fft_options: string = "";
+    output_options: string = "";
+}
+
+record DcUi {
+    key: string = "";
+    sweep_mode_index: int = 0;
+    variable: string = "";
+    start: string = "";
+    stop: string = "";
+    step: string = "";
+    points: string = "";
+    list: string = "";
+    data_table: string = "";
+    measure: string = "";
+    initial_conditions: string = "";
+    replace_ground: bool = true;
+    nonlin_options: string = "";
+}
+
+record AcUi {
+    key: string = "";
+    sweep_mode_index: int = 0;
+    points: string = "";
+    start: string = "";
+    end: string = "";
+    data_table: string = "";
+    measure: string = "";
+    replace_ground: bool = true;
+    linsol_options: string = "";
+}
+
+record OpUi {
+    key: string = "";
+    save_enabled: bool = false;
+    save_type_index: int = 0;
+    save_file: string = "";
+    save_level_index: int = 0;
+    nodeset: string = "";
+    initial_conditions: string = "";
+    replace_ground: bool = true;
+    nonlin_options: string = "";
+}
+
+record NoiseUi {
+    key: string = "";
+    output_node: string = "";
+    ref_node: string = "";
+    source_name: string = "";
+    start_freq: string = "";
+    end_freq: string = "";
+    num_points: string = "";
+    sweep_type_index: int = 0;
+    data_table: string = "";
+    device_noise: string = "";
+    replace_ground: bool = true;
+}
+
+record HbUi {
+    key: string = "";
+    frequencies: string = "";
+    harmonics: string = "";
+    tahb: string = "";
+    selectharms: string = "";
+    startup_periods: string = "";
+    nonlin_options: string = "";
+    linsol_options: string = "";
+    replace_ground: bool = true;
+}
+
+record LinUi {
+    key: string = "";
+    sparcalc: bool = false;
+    format_index: int = 0;
+    lintype_index: int = 0;
+    dataformat_index: int = 0;
+    file: string = "";
+    output_width: string = "";
+    precision: string = "";
+    sweep_mode_index: int = 0;
+    points: string = "";
+    start: string = "";
+    end: string = "";
+    data_table: string = "";
+    replace_ground: bool = true;
+}
+
+record PceUi {
+    key: string = "";
+    enabled: bool = false;
+    use_expression: bool = false;
+    parameters_text: string = "";
+    pces_options: string = "";
+}
+
+record DcSweepRow {
+    key: string = "";
+    variable: string = "";
+    start: string = "";
+    stop: string = "";
+    step: string = "";
+    points: string = "";
+    list_values: string = "";
+}
+
+record PceRow {
+    key: string = "";
+    name: string = "";
+    type_index: int = 0;
+    first_value: string = "";
+    second_value: string = "";
+}
+
+record OptionRow {
+    key: string = "";
+    value: string = "";
+    flag: bool = false;
+    default_value: string = "";
+}

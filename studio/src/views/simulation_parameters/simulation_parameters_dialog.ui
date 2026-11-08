@@ -1,39 +1,50 @@
 // the native simulation parameters dialog, which edits the analysis directives a run uses
 
+import simulation_ui;
+
 import "ac_parameters_panel.ui";
 import "dc_parameters_panel.ui";
+import "hb_parameters_panel.ui";
+import "lin_parameters_panel.ui";
+import "noise_parameters_panel.ui";
+import "op_parameters_panel.ui";
 import "transient_parameters_panel.ui";
 
 component SimulationParametersDialog {
-    // the selected analysis tab, where 0 is transient, 1 is DC and 2 is AC
+    // the selected analysis tab, in the order OP, DC, TRAN, AC, NOISE, HB, LIN
     inout property<int> selected_tab: 0;
 
-    // the transient analysis fields
-    inout property<string> tran_initial_step: "";
-    inout property<string> tran_final_time: "";
-    inout property<string> tran_start_time: "";
-    inout property<string> tran_step_ceiling: "";
-    inout property<int> tran_op_keyword: 0;
-    inout property<bool> tran_replace_ground: true;
+    // the transient analysis state
+    inout property<TranUi> tran;
+    inout property<PrintUi> tran_print;
 
-    // the DC sweep fields, where the mode is LIN, DEC, OCT, LIST or DATA
-    inout property<int> dc_mode: 0;
-    inout property<string> dc_variable: "";
-    inout property<string> dc_start: "";
-    inout property<string> dc_stop: "";
-    inout property<string> dc_step: "";
-    inout property<string> dc_points: "";
-    inout property<string> dc_list: "";
-    inout property<string> dc_table: "";
-    inout property<bool> dc_replace_ground: true;
+    // the DC sweep state
+    inout property<DcUi> dc;
+    inout property<PrintUi> dc_print;
 
-    // the AC sweep fields, where the mode is LIN, DEC, OCT or DATA
-    inout property<int> ac_mode: 0;
-    inout property<string> ac_points: "";
-    inout property<string> ac_start: "";
-    inout property<string> ac_end: "";
-    inout property<string> ac_table: "";
-    inout property<bool> ac_replace_ground: true;
+    // the AC sweep state
+    inout property<AcUi> ac;
+    inout property<PrintUi> ac_print;
+
+    // the operating point state
+    inout property<OpUi> op;
+    inout property<PrintUi> op_print;
+
+    // the noise analysis state
+    inout property<NoiseUi> noise;
+    inout property<PrintUi> noise_print;
+
+    // the harmonic balance state
+    inout property<HbUi> hb;
+    inout property<PrintUi> hb_print;
+
+    // the linear analysis state
+    inout property<LinUi> lin;
+    inout property<PrintUi> lin_print;
+
+    // the PCE state the transient and DC panels share
+    inout property<PceUi> pce;
+    inout property<PrintUi> pce_print;
 
     // whether the validation message is part of the layout
     in property<bool> show_error: false;
@@ -43,128 +54,208 @@ component SimulationParametersDialog {
     signal accepted();
     signal dismissed();
 
-    // the column is the dialog body, which lets the footer stretch spacer pin the actions to the bottom edge
     Column {
         padding: 16px;
         spacing: 12px;
 
-        Label {
-            text: "Simulation Parameters";
-            font_size: 18px;
+        Row {
+            spacing: 8px;
+
+            Label {
+                text: "Xyce Simulation";
+                font_size: 16px;
+                vertical_align: Align.center;
+            }
+
+            Label {
+                horizontal_align: Align.stretch;
+            }
+
+            Button {
+                id: simulation_parameters_close;
+                text: "X";
+                on_clicked: {
+                    dismissed();
+                }
+            }
         }
 
         TabView {
             id: simulation_parameters_tabs;
             selected: selected_tab;
+            vertical: true;
             vertical_align: Align.start;
+            horizontal_align: Align.stretch;
             on_selection_changed: {
                 selected_tab = index;
             }
 
             Tab {
-                id: simulation_tab_transient;
-                label: "Transient";
+                id: simulation_tab_op;
+                label: ".OP";
 
-                TransientParametersPanel {
-                    initial_step: tran_initial_step;
-                    final_time: tran_final_time;
-                    start_time: tran_start_time;
-                    step_ceiling: tran_step_ceiling;
-                    op_keyword: tran_op_keyword;
-                    replace_ground: tran_replace_ground;
-                    on_initial_step_changed: {
-                        tran_initial_step = value;
-                    }
-                    on_final_time_changed: {
-                        tran_final_time = value;
-                    }
-                    on_start_time_changed: {
-                        tran_start_time = value;
-                    }
-                    on_step_ceiling_changed: {
-                        tran_step_ceiling = value;
-                    }
-                    on_op_keyword_changed: {
-                        tran_op_keyword = value;
-                    }
-                    on_replace_ground_changed: {
-                        tran_replace_ground = value;
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    OpParametersPanel {
+                        state: op;
+                        print: op_print;
+                        on_state_changed: {
+                            op = value;
+                        }
+                        on_print_changed: {
+                            op_print = value;
+                        }
                     }
                 }
             }
 
             Tab {
                 id: simulation_tab_dc;
-                label: "DC Sweep";
+                label: ".DC";
 
-                DcParametersPanel {
-                    mode: dc_mode;
-                    variable: dc_variable;
-                    start: dc_start;
-                    stop: dc_stop;
-                    step: dc_step;
-                    points: dc_points;
-                    list: dc_list;
-                    table: dc_table;
-                    replace_ground: dc_replace_ground;
-                    on_mode_changed: {
-                        dc_mode = value;
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    DcParametersPanel {
+                        state: dc;
+                        print: dc_print;
+                        pce: pce;
+                        pce_print: pce_print;
+                        on_state_changed: {
+                            dc = value;
+                        }
+                        on_print_changed: {
+                            dc_print = value;
+                        }
+                        on_pce_changed: {
+                            pce = value;
+                        }
+                        on_pce_print_changed: {
+                            pce_print = value;
+                        }
                     }
-                    on_variable_changed: {
-                        dc_variable = value;
-                    }
-                    on_start_changed: {
-                        dc_start = value;
-                    }
-                    on_stop_changed: {
-                        dc_stop = value;
-                    }
-                    on_step_changed: {
-                        dc_step = value;
-                    }
-                    on_points_changed: {
-                        dc_points = value;
-                    }
-                    on_list_changed: {
-                        dc_list = value;
-                    }
-                    on_table_changed: {
-                        dc_table = value;
-                    }
-                    on_replace_ground_changed: {
-                        dc_replace_ground = value;
+                }
+            }
+
+            Tab {
+                id: simulation_tab_transient;
+                label: ".TRAN";
+
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    TransientParametersPanel {
+                        state: tran;
+                        print: tran_print;
+                        pce: pce;
+                        pce_print: pce_print;
+                        on_state_changed: {
+                            tran = value;
+                        }
+                        on_print_changed: {
+                            tran_print = value;
+                        }
+                        on_pce_changed: {
+                            pce = value;
+                        }
+                        on_pce_print_changed: {
+                            pce_print = value;
+                        }
                     }
                 }
             }
 
             Tab {
                 id: simulation_tab_ac;
-                label: "AC Sweep";
+                label: ".AC";
 
-                AcParametersPanel {
-                    mode: ac_mode;
-                    points: ac_points;
-                    start: ac_start;
-                    end: ac_end;
-                    table: ac_table;
-                    replace_ground: ac_replace_ground;
-                    on_mode_changed: {
-                        ac_mode = value;
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    AcParametersPanel {
+                        state: ac;
+                        print: ac_print;
+                        on_state_changed: {
+                            ac = value;
+                        }
+                        on_print_changed: {
+                            ac_print = value;
+                        }
                     }
-                    on_points_changed: {
-                        ac_points = value;
+                }
+            }
+
+            Tab {
+                id: simulation_tab_noise;
+                label: ".NOISE";
+
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    NoiseParametersPanel {
+                        state: noise;
+                        print: noise_print;
+                        on_state_changed: {
+                            noise = value;
+                        }
+                        on_print_changed: {
+                            noise_print = value;
+                        }
                     }
-                    on_start_changed: {
-                        ac_start = value;
+                }
+            }
+
+            Tab {
+                id: simulation_tab_hb;
+                label: ".HB";
+
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    HbParametersPanel {
+                        state: hb;
+                        print: hb_print;
+                        on_state_changed: {
+                            hb = value;
+                        }
+                        on_print_changed: {
+                            hb_print = value;
+                        }
                     }
-                    on_end_changed: {
-                        ac_end = value;
-                    }
-                    on_table_changed: {
-                        ac_table = value;
-                    }
-                    on_replace_ground_changed: {
-                        ac_replace_ground = value;
+                }
+            }
+
+            Tab {
+                id: simulation_tab_lin;
+                label: ".LIN";
+
+                ScrollView {
+                    viewport_height: 420px;
+                    scrollbar: Scrollbar.on;
+                    horizontal_align: Align.stretch;
+
+                    LinParametersPanel {
+                        state: lin;
+                        print: lin_print;
+                        on_state_changed: {
+                            lin = value;
+                        }
+                        on_print_changed: {
+                            lin_print = value;
+                        }
                     }
                 }
             }
@@ -176,11 +267,6 @@ component SimulationParametersDialog {
             visible: show_error;
             text: error_message;
             foreground: #CC0000;
-        }
-
-        // pushes the footer to the bottom of the fixed size dialog
-        Label {
-            vertical_align: Align.stretch;
         }
 
         Row {

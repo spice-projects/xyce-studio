@@ -1,23 +1,31 @@
 // the transient analysis panel, which edits one .TRAN directive
 
+import simulation_ui;
+
 import "ground_replace_row.ui";
+import "ic_section.ui";
+import "measure_section.ui";
+import "options_section.ui";
+import "pce_section.ui";
+import "print_section.ui";
 
 component TransientParametersPanel {
-    // the transient fields the dialog owns
-    in property<string> initial_step: "";
-    in property<string> final_time: "";
-    in property<string> start_time: "";
-    in property<string> step_ceiling: "";
-    in property<int> op_keyword: 0;
-    in property<bool> replace_ground: true;
-
-    // one signal per field, because a composed component cannot write the host property
-    signal initial_step_changed(string value);
-    signal final_time_changed(string value);
-    signal start_time_changed(string value);
-    signal step_ceiling_changed(string value);
-    signal op_keyword_changed(int value);
-    signal replace_ground_changed(bool value);
+    // the transient state the dialog owns
+    inout property<TranUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the PCE state the dialog owns
+    inout property<PceUi> pce;
+    // the PCE print state the dialog owns
+    in property<PrintUi> pce_print;
+    // the transient state the user changed
+    signal state_changed(TranUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+    // the PCE state the user changed
+    signal pce_changed(PceUi value);
+    // the PCE print state the user changed
+    signal pce_print_changed(PrintUi value);
 
     Column {
         spacing: 10px;
@@ -27,111 +35,284 @@ component TransientParametersPanel {
             font_size: 13px;
         }
 
-        Row {
-            spacing: 8px;
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
 
-            Label {
-                id: simulation_tran_initial_step_caption;
-                text: "Initial step";
-                vertical_align: Align.center;
-            }
-
-            TextField {
-                id: simulation_tran_initial_step;
-                value: initial_step;
-                placeholder: "e.g. 1n";
+            Grid {
+                columns: 2;
+                spacing: 8px;
                 horizontal_align: Align.stretch;
-                on_changed: {
-                    initial_step_changed(value);
+
+                Label {
+                    id: simulation_tran_initial_step_caption;
+                    text: "Initial step";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_tran_initial_step;
+                    value: state.initial_step;
+                    placeholder: "initial time step (e.g. 1n)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.initial_step = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    id: simulation_tran_final_time_caption;
+                    text: "Final time";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_tran_final_time;
+                    value: state.final_time;
+                    placeholder: "simulation end time (e.g. 1u)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.final_time = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    id: simulation_tran_start_time_caption;
+                    text: "Start time";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_tran_start_time;
+                    value: state.start_time;
+                    placeholder: "optional start time (e.g. 0)";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.start_time = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    id: simulation_tran_step_ceiling_caption;
+                    text: "Max time step";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_tran_step_ceiling;
+                    value: state.step_ceiling;
+                    placeholder: "optional step ceiling";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.step_ceiling = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    id: simulation_tran_op_keyword_caption;
+                    text: "OP keyword";
+                    vertical_align: Align.center;
+                }
+
+                ComboBox {
+                    id: simulation_tran_op_keyword;
+                    items: ["(None)", "NOOP", "UIC"];
+                    selected: state.op_keyword_index;
+                    horizontal_align: Align.stretch;
+                    on_selection_changed: {
+                        state.op_keyword_index = index;
+                        state_changed(state);
+                    }
                 }
             }
         }
 
-        Row {
-            spacing: 8px;
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
 
-            Label {
-                id: simulation_tran_final_time_caption;
-                text: "Final time";
-                vertical_align: Align.center;
-            }
+            Column {
+                spacing: 6px;
 
-            TextField {
-                id: simulation_tran_final_time;
-                value: final_time;
-                placeholder: "e.g. 1u";
-                horizontal_align: Align.stretch;
-                on_changed: {
-                    final_time_changed(value);
+                Label {
+                    text: "Schedule points (one per line: time, max_step)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_tran_schedule;
+                        value: state.schedule;
+                        placeholder: "e.g. 1n, 1n";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.schedule = value;
+                            state_changed(state);
+                        }
+                    }
                 }
             }
         }
 
-        Row {
-            spacing: 8px;
-
-            Label {
-                id: simulation_tran_start_time_caption;
-                text: "Start time";
-                vertical_align: Align.center;
+        PrintSection {
+            state: print;
+            type_items: ["TRAN", "TRANADJOINT"];
+            on_state_changed: {
+                print_changed(value);
             }
+        }
 
-            TextField {
-                id: simulation_tran_start_time;
-                value: start_time;
-                placeholder: "optional";
-                horizontal_align: Align.stretch;
-                on_changed: {
-                    start_time_changed(value);
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 6px;
+
+                Label {
+                    text: ".FFT directives (one per line)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_tran_fft;
+                        value: state.fft;
+                        placeholder: "e.g. .FFT V(out) START=1n STOP=1u NP=1024";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.fft = value;
+                            state_changed(state);
+                        }
+                    }
                 }
             }
         }
 
-        Row {
-            spacing: 8px;
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
 
-            Label {
-                id: simulation_tran_step_ceiling_caption;
-                text: "Max time step";
-                vertical_align: Align.center;
-            }
+            Column {
+                spacing: 6px;
 
-            TextField {
-                id: simulation_tran_step_ceiling;
-                value: step_ceiling;
-                placeholder: "optional";
-                horizontal_align: Align.stretch;
-                on_changed: {
-                    step_ceiling_changed(value);
+                Label {
+                    text: ".FOUR directives (one per line)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_tran_four;
+                        value: state.four;
+                        placeholder: "e.g. .FOUR 1e6 V(out)";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.four = value;
+                            state_changed(state);
+                        }
+                    }
                 }
             }
         }
 
-        Row {
-            spacing: 8px;
-
-            Label {
-                id: simulation_tran_op_keyword_caption;
-                text: "Initial condition";
-                vertical_align: Align.center;
+        MeasureSection {
+            text: state.measure;
+            placeholder: "e.g. .MEASURE TRAN vout_max MAX V(out)";
+            on_text_changed: {
+                state.measure = value;
+                state_changed(state);
             }
+        }
 
-            ComboBox {
-                id: simulation_tran_op_keyword;
-                items: ["(default)", "NOOP", "UIC"];
-                selected: op_keyword;
-                horizontal_align: Align.stretch;
-                on_selection_changed: {
-                    op_keyword_changed(index);
-                }
+        IcSection {
+            text: state.initial_conditions;
+            on_text_changed: {
+                state.initial_conditions = value;
+                state_changed(state);
+            }
+        }
+
+        PceSection {
+            state: pce;
+            print: pce_print;
+            on_state_changed: {
+                pce_changed(value);
+            }
+            on_print_changed: {
+                pce_print_changed(value);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS TIMEINT package (one key=value per line)";
+            text: state.timeint_options;
+            on_text_changed: {
+                state.timeint_options = value;
+                state_changed(state);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS NONLIN-TRAN package (one key=value per line)";
+            text: state.nonlin_tran_options;
+            on_text_changed: {
+                state.nonlin_tran_options = value;
+                state_changed(state);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS LOCA package (one key=value per line)";
+            text: state.loca_options;
+            on_text_changed: {
+                state.loca_options = value;
+                state_changed(state);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS FFT package (one key=value per line)";
+            text: state.fft_options;
+            on_text_changed: {
+                state.fft_options = value;
+                state_changed(state);
+            }
+        }
+
+        OptionsSection {
+            title: ".OPTIONS OUTPUT package (one key=value per line)";
+            text: state.output_options;
+            on_text_changed: {
+                state.output_options = value;
+                state_changed(state);
             }
         }
 
         GroundReplaceRow {
             id: simulation_tran_replace_ground;
-            checked: replace_ground;
+            checked: state.replace_ground;
             on_toggled: {
-                replace_ground_changed(value);
+                state.replace_ground = value;
+                state_changed(state);
             }
         }
     }

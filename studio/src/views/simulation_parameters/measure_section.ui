@@ -1,0 +1,41 @@
+// the .MEASURE card the analyses that support measurements share
+
+component MeasureSection {
+    // the directives text the host analysis owns
+    inout property<string> text: "";
+    // the card title
+    in property<string> title: ".MEASURE directives (one per line)";
+    // the hint the empty field shows
+    in property<string> placeholder: "";
+    // the directives text the user changed
+    signal text_changed(string value);
+
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        border_width: 1px;
+        vertical_align: Align.start;
+
+        Column {
+            spacing: 6px;
+
+            Label {
+                text: title;
+            }
+
+            ScrollView {
+                viewport_height: 64px;
+
+                TextField {
+                    value: text;
+                    placeholder: placeholder;
+                    multiline: true;
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        text_changed(value);
+                    }
+                }
+            }
+        }
+    }
+}

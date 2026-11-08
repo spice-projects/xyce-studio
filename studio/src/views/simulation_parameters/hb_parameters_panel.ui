@@ -1,0 +1,200 @@
+// the harmonic balance analysis panel, which edits one .HB directive
+
+import simulation_ui;
+
+import "ground_replace_row.ui";
+import "print_section.ui";
+
+component HbParametersPanel {
+    // the harmonic balance state the dialog owns
+    inout property<HbUi> state;
+    // the print state the dialog owns
+    in property<PrintUi> print;
+    // the harmonic balance state the user changed
+    signal state_changed(HbUi value);
+    // the print state the user changed
+    signal print_changed(PrintUi value);
+
+    Column {
+        spacing: 10px;
+
+        Label {
+            text: "Harmonic Balance (.HB)";
+            font_size: 13px;
+        }
+
+        PrintSection {
+            state: print;
+            type_items: ["HB", "HB_FD", "HB_TD"];
+            show_power: false;
+            show_bjt: false;
+            show_fet: false;
+            on_state_changed: {
+                print_changed(value);
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Grid {
+                columns: 2;
+                spacing: 8px;
+
+                Label {
+                    text: "Frequencies";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_hb_frequencies;
+                    value: state.frequencies;
+                    placeholder: "space-separated fundamental frequencies";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.frequencies = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Harmonics / NUMFREQ";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_hb_harmonics;
+                    value: state.harmonics;
+                    placeholder: "comma-separated integers";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.harmonics = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "TAHB";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_hb_tahb;
+                    value: state.tahb;
+                    placeholder: "e.g. 0 1 2 5 10 20";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.tahb = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "SELECTHARMS";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_hb_selectharms;
+                    value: state.selectharms;
+                    placeholder: "e.g. ALL 1 2 3 5 10";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.selectharms = value;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    text: "Startup periods";
+                    vertical_align: Align.center;
+                }
+
+                TextField {
+                    id: simulation_hb_startup_periods;
+                    value: state.startup_periods;
+                    placeholder: "startup periods";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        state.startup_periods = value;
+                        state_changed(state);
+                    }
+                }
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 6px;
+
+                Label {
+                    text: "Nonlinear solver options (one key=value per line)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_hb_nonlin_options;
+                        value: state.nonlin_options;
+                        placeholder: "e.g. RHOMAX=1.0";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.nonlin_options = value;
+                            state_changed(state);
+                        }
+                    }
+                }
+            }
+        }
+
+        Panel {
+            padding: 10px;
+            corner_radius: 6px;
+            border_width: 1px;
+            vertical_align: Align.start;
+
+            Column {
+                spacing: 6px;
+
+                Label {
+                    text: "Linear solver options (one key=value per line)";
+                }
+
+                ScrollView {
+                    viewport_height: 64px;
+
+                    TextField {
+                        id: simulation_hb_linsol_options;
+                        value: state.linsol_options;
+                        placeholder: "e.g. METHOD=KLU";
+                        multiline: true;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.linsol_options = value;
+                            state_changed(state);
+                        }
+                    }
+                }
+            }
+        }
+
+        GroundReplaceRow {
+            id: simulation_hb_replace_ground;
+            checked: state.replace_ground;
+            on_toggled: {
+                state.replace_ground = value;
+                state_changed(state);
+            }
+        }
+    }
+}

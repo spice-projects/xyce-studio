@@ -1,0 +1,39 @@
+// the initial conditions card the analyses share
+
+component IcSection {
+    // the value text the host analysis owns
+    inout property<string> text: "";
+    // the description under the title
+    in property<string> description: "Initial conditions enforced through the operating-point solve";
+    // the value text the user changed
+    signal text_changed(string value);
+
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        border_width: 1px;
+        vertical_align: Align.start;
+
+        Column {
+            spacing: 6px;
+
+            Label {
+                text: "Initial Conditions (.IC / .DCVOLT)";
+            }
+
+            Label {
+                text: description;
+                font_size: 12px;
+            }
+
+            TextField {
+                value: text;
+                placeholder: "e.g. V(out)=1.0 V(in)=0";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    text_changed(value);
+                }
+            }
+        }
+    }
+}
