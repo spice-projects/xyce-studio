@@ -66,7 +66,7 @@ xyce-studio/
 | Concern | Legacy Root (`slint/` / CI Standard) | New Framework Root (`studio/`) |
 | :--- | :--- | :--- |
 | **Executable Target** | `xyce-studio` (identical output name) | `xyce-studio-next` |
-| **CMake Presets** | `debug`, `release`, `profile` (untouched) | `studio-debug`, `studio-release` |
+| **CMake Presets** | `debug`, `release`, `profile` (studio frontend off) | `studio-debug`, `studio-release` |
 | **Build Directory** | `.build-debug`, `.build-release`, `.build-profile` | `.build-studio-debug`, `.build-studio-release` |
 | **Manifest Path** | Root `vcpkg.json` & `slint/vcpkg.json` | `studio/vcpkg.json` (`VCPKG_MANIFEST_DIR`) |
 | **Triplets** | `slint/triplets` (`VCPKG_OVERLAY_TRIPLETS`) | Built-in static triplets (or `studio/triplets`) |
@@ -169,7 +169,7 @@ Move files into their respective homes. Git preserves history across renames (`g
     endif()
     ```
 - [x] **3.5. Configure `CMakePresets.json`**
-  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend without altering their names, configurations, or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests`.
+  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend with `BUILD_STUDIO_FRONTEND=OFF`, without altering their names or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring albor.
   - **Add New Framework Presets**:
     - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`.
     - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`.
