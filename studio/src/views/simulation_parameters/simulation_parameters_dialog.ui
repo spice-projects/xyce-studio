@@ -63,7 +63,8 @@ component SimulationParametersDialog {
 
             Label {
                 text: "Xyce Simulation";
-                font_size: 16px;
+                font_weight: Weight.semibold;
+                font_size: 18px;
                 vertical_align: Align.center;
             }
 
@@ -73,33 +74,254 @@ component SimulationParametersDialog {
 
             Button {
                 id: simulation_parameters_close;
-                text: "X";
+                tooltip: "Close";
+                icon: @image("../main_window/icons/cancel_16.png");
+                icon_size: 12px;
                 on_clicked: {
                     dismissed();
                 }
             }
         }
 
-        TabView {
-            id: simulation_parameters_tabs;
-            selected: selected_tab;
-            vertical: true;
-            vertical_align: Align.start;
+        Row {
+            spacing: 0px;
             horizontal_align: Align.stretch;
-            on_selection_changed: {
-                selected_tab = index;
+
+            Panel {
+                padding: 12px;
+                corner_radius: 0px;
+                border_width: 0px;
+                vertical_align: Align.start;
+
+                Column {
+                    spacing: 4px;
+
+                    Label {
+                        text: "DC";
+                        font_size: 11px;
+                        font_weight: Weight.semibold;
+                        foreground: #888888;
+                    }
+
+                    if selected_tab == 0 {
+                        Button {
+                            id: simulation_tab_op;
+                            text: ".OP";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 0;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 0 {
+                        Button {
+                            id: simulation_tab_op;
+                            text: ".OP";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 0;
+                            }
+                        }
+                    }
+
+                    if selected_tab == 1 {
+                        Button {
+                            id: simulation_tab_dc;
+                            text: ".DC";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 1;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 1 {
+                        Button {
+                            id: simulation_tab_dc;
+                            text: ".DC";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 1;
+                            }
+                        }
+                    }
+
+                    Label {
+                        text: "Time-domain";
+                        font_size: 11px;
+                        font_weight: Weight.semibold;
+                        foreground: #888888;
+                    }
+
+                    if selected_tab == 2 {
+                        Button {
+                            id: simulation_tab_transient;
+                            text: ".TRAN";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 2;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 2 {
+                        Button {
+                            id: simulation_tab_transient;
+                            text: ".TRAN";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 2;
+                            }
+                        }
+                    }
+
+                    Label {
+                        text: "Frequency-domain";
+                        font_size: 11px;
+                        font_weight: Weight.semibold;
+                        foreground: #888888;
+                    }
+
+                    if selected_tab == 3 {
+                        Button {
+                            id: simulation_tab_ac;
+                            text: ".AC";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 3;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 3 {
+                        Button {
+                            id: simulation_tab_ac;
+                            text: ".AC";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 3;
+                            }
+                        }
+                    }
+
+                    if selected_tab == 4 {
+                        Button {
+                            id: simulation_tab_noise;
+                            text: ".NOISE";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 4;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 4 {
+                        Button {
+                            id: simulation_tab_noise;
+                            text: ".NOISE";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 4;
+                            }
+                        }
+                    }
+
+                    if selected_tab == 5 {
+                        Button {
+                            id: simulation_tab_hb;
+                            text: ".HB";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 5;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 5 {
+                        Button {
+                            id: simulation_tab_hb;
+                            text: ".HB";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 5;
+                            }
+                        }
+                    }
+
+                    if selected_tab == 6 {
+                        Button {
+                            id: simulation_tab_lin;
+                            text: ".LIN";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #2F6FED33;
+                            on_clicked: {
+                                selected_tab = 6;
+                            }
+                        }
+                    }
+
+                    if selected_tab != 6 {
+                        Button {
+                            id: simulation_tab_lin;
+                            text: ".LIN";
+                            horizontal_align: Align.stretch;
+                            border_width: 0px;
+                            background: #00000000;
+                            on_clicked: {
+                                selected_tab = 6;
+                            }
+                        }
+                    }
+                }
             }
 
-            Tab {
-                id: simulation_tab_op;
-                label: ".OP";
+            Canvas {
+                width: 1px;
+                height: 420px;
+                draw: {
+                    fill_rect(0, 0, 1, canvas_height, #00000018);
+                }
+            }
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
+            ScrollView {
+                viewport_width: 620px;
+                viewport_height: 420px;
+                scrollbar: Scrollbar.on;
+                horizontal_align: Align.stretch;
 
-                    OpParametersPanel {
+                Column {
+                    spacing: 10px;
+
+                    Column {
+                        visible: selected_tab == 0;
+
+                        OpParametersPanel {
                         state: op;
                         print: op_print;
                         on_state_changed: {
@@ -108,20 +330,13 @@ component SimulationParametersDialog {
                         on_print_changed: {
                             op_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_dc;
-                label: ".DC";
+                    Column {
+                        visible: selected_tab == 1;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    DcParametersPanel {
+                        DcParametersPanel {
                         state: dc;
                         print: dc_print;
                         pce: pce;
@@ -138,20 +353,13 @@ component SimulationParametersDialog {
                         on_pce_print_changed: {
                             pce_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_transient;
-                label: ".TRAN";
+                    Column {
+                        visible: selected_tab == 2;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    TransientParametersPanel {
+                        TransientParametersPanel {
                         state: tran;
                         print: tran_print;
                         pce: pce;
@@ -168,20 +376,13 @@ component SimulationParametersDialog {
                         on_pce_print_changed: {
                             pce_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_ac;
-                label: ".AC";
+                    Column {
+                        visible: selected_tab == 3;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    AcParametersPanel {
+                        AcParametersPanel {
                         state: ac;
                         print: ac_print;
                         on_state_changed: {
@@ -190,20 +391,13 @@ component SimulationParametersDialog {
                         on_print_changed: {
                             ac_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_noise;
-                label: ".NOISE";
+                    Column {
+                        visible: selected_tab == 4;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    NoiseParametersPanel {
+                        NoiseParametersPanel {
                         state: noise;
                         print: noise_print;
                         on_state_changed: {
@@ -212,20 +406,13 @@ component SimulationParametersDialog {
                         on_print_changed: {
                             noise_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_hb;
-                label: ".HB";
+                    Column {
+                        visible: selected_tab == 5;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    HbParametersPanel {
+                        HbParametersPanel {
                         state: hb;
                         print: hb_print;
                         on_state_changed: {
@@ -234,20 +421,13 @@ component SimulationParametersDialog {
                         on_print_changed: {
                             hb_print = value;
                         }
+                        }
                     }
-                }
-            }
 
-            Tab {
-                id: simulation_tab_lin;
-                label: ".LIN";
+                    Column {
+                        visible: selected_tab == 6;
 
-                ScrollView {
-                    viewport_height: 420px;
-                    scrollbar: Scrollbar.on;
-                    horizontal_align: Align.stretch;
-
-                    LinParametersPanel {
+                        LinParametersPanel {
                         state: lin;
                         print: lin_print;
                         on_state_changed: {
@@ -255,6 +435,7 @@ component SimulationParametersDialog {
                         }
                         on_print_changed: {
                             lin_print = value;
+                        }
                         }
                     }
                 }

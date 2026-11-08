@@ -20,6 +20,7 @@ component HbParametersPanel {
 
         Label {
             text: "Harmonic Balance (.HB)";
+                font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -37,6 +38,7 @@ component HbParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -129,6 +131,7 @@ component HbParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -137,6 +140,7 @@ component HbParametersPanel {
 
                 Label {
                     text: "Nonlinear solver options (one key=value per line)";
+                font_weight: Weight.semibold;
                 }
 
                 ScrollView {
@@ -160,6 +164,7 @@ component HbParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -168,6 +173,7 @@ component HbParametersPanel {
 
                 Label {
                     text: "Linear solver options (one key=value per line)";
+                font_weight: Weight.semibold;
                 }
 
                 ScrollView {

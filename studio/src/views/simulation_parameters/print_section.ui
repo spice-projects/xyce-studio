@@ -23,6 +23,7 @@ component PrintSection {
     Panel {
         padding: 10px;
         corner_radius: 6px;
+        background: #00000010;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -42,6 +43,7 @@ component PrintSection {
 
                 Label {
                     text: "Enable .PRINT output";
+                font_weight: Weight.semibold;
                     vertical_align: Align.center;
                 }
             }

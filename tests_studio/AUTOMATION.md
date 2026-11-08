@@ -192,9 +192,9 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
   `ground_replace_row.ui`, `measure_section.ui`, `ic_section.ui`,
   `print_section.ui`, `pce_section.ui` and `options_section.ui` hold the rows
   more than one analysis uses.
-- The tab order is `.OP`, `.DC`, `.TRAN`, `.AC`, `.NOISE`, `.HB`, `.LIN`, so
-  `app.get_by_id("simulation_parameters_tabs").click("select_next")` moves one
-  analysis forward in that order.
+- The tab order is `.OP`, `.DC`, `.TRAN`, `.AC`, `.NOISE`, `.HB`, `.LIN`, and
+  the sidebar buttons carry the `simulation_tab_*` ids; click
+  `simulation_tab_dc` to switch to the DC page.
 - A validation failure keeps the dialog open and writes its message into the
   error label, so the assertion reads `simulation_parameters_error` by name.
 - Cancelling leaves the editor untouched; the accepted configuration is the

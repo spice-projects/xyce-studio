@@ -22,6 +22,7 @@ component OpParametersPanel {
 
         Label {
             text: "Operating Point Analysis (.OP)";
+                font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -36,6 +37,7 @@ component OpParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -55,6 +57,7 @@ component OpParametersPanel {
 
                     Label {
                         text: "Enable .SAVE operating point";
+                font_weight: Weight.semibold;
                         vertical_align: Align.center;
                     }
                 }
@@ -111,6 +114,7 @@ component OpParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -119,6 +123,7 @@ component OpParametersPanel {
 
                 Label {
                     text: "Convergence Hints (.NODESET)";
+                font_weight: Weight.semibold;
                 }
 
                 Label {

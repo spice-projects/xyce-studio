@@ -33,12 +33,14 @@ component DcParametersPanel {
 
         Label {
             text: "DC Sweep (.DC)";
+                font_weight: Weight.semibold;
             font_size: 13px;
         }
 
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 

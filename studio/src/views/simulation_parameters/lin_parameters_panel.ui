@@ -21,6 +21,7 @@ component LinParametersPanel {
 
         Label {
             text: "Linear Analysis (.LIN)";
+                font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -38,6 +39,7 @@ component LinParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -57,6 +59,7 @@ component LinParametersPanel {
 
                     Label {
                         text: "Enable SPARCALC";
+                font_weight: Weight.semibold;
                         vertical_align: Align.center;
                     }
                 }
@@ -169,6 +172,7 @@ component LinParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -177,6 +181,7 @@ component LinParametersPanel {
 
                 Label {
                     text: "AC Sweep";
+                font_weight: Weight.semibold;
                     font_size: 13px;
                 }
 

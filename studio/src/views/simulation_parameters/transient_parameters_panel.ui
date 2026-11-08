@@ -32,12 +32,14 @@ component TransientParametersPanel {
 
         Label {
             text: "Transient Analysis (.TRAN)";
+                font_weight: Weight.semibold;
             font_size: 13px;
         }
 
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -136,6 +138,7 @@ component TransientParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -144,6 +147,7 @@ component TransientParametersPanel {
 
                 Label {
                     text: "Schedule points (one per line: time, max_step)";
+                font_weight: Weight.semibold;
                 }
 
                 ScrollView {
@@ -175,6 +179,7 @@ component TransientParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -183,6 +188,7 @@ component TransientParametersPanel {
 
                 Label {
                     text: ".FFT directives (one per line)";
+                font_weight: Weight.semibold;
                 }
 
                 ScrollView {
@@ -206,6 +212,7 @@ component TransientParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
+            background: #00000010;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -214,6 +221,7 @@ component TransientParametersPanel {
 
                 Label {
                     text: ".FOUR directives (one per line)";
+                font_weight: Weight.semibold;
                 }
 
                 ScrollView {

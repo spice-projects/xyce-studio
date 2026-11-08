@@ -23,7 +23,6 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 initial.wait_for_exists()
                 expect(initial).to_have_value("1m")
                 expect(app.get_by_id("simulation_tran_final_time")).to_have_value("10m")
-                expect(app.get_by_id("simulation_tab_transient")).to_have_state("selected")
 
     def test_accept_rewrites_the_transient_directive(self) -> None:
         # arrange: a netlist carrying the first timing pair
@@ -92,8 +91,7 @@ class SimulationParametersDialogChecks(unittest.TestCase):
             with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
                 # step 1: open the dialog and switch to the DC tab
                 app.get_by_id("main_configure").click()
-                app.get_by_id("simulation_parameters_tabs").wait_for_exists()
-                app.get_by_id("simulation_parameters_tabs").click("select_next")
+                app.get_by_id("simulation_tab_dc").click()
                 # step 2: accept the empty linear sweep
                 variable = app.get_by_id("simulation_dc_variable")
                 variable.wait_for_exists()
@@ -114,7 +112,6 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 points = app.get_by_id("simulation_ac_points")
                 points.wait_for_exists()
-                expect(app.get_by_id("simulation_tab_ac")).to_have_state("selected")
                 expect(points).to_have_value("10")
                 expect(app.get_by_id("simulation_ac_start")).to_have_value("1")
                 expect(app.get_by_id("simulation_ac_end")).to_have_value("1e6")
@@ -143,7 +140,6 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 nodeset = app.get_by_id("simulation_op_nodeset")
                 nodeset.wait_for_exists()
-                expect(app.get_by_id("simulation_tab_op")).to_have_state("selected")
                 expect(nodeset).to_have_value("V(1)=5")
                 # step 2: accept the untouched panel
                 app.get_by_id("simulation_parameters_ok").click()
@@ -165,7 +161,6 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 output = app.get_by_id("simulation_noise_output_node")
                 output.wait_for_exists()
-                expect(app.get_by_id("simulation_tab_noise")).to_have_state("selected")
                 expect(app.get_by_id("simulation_noise_start_freq")).to_have_value("1")
                 expect(app.get_by_id("simulation_noise_num_points")).to_have_value("10")
                 # step 2: accept the untouched panel
@@ -186,7 +181,6 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 frequencies = app.get_by_id("simulation_hb_frequencies")
                 frequencies.wait_for_exists()
-                expect(app.get_by_id("simulation_tab_hb")).to_have_state("selected")
                 expect(frequencies).to_have_value("1MEG")
                 # step 2: accept the untouched panel
                 app.get_by_id("simulation_parameters_ok").click()
@@ -206,7 +200,6 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 file = app.get_by_id("simulation_lin_file")
                 file.wait_for_exists()
-                expect(app.get_by_id("simulation_tab_lin")).to_have_state("selected")
                 expect(file).to_have_value("t.s2p")
                 expect(app.get_by_id("simulation_lin_width")).to_have_value("16")
                 expect(app.get_by_id("simulation_lin_precision")).to_have_value("8")

@@ -42,6 +42,7 @@ albor_build_font_assets(xyce-studio-next
     DEFAULT Inter
     FONTS
         Inter regular "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inter-Regular.ttf"
+        Inter semibold "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Inter-SemiBold.ttf"
         "JetBrains Mono" regular "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/JetBrainsMono-Regular.ttf")
 
 # the shared analysis rows generate first, because the panels compile against their headers

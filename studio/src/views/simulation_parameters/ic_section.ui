@@ -11,6 +11,7 @@ component IcSection {
     Panel {
         padding: 10px;
         corner_radius: 6px;
+        background: #00000010;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -19,6 +20,7 @@ component IcSection {
 
             Label {
                 text: "Initial Conditions (.IC / .DCVOLT)";
+                font_weight: Weight.semibold;
             }
 
             Label {

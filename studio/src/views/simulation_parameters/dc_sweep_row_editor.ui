@@ -15,6 +15,7 @@ component DcSweepRowEditor {
     Panel {
         padding: 8px;
         corner_radius: 4px;
+        background: #00000010;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -26,6 +27,7 @@ component DcSweepRowEditor {
 
                 Label {
                     text: "Sweep " + row_data.key;
+                font_weight: Weight.semibold;
                     font_size: 12px;
                 }
 

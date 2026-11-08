@@ -30,6 +30,7 @@ component PceSection {
 
             Label {
                 text: "Enable PCE (.PCE)";
+                font_weight: Weight.semibold;
                 vertical_align: Align.center;
             }
         }
@@ -51,6 +52,7 @@ component PceSection {
 
                     Label {
                         text: "Use expression-based random inputs";
+                font_weight: Weight.semibold;
                         vertical_align: Align.center;
                     }
                 }
@@ -59,6 +61,7 @@ component PceSection {
                     Panel {
                         padding: 10px;
                         corner_radius: 6px;
+                        background: #00000010;
                         border_width: 1px;
                         vertical_align: Align.start;
 
@@ -67,6 +70,7 @@ component PceSection {
 
                             Label {
                                 text: "Uncertain parameters (one per line: name, distribution, first, second)";
+                font_weight: Weight.semibold;
                             }
 
                             ScrollView {
@@ -91,6 +95,7 @@ component PceSection {
                 Panel {
                     padding: 10px;
                     corner_radius: 6px;
+                    background: #00000010;
                     border_width: 1px;
                     vertical_align: Align.start;
 
@@ -99,6 +104,7 @@ component PceSection {
 
                         Label {
                             text: ".OPTIONS PCES package (one key=value per line)";
+                font_weight: Weight.semibold;
                         }
 
                         ScrollView {
