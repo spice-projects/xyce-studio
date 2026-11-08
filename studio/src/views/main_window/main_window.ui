@@ -4,6 +4,8 @@ component MainWindow {
     signal open_clicked();
     signal save_clicked();
     signal plugin_settings_clicked();
+    // the configure action opens the simulation parameters dialog
+    signal configure_simulation_clicked();
     // the run action starts the simulation and becomes the stop action while it runs
     signal run_clicked();
     // the exit action closes the shell window
@@ -29,6 +31,8 @@ component MainWindow {
     in property<bool> save_enabled: false;
     // the run action only lights up when a netlist is loaded
     in property<bool> run_enabled: false;
+    // the configure action needs a netlist to describe an analysis
+    in property<bool> configure_enabled: false;
     // whether a simulation is live, which swaps the run action for the stop action
     in property<bool> simulation_running: false;
     // the one line status the shell reports
@@ -130,6 +134,17 @@ component MainWindow {
                     on_clicked: {
                         run_clicked();
                     }
+                }
+            }
+
+            Button {
+                id: main_configure;
+                tooltip: "Simulation Parameters";
+                icon: @image("icons/sim_tune_48.png");
+                icon_size: 20px;
+                disabled: !configure_enabled;
+                on_clicked: {
+                    configure_simulation_clicked();
                 }
             }
 

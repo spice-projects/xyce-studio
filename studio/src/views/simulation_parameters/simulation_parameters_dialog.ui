@@ -1,0 +1,575 @@
+// the native simulation parameters dialog, which edits the analysis directives a run uses
+
+component SimulationParametersDialog {
+    // the selected analysis tab, where 0 is transient, 1 is DC and 2 is AC
+    inout property<int> selected_tab: 0;
+
+    // the transient analysis fields
+    inout property<string> tran_initial_step: "";
+    inout property<string> tran_final_time: "";
+    inout property<string> tran_start_time: "";
+    inout property<string> tran_step_ceiling: "";
+    inout property<int> tran_op_keyword: 0;
+    inout property<bool> tran_replace_ground: true;
+
+    // the DC sweep fields, where the mode is LIN, DEC, OCT, LIST or DATA
+    inout property<int> dc_mode: 0;
+    inout property<string> dc_variable: "";
+    inout property<string> dc_start: "";
+    inout property<string> dc_stop: "";
+    inout property<string> dc_step: "";
+    inout property<string> dc_points: "";
+    inout property<string> dc_list: "";
+    inout property<string> dc_table: "";
+    inout property<bool> dc_replace_ground: true;
+
+    // the AC sweep fields, where the mode is LIN, DEC, OCT or DATA
+    inout property<int> ac_mode: 0;
+    inout property<string> ac_points: "";
+    inout property<string> ac_start: "";
+    inout property<string> ac_end: "";
+    inout property<string> ac_table: "";
+    inout property<bool> ac_replace_ground: true;
+
+    // whether the validation message is part of the layout
+    in property<bool> show_error: false;
+    // the validation message shown while show_error holds
+    in property<string> error_message: "";
+
+    signal accepted();
+    signal dismissed();
+
+    // the column is the dialog body, which lets the footer stretch spacer pin
+    // the actions to the bottom edge of the fixed size window
+    Column {
+        padding: 16px;
+        spacing: 12px;
+
+        Label {
+            text: "Simulation Parameters";
+            font_size: 18px;
+        }
+
+        TabView {
+            id: simulation_parameters_tabs;
+            selected: selected_tab;
+            vertical_align: Align.start;
+            on_selection_changed: {
+                selected_tab = index;
+            }
+
+            Tab {
+                id: simulation_tab_transient;
+                label: "Transient";
+
+                Column {
+                    spacing: 10px;
+
+                    Label {
+                        text: "Transient Analysis (.TRAN)";
+                        font_size: 13px;
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_tran_initial_step_caption;
+                            text: "Initial step";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_tran_initial_step;
+                            value: tran_initial_step;
+                            placeholder: "e.g. 1n";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                tran_initial_step = value;
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_tran_final_time_caption;
+                            text: "Final time";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_tran_final_time;
+                            value: tran_final_time;
+                            placeholder: "e.g. 1u";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                tran_final_time = value;
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_tran_start_time_caption;
+                            text: "Start time";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_tran_start_time;
+                            value: tran_start_time;
+                            placeholder: "optional";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                tran_start_time = value;
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_tran_step_ceiling_caption;
+                            text: "Max time step";
+                            vertical_align: Align.center;
+                        }
+
+                        TextField {
+                            id: simulation_tran_step_ceiling;
+                            value: tran_step_ceiling;
+                            placeholder: "optional";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                tran_step_ceiling = value;
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_tran_op_keyword_caption;
+                            text: "Initial condition";
+                            vertical_align: Align.center;
+                        }
+
+                        ComboBox {
+                            id: simulation_tran_op_keyword;
+                            items: ["(default)", "NOOP", "UIC"];
+                            selected: tran_op_keyword;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                tran_op_keyword = index;
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        CheckBox {
+                            id: simulation_tran_replace_ground;
+                            checked: tran_replace_ground;
+                            on_toggled: {
+                                tran_replace_ground = checked;
+                            }
+                        }
+
+                        Label {
+                            text: "Replace ground node GND with 0";
+                            vertical_align: Align.center;
+                        }
+                    }
+                }
+            }
+
+            Tab {
+                id: simulation_tab_dc;
+                label: "DC Sweep";
+
+                Column {
+                    spacing: 10px;
+
+                    Label {
+                        text: "DC Analysis (.DC)";
+                        font_size: 13px;
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_dc_mode_caption;
+                            text: "Sweep mode";
+                            vertical_align: Align.center;
+                        }
+
+                        ComboBox {
+                            id: simulation_dc_mode;
+                            items: ["LIN", "DEC", "OCT", "LIST", "DATA"];
+                            selected: dc_mode;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                dc_mode = index;
+                            }
+                        }
+                    }
+
+                    if dc_mode != 4 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_variable_caption;
+                                text: "Variable";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_variable;
+                                value: dc_variable;
+                                placeholder: "e.g. V1";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_variable = value;
+                                }
+                            }
+                        }
+                    }
+
+                    if dc_mode == 0 || dc_mode == 1 || dc_mode == 2 {
+                        Column {
+                            spacing: 10px;
+
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_start_caption;
+                                text: "Start";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_start;
+                                value: dc_start;
+                                placeholder: "start value";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_start = value;
+                                }
+                            }
+                        }
+
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_stop_caption;
+                                text: "Stop";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_stop;
+                                value: dc_stop;
+                                placeholder: "stop value";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_stop = value;
+                                }
+                            }
+                        }
+                        }
+                    }
+
+                    if dc_mode == 0 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_step_caption;
+                                text: "Step";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_step;
+                                value: dc_step;
+                                placeholder: "step size";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_step = value;
+                                }
+                            }
+                        }
+                    }
+
+                    if dc_mode == 1 || dc_mode == 2 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_points_caption;
+                                text: "Points";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_points;
+                                value: dc_points;
+                                placeholder: "points per decade or octave";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_points = value;
+                                }
+                            }
+                        }
+                    }
+
+                    if dc_mode == 3 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_list_caption;
+                                text: "Values";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_list;
+                                value: dc_list;
+                                placeholder: "space separated values";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_list = value;
+                                }
+                            }
+                        }
+                    }
+
+                    if dc_mode == 4 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_dc_table_caption;
+                                text: "Data table";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_dc_table;
+                                value: dc_table;
+                                placeholder: "table name";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    dc_table = value;
+                                }
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        CheckBox {
+                            id: simulation_dc_replace_ground;
+                            checked: dc_replace_ground;
+                            on_toggled: {
+                                dc_replace_ground = checked;
+                            }
+                        }
+
+                        Label {
+                            text: "Replace ground node GND with 0";
+                            vertical_align: Align.center;
+                        }
+                    }
+                }
+            }
+
+            Tab {
+                id: simulation_tab_ac;
+                label: "AC Sweep";
+
+                Column {
+                    spacing: 10px;
+
+                    Label {
+                        text: "AC Analysis (.AC)";
+                        font_size: 13px;
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        Label {
+                            id: simulation_ac_mode_caption;
+                            text: "Sweep mode";
+                            vertical_align: Align.center;
+                        }
+
+                        ComboBox {
+                            id: simulation_ac_mode;
+                            items: ["LIN", "DEC", "OCT", "DATA"];
+                            selected: ac_mode;
+                            horizontal_align: Align.stretch;
+                            on_selection_changed: {
+                                ac_mode = index;
+                            }
+                        }
+                    }
+
+                    if ac_mode != 3 {
+                        Column {
+                            spacing: 10px;
+
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_ac_points_caption;
+                                text: "Points";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_ac_points;
+                                value: ac_points;
+                                placeholder: "points per sweep";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    ac_points = value;
+                                }
+                            }
+                        }
+
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_ac_start_caption;
+                                text: "Start";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_ac_start;
+                                value: ac_start;
+                                placeholder: "start frequency";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    ac_start = value;
+                                }
+                            }
+                        }
+
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_ac_end_caption;
+                                text: "End";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_ac_end;
+                                value: ac_end;
+                                placeholder: "stop frequency";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    ac_end = value;
+                                }
+                            }
+                        }
+                        }
+                    }
+
+                    if ac_mode == 3 {
+                        Row {
+                            spacing: 8px;
+
+                            Label {
+                                id: simulation_ac_table_caption;
+                                text: "Data table";
+                                vertical_align: Align.center;
+                            }
+
+                            TextField {
+                                id: simulation_ac_table;
+                                value: ac_table;
+                                placeholder: "table name";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    ac_table = value;
+                                }
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: 8px;
+
+                        CheckBox {
+                            id: simulation_ac_replace_ground;
+                            checked: ac_replace_ground;
+                            on_toggled: {
+                                ac_replace_ground = checked;
+                            }
+                        }
+
+                        Label {
+                            text: "Replace ground node GND with 0";
+                            vertical_align: Align.center;
+                        }
+                    }
+                }
+            }
+        }
+
+        // the error row keeps its place in the tree, so showing it never rebuilds a control
+        Label {
+            id: simulation_parameters_error;
+            visible: show_error;
+            text: error_message;
+            foreground: #CC0000;
+        }
+
+        // pushes the footer to the bottom of the fixed size dialog
+        Label {
+            vertical_align: Align.stretch;
+        }
+
+        Row {
+            spacing: 8px;
+            horizontal_align: Align.end;
+
+            Button {
+                id: simulation_parameters_cancel;
+                text: "Cancel";
+                cancel: true;
+                on_clicked: {
+                    dismissed();
+                }
+            }
+
+            Button {
+                id: simulation_parameters_ok;
+                text: "OK";
+                default: true;
+                on_clicked: {
+                    accepted();
+                }
+            }
+        }
+    }
+}

@@ -17,7 +17,8 @@ file(GLOB_RECURSE STUDIO_TEST_SOURCES CONFIGURE_DEPENDS "./*.cpp")
 add_executable(studio-tests
     ${STUDIO_TEST_SOURCES}
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/main_window_presenter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/plugin_config_presenter.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/plugin_config_presenter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/simulation_parameters_presenter.cpp")
 
 target_include_directories(studio-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src")
 

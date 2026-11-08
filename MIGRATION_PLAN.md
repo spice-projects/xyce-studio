@@ -222,7 +222,7 @@ Implement features in `studio/` piece by piece. For each feature, create dedicat
   - Implement live log streaming panel with severity classification (`XyceLogParser`).
   - Implement simulation progress and status bar indicators.
   - Note: the panel's pixel render is pending on albor #167 (declared viewport extent is all-or-nothing); state and behaviour are complete.
-- [ ] **6.3. Native Dialog: Simulation Parameters**
+- [x] **6.3. Native Dialog: Simulation Parameters**
   - Create `SimulationParametersPresenter` (manages tab state, `.TRAN`, `.AC`, `.DC` validation).
   - Create `SimulationParametersDialog` (native secondary window).
   - Wire dialog invocation from `MainWindowPresenter`.

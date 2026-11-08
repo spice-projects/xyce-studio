@@ -153,11 +153,42 @@ with tempfile.TemporaryDirectory() as scratch:
   `--netlist`, which the presenter treats identically.
 - Semantic ids of the shell (from `studio/src/views/main_window/main_window.ui`):
   `main_open`, `main_save`, `main_output` (reveals the simulation log),
-  `main_run` (reads `Run` or `Stop`), `main_plugin_settings`, `main_exit`
-  (toolbar; the icon-only actions announce their tooltip as their name),
-  `netlist_editor` (multiline text field), `main_status` (status row),
-  `main_progress` (status run readout), `main_progress_bar` (the run bar;
-  `indeterminate` while no percentage is reported), absent while no run is live.
+  `main_run` (reads `Run` or `Stop`), `main_configure` (opens the simulation
+  parameters dialog), `main_plugin_settings`, `main_exit` (toolbar; the
+  icon-only actions announce their tooltip as their name), `netlist_editor`
+  (multiline text field), `main_status` (status row), `main_progress` (status
+  run readout), `main_progress_bar` (the run bar; `indeterminate` while no
+  percentage is reported), absent while no run is live.
+
+### Edit the simulation parameters (from `simulation_parameters_test.py`)
+
+The dialog opens from `main_configure` and starts on the tab that matches the
+analysis the netlist declares. Its fields are ordinary `TextField` values, and
+the acceptance rewrites the managed directive in the editor:
+
+```python
+with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
+    app.get_by_id("main_configure").click()
+    initial = app.get_by_id("simulation_tran_initial_step")
+    initial.wait_for_exists()
+    expect(initial).to_have_value("1m")
+    initial.fill("2m")
+    app.get_by_id("simulation_parameters_ok").click()
+    initial.wait_for_gone()
+    editor = app.get_by_id("netlist_editor")
+    app.wait_for_condition(lambda: ".TRAN 2m 10m" in editor.value(), timeout=5.0,
+                           message="expected the editor to carry the accepted directive")
+```
+
+- The dialog ids are `simulation_tran_*`, `simulation_dc_*` and `simulation_ac_*`
+  for the three analysis tabs, with `simulation_parameters_error`,
+  `simulation_parameters_ok` and `simulation_parameters_cancel` for the footer.
+- `app.get_by_id("simulation_parameters_tabs").click("select_next")` moves to
+  the next analysis tab.
+- A validation failure keeps the dialog open and writes its message into the
+  error label, so the assertion reads `simulation_parameters_error` by name.
+- Cancelling leaves the editor untouched; the accepted configuration is the
+  only path that rewrites the directive block.
 
 ### Open the plugin configuration dialog (from `plugin_config_test.py`)
 

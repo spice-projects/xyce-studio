@@ -10,8 +10,10 @@
 #include "albor_embedded_fonts.h"
 #include "presenters/main_window_presenter.h"
 #include "presenters/plugin_config_presenter.h"
+#include "presenters/simulation_parameters_presenter.h"
 #include "views/main_window/main_window_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
+#include "views/simulation_parameters/simulation_parameters_dialog_view.h"
 
 studio::StudioApp::StudioApp(PluginConfig config) :
     m_plugin_config(std::move(config)) {}
@@ -38,8 +40,7 @@ int studio::StudioApp::run() {
         std::fprintf(stderr, "xyce-studio: the main window could not be created\n");
         return 1;
     }
-    // the shell reports the netlist lifecycle to the presenter, which reads the
-    // Xyce executable path from the plugin configuration
+    // the shell reports the netlist lifecycle to the presenter, which reads the Xyce path
     m_main_presenter = std::make_unique<MainWindowPresenter>(*m_main_view, m_plugin_config);
     m_main_view->set_event_handler(m_main_presenter.get());
     // the requested netlist reaches the shell through the same dispatch the open action uses
@@ -56,10 +57,23 @@ int studio::StudioApp::run() {
         // validate and persist through the presenter, then keep the accepted value
         m_plugin_config_presenter->show(*m_plugin_config_view, m_plugin_config, [this](const PluginConfig& saved) { m_plugin_config = saved; });
     });
+    // the configure action is parented to the shell and outlives individual shows
+    m_simulation_parameters_view = std::make_unique<AlborSimulationParametersDialogView>(application, m_main_view->handle());
+    m_simulation_parameters_presenter = std::make_unique<SimulationParametersPresenter>();
+    // the toolbar action opens the dialog over the analysis the netlist describes
+    m_main_view->set_on_configure_simulation([this] {
+        // a dialog that is already open owns the interaction
+        if (m_simulation_parameters_view->is_open())
+            return;
+        // hand the parsed configuration to the dialog and keep the accepted value in the shell
+        const SimulationConfig& current = m_main_presenter->prepare_simulation_parameters();
+        m_simulation_parameters_presenter->show(*m_simulation_parameters_view, current, [this](const SimulationConfig& config) { m_main_presenter->on_simulation_parameters_accepted(config); });
+    });
     // a closed window drops the borrowed facade the shell held
     application.set_closed_handler([this](albor::WindowHandle handle) {
         // the dialog clears its presenter before the shell clears its facade
         m_plugin_config_view->on_window_closed(handle);
+        m_simulation_parameters_view->on_window_closed(handle);
         m_main_view->on_window_closed(handle);
     });
     // block until the last window closes

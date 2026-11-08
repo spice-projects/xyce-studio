@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <variant>
 
 #include "config/plugin_config.h"
 #include "io/temp_output_directory.h"
@@ -9,15 +10,13 @@
 
 namespace
 {
-    // how many log lines the duplicate check remembers; the repeated copy of a
-    // line always follows within a chunk of it
+    // how many log lines the duplicate check remembers, which covers each repeated copy
     constexpr std::size_t RECENT_LOG_LINES = 64;
 } // namespace
 
 studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config) :
     m_view(&view),
-    // the shell starts from an untitled source, which reads live editor text and
-    // defers every write until a save-as names the file
+    // the shell starts from an untitled source, which reads live editor text until a save names a file
     m_netlist_source(std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, std::filesystem::path{})),
     m_plugin_config(plugin_config) {
     // initialize the toolbar action states before the window is shown
@@ -25,8 +24,7 @@ studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const 
 }
 
 void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path) {
-    // netlist file extension; the analysis output formats arrive with the
-    // dataset slice and are refused until then
+    // netlist file extension; the analysis output formats arrive with the dataset slice
     if (path.extension().string() != ".cir")
         return;
     // create an editor netlist source backed by the selected file, reading live editor text
@@ -59,12 +57,12 @@ void studio::MainWindowPresenter::on_save() {
         m_netlist_source = std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, target);
         // the chosen file becomes the window title (clears the dirty marker)
         set_base_title(m_netlist_source->title());
-        // consume the file seed now: the just-created source would otherwise read the file on its first load and miss later editor edits
+        // consume the file seed now, which the first load would otherwise take instead of later edits
         static_cast<void>(m_netlist_source->load_netlist());
     }
     // save content in the netlist source
     m_netlist_source->save_netlist();
-    // reset the dirty flag and refresh states (set_base_title may have cleared the flag already, so the refresh is unconditional)
+    // reset the dirty flag and refresh states, which set_base_title may have already cleared
     set_netlist_editor_dirty(false);
     refresh_action_states();
 }
@@ -117,16 +115,14 @@ void studio::MainWindowPresenter::run_simulation() {
     }
     // build the temporary netlist path inside the run directory
     const auto temp_path = run_artifacts->netlist_path();
-    // write the editor content as-is; the full simulation configuration
-    // machinery refines what is simulated in a later slice
+    // write the editor content as-is until the dataset slice refines the simulated directives
     if (!run_artifacts->write_netlist(content)) {
         // update the statusbar with an error
         m_view->set_status_text("Failed to create temporary netlist file");
         // exit and let the run directory owner remove the empty directory
         return;
     }
-    // keep the run directory alive until the run finishes; no dataset
-    // references its outputs in this slice yet
+    // keep the run directory alive until the run finishes, which no dataset references yet
     m_active_run_artifacts = run_artifacts;
     // mark the simulation as running
     m_simulation_running = true;
@@ -196,9 +192,7 @@ void studio::MainWindowPresenter::publish_simulation_progress() {
 }
 
 bool studio::MainWindowPresenter::is_cross_stream_duplicate(const std::string& line, const bool from_stderr) const {
-    // look for an identical line the other stream already delivered; a line the same stream repeats is
-    // legitimate (Xyce separates its progress blocks with blank lines and repeats its summaries in a
-    // .STEP run) and stays visible
+    // look for an identical line the other stream already delivered; a repeated line stays visible
     return std::any_of(m_recent_log_lines.begin(), m_recent_log_lines.end(), [&line, from_stderr](const RememberedLogLine& remembered) { return remembered.from_stderr != from_stderr && remembered.line == line; });
 }
 
@@ -220,8 +214,7 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
         // exit
         return;
     }
-    // release the finished run directory; the dataset slice will retain it when
-    // it loads the produced output files
+    // release the finished run directory, which the dataset slice will retain when it loads
     m_active_run_artifacts.reset();
     // report the outcome
     if (exit_code == 0)
@@ -230,13 +223,54 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
         m_view->set_status_text("Simulation failed with exit code " + std::to_string(exit_code));
 }
 
+const SimulationConfig& studio::MainWindowPresenter::prepare_simulation_parameters() {
+    // load the current editor content, which is what the dialog describes
+    const auto [reloaded, content] = m_netlist_source->load_netlist();
+    // a reloaded source seeds the editor before the parse reads it back
+    if (reloaded)
+        update_netlist_editor_content(content, false);
+    // split the managed directives out of the netlist body, which the accepted configuration rebuilds
+    const auto [sanitized_netlist, topology] = parse_netlist(content);
+    // remember the parse result so the accepted configuration can rebuild the netlist
+    m_sanitized_netlist = sanitized_netlist;
+    m_pending_topology = topology;
+    m_pending_original_netlist = content;
+    // build the configuration the netlist directives describe
+    SimulationConfig parsed = SimulationConfig::from_xyce_directives(topology.m_directives);
+    // the options belong to the netlist even when it declares no analysis
+    m_simulation_config.options = parsed.options;
+    // a netlist that declares an analysis replaces the analysis the dialog last accepted
+    if (!std::holds_alternative<std::monostate>(parsed.analysis))
+        m_simulation_config = std::move(parsed);
+    // hand the dialog the configuration it edits
+    return m_simulation_config;
+}
+
+void studio::MainWindowPresenter::on_simulation_parameters_accepted(const SimulationConfig& config) {
+    // a configuration accepted before the netlist was parsed describes the current editor content
+    if (m_pending_original_netlist.empty() && m_sanitized_netlist.empty())
+        static_cast<void>(prepare_simulation_parameters());
+    // store the configuration the dialog accepted, which is what a later run serializes
+    m_simulation_config = config;
+    // render the managed directives the configuration owns
+    const std::vector<std::string> directives = m_simulation_config.to_xyce_directives(m_pending_topology);
+    // re-insert them before .END in the sanitized netlist
+    const std::string final_netlist = build_final_netlist(m_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
+    // an edit that changed the rendered netlist marks the editor dirty, which the save action follows
+    if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || m_pending_original_netlist != final_netlist))
+        refresh_action_states();
+    // the rewritten netlist is the content a later action operates on
+    m_pending_original_netlist = final_netlist;
+}
+
 void studio::MainWindowPresenter::refresh_action_states() {
-    // open stays available while no simulation is running; save needs unsaved
-    // changes on netlist content that a writable source can write
+    // open stays available; save needs unsaved changes on content a writable source can write
     m_view->set_open_enabled(true);
     m_view->set_save_enabled(m_netlist_editor_dirty && m_netlist_has_content && !m_netlist_source->is_read_only());
     // the run action reads Run once the editor holds netlist content and Stop while the simulation runs
     m_view->set_run_enabled(m_netlist_has_content);
+    // the configure action needs a netlist to describe an analysis
+    m_view->set_configure_enabled(m_netlist_has_content);
     m_view->set_simulation_running(m_simulation_running);
 }
 

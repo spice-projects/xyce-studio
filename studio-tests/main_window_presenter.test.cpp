@@ -10,6 +10,7 @@
 
 #include "config/plugin_config.h"
 #include "presenters/main_window_presenter.h"
+#include "simulation/transient_simulation_parameters.h"
 #include "views/main_window/main_window_view_def.h"
 
 namespace
@@ -41,6 +42,8 @@ namespace
         void set_save_enabled(bool enabled) override { save_enabled = enabled; }
 
         void set_run_enabled(bool enabled) override { run_enabled = enabled; }
+
+        void set_configure_enabled(bool enabled) override { configure_enabled = enabled; }
 
         void set_simulation_running(bool running) override { running_label = running; }
 
@@ -97,6 +100,7 @@ namespace
         bool open_enabled = false;
         bool save_enabled = false;
         bool run_enabled = false;
+        bool configure_enabled = false;
         bool running_label = false;
 
         // the run state the presenter last published
@@ -503,4 +507,76 @@ TEST(StudioMainWindowPresenterChecks, the_run_action_needs_netlist_content) {
     presenter.on_netlist_edited();
     // assert: the run action is available once the editor holds content
     EXPECT_TRUE(view.run_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, the_configure_action_needs_netlist_content) {
+    // arrange
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    // assert: the configure action starts disabled on the untitled shell
+    EXPECT_FALSE(view.configure_enabled);
+    // act: the user types the first netlist content
+    view.editor_text = ".END\n";
+    presenter.on_netlist_edited();
+    // assert: the configure action is available once the editor holds content
+    EXPECT_TRUE(view.configure_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, prepare_reads_the_transient_directives) {
+    // arrange: an editor holding one transient directive
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    // act
+    const SimulationConfig& prepared = presenter.prepare_simulation_parameters();
+    // assert: the dialog opens on the configuration the netlist declares
+    EXPECT_EQ(prepared.analysis_type, "TRAN");
+    ASSERT_TRUE(std::holds_alternative<TransientSimulationParameters>(prepared.analysis));
+    const auto& transient = std::get<TransientSimulationParameters>(prepared.analysis);
+    EXPECT_EQ(transient.initial_step_value, "1m");
+    EXPECT_EQ(transient.final_time_value, "10m");
+}
+
+TEST(StudioMainWindowPresenterChecks, accepted_parameters_rewrite_the_editor_and_mark_it_dirty) {
+    // arrange: an editor holding the original transient directive
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    static_cast<void>(presenter.prepare_simulation_parameters());
+    // the configuration the dialog accepted carries a new final time
+    SimulationConfig accepted = SimulationConfig::from_xyce_directives({});
+    accepted.analysis_type = "TRAN";
+    accepted.analysis = TransientSimulationParameters("2m", "20m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt);
+    // act
+    presenter.on_simulation_parameters_accepted(accepted);
+    // assert: the editor carries the accepted directive instead of the old one
+    EXPECT_NE(view.editor_text.find(".TRAN 2m 20m"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
+    // assert: the rewrite marked the netlist dirty, which the save action follows
+    EXPECT_TRUE(view.save_enabled);
+    ASSERT_FALSE(view.titles.empty());
+    EXPECT_EQ(view.titles.back().front(), '*');
+}
+
+TEST(StudioMainWindowPresenterChecks, accepted_parameters_reuse_the_sanitized_netlist_body) {
+    // arrange: a netlist whose only managed directive is the transient analysis
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "* matrix\nV1 1 0 5\nR1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    static_cast<void>(presenter.prepare_simulation_parameters());
+    // the configuration the dialog accepted carries a new initial step
+    SimulationConfig accepted = SimulationConfig::from_xyce_directives({});
+    accepted.analysis_type = "TRAN";
+    accepted.analysis = TransientSimulationParameters("5m", "10m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt);
+    // act
+    presenter.on_simulation_parameters_accepted(accepted);
+    // assert: the devices survive and exactly one transient directive remains
+    EXPECT_NE(view.editor_text.find("V1 1 0 5"), std::string::npos);
+    EXPECT_NE(view.editor_text.find("R1 1 0 1k"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".TRAN 5m 10m"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
 }

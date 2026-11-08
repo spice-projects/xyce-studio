@@ -49,8 +49,7 @@ namespace studio
         // the user closed the simulation output panel
         virtual void on_output_close() = 0;
 
-        // one console line the simulation process wrote, which the runner
-        // dispatched onto the ui thread
+        // one console line the simulation process wrote, which the runner dispatched onto the ui thread
         virtual void on_simulation_stdout(const std::string& line) = 0;
 
         // one diagnostic line the simulation process wrote on its error stream
@@ -93,6 +92,9 @@ namespace studio
         // enable or disable the run action, which the action states refresh
         virtual void set_run_enabled(bool enabled) = 0;
 
+        // enable or disable the simulation parameters action, which needs a netlist to configure
+        virtual void set_configure_enabled(bool enabled) = 0;
+
         // swap the run action label between run and stop, which the running state drives
         virtual void set_simulation_running(bool running) = 0;
 
@@ -114,8 +116,7 @@ namespace studio
         // hand out how many lines the output log holds, which the parser rows are indexed by
         [[nodiscard]] virtual std::size_t output_line_count() const = 0;
 
-        // launch the simulation process over the given netlist, which streams
-        // its console output through the simulation events
+        // launch the simulation process over the given netlist, which streams its console output
         virtual void start_simulation_process(const std::string& program, const std::filesystem::path& netlist_path, const std::filesystem::path& working_directory) = 0;
 
         // request a graceful shutdown of the running simulation process

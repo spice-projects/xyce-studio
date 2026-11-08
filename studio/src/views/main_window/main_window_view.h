@@ -24,8 +24,7 @@ namespace albor
 
 namespace studio
 {
-    // the Albor shell window; it implements the surface the presenter drives,
-    // resolves the native file panels itself and owns the simulation process
+    // the Albor shell window; it implements the surface the presenter drives and owns the run
     class MainWindowView final : public MainWindowViewDef
     {
     public:
@@ -45,6 +44,9 @@ namespace studio
 
         // install the handler the plugin settings action reaches
         void set_on_plugin_settings(std::function<void()> handler);
+
+        // install the handler the simulation parameters action reaches
+        void set_on_configure_simulation(std::function<void()> handler);
 
         // clear the borrowed facade when the application reports the window is gone
         void on_window_closed(albor::WindowHandle handle);
@@ -75,6 +77,9 @@ namespace studio
 
         // enable or disable the run action
         void set_run_enabled(bool enabled) override;
+
+        // enable or disable the simulation parameters action
+        void set_configure_enabled(bool enabled) override;
 
         // swap the run action label between run and stop
         void set_simulation_running(bool running) override;
@@ -152,8 +157,7 @@ namespace studio
         // the byte the kept log starts at, which the cap trim advances
         std::size_t m_output_trim_offset = 0;
 
-        // the lines that arrived since the last flush, which coalesces the
-        // per line facade writes into one pass per event loop iteration
+        // the lines that arrived since the last flush, which coalesces the facade writes
         std::deque<std::pair<std::string, LogSeverity>> m_output_pending;
 
         // whether a flush task is already queued, which keeps one flush per batch

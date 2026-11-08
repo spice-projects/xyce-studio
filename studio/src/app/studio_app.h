@@ -8,9 +8,11 @@
 namespace studio
 {
     class AlborPluginConfigDialogView;
+    class AlborSimulationParametersDialogView;
     class MainWindowView;
     class MainWindowPresenter;
     class PluginConfigPresenter;
+    class SimulationParametersPresenter;
 
     // owns the shell, the dialog surfaces and the presenters, and runs the Albor event loop
     class StudioApp
@@ -48,5 +50,11 @@ namespace studio
 
         // the plugin configuration validation and persistence
         std::unique_ptr<PluginConfigPresenter> m_plugin_config_presenter;
+
+        // the simulation parameters dialog surface
+        std::unique_ptr<AlborSimulationParametersDialogView> m_simulation_parameters_view;
+
+        // the simulation parameters validation and acceptance
+        std::unique_ptr<SimulationParametersPresenter> m_simulation_parameters_presenter;
     };
 } // namespace studio

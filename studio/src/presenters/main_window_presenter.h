@@ -6,7 +6,9 @@
 #include <memory>
 #include <string>
 
+#include "netlist/netlist.h"
 #include "netlist/netlist_source.h"
+#include "simulation/simulation_config.h"
 #include "simulation/xyce_log_parser.h"
 #include "views/main_window/main_window_view_def.h"
 
@@ -15,8 +17,7 @@ class TempOutputDirectory;
 
 namespace studio
 {
-    // owns the netlist lifecycle of the shell: open, save, the unsaved changes
-    // marker and the simulation run the shell streams into its output panel
+    // owns the netlist lifecycle of the shell: open, save, the unsaved marker and the run
     class MainWindowPresenter final : public MainWindowViewEvents
     {
     public:
@@ -51,6 +52,12 @@ namespace studio
         // the simulation process ended, either by itself or through a cancel
         void on_simulation_finished(int exit_code, bool was_canceled) override;
 
+        // parse the current netlist and hand out the configuration the parameters dialog opens with
+        [[nodiscard]] const SimulationConfig& prepare_simulation_parameters();
+
+        // store the accepted configuration and rewrite the managed directives in the editor
+        void on_simulation_parameters_accepted(const SimulationConfig& config);
+
     private:
         // start a simulation run over the current netlist content
         void run_simulation();
@@ -61,8 +68,7 @@ namespace studio
         // re-render the one line status from the log parser state
         void publish_simulation_progress();
 
-        // check whether the same line already arrived on the other stream, which
-        // Xyce writes when a message goes to both
+        // check whether the same line already arrived on the other stream, which Xyce writes twice
         bool is_cross_stream_duplicate(const std::string& line, bool from_stderr) const;
 
         // one remembered log line with the stream it arrived on
@@ -107,6 +113,18 @@ namespace studio
 
         // the parser that distills the Xyce console log into a run state
         XyceLogParser m_log_parser;
+
+        // the configuration the parameters dialog edits and the run serializes
+        SimulationConfig m_simulation_config = SimulationConfig::from_xyce_directives({});
+
+        // the netlist with its managed directives stripped, which the accepted configuration rebuilds
+        std::string m_sanitized_netlist;
+
+        // the topology the sanitized netlist was parsed into, which directive serialization expands
+        NetlistTopology m_pending_topology;
+
+        // the editor content the sanitized netlist came from, which the rewrite compares against
+        std::string m_pending_original_netlist;
 
         // the tail of log lines remembered for the cross stream duplicate check
         std::deque<RememberedLogLine> m_recent_log_lines;

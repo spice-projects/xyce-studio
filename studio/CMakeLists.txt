@@ -46,6 +46,7 @@ albor_build_font_assets(xyce-studio-next
 
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/main_window/main_window.ui")
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/plugin_config/plugin_config_dialog.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_parameters_dialog.ui")
 
 target_link_libraries(xyce-studio-next PRIVATE xyce::core spdlog::spdlog albor)
 

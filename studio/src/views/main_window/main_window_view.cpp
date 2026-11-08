@@ -160,8 +160,7 @@ namespace
         return nullptr;
     }
 
-    // build the filter the open panel offers, which is the netlist format plus
-    // every analysis output format the presenter dispatches by extension
+    // build the filter the open panel offers, which is the netlist format and its outputs
     std::vector<albor::FileFilter> open_filters() { return {albor::FileFilter{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat"}}}; }
 } // namespace
 
@@ -209,6 +208,13 @@ void studio::MainWindowView::set_on_plugin_settings(std::function<void()> handle
     if (m_root == nullptr)
         return;
     m_root->set_on_plugin_settings_clicked(std::move(handler));
+}
+
+void studio::MainWindowView::set_on_configure_simulation(std::function<void()> handler) {
+    // without a live facade there is no signal to bind
+    if (m_root == nullptr)
+        return;
+    m_root->set_on_configure_simulation_clicked(std::move(handler));
 }
 
 void studio::MainWindowView::on_window_closed(albor::WindowHandle handle) {
@@ -301,6 +307,11 @@ void studio::MainWindowView::set_save_enabled(bool enabled) {
 void studio::MainWindowView::set_run_enabled(bool enabled) {
     if (m_root != nullptr)
         m_root->set_run_enabled(enabled);
+}
+
+void studio::MainWindowView::set_configure_enabled(bool enabled) {
+    if (m_root != nullptr)
+        m_root->set_configure_enabled(enabled);
 }
 
 void studio::MainWindowView::set_simulation_running(bool running) {
