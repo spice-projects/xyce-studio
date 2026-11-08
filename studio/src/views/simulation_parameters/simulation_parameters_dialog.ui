@@ -57,10 +57,10 @@ component SimulationParametersDialog {
     in property<vector<OptionRow>> fft_rows: [];
     in property<vector<OptionRow>> output_rows: [];
 
-    // whether the validation message is part of the layout
-    in property<bool> show_error: false;
-    // the validation message shown while show_error holds
+    // the validation message, whose row keeps its place in the layout
     in property<string> error_message: "";
+    // the height the scroll page takes between the header and the footer, which the host fits to the window
+    in property<float> body_height: 420.0;
 
     signal accepted();
     signal dismissed();
@@ -95,16 +95,6 @@ component SimulationParametersDialog {
 
             Label {
                 horizontal_align: Align.stretch;
-            }
-
-            Button {
-                id: simulation_parameters_close;
-                tooltip: "Close";
-                icon: @image("../main_window/icons/cancel_16.png");
-                icon_size: 12px;
-                on_clicked: {
-                    dismissed();
-                }
             }
         }
 
@@ -335,8 +325,9 @@ component SimulationParametersDialog {
             }
 
             ScrollView {
+                id: simulation_parameters_page;
                 viewport_width: 620px;
-                viewport_height: 420px;
+                viewport_height: body_height;
                 scrollbar: Scrollbar.on;
                 horizontal_align: Align.stretch;
 
@@ -517,10 +508,9 @@ component SimulationParametersDialog {
             }
         }
 
-        // the error row keeps its place in the tree, so showing it never rebuilds a control
+        // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
         Label {
             id: simulation_parameters_error;
-            visible: show_error;
             text: error_message;
             foreground: #CC0000;
         }

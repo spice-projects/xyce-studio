@@ -95,10 +95,10 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 # step 2: accept the empty sweep table
                 app.get_by_id("simulation_dc_add_sweep").wait_for_exists()
                 app.get_by_id("simulation_parameters_ok").click()
-                # assert: the empty table names the missing sweep
+                # assert: the empty table names the missing sweep and the dialog stays open
                 error = app.get_by_id("simulation_parameters_error")
-                error.wait_for_exists()
                 expect(error).to_have_name("A DC sweep requires at least one sweep variable")
+                self.assertTrue(app.get_by_id("simulation_parameters_ok").exists())
 
     def test_ac_netlist_seeds_the_ac_tab_and_validates_the_points(self) -> None:
         # arrange: a netlist carrying one AC analysis
@@ -119,8 +119,8 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 app.get_by_id("simulation_parameters_ok").click()
                 # assert: the dialog reports the missing value and stays open
                 error = app.get_by_id("simulation_parameters_error")
-                error.wait_for_exists()
                 expect(error).to_have_name("Points is required")
+                self.assertTrue(app.get_by_id("simulation_parameters_ok").exists())
 
 
 
@@ -272,6 +272,30 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("simulation_parameters_cancel").click()
                 app.get_by_id("simulation_dc_add_sweep").wait_for_gone()
                 self.assertEqual([line for line in app.get_by_id("netlist_editor").value().splitlines() if line.strip().startswith(".DC")], [".DC LIN V1 0 5 0.1"])
+
+    def test_dialog_keeps_one_scroll_page_and_no_inline_close(self) -> None:
+        # arrange: a netlist carrying one transient analysis
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("R1 1 0 1k\n.TRAN 1m 10m\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
+                # step 1: open the dialog
+                app.get_by_id("main_configure").click()
+                page = app.get_by_id("simulation_parameters_page")
+                page.wait_for_exists()
+                # assert: the page moves twice, which a one-off repaint cannot explain
+                before = app.client().screenshot()
+                page.click("scroll_down")
+                app.wait_for_condition(lambda: app.client().screenshot() != before, timeout=5.0, message="expected the page to scroll")
+                scrolled = app.client().screenshot()
+                page.click("scroll_down")
+                app.wait_for_condition(lambda: app.client().screenshot() != scrolled, timeout=5.0, message="expected the page to scroll again")
+                # assert: the window chrome owns the close, so the form carries no second one
+                self.assertFalse(app.get_by_id("simulation_parameters_close").exists())
+                # step 2: close through the actions the dialog keeps
+                app.get_by_id("simulation_parameters_cancel").click()
+                page.wait_for_gone()
 
 
 if __name__ == "__main__":

@@ -183,10 +183,11 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
 - The dialog ids are `simulation_op_*`, `simulation_dc_*`, `simulation_tran_*`,
   `simulation_ac_*`, `simulation_noise_*`, `simulation_hb_*` and
   `simulation_lin_*` for the seven analysis tabs, with
-  `simulation_parameters_error`, `simulation_parameters_ok`,
-  `simulation_parameters_cancel` and `simulation_parameters_close` for the
-  footer and the header action. The DC sweep table adds rows through
-  `simulation_dc_add_sweep`; the PCE table adds rows through
+  `simulation_parameters_page` for the scrolling form, and
+  `simulation_parameters_error`, `simulation_parameters_ok` and
+  `simulation_parameters_cancel` for the footer. The window chrome owns the
+  close action, so there is no in-form close button. The DC sweep table adds
+  rows through `simulation_dc_add_sweep`; the PCE table adds rows through
   `simulation_pce_add_parameter` and keeps its PCES options in
   `simulation_pce_options`.
 - The `.OPTIONS` cards show one row per documented key, seeded from the
@@ -194,13 +195,16 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
 - The dialog is assembled from the root `simulation_parameters_dialog.ui` and one
   `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui`,
   `ground_replace_row.ui`, `measure_section.ui`, `ic_section.ui`,
-  `print_section.ui`, `pce_section.ui` and `options_section.ui` hold the rows
-  more than one analysis uses.
+  `print_section.ui`, `pce_section.ui` and `option_package_card.ui` hold the
+  rows more than one analysis uses.
 - The tab order is `.OP`, `.DC`, `.TRAN`, `.AC`, `.NOISE`, `.HB`, `.LIN`, and
   the sidebar buttons carry the `simulation_tab_*` ids; click
   `simulation_tab_dc` to switch to the DC page.
 - A validation failure keeps the dialog open and writes its message into the
   error label, so the assertion reads `simulation_parameters_error` by name.
+  The label reserves its place in the layout and stays in the tree with an
+  empty name while the form is valid, so an error assertion also checks that
+  `simulation_parameters_ok` is still present.
 - Cancelling leaves the editor untouched; the accepted configuration is the
   only path that rewrites the directive block.
 
