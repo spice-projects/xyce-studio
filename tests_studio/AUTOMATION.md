@@ -185,8 +185,12 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
   `simulation_lin_*` for the seven analysis tabs, with
   `simulation_parameters_error`, `simulation_parameters_ok`,
   `simulation_parameters_cancel` and `simulation_parameters_close` for the
-  footer and the header action. The shared PCE fields are
-  `simulation_pce_parameters` and `simulation_pce_options`.
+  footer and the header action. The DC sweep table adds rows through
+  `simulation_dc_add_sweep`; the PCE table adds rows through
+  `simulation_pce_add_parameter` and keeps its PCES options in
+  `simulation_pce_options`.
+- The `.OPTIONS` cards show one row per documented key, seeded from the
+  netlist and edited in place.
 - The dialog is assembled from the root `simulation_parameters_dialog.ui` and one
   `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui`,
   `ground_replace_row.ui`, `measure_section.ui`, `ic_section.ui`,

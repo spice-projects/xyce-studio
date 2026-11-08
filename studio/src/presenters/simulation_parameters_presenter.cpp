@@ -88,7 +88,7 @@ std::optional<std::string> studio::SimulationParametersPresenter::validate(const
         else {
             // every other mode needs at least one sweep tuple
             if (dc->sweeps.empty())
-                return "A DC sweep is required";
+                return "A DC sweep requires at least one sweep variable";
             // the core owns the sweep range rules, so the dialog reuses them
             if (const std::optional<std::string> error = dc->validate())
                 return error;

@@ -6,6 +6,7 @@
 #include <charconv>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,16 +31,19 @@
 #include "simulation/measure_parameters.h"
 #include "simulation/noise_simulation_parameters.h"
 #include "simulation/op_simulation_parameters.h"
+#include "simulation/option_catalog.h"
 #include "simulation/pce_parameters.h"
 #include "simulation/print_parameters.h"
 #include "simulation/transient_simulation_parameters.h"
 #include "simulation_parameters_dialog.h"
 #include "simulation_ui/ac_ui.h"
+#include "simulation_ui/dc_sweep_row.h"
 #include "simulation_ui/dc_ui.h"
 #include "simulation_ui/hb_ui.h"
 #include "simulation_ui/lin_ui.h"
 #include "simulation_ui/noise_ui.h"
 #include "simulation_ui/op_ui.h"
+#include "simulation_ui/option_row.h"
 #include "simulation_ui/print_ui.h"
 #include "simulation_ui/tran_ui.h"
 
@@ -409,43 +413,46 @@ namespace
     // format the option map as the key=value lines the field shows
     [[nodiscard]] std::string format_key_values(const std::map<std::string, std::string>& options);
 
-    // format the PCE parameters as the text the section edits
-    [[nodiscard]] std::string format_pce_parameters(const PceParameters& params) {
-        // the lines the editor shows
-        std::vector<std::string> lines;
+    // project the stored PCE parameters into the keyed row list the table edits
+    [[nodiscard]] std::vector<albor::PceRow> pce_rows_from_parameters(const PceParameters& params) {
+        // the rows the editor shows
+        std::vector<albor::PceRow> rows;
         // the per-type positional index for the value lists
         std::size_t uniform_index = 0;
         std::size_t normal_index = 0;
         std::size_t gamma_index = 0;
-        // every parameter is one line
+        // every parameter is one row
         for (std::size_t index = 0; index < params.parameters.size(); ++index) {
             // the stored distribution type decides which value pair applies
             const std::string type = index < params.distribution_types.size() ? to_lower(params.distribution_types[index]) : "";
-            // the value pair the line carries
-            std::string first;
-            std::string second;
+            // the row starts with its stable key
+            albor::PceRow row;
+            row.key = std::to_string(index + 1);
+            row.name = params.parameters[index];
+            // the distribution index is what the combo shows
+            row.type_index = type == "uniform" ? 0 : (type == "normal" ? 1 : 2);
             // a uniform row reads its lower and upper bounds
             if (type == "uniform") {
-                first = uniform_index < params.lower_bounds.size() ? params.lower_bounds[uniform_index] : "";
-                second = uniform_index < params.upper_bounds.size() ? params.upper_bounds[uniform_index] : "";
+                row.first_value = uniform_index < params.lower_bounds.size() ? params.lower_bounds[uniform_index] : "";
+                row.second_value = uniform_index < params.upper_bounds.size() ? params.upper_bounds[uniform_index] : "";
                 ++uniform_index;
             }
             // a normal row reads its mean and standard deviation
             else if (type == "normal") {
-                first = normal_index < params.means.size() ? params.means[normal_index] : "";
-                second = normal_index < params.std_deviations.size() ? params.std_deviations[normal_index] : "";
+                row.first_value = normal_index < params.means.size() ? params.means[normal_index] : "";
+                row.second_value = normal_index < params.std_deviations.size() ? params.std_deviations[normal_index] : "";
                 ++normal_index;
             }
             // a gamma row reads its alpha and beta
             else if (type == "gamma") {
-                first = gamma_index < params.alphas.size() ? params.alphas[gamma_index] : "";
-                second = gamma_index < params.betas.size() ? params.betas[gamma_index] : "";
+                row.first_value = gamma_index < params.alphas.size() ? params.alphas[gamma_index] : "";
+                row.second_value = gamma_index < params.betas.size() ? params.betas[gamma_index] : "";
                 ++gamma_index;
             }
-            // the line is the name, the type and the two values
-            lines.push_back(params.parameters[index] + ", " + type + ", " + first + ", " + second);
+            // the row joins the list
+            rows.push_back(std::move(row));
         }
-        return join_with(lines, "\n");
+        return rows;
     }
 
     // seed the PCE section from the stored parameters
@@ -454,7 +461,6 @@ namespace
         if (!params) {
             pce.enabled = false;
             pce.use_expression = false;
-            pce.parameters_text = "";
             pce.pces_options = "";
             seed_print(std::nullopt, false, false, false, {}, print, pce_print_formats());
             return;
@@ -462,14 +468,13 @@ namespace
         // the section starts enabled because a PCE exists
         pce.enabled = true;
         pce.use_expression = params->use_expression;
-        pce.parameters_text = format_pce_parameters(*params);
         pce.pces_options = format_key_values(params->pces_options);
         // the print card mirrors the PCE print
         seed_print(params->print_parameters, false, false, false, {}, print, pce_print_formats());
     }
 
     // build the PCE parameters from the section state
-    [[nodiscard]] std::optional<PceParameters> build_pce(const albor::PceUi& pce, const albor::PrintUi& print) {
+    [[nodiscard]] std::optional<PceParameters> build_pce(const albor::PceUi& pce, const std::vector<albor::PceRow>& rows, const albor::PrintUi& print) {
         // a disabled section stores no PCE
         if (!pce.enabled)
             return std::nullopt;
@@ -484,49 +489,32 @@ namespace
         std::vector<std::string> betas;
         // expression-based random inputs ignore the parameter table
         if (!pce.use_expression) {
-            // every line is one parameter
-            for (const std::string_view line : split_by(pce.parameters_text, '\n')) {
-                // the four comma separated fields
-                std::vector<std::string> parts;
-                // the cursor walks the line
-                std::size_t cursor = 0;
-                // read at most four fields
-                while (cursor <= line.size() && parts.size() < 4) {
-                    // the comma ends the field
-                    const std::size_t comma = line.find(',', cursor);
-                    // the last field runs to the end
-                    const std::size_t end = comma == std::string_view::npos ? line.size() : comma;
-                    // the trimmed field is what the core stores
-                    parts.push_back(trim(line.substr(cursor, end - cursor)));
-                    // the next field starts after the comma
-                    cursor = end + 1;
-                    // a missing comma ends the read
-                    if (comma == std::string_view::npos)
-                        break;
-                }
-                // an incomplete line names no parameter
-                if (parts.size() < 4 || parts[0].empty())
+            // every row is one parameter
+            for (const albor::PceRow& row : rows) {
+                // a named row is a parameter
+                const std::string name = trim(row.name);
+                // an unnamed row names no parameter
+                if (name.empty())
                     continue;
-                // the distribution type decides which value pair applies
-                const std::string type = to_lower(parts[1]);
-                // an unknown distribution is refused
-                if (type != "uniform" && type != "normal" && type != "gamma")
-                    continue;
+                // the distribution index is what the combo shows
+                const int type_index = std::clamp(row.type_index, 0, 2);
+                // the stored spelling is what the core reads
+                const std::string type = type_index == 0 ? "uniform" : (type_index == 1 ? "normal" : "gamma");
                 // the name and type join the lists
-                parameters.push_back(parts[0]);
+                parameters.push_back(name);
                 distribution_types.push_back(type);
                 // the value pair joins the type-specific lists
                 if (type == "uniform") {
-                    lower_bounds.push_back(parts[2]);
-                    upper_bounds.push_back(parts[3]);
+                    lower_bounds.push_back(trim(row.first_value));
+                    upper_bounds.push_back(trim(row.second_value));
                 }
                 else if (type == "normal") {
-                    means.push_back(parts[2]);
-                    std_deviations.push_back(parts[3]);
+                    means.push_back(trim(row.first_value));
+                    std_deviations.push_back(trim(row.second_value));
                 }
                 else {
-                    alphas.push_back(parts[2]);
-                    betas.push_back(parts[3]);
+                    alphas.push_back(trim(row.first_value));
+                    betas.push_back(trim(row.second_value));
                 }
             }
         }
@@ -536,6 +524,70 @@ namespace
         std::optional<PrintParameters> print_parameters = build_print(print, false, false, false, "PCE", {}, pce_print_formats());
         // the section state builds the parameters
         return PceParameters(pce.use_expression, std::move(parameters), std::move(distribution_types), std::move(means), std::move(std_deviations), std::move(lower_bounds), std::move(upper_bounds), std::move(alphas), std::move(betas), std::move(pces_options), std::move(print_parameters));
+    }
+
+    // build the editor rows of one managed .OPTIONS package
+    [[nodiscard]] std::vector<albor::OptionRow> build_option_rows(OptionPackage package, const std::map<std::string, std::string>& loaded) {
+        // the rows the card shows
+        std::vector<albor::OptionRow> rows;
+        // every documented key comes first, so the card order is stable
+        const std::vector<std::string>& catalog = option_package_catalog(package);
+        // reserve the catalog and the possible netlist-only keys
+        rows.reserve(catalog.size() + loaded.size());
+        // one row per documented key
+        for (const std::string& key : catalog) {
+            // the loaded value is what the netlist carries, when it carries the key
+            const auto found = loaded.find(key);
+            // a present key is what the row mirrors
+            const bool present = found != loaded.end();
+            // the value is empty for an absent key
+            const std::string value = present ? found->second : "";
+            // the row carries the key, value, bare-flag state and reference default
+            albor::OptionRow row;
+            row.key = key;
+            row.value = value;
+            row.flag = present && value.empty();
+            row.default_value = option_key_info(package, key).default_value;
+            rows.push_back(std::move(row));
+        }
+        // a key the catalog does not document still shows, so no loaded option is hidden
+        const std::set<std::string> placed(catalog.begin(), catalog.end());
+        // every loaded key outside the catalog becomes one row
+        for (const auto& [key, value] : loaded) {
+            // a documented key already has a row
+            if (placed.count(key) != 0)
+                continue;
+            // the row carries the netlist key and value
+            albor::OptionRow row;
+            row.key = key;
+            row.value = value;
+            row.flag = value.empty();
+            rows.push_back(std::move(row));
+        }
+        return rows;
+    }
+
+    // fold the editor rows of one package back into its option map
+    [[nodiscard]] std::map<std::string, std::string> apply_option_rows(const std::vector<albor::OptionRow>& rows) {
+        // the options the rows describe
+        std::map<std::string, std::string> options;
+        // every row is one option
+        for (const albor::OptionRow& row : rows) {
+            // the key is uppercased, which is how the catalog and the parser spell it
+            const std::string key = to_upper(trim(row.key));
+            // a row without a key names no option
+            if (key.empty())
+                continue;
+            // the value is trimmed, because the field may carry surrounding space
+            const std::string value = trim(row.value);
+            // a non-empty value writes KEY=VALUE
+            if (!value.empty())
+                options[key] = value;
+            // a bare flag keeps the key without a value
+            else if (row.flag)
+                options[key] = "";
+        }
+        return options;
     }
 
     // seed the transient panel from the configuration a run uses
@@ -572,7 +624,7 @@ namespace
     }
 
     // build the transient analysis from the panel state
-    [[nodiscard]] TransientSimulationParameters build_transient(const albor::TranUi& tran, const albor::PrintUi& print, const albor::PceUi& pce_state, const albor::PrintUi& pce_print, const SimulationConfig& seed) {
+    [[nodiscard]] TransientSimulationParameters build_transient(const albor::TranUi& tran, const albor::PrintUi& print, const albor::PceUi& pce_state, const std::vector<albor::PceRow>& pce_rows, const albor::PrintUi& pce_print, const SimulationConfig& seed) {
         // the keyword is the combo position, which the model bounds
         const int op_index = std::clamp(tran.op_keyword_index, 0, static_cast<int>(OP_KEYWORDS.size()) - 1);
         // the stored keyword is what the serializer writes
@@ -583,7 +635,7 @@ namespace
         if (const auto* previous = std::get_if<TransientSimulationParameters>(&seed.analysis))
             sensitivity = previous->sensitivity;
         // the panel state builds the analysis
-        return TransientSimulationParameters(trim(tran.initial_step), trim(tran.final_time), trim(tran.start_time), trim(tran.step_ceiling), op_keyword, parse_schedule_text(tran.schedule), build_print(print, true, true, true, "TRAN", {"TRAN", "TRANADJOINT"}), parse_fft_lines(tran.fft), parse_four_lines(tran.four), parse_measure_lines(tran.measure), std::move(sensitivity), build_pce(pce_state, pce_print));
+        return TransientSimulationParameters(trim(tran.initial_step), trim(tran.final_time), trim(tran.start_time), trim(tran.step_ceiling), op_keyword, parse_schedule_text(tran.schedule), build_print(print, true, true, true, "TRAN", {"TRAN", "TRANADJOINT"}), parse_fft_lines(tran.fft), parse_four_lines(tran.four), parse_measure_lines(tran.measure), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
     }
 
     // format a print format index as the stored spelling
@@ -777,7 +829,7 @@ namespace
     }
 
     // build the DC analysis from the panel state
-    [[nodiscard]] DCSimulationParameters build_dc(const albor::DcUi& dc, const albor::PrintUi& print, const albor::PceUi& pce_state, const albor::PrintUi& pce_print, const SimulationConfig& seed) {
+    [[nodiscard]] DCSimulationParameters build_dc(const albor::DcUi& dc, const std::vector<albor::DcSweepRow>& rows, const albor::PrintUi& print, const albor::PceUi& pce_state, const std::vector<albor::PceRow>& pce_rows, const albor::PrintUi& pce_print, const SimulationConfig& seed) {
         // the mode is the combo position, which the model bounds
         const int mode_index = std::clamp(dc.sweep_mode_index, 0, static_cast<int>(DC_MODES.size()) - 1);
         // the stored spelling is what the serializer writes
@@ -792,28 +844,31 @@ namespace
             table = trim(dc.data_table);
         }
         else {
-            // the tuple the fields describe
-            DcSweep sweep;
-            // every mode but DATA names the swept variable
-            sweep.variable = trim(dc.variable);
-            // the linear and logarithmic modes carry a start and a stop
-            if (mode == "LIN" || mode == "DEC" || mode == "OCT") {
-                // the first value the sweep walks from
-                sweep.start = trim(dc.start);
-                // the last value the sweep walks to
-                sweep.stop = trim(dc.stop);
+            // every keyed row becomes one sweep tuple
+            for (const albor::DcSweepRow& row : rows) {
+                // the tuple the row describes
+                DcSweep sweep;
+                // every mode but DATA names the swept variable
+                sweep.variable = trim(row.variable);
+                // the linear and logarithmic modes carry a start and a stop
+                if (mode == "LIN" || mode == "DEC" || mode == "OCT") {
+                    // the first value the sweep walks from
+                    sweep.start = trim(row.start);
+                    // the last value the sweep walks to
+                    sweep.stop = trim(row.stop);
+                }
+                // only a linear sweep carries a step size
+                if (mode == "LIN")
+                    sweep.step = trim(row.step);
+                // the logarithmic modes carry a point count
+                if (mode == "DEC" || mode == "OCT")
+                    sweep.points = trim(row.points);
+                // a LIST sweep carries the explicit values
+                if (mode == "LIST")
+                    sweep.list_values = split_whitespace(row.list_values);
+                // the tuple joins the configuration
+                sweeps.push_back(std::move(sweep));
             }
-            // only a linear sweep carries a step size
-            if (mode == "LIN")
-                sweep.step = trim(dc.step);
-            // the logarithmic modes carry a point count
-            if (mode == "DEC" || mode == "OCT")
-                sweep.points = trim(dc.points);
-            // a LIST sweep carries the explicit values
-            if (mode == "LIST")
-                sweep.list_values = split_whitespace(dc.list);
-            // the tuple joins the configuration
-            sweeps.push_back(std::move(sweep));
         }
         // the companion this dialog does not edit survives the sweep edit
         std::optional<SensParameter> sensitivity;
@@ -821,7 +876,7 @@ namespace
         if (const auto* previous = std::get_if<DCSimulationParameters>(&seed.analysis))
             sensitivity = previous->sensitivity;
         // the panel state builds the analysis
-        return DCSimulationParameters(mode, std::move(sweeps), std::move(table), build_print(print, true, true, true, "DC", {"DC", "HOMOTOPY"}), parse_measure_lines(dc.measure), std::move(sensitivity), build_pce(pce_state, pce_print));
+        return DCSimulationParameters(mode, std::move(sweeps), std::move(table), build_print(print, true, true, true, "DC", {"DC", "HOMOTOPY"}), parse_measure_lines(dc.measure), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
     }
 
     // seed the AC panel from the configuration a run uses
@@ -1211,6 +1266,45 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     seed_dc(current, dc, dc_print);
     m_root->set_dc(dc);
     m_root->set_dc_print(dc_print);
+    // the sweep table is a keyed row list the host view owns
+    std::vector<albor::DcSweepRow> dc_sweeps;
+    m_next_sweep_key = 1;
+    if (const auto* stored_dc = std::get_if<DCSimulationParameters>(&current.analysis)) {
+        // every stored sweep becomes one keyed row
+        for (const DcSweep& sweep : stored_dc->sweeps) {
+            albor::DcSweepRow row;
+            row.key = std::to_string(m_next_sweep_key++);
+            row.variable = sweep.variable;
+            row.start = sweep.start;
+            row.stop = sweep.stop;
+            row.step = sweep.step;
+            row.points = sweep.points;
+            row.list_values = join_values(sweep.list_values);
+            dc_sweeps.push_back(std::move(row));
+        }
+    }
+    m_root->set_dc_sweeps(dc_sweeps);
+    // the table actions mutate the keyed list the view owns
+    m_root->set_on_add_sweep([this] {
+        std::vector<albor::DcSweepRow> rows = m_root->dc_sweeps();
+        albor::DcSweepRow row;
+        row.key = std::to_string(m_next_sweep_key++);
+        rows.push_back(std::move(row));
+        m_root->set_dc_sweeps(std::move(rows));
+    });
+    m_root->set_on_remove_sweep([this](std::string key) {
+        std::vector<albor::DcSweepRow> rows = m_root->dc_sweeps();
+        std::erase_if(rows, [&key](const albor::DcSweepRow& row) { return row.key == key; });
+        m_root->set_dc_sweeps(std::move(rows));
+    });
+    m_root->set_on_sweep_edited([this](std::string key, albor::DcSweepRow row) {
+        std::vector<albor::DcSweepRow> rows = m_root->dc_sweeps();
+        for (albor::DcSweepRow& current_row : rows) {
+            if (current_row.key == key)
+                current_row = row;
+        }
+        m_root->set_dc_sweeps(std::move(rows));
+    });
     // the AC record carries its own ground flag, sweep fields and companion sections
     albor::AcUi ac;
     albor::PrintUi ac_print;
@@ -1244,14 +1338,114 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     // the PCE section is shared by the transient and DC panels, so it seeds from either analysis
     albor::PceUi pce;
     albor::PrintUi pce_print;
-    if (const auto* transient = std::get_if<TransientSimulationParameters>(&current.analysis))
-        seed_pce(transient->pce, pce, pce_print);
-    else if (const auto* dc = std::get_if<DCSimulationParameters>(&current.analysis))
-        seed_pce(dc->pce, pce, pce_print);
-    else
+    std::vector<albor::PceRow> pce_rows;
+    m_next_pce_key = 1;
+    const PceParameters* stored_pce = nullptr;
+    if (const auto* transient = std::get_if<TransientSimulationParameters>(&current.analysis)) {
+        if (transient->pce)
+            stored_pce = &*transient->pce;
+    }
+    else if (const auto* dc = std::get_if<DCSimulationParameters>(&current.analysis)) {
+        if (dc->pce)
+            stored_pce = &*dc->pce;
+    }
+    if (stored_pce != nullptr) {
+        seed_pce(*stored_pce, pce, pce_print);
+        pce_rows = pce_rows_from_parameters(*stored_pce);
+        m_next_pce_key = static_cast<int>(pce_rows.size()) + 1;
+    }
+    else {
         seed_pce(std::nullopt, pce, pce_print);
+    }
     m_root->set_pce(pce);
+    m_root->set_pce_rows(pce_rows);
     m_root->set_pce_print(pce_print);
+    // the PCE table actions mutate the keyed list the view owns
+    m_root->set_on_pce_add_row([this] {
+        std::vector<albor::PceRow> rows = m_root->pce_rows();
+        albor::PceRow row;
+        row.key = std::to_string(m_next_pce_key++);
+        row.type_index = 0;
+        rows.push_back(std::move(row));
+        m_root->set_pce_rows(std::move(rows));
+    });
+    m_root->set_on_pce_remove_row([this](std::string key) {
+        std::vector<albor::PceRow> rows = m_root->pce_rows();
+        std::erase_if(rows, [&key](const albor::PceRow& row) { return row.key == key; });
+        m_root->set_pce_rows(std::move(rows));
+    });
+    m_root->set_on_pce_row_edited([this](std::string key, albor::PceRow row) {
+        std::vector<albor::PceRow> rows = m_root->pce_rows();
+        for (albor::PceRow& current_row : rows) {
+            if (current_row.key == key)
+                current_row = row;
+        }
+        m_root->set_pce_rows(std::move(rows));
+    });
+    // each managed package card starts from the options the netlist carries
+    m_root->set_timeint_rows(build_option_rows(OptionPackage::TIMEINT, package_options(current.options, OptionPackage::TIMEINT)));
+    m_root->set_nonlin_rows(build_option_rows(OptionPackage::NONLIN, package_options(current.options, OptionPackage::NONLIN)));
+    m_root->set_nonlin_tran_rows(build_option_rows(OptionPackage::NONLIN_TRAN, package_options(current.options, OptionPackage::NONLIN_TRAN)));
+    m_root->set_linsol_ac_rows(build_option_rows(OptionPackage::LINSOL_AC, package_options(current.options, OptionPackage::LINSOL_AC)));
+    m_root->set_loca_rows(build_option_rows(OptionPackage::LOCA, package_options(current.options, OptionPackage::LOCA)));
+    m_root->set_fft_rows(build_option_rows(OptionPackage::FFT, package_options(current.options, OptionPackage::FFT)));
+    m_root->set_output_rows(build_option_rows(OptionPackage::OUTPUT, package_options(current.options, OptionPackage::OUTPUT)));
+    // every option card edits the keyed rows of its package
+    auto option_rows_for = [this](int package) -> std::vector<albor::OptionRow> {
+        switch (package) {
+        case 1:
+            return m_root->timeint_rows();
+        case 2:
+            return m_root->nonlin_rows();
+        case 3:
+            return m_root->nonlin_tran_rows();
+        case 5:
+            return m_root->linsol_ac_rows();
+        case 6:
+            return m_root->loca_rows();
+        case 11:
+            return m_root->fft_rows();
+        case 12:
+            return m_root->output_rows();
+        default:
+            return {};
+        }
+    };
+    auto set_option_rows = [this](int package, std::vector<albor::OptionRow> rows) {
+        switch (package) {
+        case 1:
+            m_root->set_timeint_rows(std::move(rows));
+            break;
+        case 2:
+            m_root->set_nonlin_rows(std::move(rows));
+            break;
+        case 3:
+            m_root->set_nonlin_tran_rows(std::move(rows));
+            break;
+        case 5:
+            m_root->set_linsol_ac_rows(std::move(rows));
+            break;
+        case 6:
+            m_root->set_loca_rows(std::move(rows));
+            break;
+        case 11:
+            m_root->set_fft_rows(std::move(rows));
+            break;
+        case 12:
+            m_root->set_output_rows(std::move(rows));
+            break;
+        default:
+            break;
+        }
+    };
+    m_root->set_on_option_row_edited([option_rows_for, set_option_rows](int package, std::string key, albor::OptionRow row) {
+        std::vector<albor::OptionRow> rows = option_rows_for(package);
+        for (albor::OptionRow& current_row : rows) {
+            if (current_row.key == key)
+                current_row = row;
+        }
+        set_option_rows(package, std::move(rows));
+    });
     // clear any stale validation feedback
     m_root->set_show_error(false);
     m_root->set_error_message("");
@@ -1326,37 +1520,37 @@ SimulationConfig studio::AlborSimulationParametersDialogView::build_config() con
         config.replace_ground = m_root->op().replace_ground;
         config.ic_parameters = ICParameters::from_line(m_root->op().initial_conditions);
         // the NONLIN package is the option card the OP panel edits
-        config.options.nonlin = parse_key_values(m_root->op().nonlin_options);
+        config.options.nonlin = apply_option_rows(m_root->nonlin_rows());
         return config;
     }
     // the DC sweep replaces the analysis variant and keeps the companion sections
     if (tab == 1) {
         // the panel state builds the analysis
-        config.analysis = build_dc(m_root->dc(), m_root->dc_print(), m_root->pce(), m_root->pce_print(), m_seed);
+        config.analysis = build_dc(m_root->dc(), m_root->dc_sweeps(), m_root->dc_print(), m_root->pce(), m_root->pce_rows(), m_root->pce_print(), m_seed);
         // the stored spelling is what the run reports
         config.analysis_type = "DC";
         // the tab owns the ground flag and the initial conditions
         config.replace_ground = m_root->dc().replace_ground;
         config.ic_parameters = ICParameters::from_line(m_root->dc().initial_conditions);
         // the NONLIN package is the option card the DC panel edits
-        config.options.nonlin = parse_key_values(m_root->dc().nonlin_options);
+        config.options.nonlin = apply_option_rows(m_root->nonlin_rows());
         return config;
     }
     // the transient analysis replaces the analysis variant and keeps the companion sections
     if (tab == 2) {
         // the panel state builds the analysis
-        config.analysis = build_transient(m_root->tran(), m_root->tran_print(), m_root->pce(), m_root->pce_print(), m_seed);
+        config.analysis = build_transient(m_root->tran(), m_root->tran_print(), m_root->pce(), m_root->pce_rows(), m_root->pce_print(), m_seed);
         // the stored spelling is what the run reports
         config.analysis_type = "TRAN";
         // the tab owns the ground flag and the initial conditions
         config.replace_ground = m_root->tran().replace_ground;
         config.ic_parameters = ICParameters::from_line(m_root->tran().initial_conditions);
         // the five transient packages are the cards the panel edits
-        config.options.timeint = parse_key_values(m_root->tran().timeint_options);
-        config.options.nonlin_tran = parse_key_values(m_root->tran().nonlin_tran_options);
-        config.options.loca = parse_key_values(m_root->tran().loca_options);
-        config.options.fft = parse_key_values(m_root->tran().fft_options);
-        config.options.output = parse_key_values(m_root->tran().output_options);
+        config.options.timeint = apply_option_rows(m_root->timeint_rows());
+        config.options.nonlin_tran = apply_option_rows(m_root->nonlin_tran_rows());
+        config.options.loca = apply_option_rows(m_root->loca_rows());
+        config.options.fft = apply_option_rows(m_root->fft_rows());
+        config.options.output = apply_option_rows(m_root->output_rows());
         return config;
     }
     // the AC sweep replaces the analysis variant and keeps the companion sections
@@ -1368,7 +1562,7 @@ SimulationConfig studio::AlborSimulationParametersDialogView::build_config() con
         // the tab owns the ground flag
         config.replace_ground = m_root->ac().replace_ground;
         // the LINSOL-AC package is the option card the AC panel edits
-        config.options.linsol_ac = parse_key_values(m_root->ac().linsol_options);
+        config.options.linsol_ac = apply_option_rows(m_root->linsol_ac_rows());
         return config;
     }
     // the noise analysis replaces the analysis variant and keeps the companion sections

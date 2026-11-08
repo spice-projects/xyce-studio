@@ -2,6 +2,7 @@
 
 import simulation_ui;
 
+import "pce_row_editor.ui";
 import "print_section.ui";
 
 component PceSection {
@@ -13,6 +14,14 @@ component PceSection {
     signal state_changed(PceUi value);
     // the print state the user changed
     signal print_changed(PrintUi value);
+    // the uncertain-parameter rows the dialog owns
+    in property<vector<PceRow>> rows: [];
+    // the user asked for a new parameter row
+    signal add_row();
+    // the user asked to remove the row with this key
+    signal remove_row(string key);
+    // the user changed the row with this key
+    signal row_edited(string key, PceRow row);
 
     Column {
         spacing: 10px;
@@ -66,25 +75,38 @@ component PceSection {
                         vertical_align: Align.start;
 
                         Column {
-                            spacing: 6px;
+                            spacing: 8px;
 
-                            Label {
-                                text: "Uncertain parameters (one per line: name, distribution, first, second)";
-                font_weight: Weight.semibold;
+                            Row {
+                                spacing: 8px;
+
+                                Label {
+                                    text: "Uncertain parameters";
+                                    font_weight: Weight.semibold;
+                                    vertical_align: Align.center;
+                                }
+
+                                Label {
+                                    horizontal_align: Align.stretch;
+                                }
+
+                                Button {
+                                    id: simulation_pce_add_parameter;
+                                    text: "Add Parameter";
+                                    on_clicked: {
+                                        add_row();
+                                    }
+                                }
                             }
 
-                            ScrollView {
-                                viewport_height: 80px;
-
-                                TextField {
-                                    id: simulation_pce_parameters;
-                                    value: state.parameters_text;
-                                    placeholder: "e.g. R1, uniform, 900, 1100";
-                                    multiline: true;
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.parameters_text = value;
-                                        state_changed(state);
+                            Repeat(row in rows) {
+                                PceRowEditor {
+                                    row_data: row;
+                                    on_edited: {
+                                        row_edited(key, updated);
+                                    }
+                                    on_remove_requested: {
+                                        remove_row(key);
                                     }
                                 }
                             }

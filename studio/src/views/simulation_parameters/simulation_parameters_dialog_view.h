@@ -74,5 +74,11 @@ namespace studio
 
         // whether a close request is already in flight
         bool m_closing = false;
+
+        // the next key a new DC sweep row takes, which keeps the rows distinct
+        int m_next_sweep_key = 1;
+
+        // the next key a new PCE parameter row takes, which keeps the rows distinct
+        int m_next_pce_key = 1;
     };
 } // namespace studio

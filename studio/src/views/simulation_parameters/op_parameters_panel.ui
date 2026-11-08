@@ -6,7 +6,7 @@ import "form_label.ui";
 
 import "ground_replace_row.ui";
 import "ic_section.ui";
-import "options_section.ui";
+import "option_package_card.ui";
 import "print_section.ui";
 
 component OpParametersPanel {
@@ -18,6 +18,10 @@ component OpParametersPanel {
     signal state_changed(OpUi value);
     // the print state the user changed
     signal print_changed(PrintUi value);
+    // the NONLIN option rows the dialog owns
+    in property<vector<OptionRow>> nonlin_rows: [];
+    // the user changed an option row
+    signal option_row_edited(int package, string key, OptionRow row);
 
     Column {
         spacing: 10px;
@@ -157,12 +161,11 @@ component OpParametersPanel {
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS NONLIN package (one key=value per line)";
-            text: state.nonlin_options;
-            on_text_changed: {
-                state.nonlin_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS NONLIN package";
+            rows: nonlin_rows;
+            on_row_edited: {
+                option_row_edited(2, key, row);
             }
         }
 

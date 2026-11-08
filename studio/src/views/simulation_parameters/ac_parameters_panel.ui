@@ -6,7 +6,7 @@ import "form_label.ui";
 
 import "ground_replace_row.ui";
 import "measure_section.ui";
-import "options_section.ui";
+import "option_package_card.ui";
 import "print_section.ui";
 import "sweep_mode_row.ui";
 
@@ -19,6 +19,10 @@ component AcParametersPanel {
     signal state_changed(AcUi value);
     // the print state the user changed
     signal print_changed(PrintUi value);
+    // the LINSOL-AC option rows the dialog owns
+    in property<vector<OptionRow>> linsol_ac_rows: [];
+    // the user changed an option row
+    signal option_row_edited(int package, string key, OptionRow row);
 
     Column {
         spacing: 10px;
@@ -155,12 +159,11 @@ component AcParametersPanel {
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS LINSOL-AC package (one key=value per line)";
-            text: state.linsol_options;
-            on_text_changed: {
-                state.linsol_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS LINSOL-AC package";
+            rows: linsol_ac_rows;
+            on_row_edited: {
+                option_row_edited(5, key, row);
             }
         }
 

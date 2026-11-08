@@ -7,7 +7,7 @@ import "form_label.ui";
 import "ground_replace_row.ui";
 import "ic_section.ui";
 import "measure_section.ui";
-import "options_section.ui";
+import "option_package_card.ui";
 import "pce_section.ui";
 import "print_section.ui";
 
@@ -20,6 +20,8 @@ component TransientParametersPanel {
     inout property<PceUi> pce;
     // the PCE print state the dialog owns
     in property<PrintUi> pce_print;
+    // the PCE parameter rows the dialog owns
+    in property<vector<PceRow>> pce_rows: [];
     // the transient state the user changed
     signal state_changed(TranUi value);
     // the print state the user changed
@@ -28,6 +30,20 @@ component TransientParametersPanel {
     signal pce_changed(PceUi value);
     // the PCE print state the user changed
     signal pce_print_changed(PrintUi value);
+    // the managed option rows the dialog owns
+    in property<vector<OptionRow>> timeint_rows: [];
+    in property<vector<OptionRow>> nonlin_tran_rows: [];
+    in property<vector<OptionRow>> loca_rows: [];
+    in property<vector<OptionRow>> fft_rows: [];
+    in property<vector<OptionRow>> output_rows: [];
+    // the user changed an option row
+    signal option_row_edited(int package, string key, OptionRow row);
+    // the user asked for a new PCE parameter row
+    signal pce_add_row();
+    // the user asked to remove the PCE row with this key
+    signal pce_remove_row(string key);
+    // the user changed the PCE row with this key
+    signal pce_row_edited(string key, PceRow row);
 
     Column {
         spacing: 10px;
@@ -266,56 +282,61 @@ component TransientParametersPanel {
         PceSection {
             state: pce;
             print: pce_print;
+            rows: pce_rows;
             on_state_changed: {
                 pce_changed(value);
             }
             on_print_changed: {
                 pce_print_changed(value);
             }
-        }
-
-        OptionsSection {
-            title: ".OPTIONS TIMEINT package (one key=value per line)";
-            text: state.timeint_options;
-            on_text_changed: {
-                state.timeint_options = value;
-                state_changed(state);
+            on_add_row: {
+                pce_add_row();
+            }
+            on_remove_row: {
+                pce_remove_row(key);
+            }
+            on_row_edited: {
+                pce_row_edited(key, row);
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS NONLIN-TRAN package (one key=value per line)";
-            text: state.nonlin_tran_options;
-            on_text_changed: {
-                state.nonlin_tran_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS TIMEINT package";
+            rows: timeint_rows;
+            on_row_edited: {
+                option_row_edited(1, key, row);
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS LOCA package (one key=value per line)";
-            text: state.loca_options;
-            on_text_changed: {
-                state.loca_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS NONLIN-TRAN package";
+            rows: nonlin_tran_rows;
+            on_row_edited: {
+                option_row_edited(3, key, row);
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS FFT package (one key=value per line)";
-            text: state.fft_options;
-            on_text_changed: {
-                state.fft_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS LOCA package";
+            rows: loca_rows;
+            on_row_edited: {
+                option_row_edited(6, key, row);
             }
         }
 
-        OptionsSection {
-            title: ".OPTIONS OUTPUT package (one key=value per line)";
-            text: state.output_options;
-            on_text_changed: {
-                state.output_options = value;
-                state_changed(state);
+        OptionPackageCard {
+            title: ".OPTIONS FFT package";
+            rows: fft_rows;
+            on_row_edited: {
+                option_row_edited(11, key, row);
+            }
+        }
+
+        OptionPackageCard {
+            title: ".OPTIONS OUTPUT package";
+            rows: output_rows;
+            on_row_edited: {
+                option_row_edited(12, key, row);
             }
         }
 

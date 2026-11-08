@@ -1,0 +1,54 @@
+// one editable row of an .OPTIONS package card
+
+import simulation_ui;
+
+component OptionRowEditor {
+    // the row the host list owns
+    inout property<OptionRow> row_data;
+    // the row the user changed
+    signal edited(string key, OptionRow updated);
+
+    Row {
+        spacing: 8px;
+        vertical_align: Align.center;
+
+        // the spacer fixes the option-key column the reference card uses
+        Column {
+            spacing: 0px;
+
+            Canvas {
+                width: 200px;
+                height: 1px;
+            }
+
+            Label {
+                text: row_data.key;
+                font_size: 12px;
+            }
+        }
+
+        TextField {
+            value: row_data.value;
+            placeholder: row_data.default_value;
+            horizontal_align: Align.stretch;
+            on_changed: {
+                row_data.value = value;
+                edited(row_data.key, row_data);
+            }
+        }
+
+        CheckBox {
+            checked: row_data.flag;
+            on_toggled: {
+                row_data.flag = checked;
+                edited(row_data.key, row_data);
+            }
+        }
+
+        Label {
+            text: "bare flag";
+            font_size: 11px;
+            vertical_align: Align.center;
+        }
+    }
+}

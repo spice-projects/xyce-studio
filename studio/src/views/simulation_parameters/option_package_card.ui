@@ -1,0 +1,40 @@
+// one managed .OPTIONS package card, which shows a row per documented key
+
+import simulation_ui;
+
+import "option_row_editor.ui";
+
+component OptionPackageCard {
+    // the card title, which names the package
+    in property<string> title: "";
+    // the option rows the host analysis owns
+    in property<vector<OptionRow>> rows: [];
+    // the row the user changed
+    signal row_edited(string key, OptionRow row);
+
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        background: #00000010;
+        border_width: 1px;
+        vertical_align: Align.start;
+
+        Column {
+            spacing: 6px;
+
+            Label {
+                text: title;
+                font_weight: Weight.semibold;
+            }
+
+            Repeat(row in rows) {
+                OptionRowEditor {
+                    row_data: row;
+                    on_edited: {
+                        row_edited(key, updated);
+                    }
+                }
+            }
+        }
+    }
+}

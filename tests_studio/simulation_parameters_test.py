@@ -92,14 +92,13 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 # step 1: open the dialog and switch to the DC tab
                 app.get_by_id("main_configure").click()
                 app.get_by_id("simulation_tab_dc").click()
-                # step 2: accept the empty linear sweep
-                variable = app.get_by_id("simulation_dc_variable")
-                variable.wait_for_exists()
+                # step 2: accept the empty sweep table
+                app.get_by_id("simulation_dc_add_sweep").wait_for_exists()
                 app.get_by_id("simulation_parameters_ok").click()
-                # assert: the core sweep validation is the message the dialog shows
+                # assert: the empty table names the missing sweep
                 error = app.get_by_id("simulation_parameters_error")
                 error.wait_for_exists()
-                expect(error).to_have_name("DC LIN sweep: sweep variable is required")
+                expect(error).to_have_name("A DC sweep requires at least one sweep variable")
 
     def test_ac_netlist_seeds_the_ac_tab_and_validates_the_points(self) -> None:
         # arrange: a netlist carrying one AC analysis
@@ -217,15 +216,17 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
             netlist.write_text("pce test\nR1 1 0 1k\n.TRAN 1m 10m\n.PCE param=R1 type=normal means=3K std_deviations=1K\n.PRINT PCE V(1)\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
-                # step 1: open the dialog and read the PCE text
+                # step 1: open the dialog and check the table seeded from the netlist
                 app.get_by_id("main_configure").click()
-                parameters = app.get_by_id("simulation_pce_parameters")
-                parameters.wait_for_exists()
-                expect(parameters).to_have_value("R1, normal, 3K, 1K")
-                # step 2: accept the untouched panel
+                add = app.get_by_id("simulation_pce_add_parameter")
+                add.wait_for_exists()
+                app.wait_for_condition(lambda: "Parameter 1" in app.tree_text(), timeout=5.0, message="expected the PCE table to seed a row")
+                # step 2: add a row and accept the panel
+                add.click()
+                app.wait_for_condition(lambda: "Parameter 2" in app.tree_text(), timeout=5.0, message="expected the PCE table to add a row")
                 app.get_by_id("simulation_parameters_ok").click()
-                parameters.wait_for_gone()
-                # assert: the PCE parameter and its print survive
+                add.wait_for_gone()
+                # assert: the stored PCE parameter and its print survive
                 lines = app.get_by_id("netlist_editor").value().splitlines()
                 self.assertIn(".PCE param=R1 type=normal means=3K std_deviations=1K", lines)
                 self.assertIn(".PRINT PCE V(1)", lines)
@@ -241,6 +242,7 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 app.get_by_id("main_configure").click()
                 initial = app.get_by_id("simulation_tran_initial_step")
                 initial.wait_for_exists()
+                app.wait_for_condition(lambda: "RELTOL" in app.tree_text(), timeout=5.0, message="expected the TIMEINT card to show the RELTOL row")
                 app.get_by_id("simulation_parameters_ok").click()
                 initial.wait_for_gone()
                 # assert: the companion directives survive the round trip
@@ -249,6 +251,28 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 self.assertIn(".MEASURE TRAN vout_max MAX V(1)", lines)
                 self.assertIn(".IC V(1)=0", lines)
                 self.assertIn(".OPTIONS TIMEINT RELTOL=1e-3", lines)
+    def test_dc_sweep_table_seeds_and_adds_a_row(self) -> None:
+        # arrange: a netlist carrying one linear DC sweep
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / "dc.cir"
+            netlist.write_text("dc test\nR1 1 0 1k\nV1 1 0 1\n.DC LIN V1 0 5 0.1\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
+                # step 1: open the dialog and switch to the DC tab
+                app.get_by_id("main_configure").click()
+                app.get_by_id("simulation_tab_dc").click()
+                app.get_by_id("simulation_dc_add_sweep").wait_for_exists()
+                # assert: the seeded sweep is one editable row card
+                app.wait_for_condition(lambda: "Sweep 1" in app.tree_text() and "V1" in app.tree_text(), timeout=5.0, message="expected the DC sweep row to seed")
+                # step 2: add another row
+                app.get_by_id("simulation_dc_add_sweep").click()
+                # assert: the table materializes the second row
+                app.wait_for_condition(lambda: "Sweep 2" in app.tree_text(), timeout=5.0, message="expected the DC sweep table to add a row")
+                # step 3: cancel, which leaves the editor untouched
+                app.get_by_id("simulation_parameters_cancel").click()
+                app.get_by_id("simulation_dc_add_sweep").wait_for_gone()
+                self.assertEqual([line for line in app.get_by_id("netlist_editor").value().splitlines() if line.strip().startswith(".DC")], [".DC LIN V1 0 5 0.1"])
+
 
 if __name__ == "__main__":
     unittest.main()

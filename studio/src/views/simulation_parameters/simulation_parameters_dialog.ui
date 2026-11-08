@@ -18,8 +18,9 @@ component SimulationParametersDialog {
     inout property<TranUi> tran;
     inout property<PrintUi> tran_print;
 
-    // the DC sweep state
+    // the DC sweep state and its nested sweep rows
     inout property<DcUi> dc;
+    in property<vector<DcSweepRow>> dc_sweeps: [];
     inout property<PrintUi> dc_print;
 
     // the AC sweep state
@@ -44,7 +45,17 @@ component SimulationParametersDialog {
 
     // the PCE state the transient and DC panels share
     inout property<PceUi> pce;
+    in property<vector<PceRow>> pce_rows: [];
     inout property<PrintUi> pce_print;
+
+    // the managed .OPTIONS package rows the analysis panels edit
+    in property<vector<OptionRow>> timeint_rows: [];
+    in property<vector<OptionRow>> nonlin_rows: [];
+    in property<vector<OptionRow>> nonlin_tran_rows: [];
+    in property<vector<OptionRow>> linsol_ac_rows: [];
+    in property<vector<OptionRow>> loca_rows: [];
+    in property<vector<OptionRow>> fft_rows: [];
+    in property<vector<OptionRow>> output_rows: [];
 
     // whether the validation message is part of the layout
     in property<bool> show_error: false;
@@ -53,6 +64,20 @@ component SimulationParametersDialog {
 
     signal accepted();
     signal dismissed();
+    // the user asked for a new DC sweep row
+    signal add_sweep();
+    // the user asked to remove the DC sweep row with this key
+    signal remove_sweep(string key);
+    // the user changed the DC sweep row with this key
+    signal sweep_edited(string key, DcSweepRow row);
+    // the user asked for a new PCE parameter row
+    signal pce_add_row();
+    // the user asked to remove the PCE row with this key
+    signal pce_remove_row(string key);
+    // the user changed the PCE row with this key
+    signal pce_row_edited(string key, PceRow row);
+    // the user changed an option row of the package at this index
+    signal option_row_edited(int package, string key, OptionRow row);
 
     Column {
         padding: 16px;
@@ -324,11 +349,15 @@ component SimulationParametersDialog {
                         OpParametersPanel {
                         state: op;
                         print: op_print;
+                        nonlin_rows: nonlin_rows;
                         on_state_changed: {
                             op = value;
                         }
                         on_print_changed: {
                             op_print = value;
+                        }
+                        on_option_row_edited: {
+                            option_row_edited(package, key, row);
                         }
                         }
                     }
@@ -338,20 +367,44 @@ component SimulationParametersDialog {
 
                         DcParametersPanel {
                         state: dc;
+                        sweeps: dc_sweeps;
                         print: dc_print;
+                        nonlin_rows: nonlin_rows;
                         pce: pce;
                         pce_print: pce_print;
+                        pce_rows: pce_rows;
                         on_state_changed: {
                             dc = value;
                         }
                         on_print_changed: {
                             dc_print = value;
                         }
+                        on_add_sweep: {
+                            add_sweep();
+                        }
+                        on_remove_sweep: {
+                            remove_sweep(key);
+                        }
+                        on_sweep_edited: {
+                            sweep_edited(key, row);
+                        }
+                        on_option_row_edited: {
+                            option_row_edited(package, key, row);
+                        }
                         on_pce_changed: {
                             pce = value;
                         }
                         on_pce_print_changed: {
                             pce_print = value;
+                        }
+                        on_pce_add_row: {
+                            pce_add_row();
+                        }
+                        on_pce_remove_row: {
+                            pce_remove_row(key);
+                        }
+                        on_pce_row_edited: {
+                            pce_row_edited(key, row);
                         }
                         }
                     }
@@ -362,8 +415,14 @@ component SimulationParametersDialog {
                         TransientParametersPanel {
                         state: tran;
                         print: tran_print;
+                        timeint_rows: timeint_rows;
+                        nonlin_tran_rows: nonlin_tran_rows;
+                        loca_rows: loca_rows;
+                        fft_rows: fft_rows;
+                        output_rows: output_rows;
                         pce: pce;
                         pce_print: pce_print;
+                        pce_rows: pce_rows;
                         on_state_changed: {
                             tran = value;
                         }
@@ -376,6 +435,18 @@ component SimulationParametersDialog {
                         on_pce_print_changed: {
                             pce_print = value;
                         }
+                        on_pce_add_row: {
+                            pce_add_row();
+                        }
+                        on_pce_remove_row: {
+                            pce_remove_row(key);
+                        }
+                        on_pce_row_edited: {
+                            pce_row_edited(key, row);
+                        }
+                        on_option_row_edited: {
+                            option_row_edited(package, key, row);
+                        }
                         }
                     }
 
@@ -385,11 +456,15 @@ component SimulationParametersDialog {
                         AcParametersPanel {
                         state: ac;
                         print: ac_print;
+                        linsol_ac_rows: linsol_ac_rows;
                         on_state_changed: {
                             ac = value;
                         }
                         on_print_changed: {
                             ac_print = value;
+                        }
+                        on_option_row_edited: {
+                            option_row_edited(package, key, row);
                         }
                         }
                     }
