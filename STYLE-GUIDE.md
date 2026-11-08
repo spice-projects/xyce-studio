@@ -57,8 +57,33 @@ This document defines the code style preferences for this project.
 - Action oriented: the comment states what the next line does (e.g. `// resolve the executable from the environment`)
 - One short line per comment; never a paragraph of consecutive comment lines
 - Never wrap a comment: it stays on one physical line, however long it gets
+- A comment line stays within 124 characters, which is where the shipped tree sits at its ninety ninth
+  percentile; a longer one reads as a paragraph in any editor, and `build/check-format.sh` measures it
+  over every line of a file a change touches
+- A file a change touches is made fully compliant with this section, not only the lines the change adds, so the violation a change would otherwise leave behind is fixed in that same change
 - Every non-trivial statement gets its own comment line above it — including statements inside `if` blocks, loops, and other control structures
+- A function definition carries no comment between its signature and its opening brace: the comment goes **inside** the body, above the statement it describes
+- The declaration in the header documents what a function does; the definition annotates what its statements do, so a definition never repeats its own name as a comment
+- A comment above a member declaration stays where the declaration is, because there is no body to move it into
 - No docstring format; use plain `//` comments
+
+Correct:
+
+```cpp
+Rect Rect::from_origin_size(Point origin, Size size) {
+    // build a rectangle from an origin and an extent
+    return {.x = origin.x, .y = origin.y, .width = size.width, .height = size.height};
+}
+```
+
+Incorrect:
+
+```cpp
+// build a rectangle from an origin and an extent
+Rect Rect::from_origin_size(Point origin, Size size) {
+    return {.x = origin.x, .y = origin.y, .width = size.width, .height = size.height};
+}
+```
 
 ### Classes
 

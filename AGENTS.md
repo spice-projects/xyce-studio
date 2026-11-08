@@ -31,9 +31,11 @@ After editing:
 1. Build the project
 2. Fix compiler warnings/errors
 3. Run the linter check on all changed C++ files: `bash build/check-format.sh`
-4. Format any changed `.slint` files in-place: `slint-lsp format -i <path/to/file.slint>`
-5. Summarize changed files
-6. Do not execute unit tests unless explicitly asked
+4. Make every file you touch fully compliant with `STYLE-GUIDE.md`: the check covers whole files, not only the lines you changed, so fix any pre-existing violation in a file the change touches
+5. Fix every consecutive comment line in the files you changed: one comment line above a statement, and when a test marker is followed by an explanation only the `// arrange` / `// act` / `// assert` marker stays
+6. Format any changed `.slint` files in-place: `slint-lsp format -i <path/to/file.slint>`
+7. Summarize changed files
+8. Do not execute unit tests unless explicitly asked
 
 ## UI Integration Tests
 
