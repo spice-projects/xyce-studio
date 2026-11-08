@@ -96,13 +96,43 @@ class SimulationOutputChecks(unittest.TestCase):
                 progress = app.get_by_id("main_progress")
                 progress.wait_for_exists()
                 expect(progress).to_have_name("40% · ETA 12 sec. · 1 warning")
-                # assert: the output header folds the reported counts into its title
-                expect(app.get_by_id("output_title")).to_have_name("Simulation Output · 1 warning")
+                # assert: the output header shows the warning count as its own badge
+                expect(app.get_by_id("output_warning_badge")).to_have_name("1 warning")
+                # assert: no error was reported, so its badge stays out of the tree
+                expect(app.get_by_id("output_error_badge")).not_().to_exist()
                 # assert: the log is now reachable from the toolbar again
                 expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
                 # step 2: stop the run, which folds the live indicator away
                 app.get_by_id("main_run").click()
                 progress.wait_for_gone()
+
+    def test_status_reports_an_indeterminate_bar_without_a_percentage(self) -> None:
+        # arrange: a fake Xyce executable whose analysis reports no completion
+        # percentage, which AC, DC sweep, HB and operating-point runs do
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "echo '***** Beginning DC Analysis'\n"
+                "exec sleep 30\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text(".tran 1m 10m\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # step 1: start the run from the toolbar
+                app.get_by_id("main_run").click()
+                # assert: the bar sweeps because the run reports no fraction
+                bar = app.get_by_id("main_progress_bar")
+                bar.wait_for_exists()
+                expect(bar).to_have_name("main_progress_bar")
+                expect(bar).to_have_state("indeterminate")
+                # assert: the status readout carries the announced analysis phase
+                expect(app.get_by_id("main_progress")).to_have_name("DC Analysis")
+                # step 2: stop the run, which folds the live indicator away
+                app.get_by_id("main_run").click()
+                bar.wait_for_gone()
 
     def test_sim_output_action_reopens_the_closed_panel(self) -> None:
         # arrange: a fake Xyce executable that finishes a complete log quickly

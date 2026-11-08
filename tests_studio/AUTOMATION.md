@@ -154,8 +154,10 @@ with tempfile.TemporaryDirectory() as scratch:
 - Semantic ids of the shell (from `studio/src/views/main_window/main_window.ui`):
   `main_open`, `main_save`, `main_output` (reveals the simulation log),
   `main_run` (reads `Run` or `Stop`), `main_plugin_settings`, `main_exit`
-  (toolbar), `netlist_editor` (multiline text field), `main_status` (status
-  row), `main_progress` (status run readout, absent while no run is live).
+  (toolbar; the icon-only actions announce their tooltip as their name),
+  `netlist_editor` (multiline text field), `main_status` (status row),
+  `main_progress` (status run readout), `main_progress_bar` (the run bar;
+  `indeterminate` while no percentage is reported), absent while no run is live.
 
 ### Open the plugin configuration dialog (from `plugin_config_test.py`)
 
@@ -171,9 +173,9 @@ with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
 ```
 
 Semantic ids of the dialog (from `studio/src/views/plugin_config/plugin_config_dialog.ui`):
-`plugin_config_path` (text box), `plugin_config_browse`, `plugin_config_error`
-(validation message, absent until validation fails), `plugin_config_cancel`,
-`plugin_config_ok`.
+`plugin_config_caption` (the passive "Xyce path:" label), `plugin_config_path`
+(text box), `plugin_config_browse`, `plugin_config_error` (validation message,
+absent until validation fails), `plugin_config_cancel`, `plugin_config_ok`.
 
 ### Edit a text field and persist the value across launches (from `plugin_config_test.py`)
 
@@ -263,7 +265,8 @@ with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), s
     progress = app.get_by_id("main_progress")
     progress.wait_for_exists()
     expect(progress).to_have_name("40% · ETA 12 sec. · 1 warning")
-    expect(app.get_by_id("output_title")).to_have_name("Simulation Output · 1 warning")
+    expect(app.get_by_id("output_warning_badge")).to_have_name("1 warning")
+    expect(app.get_by_id("output_error_badge")).not_().to_exist()
     expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
     app.get_by_id("main_run").click()          # the action reads Stop while the run lives
     progress.wait_for_gone()                   # the live readout folds away on finish
@@ -272,13 +275,19 @@ with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), s
 - End the script with `exec sleep <n>` rather than `sleep <n>`: a shell that
   stays alive around a child `sleep` leaves that child holding the pipes, so a
   cancel waits for it instead of tearing the run down.
-- `main_progress` is the status readout, and `main_progress_bar` is the
-  determinate bar, both absent while no run is live.
-- The output header folds the reported counts into its own text, so assert the
-  counts on `output_title`, not on a badge.
+- `main_progress` is the status readout, and `main_progress_bar` is the bar,
+  both absent while no run is live.
+- The bar is determinate once Xyce reports a percentage and `indeterminate`
+  otherwise; assert the sweep with `expect(bar).to_have_state("indeterminate")`
+  on a run whose analysis reports no percentage (AC, DC sweep, HB, operating
+  point).
+- The output header shows one badge per reported severity; assert the counts
+  on `output_warning_badge` and `output_error_badge`, which stay out of the
+  tree while their count is zero.
 - Semantic ids of the output panel: `output_panel`, `output_title`,
-  `output_copy` (copies the selection or the whole log), `output_close`,
-  `output_scroll`, `output_log` (read-only multiline field).
+  `output_warning_badge`, `output_error_badge`, `output_copy` (copies the
+  selection or the whole log), `output_close`, `output_scroll`, `output_log`
+  (read-only multiline field).
 
 ### Reopen the closed simulation log from the toolbar (from `simulation_output_test.py`)
 

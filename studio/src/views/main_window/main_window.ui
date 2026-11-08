@@ -44,8 +44,12 @@ component MainWindow {
     in property<string> output_text: "";
     // the styled ranges over the log, one per warning or error line
     in property<vector<TextDecoration>> output_decorations: [];
-    // the header title, which carries the warning and error counts because authored colours are ignored (albor issue #174)
-    in property<string> output_title_text: "Simulation Output";
+    // the warning badge text and visibility, which the header shows when the log carries one
+    in property<string> output_warning_text: "";
+    in property<bool> output_warning_visible: false;
+    // the error badge text and visibility, which the header shows when the log carries one
+    in property<string> output_error_text: "";
+    in property<bool> output_error_visible: false;
     // the scroll offset the log pins to; a value past the content end clamps
     // into the range, which is what keeps the viewport on the last line
     in property<float> output_pin_offset: 1000000.0;
@@ -68,9 +72,10 @@ component MainWindow {
             corner_radius: 0px;
             vertical_align: Align.start;
 
-            // icon-only actions announce their element id until albor carries a tooltip (albor issue #178)
+            // icon-only actions announce their tooltip, which is their accessible name
             Button {
                 id: main_open;
+                tooltip: "Open";
                 icon: @image("icons/directory_open_48.png");
                 icon_size: 20px;
                 disabled: !open_enabled;
@@ -81,6 +86,7 @@ component MainWindow {
 
             Button {
                 id: main_save;
+                tooltip: "Save";
                 icon: @image("icons/save_48.png");
                 icon_size: 20px;
                 disabled: !save_enabled;
@@ -91,6 +97,7 @@ component MainWindow {
 
             Button {
                 id: main_output;
+                tooltip: "Sim Output";
                 icon: @image("icons/sim_command_48.png");
                 icon_size: 20px;
                 disabled: !output_available;
@@ -128,6 +135,7 @@ component MainWindow {
 
             Button {
                 id: main_plugin_settings;
+                tooltip: "Plugin Settings";
                 icon: @image("icons/preference_48.png");
                 icon_size: 20px;
                 on_clicked: {
@@ -137,6 +145,7 @@ component MainWindow {
 
             Button {
                 id: main_exit;
+                tooltip: "Exit";
                 icon: @image("icons/exit_48.png");
                 icon_size: 20px;
                 on_clicked: {
@@ -181,8 +190,26 @@ component MainWindow {
 
                         Label {
                             id: output_title;
-                            text: output_title_text;
+                            text: "Simulation Output";
                             font_size: 13px;
+                            vertical_align: Align.center;
+                        }
+
+                        // the warning badge carries the reported count in the warning amber
+                        Label {
+                            id: output_warning_badge;
+                            text: output_warning_text;
+                            visible: output_warning_visible;
+                            foreground: #d9a441;
+                            vertical_align: Align.center;
+                        }
+
+                        // the error badge carries the reported count in the error red
+                        Label {
+                            id: output_error_badge;
+                            text: output_error_text;
+                            visible: output_error_visible;
+                            foreground: #e05b4b;
                             vertical_align: Align.center;
                         }
 
@@ -259,12 +286,12 @@ component MainWindow {
                         spacing: 8px;
                         vertical_align: Align.center;
 
-                        if progress_determinate {
-                            ProgressBar {
-                                id: main_progress_bar;
-                                value: progress_value;
-                                vertical_align: Align.center;
-                            }
+                        // the bar sweeps while the analysis reports no percentage, and fills once it does
+                        ProgressBar {
+                            id: main_progress_bar;
+                            indeterminate: !progress_determinate;
+                            value: progress_value;
+                            vertical_align: Align.center;
                         }
 
                         Label {

@@ -110,9 +110,6 @@ namespace studio
         // flush every buffered output line into the facade in one pass
         void flush_output();
 
-        // reapply the installed theme over the tree after a conditional subtree mounts (albor issue #173)
-        void apply_runtime_theme();
-
         // rebuild the netlist token colours after a load, edit or theme change
         void rebuild_netlist_highlight();
 
@@ -173,9 +170,6 @@ namespace studio
 
         // whether a highlight rebuild task is already queued, which coalesces typing
         bool m_netlist_highlight_scheduled = false;
-
-        // whether a conditional subtree mounted since the last theme pass (albor issue #173)
-        bool m_runtime_theme_pending = false;
 
         // the simulation process, recreated for every run
         std::unique_ptr<SimulationRunner> m_simulation_runner;

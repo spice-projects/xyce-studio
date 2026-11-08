@@ -12,7 +12,6 @@
 #include "albor/ui/ui_node.h"
 #include "albor/widgets/text_field.h"
 #include "albor/widgets/theme_controller.h"
-#include "albor/widgets/widget.h"
 #include "albor/window/window.h"
 #include "app/theme.h"
 #include "main_window.h"
@@ -124,15 +123,8 @@ namespace
         return decorations;
     }
 
-    // fold the warning and error counts into the output panel title
-    std::string compose_output_title(int warnings, int errors) {
-        std::string title = "Simulation Output";
-        if (warnings > 0)
-            title += " · " + std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings");
-        if (errors > 0)
-            title += " · " + std::to_string(errors) + (errors == 1 ? " error" : " errors");
-        return title;
-    }
+    // spell one warning or error count for the output header badge
+    std::string count_text(int count, std::string_view noun) { return std::to_string(count) + " " + std::string(noun) + (count == 1 ? "" : "s"); }
 
     // fold the run state into the one line the status bar shows
     std::string compose_progress_text(const studio::SimulationProgress& progress) {
@@ -202,13 +194,6 @@ bool studio::MainWindowView::create() {
     // a scheme flip rebuilds the token colours, which the palette owns
     if (m_theme != nullptr)
         m_theme->set_scheme_changed_handler([this](albor::ColorScheme) { schedule_netlist_highlight(); });
-    // the frame hook reaches a freshly built conditional subtree, which the install pass missed (albor issue #173)
-    m_app->set_frame_hook(m_handle, [this] {
-        if (!m_runtime_theme_pending)
-            return;
-        m_runtime_theme_pending = false;
-        apply_runtime_theme();
-    });
     // seed the editor highlight from the empty netlist
     rebuild_netlist_highlight();
     // the shell is built but hidden, which the caller reveals once it is wired
@@ -327,15 +312,16 @@ void studio::MainWindowView::set_simulation_running(bool running) {
     // the action reads stop while the run lives, which swaps the toolbar subtree
     m_simulation_running = running;
     m_root->set_simulation_running(running);
-    // the rebuilt action carries no theme until the next frame hook walks the tree
-    m_runtime_theme_pending = true;
 }
 
 void studio::MainWindowView::set_simulation_progress(const SimulationProgress& progress) {
     if (m_root == nullptr)
         return;
-    // the output header folds the counts into its title
-    m_root->set_output_title_text(compose_output_title(progress.warnings, progress.errors));
+    // the output header shows one badge per reported severity
+    m_root->set_output_warning_text(count_text(progress.warnings, "warning"));
+    m_root->set_output_warning_visible(progress.warnings > 0);
+    m_root->set_output_error_text(count_text(progress.errors, "error"));
+    m_root->set_output_error_visible(progress.errors > 0);
     // the status line carries the phase, the estimate and the counts
     m_root->set_progress_text(compose_progress_text(progress));
     m_root->set_progress_determinate(progress.determinate);
@@ -344,7 +330,6 @@ void studio::MainWindowView::set_simulation_progress(const SimulationProgress& p
     if (m_progress_visible != progress.running) {
         m_progress_visible = progress.running;
         m_root->set_progress_visible(progress.running);
-        m_runtime_theme_pending = true;
     }
 }
 
@@ -353,13 +338,11 @@ void studio::MainWindowView::show_output_panel() {
         return;
     // a revealed panel makes its log reachable from the toolbar
     m_root->set_output_available(true);
-    // an already mounted panel needs no rebuild or theme pass
+    // an already mounted panel needs no rebuild
     if (m_output_visible)
         return;
     m_output_visible = true;
     m_root->set_output_visible(true);
-    // the rebuilt panel carries no theme until the next frame hook walks the tree
-    m_runtime_theme_pending = true;
 }
 
 void studio::MainWindowView::hide_output_panel() {
@@ -385,7 +368,11 @@ void studio::MainWindowView::clear_output() {
     m_root->set_output_decorations(m_output_decorations);
     // an empty log has no content the toolbar action could reveal
     m_root->set_output_available(false);
-    m_root->set_output_title_text("Simulation Output");
+    // an empty log reports no severity, so both header badges are hidden
+    m_root->set_output_warning_text("");
+    m_root->set_output_warning_visible(false);
+    m_root->set_output_error_text("");
+    m_root->set_output_error_visible(false);
 }
 
 void studio::MainWindowView::append_output_line(std::string_view line, LogSeverity severity) {
@@ -447,15 +434,6 @@ void studio::MainWindowView::flush_output() {
     m_root->set_output_decorations(m_output_decorations);
     // any log line makes the panel reachable from the toolbar again
     m_root->set_output_available(true);
-}
-
-void studio::MainWindowView::apply_runtime_theme() {
-    // without a controller or a live window there is no theme to apply
-    if (m_theme == nullptr || !m_handle.valid())
-        return;
-    // the conditional subtrees carry the unthemed defaults until this pass reaches them (albor issue #173)
-    if (albor::UiNode* root = m_app->root(m_handle))
-        albor::apply_theme(*root, m_theme->theme());
 }
 
 void studio::MainWindowView::rebuild_netlist_highlight() {

@@ -6,7 +6,7 @@ _LOGGER = logger()
 # server as one space delimited token; a value that contains spaces is read
 # until the first of these trailing flags, which is the boundary the server
 # itself wrote when it appended the state after the text
-_TRAILING_FLAGS = ("writable", "selection=", "read_only", "multiline", "expanded", "disabled", "selected", "focused")
+_TRAILING_FLAGS = ("writable", "selection=", "read_only", "multiline", "expanded", "disabled", "selected", "focused", "indeterminate")
 
 
 class AlborClient:
@@ -158,6 +158,9 @@ def _parse_flags(node: dict, text: str) -> None:
         elif text.startswith("focused", index):
             index += len("focused")
             node["focused"] = True
+        elif text.startswith("indeterminate", index):
+            index += len("indeterminate")
+            node["indeterminate"] = True
         else:
             # an unknown token is skipped one token, so a newer server flag
             # never wedges the parser

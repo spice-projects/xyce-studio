@@ -61,9 +61,14 @@ class PluginConfigDialogChecks(unittest.TestCase):
         with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
             # step 1: open the plugin configuration dialog from the toolbar
             app.get_by_id("main_plugin_settings").click()
+            # assert: the caption names the value the field edits
+            caption = app.get_by_id("plugin_config_caption")
+            caption.wait_for_exists()
+            expect(caption).to_have_name("Xyce path:")
+            # assert: the passive caption stays out of the focus order, so the
+            # field is the first control and typing goes straight into it
             field = app.get_by_id("plugin_config_path")
             field.wait_for_exists()
-            # assert: the field is the first control, so typing goes straight into it
             expect(field).to_have_state("focused")
 
     def test_cancel_discards_the_rejected_value(self) -> None:
