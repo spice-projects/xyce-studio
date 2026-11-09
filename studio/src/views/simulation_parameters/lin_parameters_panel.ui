@@ -23,7 +23,7 @@ component LinParametersPanel {
 
         Label {
             text: "Linear Analysis (.LIN)";
-                font_weight: Weight.semibold;
+            font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -41,7 +41,7 @@ component LinParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
-            background: #00000010;
+            background: #0000000A;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -60,8 +60,9 @@ component LinParametersPanel {
                     }
 
                     Label {
+                        font_size: 13px;
                         text: "Enable SPARCALC";
-                font_weight: Weight.semibold;
+                        font_weight: Weight.semibold;
                         vertical_align: Align.center;
                     }
                 }
@@ -72,101 +73,104 @@ component LinParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Format";
-                        }
-                        ComboBox {
-                            id: simulation_lin_format;
-                            items: ["TOUCHSTONE2", "TOUCHSTONE"];
-                            selected: state.format_index;
-                            on_selection_changed: {
-                                state.format_index = index;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Format";
                             }
-                        }
+                            ComboBox {
+                                id: simulation_lin_format;
+                                items: ["TOUCHSTONE2", "TOUCHSTONE"];
+                                selected: state.format_index;
+                                on_selection_changed: {
+                                    state.format_index = index;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Type";
-                        }
-                        ComboBox {
-                            id: simulation_lin_type;
-                            items: ["S", "Y", "Z"];
-                            selected: state.lintype_index;
-                            on_selection_changed: {
-                                state.lintype_index = index;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Type";
                             }
-                        }
+                            ComboBox {
+                                id: simulation_lin_type;
+                                items: ["S", "Y", "Z"];
+                                selected: state.lintype_index;
+                                on_selection_changed: {
+                                    state.lintype_index = index;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Data format";
-                        }
-                        ComboBox {
-                            id: simulation_lin_dataformat;
-                            items: ["RI", "MA", "DB"];
-                            selected: state.dataformat_index;
-                            on_selection_changed: {
-                                state.dataformat_index = index;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Data format";
                             }
-                        }
+                            ComboBox {
+                                id: simulation_lin_dataformat;
+                                items: ["RI", "MA", "DB"];
+                                selected: state.dataformat_index;
+                                on_selection_changed: {
+                                    state.dataformat_index = index;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Output file";
-                        }
-                        TextField {
-                            id: simulation_lin_file;
-                            value: state.file;
-                            placeholder: "touchstone output file path";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.file = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Output file";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_file;
+                                value: state.file;
+                                placeholder: "touchstone output file path";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.file = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Width";
-                        }
-                        TextField {
-                            id: simulation_lin_width;
-                            value: state.output_width;
-                            placeholder: "width in characters";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.output_width = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Width";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_width;
+                                value: state.output_width;
+                                placeholder: "width in characters";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.output_width = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Precision";
-                        }
-                        TextField {
-                            id: simulation_lin_precision;
-                            value: state.precision;
-                            placeholder: "decimal precision";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.precision = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Precision";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_precision;
+                                value: state.precision;
+                                placeholder: "decimal precision";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.precision = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }
@@ -176,7 +180,7 @@ component LinParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
-            background: #00000010;
+            background: #0000000A;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -185,7 +189,7 @@ component LinParametersPanel {
 
                 Label {
                     text: "AC Sweep";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                     font_size: 13px;
                 }
 
@@ -205,53 +209,56 @@ component LinParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Points";
-                        }
-                        TextField {
-                            id: simulation_lin_points;
-                            value: state.points;
-                            placeholder: "number of points per decade";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.points = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Points";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_points;
+                                value: state.points;
+                                placeholder: "number of points per decade";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.points = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Start";
-                        }
-                        TextField {
-                            id: simulation_lin_start;
-                            value: state.start;
-                            placeholder: "start frequency (e.g. 1k)";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.start = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Start";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_start;
+                                value: state.start;
+                                placeholder: "start frequency (e.g. 1k)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.start = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "End";
-                        }
-                        TextField {
-                            id: simulation_lin_end;
-                            value: state.end;
-                            placeholder: "stop frequency (e.g. 100MEG)";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.end = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "End";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_end;
+                                value: state.end;
+                                placeholder: "stop frequency (e.g. 100MEG)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.end = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }
@@ -262,19 +269,20 @@ component LinParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Data table";
-                        }
-                        TextField {
-                            id: simulation_lin_table;
-                            value: state.data_table;
-                            placeholder: "name of the data block to sweep";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.data_table = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Data table";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_lin_table;
+                                value: state.data_table;
+                                placeholder: "name of the data block to sweep";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.data_table = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }

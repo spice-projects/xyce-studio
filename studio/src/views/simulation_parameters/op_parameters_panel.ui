@@ -20,15 +20,17 @@ component OpParametersPanel {
     signal print_changed(PrintUi value);
     // the NONLIN option rows the dialog owns
     in property<vector<OptionRow>> nonlin_rows: [];
-    // the user changed an option row
+    // the user changed an option row in its text editor
     signal option_row_edited(int package, string key, OptionRow row);
+    // the user picked a combo entry for an option row
+    signal option_choice_selected(int package, string key, int index);
 
     Column {
         spacing: 10px;
 
         Label {
             text: "Operating Point Analysis (.OP)";
-                font_weight: Weight.semibold;
+            font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -43,7 +45,7 @@ component OpParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
-            background: #00000010;
+            background: #0000000A;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -62,8 +64,9 @@ component OpParametersPanel {
                     }
 
                     Label {
+                        font_size: 13px;
                         text: "Enable .SAVE operating point";
-                font_weight: Weight.semibold;
+                        font_weight: Weight.semibold;
                         vertical_align: Align.center;
                     }
                 }
@@ -74,45 +77,46 @@ component OpParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        ComboBox {
-                            items: ["Save as .NODESET", "Save as .IC"];
-                            selected: state.save_type_index;
-                            on_selection_changed: {
-                                state.save_type_index = index;
-                                state_changed(state);
+                            ComboBox {
+                                items: ["Save as .NODESET", "Save as .IC"];
+                                selected: state.save_type_index;
+                                on_selection_changed: {
+                                    state.save_type_index = index;
+                                    state_changed(state);
+                                }
                             }
-                        }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Save file";
-                        }
-                        TextField {
-                            value: state.save_file;
-                            placeholder: "optional output file path";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.save_file = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Save file";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                value: state.save_file;
+                                placeholder: "optional output file path";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.save_file = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Level";
-                        }
-                        ComboBox {
-                            items: ["(default)", "all", "none"];
-                            selected: state.save_level_index;
-                            on_selection_changed: {
-                                state.save_level_index = index;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Level";
                             }
-                        }
+                            ComboBox {
+                                items: ["(default)", "all", "none"];
+                                selected: state.save_level_index;
+                                on_selection_changed: {
+                                    state.save_level_index = index;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }
@@ -122,7 +126,7 @@ component OpParametersPanel {
         Panel {
             padding: 10px;
             corner_radius: 6px;
-            background: #00000010;
+            background: #0000000A;
             border_width: 1px;
             vertical_align: Align.start;
 
@@ -130,8 +134,9 @@ component OpParametersPanel {
                 spacing: 6px;
 
                 Label {
+                    font_size: 13px;
                     text: "Convergence Hints (.NODESET)";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                 }
 
                 Label {
@@ -140,6 +145,7 @@ component OpParametersPanel {
                 }
 
                 TextField {
+                    font_size: 13px;
                     id: simulation_op_nodeset;
                     value: state.nodeset;
                     placeholder: "e.g. V(1)=5.0 V(2)=3.3";
@@ -161,20 +167,23 @@ component OpParametersPanel {
             }
         }
 
-        OptionPackageCard {
-            title: ".OPTIONS NONLIN package";
-            rows: nonlin_rows;
-            on_row_edited: {
-                option_row_edited(2, key, row);
-            }
-        }
-
         GroundReplaceRow {
             id: simulation_op_replace_ground;
             checked: state.replace_ground;
             on_toggled: {
                 state.replace_ground = value;
                 state_changed(state);
+            }
+        }
+
+        OptionPackageCard {
+            title: ".OPTIONS NONLIN package";
+            rows: nonlin_rows;
+            on_row_edited: {
+                option_row_edited(2, key, row);
+            }
+            on_choice_selected: {
+                option_choice_selected(2, key, index);
             }
         }
     }

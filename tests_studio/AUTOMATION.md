@@ -191,7 +191,10 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
   `simulation_pce_add_parameter` and keeps its PCES options in
   `simulation_pce_options`.
 - The `.OPTIONS` cards show one row per documented key, seeded from the
-  netlist and edited in place.
+  netlist and edited in place. A key with documented choices renders a
+  combo (`<default>`, the `flag is set` marker for a bare flag, then the
+  guide's values); a free key renders a text field with the reference
+  default as its hint.
 - The dialog is assembled from the root `simulation_parameters_dialog.ui` and one
   `*_parameters_panel.ui` per analysis; the shared `sweep_mode_row.ui`,
   `ground_replace_row.ui`, `measure_section.ui`, `ic_section.ui`,

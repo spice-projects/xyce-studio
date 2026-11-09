@@ -25,7 +25,7 @@ component PrintSection {
     Panel {
         padding: 10px;
         corner_radius: 6px;
-        background: #00000010;
+        background: #0000000A;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -44,206 +44,221 @@ component PrintSection {
                 }
 
                 Label {
+                    font_size: 13px;
                     text: "Enable .PRINT output";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                     vertical_align: Align.center;
                 }
             }
 
             if state.enabled {
-                Column {
-                    spacing: 8px;
+                Row {
+                    spacing: 0px;
 
-                    if show_type {
-                        Column {
-                            spacing: 8px;
-                            Row {
-                                spacing: 8px;
-                                vertical_align: Align.center;
-                            FormLabel {
-                                text: "Print type";
-                            }
-                            ComboBox {
-                                items: type_items;
-                                selected: state.type_index;
-                                on_selection_changed: {
-                                    state.type_index = index;
-                                    state_changed(state);
-                                }
-                            }
-                            }
-                        }
-                    }
-
-                    Row {
-                        spacing: 16px;
-
-                        Row {
-                            spacing: 4px;
-
-                            CheckBox {
-                                checked: state.all_nodes;
-                                on_toggled: {
-                                    state.all_nodes = checked;
-                                    state_changed(state);
-                                }
-                            }
-
-                            Label {
-                                text: "All voltages V(*)";
-                                font_size: 12px;
-                                vertical_align: Align.center;
-                            }
-                        }
-
-                        Row {
-                            spacing: 4px;
-
-                            CheckBox {
-                                checked: state.all_currents;
-                                on_toggled: {
-                                    state.all_currents = checked;
-                                    state_changed(state);
-                                }
-                            }
-
-                            Label {
-                                text: "All currents I(*)";
-                                font_size: 12px;
-                                vertical_align: Align.center;
-                            }
-                        }
-
-                        if show_power {
-                            Row {
-                                spacing: 4px;
-
-                                CheckBox {
-                                    checked: state.power;
-                                    on_toggled: {
-                                        state.power = checked;
-                                        state_changed(state);
-                                    }
-                                }
-
-                                Label {
-                                    text: "Power P(*)";
-                                    font_size: 12px;
-                                    vertical_align: Align.center;
-                                }
-                            }
-                        }
-
-                        if show_bjt {
-                            Row {
-                                spacing: 4px;
-
-                                CheckBox {
-                                    checked: state.bjt_leads;
-                                    on_toggled: {
-                                        state.bjt_leads = checked;
-                                        state_changed(state);
-                                    }
-                                }
-
-                                Label {
-                                    text: "BJT leads";
-                                    font_size: 12px;
-                                    vertical_align: Align.center;
-                                }
-                            }
-                        }
-
-                        if show_fet {
-                            Row {
-                                spacing: 4px;
-
-                                CheckBox {
-                                    checked: state.fet_leads;
-                                    on_toggled: {
-                                        state.fet_leads = checked;
-                                        state_changed(state);
-                                    }
-                                }
-
-                                Label {
-                                    text: "FET leads";
-                                    font_size: 12px;
-                                    vertical_align: Align.center;
-                                }
-                            }
-                        }
+                    // the reference indents the enabled controls under their toggle
+                    Canvas {
+                        width: 24px;
+                        height: 1px;
                     }
 
                     Column {
                         spacing: 8px;
-                        Row {
-                            spacing: 8px;
-                            vertical_align: Align.center;
-                        FormLabel {
-                            text: "Additional variables";
-                        }
-                        TextField {
-                            value: state.specific_variables;
-                            placeholder: "e.g. V(out) V(in)";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.specific_variables = value;
-                                state_changed(state);
-                            }
-                        }
-                        }
-                        Row {
-                            spacing: 8px;
-                            vertical_align: Align.center;
-                        FormLabel {
-                            text: "Format";
-                        }
-                        ComboBox {
-                            items: format_items;
-                            selected: state.format_index;
-                            on_selection_changed: {
-                                state.format_index = index;
-                                state_changed(state);
-                            }
-                        }
-                        }
-                        Row {
-                            spacing: 8px;
-                            vertical_align: Align.center;
-                        FormLabel {
-                            text: "Output file";
-                        }
-                        TextField {
-                            value: state.output_file;
-                            placeholder: "optional output file path";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.output_file = value;
-                                state_changed(state);
-                            }
-                        }
-                        }
-                    }
+                        horizontal_align: Align.stretch;
 
-                    if state.format_index != 5 {
+                        if show_type {
+                            Column {
+                                spacing: 8px;
+                                Row {
+                                    spacing: 8px;
+                                    vertical_align: Align.center;
+                                    FormLabel {
+                                        text: "Print type";
+                                    }
+                                    ComboBox {
+                                        items: type_items;
+                                        selected: state.type_index;
+                                        on_selection_changed: {
+                                            state.type_index = index;
+                                            state_changed(state);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Row {
+                            spacing: 16px;
+
+                            Row {
+                                spacing: 4px;
+
+                                CheckBox {
+                                    checked: state.all_nodes;
+                                    on_toggled: {
+                                        state.all_nodes = checked;
+                                        state_changed(state);
+                                    }
+                                }
+
+                                Label {
+                                    text: "All voltages V(*)";
+                                    font_size: 13px;
+                                    vertical_align: Align.center;
+                                }
+                            }
+
+                            Row {
+                                spacing: 4px;
+
+                                CheckBox {
+                                    checked: state.all_currents;
+                                    on_toggled: {
+                                        state.all_currents = checked;
+                                        state_changed(state);
+                                    }
+                                }
+
+                                Label {
+                                    text: "All currents I(*)";
+                                    font_size: 13px;
+                                    vertical_align: Align.center;
+                                }
+                            }
+
+                            if show_power {
+                                Row {
+                                    spacing: 4px;
+
+                                    CheckBox {
+                                        checked: state.power;
+                                        on_toggled: {
+                                            state.power = checked;
+                                            state_changed(state);
+                                        }
+                                    }
+
+                                    Label {
+                                        text: "Power P(*)";
+                                        font_size: 13px;
+                                        vertical_align: Align.center;
+                                    }
+                                }
+                            }
+
+                            if show_bjt {
+                                Row {
+                                    spacing: 4px;
+
+                                    CheckBox {
+                                        checked: state.bjt_leads;
+                                        on_toggled: {
+                                            state.bjt_leads = checked;
+                                            state_changed(state);
+                                        }
+                                    }
+
+                                    Label {
+                                        text: "BJT leads";
+                                        font_size: 13px;
+                                        vertical_align: Align.center;
+                                    }
+                                }
+                            }
+
+                            if show_fet {
+                                Row {
+                                    spacing: 4px;
+
+                                    CheckBox {
+                                        checked: state.fet_leads;
+                                        on_toggled: {
+                                            state.fet_leads = checked;
+                                            state_changed(state);
+                                        }
+                                    }
+
+                                    Label {
+                                        text: "FET leads";
+                                        font_size: 13px;
+                                        vertical_align: Align.center;
+                                    }
+                                }
+                            }
+                        }
+
                         Column {
                             spacing: 8px;
                             Row {
                                 spacing: 8px;
                                 vertical_align: Align.center;
-                            FormLabel {
-                                text: "Extra options";
-                            }
-                            TextField {
-                                value: state.extra_options;
-                                placeholder: "e.g. WIDTH=20 PRECISION=12";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    state.extra_options = value;
-                                    state_changed(state);
+                                FormLabel {
+                                    text: "Additional variables";
+                                }
+                                TextField {
+                                    font_size: 13px;
+                                    value: state.specific_variables;
+                                    placeholder: "e.g. V(out) V(in)";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.specific_variables = value;
+                                        state_changed(state);
+                                    }
                                 }
                             }
+                            Row {
+                                spacing: 8px;
+                                vertical_align: Align.center;
+                                FormLabel {
+                                    text: "Format";
+                                }
+                                ComboBox {
+                                    items: format_items;
+                                    selected: state.format_index;
+                                    on_selection_changed: {
+                                        state.format_index = index;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
+                            Row {
+                                spacing: 8px;
+                                vertical_align: Align.center;
+                                FormLabel {
+                                    text: "Output file";
+                                }
+                                TextField {
+                                    font_size: 13px;
+                                    value: state.output_file;
+                                    placeholder: "optional output file path";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.output_file = value;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
+                        }
+
+                        if state.format_index != 5 {
+                            Column {
+                                spacing: 8px;
+                                Row {
+                                    spacing: 8px;
+                                    vertical_align: Align.center;
+                                    FormLabel {
+                                        text: "Extra options";
+                                    }
+                                    TextField {
+                                        font_size: 13px;
+                                        value: state.extra_options;
+                                        placeholder: "e.g. WIDTH=20 PRECISION=12";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.extra_options = value;
+                                            state_changed(state);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

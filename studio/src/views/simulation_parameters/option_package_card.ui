@@ -9,13 +9,15 @@ component OptionPackageCard {
     in property<string> title: "";
     // the option rows the host analysis owns
     in property<vector<OptionRow>> rows: [];
-    // the row the user changed
+    // the row the user changed in its text editor
     signal row_edited(string key, OptionRow row);
+    // the combo entry the user picked for this key
+    signal choice_selected(string key, int index);
 
     Panel {
         padding: 10px;
         corner_radius: 6px;
-        background: #00000010;
+        background: #0000000A;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -23,6 +25,7 @@ component OptionPackageCard {
             spacing: 6px;
 
             Label {
+                font_size: 13px;
                 text: title;
                 font_weight: Weight.semibold;
             }
@@ -32,6 +35,9 @@ component OptionPackageCard {
                     row_data: row;
                     on_edited: {
                         row_edited(key, updated);
+                    }
+                    on_choice_selected: {
+                        choice_selected(key, index);
                     }
                 }
             }

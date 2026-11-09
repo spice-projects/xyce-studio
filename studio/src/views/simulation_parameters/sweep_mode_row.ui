@@ -17,16 +17,16 @@ component SweepModeRow {
         Row {
             spacing: 8px;
             vertical_align: Align.center;
-        FormLabel {
-            text: label;
-        }
-        ComboBox {
-            items: items;
-            selected: selected;
-            on_selection_changed: {
-                selection_changed(index);
+            FormLabel {
+                text: label;
             }
-        }
+            ComboBox {
+                items: items;
+                selected: selected;
+                on_selection_changed: {
+                    selection_changed(index);
+                }
+            }
         }
     }
 }

@@ -235,7 +235,7 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
         # arrange: a transient netlist carrying a print, a measure, IC and TIMEINT
         with tempfile.TemporaryDirectory() as tmp:
             netlist = Path(tmp) / "companions.cir"
-            netlist.write_text("companions test\nV1 1 0 1\nR1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN V(1)\n.MEASURE TRAN vout_max MAX V(1)\n.IC V(1)=0\n.OPTIONS TIMEINT RELTOL=1e-3\n.END\n")
+            netlist.write_text("companions test\nV1 1 0 1\nR1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN V(1)\n.MEASURE TRAN vout_max MAX V(1)\n.IC V(1)=0\n.OPTIONS TIMEINT RELTOL=1e-3 BPENABLE\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
                 # step 1: open the dialog and accept the untouched panel
@@ -243,6 +243,12 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 initial = app.get_by_id("simulation_tran_initial_step")
                 initial.wait_for_exists()
                 app.wait_for_condition(lambda: "RELTOL" in app.tree_text(), timeout=5.0, message="expected the TIMEINT card to show the RELTOL row")
+                # assert: a documented choice renders a combo, and a bare flag is an entry the combo offers
+                tree = app.tree_text()
+                timeint = tree[tree.index(".OPTIONS TIMEINT package"):]
+                self.assertIn("combo_box", timeint)
+                self.assertIn("flag is set selected", timeint)
+                self.assertNotIn("bare flag", tree)
                 app.get_by_id("simulation_parameters_ok").click()
                 initial.wait_for_gone()
                 # assert: the companion directives survive the round trip
@@ -250,7 +256,8 @@ class SimulationParametersPanelsChecks(unittest.TestCase):
                 self.assertIn(".PRINT TRAN V(1)", lines)
                 self.assertIn(".MEASURE TRAN vout_max MAX V(1)", lines)
                 self.assertIn(".IC V(1)=0", lines)
-                self.assertIn(".OPTIONS TIMEINT RELTOL=1e-3", lines)
+                self.assertIn(".OPTIONS TIMEINT BPENABLE RELTOL=1e-3", lines)
+
     def test_dc_sweep_table_seeds_and_adds_a_row(self) -> None:
         # arrange: a netlist carrying one linear DC sweep
         with tempfile.TemporaryDirectory() as tmp:

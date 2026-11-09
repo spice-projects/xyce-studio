@@ -17,7 +17,7 @@ component DcSweepRowEditor {
     Panel {
         padding: 8px;
         corner_radius: 4px;
-        background: #00000010;
+        background: #FFFFFF33;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -29,11 +29,12 @@ component DcSweepRowEditor {
 
                 Label {
                     text: "Sweep " + row_data.key;
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                     font_size: 12px;
                 }
 
                 Label {
+                    font_size: 13px;
                     horizontal_align: Align.stretch;
                 }
 
@@ -50,18 +51,19 @@ component DcSweepRowEditor {
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    text: "Variable";
-                }
-                TextField {
-                    value: row_data.variable;
-                    placeholder: "e.g. V1";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        row_data.variable = value;
-                        edited(row_data.key, row_data);
+                    FormLabel {
+                        text: "Variable";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        value: row_data.variable;
+                        placeholder: "e.g. V1";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            row_data.variable = value;
+                            edited(row_data.key, row_data);
+                        }
+                    }
                 }
             }
 
@@ -71,34 +73,36 @@ component DcSweepRowEditor {
                     Row {
                         spacing: 8px;
                         vertical_align: Align.center;
-                    FormLabel {
-                        text: "Start";
-                    }
-                    TextField {
-                        value: row_data.start;
-                        placeholder: "start value (e.g. 0)";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.start = value;
-                            edited(row_data.key, row_data);
+                        FormLabel {
+                            text: "Start";
                         }
-                    }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.start;
+                            placeholder: "start value (e.g. 0)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.start = value;
+                                edited(row_data.key, row_data);
+                            }
+                        }
                     }
                     Row {
                         spacing: 8px;
                         vertical_align: Align.center;
-                    FormLabel {
-                        text: "Stop";
-                    }
-                    TextField {
-                        value: row_data.stop;
-                        placeholder: "stop value (e.g. 5)";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.stop = value;
-                            edited(row_data.key, row_data);
+                        FormLabel {
+                            text: "Stop";
                         }
-                    }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.stop;
+                            placeholder: "stop value (e.g. 5)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.stop = value;
+                                edited(row_data.key, row_data);
+                            }
+                        }
                     }
                 }
             }
@@ -109,18 +113,19 @@ component DcSweepRowEditor {
                     Row {
                         spacing: 8px;
                         vertical_align: Align.center;
-                    FormLabel {
-                        text: "Step";
-                    }
-                    TextField {
-                        value: row_data.step;
-                        placeholder: "step size (e.g. 0.1)";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.step = value;
-                            edited(row_data.key, row_data);
+                        FormLabel {
+                            text: "Step";
                         }
-                    }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.step;
+                            placeholder: "step size (e.g. 0.1)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.step = value;
+                                edited(row_data.key, row_data);
+                            }
+                        }
                     }
                 }
             }
@@ -131,18 +136,19 @@ component DcSweepRowEditor {
                     Row {
                         spacing: 8px;
                         vertical_align: Align.center;
-                    FormLabel {
-                        text: "Points";
-                    }
-                    TextField {
-                        value: row_data.points;
-                        placeholder: "points per decade/octave";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.points = value;
-                            edited(row_data.key, row_data);
+                        FormLabel {
+                            text: "Points";
                         }
-                    }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.points;
+                            placeholder: "points per decade/octave";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.points = value;
+                                edited(row_data.key, row_data);
+                            }
+                        }
                     }
                 }
             }
@@ -153,18 +159,19 @@ component DcSweepRowEditor {
                     Row {
                         spacing: 8px;
                         vertical_align: Align.center;
-                    FormLabel {
-                        text: "List values";
-                    }
-                    TextField {
-                        value: row_data.list_values;
-                        placeholder: "space-separated values (e.g. 0 1 2 5)";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.list_values = value;
-                            edited(row_data.key, row_data);
+                        FormLabel {
+                            text: "List values";
                         }
-                    }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.list_values;
+                            placeholder: "space-separated values (e.g. 0 1 2 5)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.list_values = value;
+                                edited(row_data.key, row_data);
+                            }
+                        }
                     }
                 }
             }

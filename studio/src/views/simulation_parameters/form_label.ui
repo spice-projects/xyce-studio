@@ -10,11 +10,12 @@ component FormLabel {
 
         // the spacer fixes the caption column, which every field row shares
         Canvas {
-            width: 110px;
+            width: 120px;
             height: 1px;
         }
 
         Label {
+            font_size: 13px;
             text: text;
         }
     }

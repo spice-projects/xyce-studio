@@ -1,4 +1,4 @@
-// the ground replacement row every analysis tab shares
+// the ground replacement card every analysis tab shares
 
 component GroundReplaceRow {
     // the box state the host analysis owns
@@ -6,19 +6,38 @@ component GroundReplaceRow {
     // the state the user moved the box to
     signal toggled(bool value);
 
-    Row {
-        spacing: 8px;
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        background: #0000000A;
+        border_width: 1px;
+        vertical_align: Align.start;
 
-        CheckBox {
-            checked: checked;
-            on_toggled: {
-                toggled(checked);
+        Column {
+            spacing: 6px;
+
+            Row {
+                spacing: 6px;
+
+                CheckBox {
+                    checked: checked;
+                    on_toggled: {
+                        toggled(checked);
+                    }
+                }
+
+                Label {
+                    font_size: 13px;
+                    text: "Replace ground (GND) with 0";
+                    vertical_align: Align.center;
+                }
             }
-        }
 
-        Label {
-            text: "Replace ground node GND with 0";
-            vertical_align: Align.center;
+            Label {
+                font_size: 12px;
+                text: "When enabled, all ground references in the netlist are replaced with the node name '0' before simulation, which is the node Xyce uses as the global ground.";
+                foreground: #888888;
+            }
         }
     }
 }

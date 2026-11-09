@@ -22,6 +22,8 @@ component TransientParametersPanel {
     in property<PrintUi> pce_print;
     // the PCE parameter rows the dialog owns
     in property<vector<PceRow>> pce_rows: [];
+    // whether the PCE table has no row, which shows its hint
+    in property<bool> pce_rows_empty: true;
     // the transient state the user changed
     signal state_changed(TranUi value);
     // the print state the user changed
@@ -36,8 +38,10 @@ component TransientParametersPanel {
     in property<vector<OptionRow>> loca_rows: [];
     in property<vector<OptionRow>> fft_rows: [];
     in property<vector<OptionRow>> output_rows: [];
-    // the user changed an option row
+    // the user changed an option row in its text editor
     signal option_row_edited(int package, string key, OptionRow row);
+    // the user picked a combo entry for an option row
+    signal option_choice_selected(int package, string key, int index);
     // the user asked for a new PCE parameter row
     signal pce_add_row();
     // the user asked to remove the PCE row with this key
@@ -50,7 +54,7 @@ component TransientParametersPanel {
 
         Label {
             text: "Transient Analysis (.TRAN)";
-                font_weight: Weight.semibold;
+            font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -66,91 +70,95 @@ component TransientParametersPanel {
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    id: simulation_tran_initial_step_caption;
-                    text: "Initial step";
-                }
-                TextField {
-                    id: simulation_tran_initial_step;
-                    value: state.initial_step;
-                    placeholder: "initial time step (e.g. 1n)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.initial_step = value;
-                        state_changed(state);
+                    FormLabel {
+                        id: simulation_tran_initial_step_caption;
+                        text: "Initial step";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_tran_initial_step;
+                        value: state.initial_step;
+                        placeholder: "initial time step (e.g. 1n)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.initial_step = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    id: simulation_tran_final_time_caption;
-                    text: "Final time";
-                }
-                TextField {
-                    id: simulation_tran_final_time;
-                    value: state.final_time;
-                    placeholder: "simulation end time (e.g. 1u)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.final_time = value;
-                        state_changed(state);
+                    FormLabel {
+                        id: simulation_tran_final_time_caption;
+                        text: "Final time";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_tran_final_time;
+                        value: state.final_time;
+                        placeholder: "simulation end time (e.g. 1u)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.final_time = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    id: simulation_tran_start_time_caption;
-                    text: "Start time";
-                }
-                TextField {
-                    id: simulation_tran_start_time;
-                    value: state.start_time;
-                    placeholder: "optional start time (e.g. 0)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.start_time = value;
-                        state_changed(state);
+                    FormLabel {
+                        id: simulation_tran_start_time_caption;
+                        text: "Start time";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_tran_start_time;
+                        value: state.start_time;
+                        placeholder: "optional start time (e.g. 0)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.start_time = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    id: simulation_tran_step_ceiling_caption;
-                    text: "Max time step";
-                }
-                TextField {
-                    id: simulation_tran_step_ceiling;
-                    value: state.step_ceiling;
-                    placeholder: "optional step ceiling";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.step_ceiling = value;
-                        state_changed(state);
+                    FormLabel {
+                        id: simulation_tran_step_ceiling_caption;
+                        text: "Max time step";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_tran_step_ceiling;
+                        value: state.step_ceiling;
+                        placeholder: "optional step ceiling";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.step_ceiling = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    id: simulation_tran_op_keyword_caption;
-                    text: "OP keyword";
-                }
-                ComboBox {
-                    id: simulation_tran_op_keyword;
-                    items: ["(None)", "NOOP", "UIC"];
-                    selected: state.op_keyword_index;
-                    on_selection_changed: {
-                        state.op_keyword_index = index;
-                        state_changed(state);
+                    FormLabel {
+                        id: simulation_tran_op_keyword_caption;
+                        text: "OP keyword";
                     }
-                }
+                    ComboBox {
+                        id: simulation_tran_op_keyword;
+                        items: ["(None)", "NOOP", "UIC"];
+                        selected: state.op_keyword_index;
+                        on_selection_changed: {
+                            state.op_keyword_index = index;
+                            state_changed(state);
+                        }
+                    }
                 }
             }
         }
@@ -166,22 +174,34 @@ component TransientParametersPanel {
                 spacing: 6px;
 
                 Label {
+                    font_size: 13px;
                     text: "Schedule points (one per line: time, max_step)";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                 }
 
                 ScrollView {
                     viewport_height: 64px;
 
-                    TextField {
-                        id: simulation_tran_schedule;
-                        value: state.schedule;
-                        placeholder: "e.g. 1n, 1n";
-                        multiline: true;
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.schedule = value;
-                            state_changed(state);
+                    Row {
+                        spacing: 0px;
+
+                        TextField {
+                            font_size: 13px;
+                            id: simulation_tran_schedule;
+                            value: state.schedule;
+                            placeholder: "e.g. 1n, 1n";
+                            multiline: true;
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.schedule = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        // the gutter the scrollbar rides in
+                        Canvas {
+                            width: 12px;
+                            height: 1px;
                         }
                     }
                 }
@@ -207,22 +227,34 @@ component TransientParametersPanel {
                 spacing: 6px;
 
                 Label {
+                    font_size: 13px;
                     text: ".FFT directives (one per line)";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                 }
 
                 ScrollView {
                     viewport_height: 64px;
 
-                    TextField {
-                        id: simulation_tran_fft;
-                        value: state.fft;
-                        placeholder: "e.g. .FFT V(out) START=1n STOP=1u NP=1024";
-                        multiline: true;
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.fft = value;
-                            state_changed(state);
+                    Row {
+                        spacing: 0px;
+
+                        TextField {
+                            font_size: 13px;
+                            id: simulation_tran_fft;
+                            value: state.fft;
+                            placeholder: "e.g. .FFT V(out) START=1n STOP=1u NP=1024";
+                            multiline: true;
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.fft = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        // the gutter the scrollbar rides in
+                        Canvas {
+                            width: 12px;
+                            height: 1px;
                         }
                     }
                 }
@@ -240,22 +272,34 @@ component TransientParametersPanel {
                 spacing: 6px;
 
                 Label {
+                    font_size: 13px;
                     text: ".FOUR directives (one per line)";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                 }
 
                 ScrollView {
                     viewport_height: 64px;
 
-                    TextField {
-                        id: simulation_tran_four;
-                        value: state.four;
-                        placeholder: "e.g. .FOUR 1e6 V(out)";
-                        multiline: true;
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.four = value;
-                            state_changed(state);
+                    Row {
+                        spacing: 0px;
+
+                        TextField {
+                            font_size: 13px;
+                            id: simulation_tran_four;
+                            value: state.four;
+                            placeholder: "e.g. .FOUR 1e6 V(out)";
+                            multiline: true;
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.four = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        // the gutter the scrollbar rides in
+                        Canvas {
+                            width: 12px;
+                            height: 1px;
                         }
                     }
                 }
@@ -279,10 +323,20 @@ component TransientParametersPanel {
             }
         }
 
+        GroundReplaceRow {
+            id: simulation_tran_replace_ground;
+            checked: state.replace_ground;
+            on_toggled: {
+                state.replace_ground = value;
+                state_changed(state);
+            }
+        }
+
         PceSection {
             state: pce;
             print: pce_print;
             rows: pce_rows;
+            rows_empty: pce_rows_empty;
             on_state_changed: {
                 pce_changed(value);
             }
@@ -306,6 +360,9 @@ component TransientParametersPanel {
             on_row_edited: {
                 option_row_edited(1, key, row);
             }
+            on_choice_selected: {
+                option_choice_selected(1, key, index);
+            }
         }
 
         OptionPackageCard {
@@ -313,6 +370,9 @@ component TransientParametersPanel {
             rows: nonlin_tran_rows;
             on_row_edited: {
                 option_row_edited(3, key, row);
+            }
+            on_choice_selected: {
+                option_choice_selected(3, key, index);
             }
         }
 
@@ -322,6 +382,9 @@ component TransientParametersPanel {
             on_row_edited: {
                 option_row_edited(6, key, row);
             }
+            on_choice_selected: {
+                option_choice_selected(6, key, index);
+            }
         }
 
         OptionPackageCard {
@@ -329,6 +392,9 @@ component TransientParametersPanel {
             rows: fft_rows;
             on_row_edited: {
                 option_row_edited(11, key, row);
+            }
+            on_choice_selected: {
+                option_choice_selected(11, key, index);
             }
         }
 
@@ -338,14 +404,8 @@ component TransientParametersPanel {
             on_row_edited: {
                 option_row_edited(12, key, row);
             }
-        }
-
-        GroundReplaceRow {
-            id: simulation_tran_replace_ground;
-            checked: state.replace_ground;
-            on_toggled: {
-                state.replace_ground = value;
-                state_changed(state);
+            on_choice_selected: {
+                option_choice_selected(12, key, index);
             }
         }
     }

@@ -46,7 +46,12 @@ component SimulationParametersDialog {
     // the PCE state the transient and DC panels share
     inout property<PceUi> pce;
     in property<vector<PceRow>> pce_rows: [];
+    // whether the PCE table has no row, which shows its hint
+    in property<bool> pce_rows_empty: true;
     inout property<PrintUi> pce_print;
+
+    // whether the DC sweep table has no row, which shows its hint
+    in property<bool> dc_sweeps_empty: true;
 
     // the managed .OPTIONS package rows the analysis panels edit
     in property<vector<OptionRow>> timeint_rows: [];
@@ -76,8 +81,10 @@ component SimulationParametersDialog {
     signal pce_remove_row(string key);
     // the user changed the PCE row with this key
     signal pce_row_edited(string key, PceRow row);
-    // the user changed an option row of the package at this index
+    // the user changed an option row of the package at this index in its text editor
     signal option_row_edited(int package, string key, OptionRow row);
+    // the user picked a combo entry for an option row of the package at this index
+    signal option_choice_selected(int package, string key, int index);
 
     Column {
         padding: 16px;
@@ -89,11 +96,12 @@ component SimulationParametersDialog {
             Label {
                 text: "Xyce Simulation";
                 font_weight: Weight.semibold;
-                font_size: 18px;
+                font_size: 13px;
                 vertical_align: Align.center;
             }
 
             Label {
+                font_size: 13px;
                 horizontal_align: Align.stretch;
             }
         }
@@ -103,7 +111,7 @@ component SimulationParametersDialog {
             horizontal_align: Align.stretch;
 
             Panel {
-                padding: 12px;
+                padding: 0px;
                 corner_radius: 0px;
                 border_width: 0px;
                 vertical_align: Align.start;
@@ -122,6 +130,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_op;
                             text: ".OP";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -135,6 +144,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_op;
                             text: ".OP";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -148,6 +158,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_dc;
                             text: ".DC";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -161,6 +172,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_dc;
                             text: ".DC";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -181,6 +193,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_transient;
                             text: ".TRAN";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -194,6 +207,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_transient;
                             text: ".TRAN";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -214,6 +228,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_ac;
                             text: ".AC";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -227,6 +242,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_ac;
                             text: ".AC";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -240,6 +256,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_noise;
                             text: ".NOISE";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -253,6 +270,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_noise;
                             text: ".NOISE";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -266,6 +284,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_hb;
                             text: ".HB";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -279,6 +298,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_hb;
                             text: ".HB";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -292,6 +312,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_lin;
                             text: ".LIN";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #2F6FED33;
@@ -305,6 +326,7 @@ component SimulationParametersDialog {
                         Button {
                             id: simulation_tab_lin;
                             text: ".LIN";
+                            text_align: Align.start;
                             horizontal_align: Align.stretch;
                             border_width: 0px;
                             background: #00000000;
@@ -312,6 +334,12 @@ component SimulationParametersDialog {
                                 selected_tab = 6;
                             }
                         }
+                    }
+
+                    // the spacer holds the reference's 130px sidebar width
+                    Canvas {
+                        width: 130px;
+                        height: 1px;
                     }
                 }
             }
@@ -326,183 +354,209 @@ component SimulationParametersDialog {
 
             ScrollView {
                 id: simulation_parameters_page;
-                viewport_width: 620px;
+                viewport_width: 632px;
                 viewport_height: body_height;
                 scrollbar: Scrollbar.on;
                 horizontal_align: Align.stretch;
 
-                Column {
-                    spacing: 10px;
+                Row {
+                    spacing: 0px;
 
                     Column {
-                        visible: selected_tab == 0;
+                        spacing: 10px;
+                        horizontal_align: Align.stretch;
 
-                        OpParametersPanel {
-                        state: op;
-                        print: op_print;
-                        nonlin_rows: nonlin_rows;
-                        on_state_changed: {
-                            op = value;
+                        Column {
+                            visible: selected_tab == 0;
+
+                            OpParametersPanel {
+                                state: op;
+                                print: op_print;
+                                nonlin_rows: nonlin_rows;
+                                on_state_changed: {
+                                    op = value;
+                                }
+                                on_print_changed: {
+                                    op_print = value;
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
                         }
-                        on_print_changed: {
-                            op_print = value;
+
+                        Column {
+                            visible: selected_tab == 1;
+
+                            DcParametersPanel {
+                                state: dc;
+                                sweeps: dc_sweeps;
+                                sweeps_empty: dc_sweeps_empty;
+                                print: dc_print;
+                                nonlin_rows: nonlin_rows;
+                                pce: pce;
+                                pce_print: pce_print;
+                                pce_rows: pce_rows;
+                                pce_rows_empty: pce_rows_empty;
+                                on_state_changed: {
+                                    dc = value;
+                                }
+                                on_print_changed: {
+                                    dc_print = value;
+                                }
+                                on_add_sweep: {
+                                    add_sweep();
+                                }
+                                on_remove_sweep: {
+                                    remove_sweep(key);
+                                }
+                                on_sweep_edited: {
+                                    sweep_edited(key, row);
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                                on_pce_changed: {
+                                    pce = value;
+                                }
+                                on_pce_print_changed: {
+                                    pce_print = value;
+                                }
+                                on_pce_add_row: {
+                                    pce_add_row();
+                                }
+                                on_pce_remove_row: {
+                                    pce_remove_row(key);
+                                }
+                                on_pce_row_edited: {
+                                    pce_row_edited(key, row);
+                                }
+                            }
                         }
-                        on_option_row_edited: {
-                            option_row_edited(package, key, row);
+
+                        Column {
+                            visible: selected_tab == 2;
+
+                            TransientParametersPanel {
+                                state: tran;
+                                print: tran_print;
+                                timeint_rows: timeint_rows;
+                                nonlin_tran_rows: nonlin_tran_rows;
+                                loca_rows: loca_rows;
+                                fft_rows: fft_rows;
+                                output_rows: output_rows;
+                                pce: pce;
+                                pce_print: pce_print;
+                                pce_rows: pce_rows;
+                                pce_rows_empty: pce_rows_empty;
+                                on_state_changed: {
+                                    tran = value;
+                                }
+                                on_print_changed: {
+                                    tran_print = value;
+                                }
+                                on_pce_changed: {
+                                    pce = value;
+                                }
+                                on_pce_print_changed: {
+                                    pce_print = value;
+                                }
+                                on_pce_add_row: {
+                                    pce_add_row();
+                                }
+                                on_pce_remove_row: {
+                                    pce_remove_row(key);
+                                }
+                                on_pce_row_edited: {
+                                    pce_row_edited(key, row);
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
                         }
+
+                        Column {
+                            visible: selected_tab == 3;
+
+                            AcParametersPanel {
+                                state: ac;
+                                print: ac_print;
+                                linsol_ac_rows: linsol_ac_rows;
+                                on_state_changed: {
+                                    ac = value;
+                                }
+                                on_print_changed: {
+                                    ac_print = value;
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
+                        }
+
+                        Column {
+                            visible: selected_tab == 4;
+
+                            NoiseParametersPanel {
+                                state: noise;
+                                print: noise_print;
+                                on_state_changed: {
+                                    noise = value;
+                                }
+                                on_print_changed: {
+                                    noise_print = value;
+                                }
+                            }
+                        }
+
+                        Column {
+                            visible: selected_tab == 5;
+
+                            HbParametersPanel {
+                                state: hb;
+                                print: hb_print;
+                                on_state_changed: {
+                                    hb = value;
+                                }
+                                on_print_changed: {
+                                    hb_print = value;
+                                }
+                            }
+                        }
+
+                        Column {
+                            visible: selected_tab == 6;
+
+                            LinParametersPanel {
+                                state: lin;
+                                print: lin_print;
+                                on_state_changed: {
+                                    lin = value;
+                                }
+                                on_print_changed: {
+                                    lin_print = value;
+                                }
+                            }
                         }
                     }
 
-                    Column {
-                        visible: selected_tab == 1;
-
-                        DcParametersPanel {
-                        state: dc;
-                        sweeps: dc_sweeps;
-                        print: dc_print;
-                        nonlin_rows: nonlin_rows;
-                        pce: pce;
-                        pce_print: pce_print;
-                        pce_rows: pce_rows;
-                        on_state_changed: {
-                            dc = value;
-                        }
-                        on_print_changed: {
-                            dc_print = value;
-                        }
-                        on_add_sweep: {
-                            add_sweep();
-                        }
-                        on_remove_sweep: {
-                            remove_sweep(key);
-                        }
-                        on_sweep_edited: {
-                            sweep_edited(key, row);
-                        }
-                        on_option_row_edited: {
-                            option_row_edited(package, key, row);
-                        }
-                        on_pce_changed: {
-                            pce = value;
-                        }
-                        on_pce_print_changed: {
-                            pce_print = value;
-                        }
-                        on_pce_add_row: {
-                            pce_add_row();
-                        }
-                        on_pce_remove_row: {
-                            pce_remove_row(key);
-                        }
-                        on_pce_row_edited: {
-                            pce_row_edited(key, row);
-                        }
-                        }
-                    }
-
-                    Column {
-                        visible: selected_tab == 2;
-
-                        TransientParametersPanel {
-                        state: tran;
-                        print: tran_print;
-                        timeint_rows: timeint_rows;
-                        nonlin_tran_rows: nonlin_tran_rows;
-                        loca_rows: loca_rows;
-                        fft_rows: fft_rows;
-                        output_rows: output_rows;
-                        pce: pce;
-                        pce_print: pce_print;
-                        pce_rows: pce_rows;
-                        on_state_changed: {
-                            tran = value;
-                        }
-                        on_print_changed: {
-                            tran_print = value;
-                        }
-                        on_pce_changed: {
-                            pce = value;
-                        }
-                        on_pce_print_changed: {
-                            pce_print = value;
-                        }
-                        on_pce_add_row: {
-                            pce_add_row();
-                        }
-                        on_pce_remove_row: {
-                            pce_remove_row(key);
-                        }
-                        on_pce_row_edited: {
-                            pce_row_edited(key, row);
-                        }
-                        on_option_row_edited: {
-                            option_row_edited(package, key, row);
-                        }
-                        }
-                    }
-
-                    Column {
-                        visible: selected_tab == 3;
-
-                        AcParametersPanel {
-                        state: ac;
-                        print: ac_print;
-                        linsol_ac_rows: linsol_ac_rows;
-                        on_state_changed: {
-                            ac = value;
-                        }
-                        on_print_changed: {
-                            ac_print = value;
-                        }
-                        on_option_row_edited: {
-                            option_row_edited(package, key, row);
-                        }
-                        }
-                    }
-
-                    Column {
-                        visible: selected_tab == 4;
-
-                        NoiseParametersPanel {
-                        state: noise;
-                        print: noise_print;
-                        on_state_changed: {
-                            noise = value;
-                        }
-                        on_print_changed: {
-                            noise_print = value;
-                        }
-                        }
-                    }
-
-                    Column {
-                        visible: selected_tab == 5;
-
-                        HbParametersPanel {
-                        state: hb;
-                        print: hb_print;
-                        on_state_changed: {
-                            hb = value;
-                        }
-                        on_print_changed: {
-                            hb_print = value;
-                        }
-                        }
-                    }
-
-                    Column {
-                        visible: selected_tab == 6;
-
-                        LinParametersPanel {
-                        state: lin;
-                        print: lin_print;
-                        on_state_changed: {
-                            lin = value;
-                        }
-                        on_print_changed: {
-                            lin_print = value;
-                        }
-                        }
+                    // the gutter the page scrollbar rides in, so the bar never covers a card
+                    Canvas {
+                        width: 12px;
+                        height: 1px;
                     }
                 }
             }
@@ -510,6 +564,7 @@ component SimulationParametersDialog {
 
         // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
         Label {
+            font_size: 13px;
             id: simulation_parameters_error;
             text: error_message;
             foreground: #CC0000;

@@ -5,16 +5,19 @@ import simulation_ui;
 component OptionRowEditor {
     // the row the host list owns
     inout property<OptionRow> row_data;
-    // the row the user changed
+    // the row the user changed in its text editor
     signal edited(string key, OptionRow updated);
+    // the combo entry the user picked, which the host maps back to a value
+    signal choice_selected(string key, int index);
 
     Row {
         spacing: 8px;
         vertical_align: Align.center;
 
-        // the spacer fixes the option-key column the reference card uses
+        // the spacer pins the option-key column, which every row shares
         Column {
             spacing: 0px;
+            horizontal_align: Align.start;
 
             Canvas {
                 width: 200px;
@@ -22,33 +25,32 @@ component OptionRowEditor {
             }
 
             Label {
+                font_size: 13px;
                 text: row_data.key;
-                font_size: 12px;
             }
         }
 
+        // a documented key with choices is a combo, so no value has to be spelled by hand
+        ComboBox {
+            visible: row_data.choice_index >= 0;
+            items: row_data.choices;
+            selected: row_data.choice_index;
+            on_selection_changed: {
+                choice_selected(row_data.key, index);
+            }
+        }
+
+        // a free key or an unknown value keeps the text editor with the reference default as its hint
         TextField {
+            visible: row_data.choice_index < 0;
             value: row_data.value;
             placeholder: row_data.default_value;
+            font_size: 13px;
             horizontal_align: Align.stretch;
             on_changed: {
                 row_data.value = value;
                 edited(row_data.key, row_data);
             }
-        }
-
-        CheckBox {
-            checked: row_data.flag;
-            on_toggled: {
-                row_data.flag = checked;
-                edited(row_data.key, row_data);
-            }
-        }
-
-        Label {
-            text: "bare flag";
-            font_size: 11px;
-            vertical_align: Align.center;
         }
     }
 }

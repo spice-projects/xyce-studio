@@ -16,6 +16,8 @@ component PceSection {
     signal print_changed(PrintUi value);
     // the uncertain-parameter rows the dialog owns
     in property<vector<PceRow>> rows: [];
+    // whether the parameter table has no row, which shows the reference hint
+    in property<bool> rows_empty: true;
     // the user asked for a new parameter row
     signal add_row();
     // the user asked to remove the row with this key
@@ -23,139 +25,175 @@ component PceSection {
     // the user changed the row with this key
     signal row_edited(string key, PceRow row);
 
-    Column {
-        spacing: 10px;
+    Panel {
+        padding: 10px;
+        corner_radius: 6px;
+        background: #0000000A;
+        border_width: 1px;
+        vertical_align: Align.start;
 
-        Row {
-            spacing: 6px;
+        Column {
+            spacing: 10px;
 
-            CheckBox {
-                checked: state.enabled;
-                on_toggled: {
-                    state.enabled = checked;
-                    state_changed(state);
+            Row {
+                spacing: 6px;
+
+                CheckBox {
+                    checked: state.enabled;
+                    on_toggled: {
+                        state.enabled = checked;
+                        state_changed(state);
+                    }
+                }
+
+                Label {
+                    font_size: 13px;
+                    text: "Uncertainty quantification (.PCE)";
+                    font_weight: Weight.semibold;
+                    vertical_align: Align.center;
                 }
             }
 
-            Label {
-                text: "Enable PCE (.PCE)";
-                font_weight: Weight.semibold;
-                vertical_align: Align.center;
-            }
-        }
+            if state.enabled {
+                Column {
+                    spacing: 8px;
 
-        if state.enabled {
-            Column {
-                spacing: 8px;
+                    Row {
+                        spacing: 6px;
 
-                Row {
-                    spacing: 6px;
+                        CheckBox {
+                            checked: state.use_expression;
+                            on_toggled: {
+                                state.use_expression = checked;
+                                state_changed(state);
+                            }
+                        }
 
-                    CheckBox {
-                        checked: state.use_expression;
-                        on_toggled: {
-                            state.use_expression = checked;
-                            state_changed(state);
+                        Label {
+                            font_size: 13px;
+                            text: "Expression-based inputs (useExpr)";
+                            vertical_align: Align.center;
                         }
                     }
 
                     Label {
-                        text: "Use expression-based random inputs";
-                font_weight: Weight.semibold;
-                        vertical_align: Align.center;
+                        font_size: 12px;
+                        text: "When enabled, the random inputs come from expression operators such as AGAUSS and AUNIF, and the parameter table below is ignored (Xyce RG 2.1.27).";
+                        foreground: #888888;
                     }
-                }
 
-                if !state.use_expression {
+                    if !state.use_expression {
+                        Panel {
+                            padding: 10px;
+                            corner_radius: 6px;
+                            background: #FFFFFF33;
+                            border_width: 1px;
+                            vertical_align: Align.start;
+
+                            Column {
+                                spacing: 8px;
+
+                                Row {
+                                    spacing: 8px;
+
+                                    Label {
+                                        font_size: 13px;
+                                        text: "Uncertain parameters";
+                                        font_weight: Weight.semibold;
+                                        vertical_align: Align.center;
+                                    }
+
+                                    Label {
+                                        font_size: 13px;
+                                        horizontal_align: Align.stretch;
+                                    }
+
+                                    Button {
+                                        id: simulation_pce_add_parameter;
+                                        text: "Add Parameter";
+                                        on_clicked: {
+                                            add_row();
+                                        }
+                                    }
+                                }
+
+                                Label {
+                                    visible: rows_empty;
+                                    font_size: 12px;
+                                    text: "No parameters configured — use Add Parameter";
+                                    foreground: #888888;
+                                }
+
+                                Repeat(row in rows) {
+                                    PceRowEditor {
+                                        row_data: row;
+                                        on_edited: {
+                                            row_edited(key, updated);
+                                        }
+                                        on_remove_requested: {
+                                            remove_row(key);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Panel {
                         padding: 10px;
                         corner_radius: 6px;
-                        background: #00000010;
+                        background: #FFFFFF33;
                         border_width: 1px;
                         vertical_align: Align.start;
 
                         Column {
-                            spacing: 8px;
+                            spacing: 6px;
 
-                            Row {
-                                spacing: 8px;
-
-                                Label {
-                                    text: "Uncertain parameters";
-                                    font_weight: Weight.semibold;
-                                    vertical_align: Align.center;
-                                }
-
-                                Label {
-                                    horizontal_align: Align.stretch;
-                                }
-
-                                Button {
-                                    id: simulation_pce_add_parameter;
-                                    text: "Add Parameter";
-                                    on_clicked: {
-                                        add_row();
-                                    }
-                                }
+                            Label {
+                                font_size: 13px;
+                                text: ".OPTIONS PCES package (one key=value per line)";
+                                font_weight: Weight.semibold;
                             }
 
-                            Repeat(row in rows) {
-                                PceRowEditor {
-                                    row_data: row;
-                                    on_edited: {
-                                        row_edited(key, updated);
+                            ScrollView {
+                                viewport_height: 64px;
+
+                                Row {
+                                    spacing: 0px;
+
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_pce_options;
+                                        value: state.pces_options;
+                                        placeholder: "e.g. SEED=1";
+                                        multiline: true;
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.pces_options = value;
+                                            state_changed(state);
+                                        }
                                     }
-                                    on_remove_requested: {
-                                        remove_row(key);
+
+                                    // the gutter the scrollbar rides in
+                                    Canvas {
+                                        width: 12px;
+                                        height: 1px;
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                Panel {
-                    padding: 10px;
-                    corner_radius: 6px;
-                    background: #00000010;
-                    border_width: 1px;
-                    vertical_align: Align.start;
-
-                    Column {
-                        spacing: 6px;
-
-                        Label {
-                            text: ".OPTIONS PCES package (one key=value per line)";
-                font_weight: Weight.semibold;
+                    PrintSection {
+                        state: print;
+                        show_type: false;
+                        show_power: false;
+                        show_bjt: false;
+                        show_fet: false;
+                        format_items: ["(default)", "STD", "NOINDEX", "TECPLOT", "CSV", "GNUPLOT", "SPLOT"];
+                        on_state_changed: {
+                            print_changed(value);
                         }
-
-                        ScrollView {
-                            viewport_height: 64px;
-
-                            TextField {
-                                id: simulation_pce_options;
-                                value: state.pces_options;
-                                placeholder: "e.g. SEED=1";
-                                multiline: true;
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    state.pces_options = value;
-                                    state_changed(state);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                PrintSection {
-                    state: print;
-                    show_type: false;
-                    show_power: false;
-                    show_bjt: false;
-                    show_fet: false;
-                    format_items: ["(default)", "STD", "NOINDEX", "TECPLOT", "CSV", "GNUPLOT", "SPLOT"];
-                    on_state_changed: {
-                        print_changed(value);
                     }
                 }
             }

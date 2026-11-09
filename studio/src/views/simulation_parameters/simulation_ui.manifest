@@ -149,4 +149,6 @@ record OptionRow {
     value: string = "";
     flag: bool = false;
     default_value: string = "";
+    choices: vector<string>;
+    choice_index: int = -1;
 }

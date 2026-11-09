@@ -533,6 +533,45 @@ namespace
         return PceParameters(pce.use_expression, std::move(parameters), std::move(distribution_types), std::move(means), std::move(std_deviations), std::move(lower_bounds), std::move(upper_bounds), std::move(alphas), std::move(betas), std::move(pces_options), std::move(print_parameters));
     }
 
+    // the combo entries of one option row, where the head clears the option and a bare flag keeps its marker
+    [[nodiscard]] std::vector<std::string> option_choices(const OptionKeyInfo& info, bool bare_flag) {
+        // a free key with no flag renders as a text field, which carries no entries
+        std::vector<std::string> choices;
+        // a documented choice list and a bare flag are what a combo exists for
+        if (info.choices.empty() && !bare_flag)
+            return choices;
+        // the head clears the option, which is the reference's "<default>" entry
+        choices.push_back("<default>");
+        // a loaded bare flag keeps its marker so the user can keep or clear it
+        if (bare_flag)
+            choices.push_back("flag is set");
+        // the documented values follow the marker
+        choices.insert(choices.end(), info.choices.begin(), info.choices.end());
+        return choices;
+    }
+
+    // the entry one row's current value selects, where -1 keeps the text editor
+    [[nodiscard]] int option_choice_index(const std::vector<std::string>& choices, const std::string& value, bool bare_flag) {
+        // a row without entries renders as text
+        if (choices.empty())
+            return -1;
+        // a bare flag selects the marker, which sits right after the default
+        if (bare_flag)
+            return 1;
+        // the head clears the option
+        if (value.empty())
+            return 0;
+        // the documented value sits after the default and the possible marker
+        const std::size_t offset = choices.size() > 1 && choices[1] == "flag is set" ? 2 : 1;
+        for (std::size_t index = offset; index < choices.size(); ++index) {
+            // the matching entry is the one the combo shows
+            if (choices[index] == value)
+                return static_cast<int>(index);
+        }
+        // a value the guide does not list falls back to the text editor, so it is never lost
+        return -1;
+    }
+
     // build the editor rows of one managed .OPTIONS package
     [[nodiscard]] std::vector<albor::OptionRow> build_option_rows(OptionPackage package, const std::map<std::string, std::string>& loaded) {
         // the rows the card shows
@@ -549,12 +588,19 @@ namespace
             const bool present = found != loaded.end();
             // the value is empty for an absent key
             const std::string value = present ? found->second : "";
+            // the documentation decides the entries and the reference default
+            const OptionKeyInfo info = option_key_info(package, key);
+            // a present key with no value is a bare flag
+            const bool bare_flag = present && value.empty();
             // the row carries the key, value, bare-flag state and reference default
             albor::OptionRow row;
             row.key = key;
             row.value = value;
-            row.flag = present && value.empty();
-            row.default_value = option_key_info(package, key).default_value;
+            row.flag = bare_flag;
+            row.default_value = info.default_value;
+            // a documented choice list or a bare flag is what the combo shows
+            row.choices = option_choices(info, bare_flag);
+            row.choice_index = option_choice_index(row.choices, value, bare_flag);
             rows.push_back(std::move(row));
         }
         // a key the catalog does not document still shows, so no loaded option is hidden
@@ -572,6 +618,32 @@ namespace
             rows.push_back(std::move(row));
         }
         return rows;
+    }
+
+    // apply the combo entry the user picked to the row it belongs to
+    void select_option_choice(albor::OptionRow& row, int index) {
+        // an index outside the entries describes nothing
+        if (index < 0 || static_cast<std::size_t>(index) >= row.choices.size())
+            return;
+        // the entry the user picked
+        const std::string& choice = row.choices[static_cast<std::size_t>(index)];
+        // the head clears the option, which writes neither a value nor a flag
+        if (index == 0) {
+            row.value = "";
+            row.flag = false;
+        }
+        // the marker keeps the key without a value
+        else if (choice == "flag is set") {
+            row.value = "";
+            row.flag = true;
+        }
+        // a documented value is written verbatim
+        else {
+            row.value = choice;
+            row.flag = false;
+        }
+        // the combo shows the picked entry
+        row.choice_index = index;
     }
 
     // fold the editor rows of one package back into its option map
@@ -1190,7 +1262,7 @@ namespace
             first = "simulation_op_nodeset";
             break;
         case 1:
-            first = "simulation_dc_variable";
+            first = "simulation_dc_mode";
             fallback = "simulation_dc_table";
             break;
         case 2:
@@ -1309,17 +1381,20 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
         }
     }
     m_root->set_dc_sweeps(dc_sweeps);
+    m_root->set_dc_sweeps_empty(dc_sweeps.empty());
     // the table actions mutate the keyed list the view owns
     m_root->set_on_add_sweep([this] {
         std::vector<albor::DcSweepRow> rows = m_root->dc_sweeps();
         albor::DcSweepRow row;
         row.key = std::to_string(m_next_sweep_key++);
         rows.push_back(std::move(row));
+        m_root->set_dc_sweeps_empty(rows.empty());
         m_root->set_dc_sweeps(std::move(rows));
     });
     m_root->set_on_remove_sweep([this](std::string key) {
         std::vector<albor::DcSweepRow> rows = m_root->dc_sweeps();
         std::erase_if(rows, [&key](const albor::DcSweepRow& row) { return row.key == key; });
+        m_root->set_dc_sweeps_empty(rows.empty());
         m_root->set_dc_sweeps(std::move(rows));
     });
     m_root->set_on_sweep_edited([this](std::string key, albor::DcSweepRow row) {
@@ -1384,6 +1459,7 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     }
     m_root->set_pce(pce);
     m_root->set_pce_rows(pce_rows);
+    m_root->set_pce_rows_empty(pce_rows.empty());
     m_root->set_pce_print(pce_print);
     // the PCE table actions mutate the keyed list the view owns
     m_root->set_on_pce_add_row([this] {
@@ -1392,11 +1468,13 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
         row.key = std::to_string(m_next_pce_key++);
         row.type_index = 0;
         rows.push_back(std::move(row));
+        m_root->set_pce_rows_empty(rows.empty());
         m_root->set_pce_rows(std::move(rows));
     });
     m_root->set_on_pce_remove_row([this](std::string key) {
         std::vector<albor::PceRow> rows = m_root->pce_rows();
         std::erase_if(rows, [&key](const albor::PceRow& row) { return row.key == key; });
+        m_root->set_pce_rows_empty(rows.empty());
         m_root->set_pce_rows(std::move(rows));
     });
     m_root->set_on_pce_row_edited([this](std::string key, albor::PceRow row) {
@@ -1468,6 +1546,16 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
         for (albor::OptionRow& current_row : rows) {
             if (current_row.key == key)
                 current_row = row;
+        }
+        set_option_rows(package, std::move(rows));
+    });
+    // a picked combo entry writes the value the entry names, which the card maps back to its option
+    m_root->set_on_option_choice_selected([option_rows_for, set_option_rows](int package, std::string key, int index) {
+        std::vector<albor::OptionRow> rows = option_rows_for(package);
+        for (albor::OptionRow& current_row : rows) {
+            if (current_row.key != key)
+                continue;
+            select_option_choice(current_row, index);
         }
         set_option_rows(package, std::move(rows));
     });

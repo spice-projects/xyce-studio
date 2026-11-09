@@ -22,7 +22,7 @@ component NoiseParametersPanel {
 
         Label {
             text: "Noise Analysis (.NOISE)";
-                font_weight: Weight.semibold;
+            font_weight: Weight.semibold;
             font_size: 13px;
         }
 
@@ -49,69 +49,72 @@ component NoiseParametersPanel {
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    text: "Output node";
-                }
-                TextField {
-                    id: simulation_noise_output_node;
-                    value: state.output_node;
-                    placeholder: "e.g. V(out)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.output_node = value;
-                        state_changed(state);
+                    FormLabel {
+                        text: "Output node";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_noise_output_node;
+                        value: state.output_node;
+                        placeholder: "e.g. V(out)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.output_node = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    text: "Reference node";
-                }
-                TextField {
-                    id: simulation_noise_ref_node;
-                    value: state.ref_node;
-                    placeholder: "e.g. V(0)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.ref_node = value;
-                        state_changed(state);
+                    FormLabel {
+                        text: "Reference node";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_noise_ref_node;
+                        value: state.ref_node;
+                        placeholder: "e.g. V(0)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.ref_node = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    text: "Source name";
-                }
-                TextField {
-                    id: simulation_noise_source_name;
-                    value: state.source_name;
-                    placeholder: "noise source (e.g. R1)";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        state.source_name = value;
-                        state_changed(state);
+                    FormLabel {
+                        text: "Source name";
                     }
-                }
+                    TextField {
+                        font_size: 13px;
+                        id: simulation_noise_source_name;
+                        value: state.source_name;
+                        placeholder: "noise source (e.g. R1)";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            state.source_name = value;
+                            state_changed(state);
+                        }
+                    }
                 }
                 Row {
                     spacing: 8px;
                     vertical_align: Align.center;
-                FormLabel {
-                    text: "Sweep type";
-                }
-                ComboBox {
-                    id: simulation_noise_sweep_type;
-                    items: ["LIN", "DEC", "OCT", "DATA"];
-                    selected: state.sweep_type_index;
-                    on_selection_changed: {
-                        state.sweep_type_index = index;
-                        state_changed(state);
+                    FormLabel {
+                        text: "Sweep type";
                     }
-                }
+                    ComboBox {
+                        id: simulation_noise_sweep_type;
+                        items: ["LIN", "DEC", "OCT", "DATA"];
+                        selected: state.sweep_type_index;
+                        on_selection_changed: {
+                            state.sweep_type_index = index;
+                            state_changed(state);
+                        }
+                    }
                 }
             }
         }
@@ -132,53 +135,56 @@ component NoiseParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Start frequency";
-                        }
-                        TextField {
-                            id: simulation_noise_start_freq;
-                            value: state.start_freq;
-                            placeholder: "start frequency (e.g. 1)";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.start_freq = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Start frequency";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_start_freq;
+                                value: state.start_freq;
+                                placeholder: "start frequency (e.g. 1)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.start_freq = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "End frequency";
-                        }
-                        TextField {
-                            id: simulation_noise_end_freq;
-                            value: state.end_freq;
-                            placeholder: "end frequency (e.g. 10k)";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.end_freq = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "End frequency";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_end_freq;
+                                value: state.end_freq;
+                                placeholder: "end frequency (e.g. 10k)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.end_freq = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Number of points";
-                        }
-                        TextField {
-                            id: simulation_noise_num_points;
-                            value: state.num_points;
-                            placeholder: "points per decade/octave";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.num_points = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Number of points";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_num_points;
+                                value: state.num_points;
+                                placeholder: "points per decade/octave";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.num_points = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }
@@ -189,19 +195,20 @@ component NoiseParametersPanel {
                         Row {
                             spacing: 8px;
                             vertical_align: Align.center;
-                        FormLabel {
-                            text: "Data table";
-                        }
-                        TextField {
-                            id: simulation_noise_table;
-                            value: state.data_table;
-                            placeholder: "name of the data block to sweep";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.data_table = value;
-                                state_changed(state);
+                            FormLabel {
+                                text: "Data table";
                             }
-                        }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_table;
+                                value: state.data_table;
+                                placeholder: "name of the data block to sweep";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.data_table = value;
+                                    state_changed(state);
+                                }
+                            }
                         }
                     }
                 }
@@ -219,22 +226,34 @@ component NoiseParametersPanel {
                 spacing: 6px;
 
                 Label {
+                    font_size: 13px;
                     text: "Device noise operators (one per line: DNI|DNO node source)";
-                font_weight: Weight.semibold;
+                    font_weight: Weight.semibold;
                 }
 
                 ScrollView {
                     viewport_height: 64px;
 
-                    TextField {
-                        id: simulation_noise_device_noise;
-                        value: state.device_noise;
-                        placeholder: "e.g. DNI 2 R1";
-                        multiline: true;
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.device_noise = value;
-                            state_changed(state);
+                    Row {
+                        spacing: 0px;
+
+                        TextField {
+                            font_size: 13px;
+                            id: simulation_noise_device_noise;
+                            value: state.device_noise;
+                            placeholder: "e.g. DNI 2 R1";
+                            multiline: true;
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.device_noise = value;
+                                state_changed(state);
+                            }
+                        }
+
+                        // the gutter the scrollbar rides in
+                        Canvas {
+                            width: 12px;
+                            height: 1px;
                         }
                     }
                 }

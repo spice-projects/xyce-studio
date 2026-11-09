@@ -15,7 +15,7 @@ component PceRowEditor {
     Panel {
         padding: 8px;
         corner_radius: 4px;
-        background: #00000010;
+        background: #FFFFFF33;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -32,6 +32,7 @@ component PceRowEditor {
                 }
 
                 Label {
+                    font_size: 13px;
                     horizontal_align: Align.stretch;
                 }
 
@@ -50,6 +51,7 @@ component PceRowEditor {
                     text: "Parameter";
                 }
                 TextField {
+                    font_size: 13px;
                     value: row_data.name;
                     placeholder: "e.g. R1";
                     horizontal_align: Align.stretch;
@@ -97,6 +99,7 @@ component PceRowEditor {
                 }
 
                 TextField {
+                    font_size: 13px;
                     value: row_data.first_value;
                     placeholder: "e.g. 1K";
                     horizontal_align: Align.stretch;
@@ -128,6 +131,7 @@ component PceRowEditor {
                 }
 
                 TextField {
+                    font_size: 13px;
                     value: row_data.second_value;
                     placeholder: "e.g. 5K";
                     horizontal_align: Align.stretch;

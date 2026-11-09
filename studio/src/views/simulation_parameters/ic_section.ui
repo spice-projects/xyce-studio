@@ -11,7 +11,7 @@ component IcSection {
     Panel {
         padding: 10px;
         corner_radius: 6px;
-        background: #00000010;
+        background: #0000000A;
         border_width: 1px;
         vertical_align: Align.start;
 
@@ -19,6 +19,7 @@ component IcSection {
             spacing: 6px;
 
             Label {
+                font_size: 13px;
                 text: "Initial Conditions (.IC / .DCVOLT)";
                 font_weight: Weight.semibold;
             }
@@ -29,6 +30,7 @@ component IcSection {
             }
 
             TextField {
+                font_size: 13px;
                 value: text;
                 placeholder: "e.g. V(out)=1.0 V(in)=0";
                 horizontal_align: Align.stretch;
