@@ -64,8 +64,6 @@ component SimulationParametersDialog {
 
     // the validation message, whose row keeps its place in the layout
     in property<string> error_message: "";
-    // the height the scroll page takes between the header and the footer, which the host fits to the window
-    in property<float> body_height: 420.0;
 
     signal accepted();
     signal dismissed();
@@ -109,6 +107,7 @@ component SimulationParametersDialog {
         Row {
             spacing: 0px;
             horizontal_align: Align.stretch;
+            vertical_align: Align.stretch;
 
             Panel {
                 padding: 0px;
@@ -354,10 +353,9 @@ component SimulationParametersDialog {
 
             ScrollView {
                 id: simulation_parameters_page;
-                viewport_width: 632px;
-                viewport_height: body_height;
                 scrollbar: Scrollbar.on;
                 horizontal_align: Align.stretch;
+                vertical_align: Align.stretch;
 
                 Row {
                     spacing: 0px;

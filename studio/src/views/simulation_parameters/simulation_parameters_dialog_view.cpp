@@ -4,7 +4,6 @@
 #include <array>
 #include <cctype>
 #include <charconv>
-#include <limits>
 #include <map>
 #include <optional>
 #include <set>
@@ -50,10 +49,10 @@
 
 namespace
 {
-    // the size the simulation dialog window is created with, before it is fitted to its page
+    // the size the simulation dialog window is created with, which is the reference card size
     constexpr float DIALOG_WIDTH = 820.0f;
 
-    // the height the dialog keeps, because the page inside it takes whatever the chrome leaves
+    // the height the dialog keeps, because the page fills whatever the chrome leaves
     constexpr float DIALOG_HEIGHT = 600.0f;
 
     // the DC sweep modes in combo order, which the selected index names
@@ -1294,24 +1293,6 @@ namespace
         }
     }
 
-    // measure the dialog free of a window, which reports the width its fixed width page needs
-    [[nodiscard]] float measure_dialog_width(albor::SimulationParametersDialog& root) {
-        albor::Size natural{};
-        root.measure(albor::SizeConstraints::unconstrained(), natural);
-        return natural.width;
-    }
-
-    // grow the scroll page so the dialog body fills the height the window leaves between its fixed rows
-    void fit_page_height(albor::SimulationParametersDialog& root, float height) {
-        // measuring the dialog reports the rows around the page, whatever height the page currently takes
-        albor::Size natural{};
-        root.measure(albor::SizeConstraints::unconstrained(), natural);
-        // the header, the spacing, the error row and the footer are everything the page is not
-        const float chrome = natural.height - root.body_height();
-        // the page takes what the window leaves, which pins the footer to the bottom edge
-        root.set_body_height(std::max(1.0f, height - chrome));
-    }
-
 } // namespace
 
 studio::AlborSimulationParametersDialogView::AlborSimulationParametersDialogView(albor::Application& application, albor::WindowHandle parent) :
@@ -1561,11 +1542,6 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     });
     // clear any stale validation feedback
     m_root->set_error_message("");
-    // the dialog hugs its page, so the fixed width body row leaves no empty band
-    if (albor::Window* window = m_app->window(m_handle))
-        window->set_size(albor::Size{measure_dialog_width(*m_root), DIALOG_HEIGHT});
-    // the page fills the window, so the footer sits on the bottom edge
-    fit_page_height(*m_root, DIALOG_HEIGHT);
     // forward the dialog actions to this view
     m_root->set_on_accepted([this] { accept(); });
     m_root->set_on_dismissed([this] { dismiss(); });
@@ -1597,15 +1573,8 @@ void studio::AlborSimulationParametersDialogView::show_error(std::string_view me
     // without a live facade there is nothing to update
     if (m_root == nullptr)
         return;
-    // carry the message the validation produced
+    // carry the message the validation produced, which the page folds into its height
     m_root->set_error_message(std::string(message));
-    // the message settles on the next frame, so the page gives up the height it takes then
-    m_app->post([this] {
-        if (m_handle.valid() && m_root != nullptr) {
-            if (const albor::Window* window = m_app->window(m_handle))
-                fit_page_height(*m_root, window->metrics().logical_size.height);
-        }
-    });
 }
 
 bool studio::AlborSimulationParametersDialogView::is_open() const { return m_handle.valid(); }
