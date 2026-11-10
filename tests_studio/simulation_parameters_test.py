@@ -100,6 +100,26 @@ class SimulationParametersDialogChecks(unittest.TestCase):
                 expect(error).to_have_name("A DC sweep requires at least one sweep variable")
                 self.assertTrue(app.get_by_id("simulation_parameters_ok").exists())
 
+    def test_sidebar_lists_every_analysis_and_switches_pages(self) -> None:
+        # arrange: a netlist carrying one AC analysis, which opens the dialog on the AC tab
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / "ac.cir"
+            netlist.write_text("V1 1 0 AC 1\n.AC DEC 10 1 1e6\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
+                # step 1: open the dialog and wait for the seeded AC page
+                app.get_by_id("main_configure").click()
+                app.get_by_id("simulation_ac_points").wait_for_exists()
+                # assert: every analysis title is rendered in the sidebar
+                tree = app.tree_text()
+                tabs = (("op", ".OP"), ("dc", ".DC"), ("transient", ".TRAN"), ("ac", ".AC"), ("noise", ".NOISE"), ("hb", ".HB"), ("lin", ".LIN"))
+                for suffix, title in tabs:
+                    self.assertIn(f"tab_item simulation_tab_{suffix} {title}", tree)
+                # step 2: switch to the dc analysis through its sidebar page
+                app.get_by_id("simulation_tab_dc").click()
+                # assert: the dc panel replaces the ac panel
+                app.get_by_id("simulation_dc_add_sweep").wait_for_exists()
+
     def test_ac_netlist_seeds_the_ac_tab_and_validates_the_points(self) -> None:
         # arrange: a netlist carrying one AC analysis
         with tempfile.TemporaryDirectory() as tmp:

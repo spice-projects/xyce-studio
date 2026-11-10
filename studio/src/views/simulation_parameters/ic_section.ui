@@ -9,10 +9,6 @@ component IcSection {
     signal text_changed(string value);
 
     Panel {
-        padding: 10px;
-        corner_radius: 6px;
-        background: #0000000A;
-        border_width: 1px;
         vertical_align: Align.start;
 
         Column {
@@ -29,13 +25,18 @@ component IcSection {
                 font_size: 12px;
             }
 
-            TextField {
-                font_size: 13px;
-                value: text;
-                placeholder: "e.g. V(out)=1.0 V(in)=0";
-                horizontal_align: Align.stretch;
-                on_changed: {
-                    text_changed(value);
+            SizedBox {
+                width: 508px;
+                horizontal_align: Align.start;
+
+                TextField {
+                    font_size: 13px;
+                    value: text;
+                    placeholder: "e.g. V(out)=1.0 V(in)=0";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        text_changed(value);
+                    }
                 }
             }
         }

@@ -26,10 +26,6 @@ component PceSection {
     signal row_edited(string key, PceRow row);
 
     Panel {
-        padding: 10px;
-        corner_radius: 6px;
-        background: #0000000A;
-        border_width: 1px;
         vertical_align: Align.start;
 
         Column {
@@ -155,29 +151,21 @@ component PceSection {
                                 font_weight: Weight.semibold;
                             }
 
-                            ScrollView {
-                                viewport_height: 64px;
+                            SizedBox {
+                                width: 498px;
+                                height: 64px;
+                                horizontal_align: Align.start;
 
-                                Row {
-                                    spacing: 0px;
-
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_pce_options;
-                                        value: state.pces_options;
-                                        placeholder: "e.g. SEED=1";
-                                        multiline: true;
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.pces_options = value;
-                                            state_changed(state);
-                                        }
-                                    }
-
-                                    // the gutter the scrollbar rides in
-                                    Canvas {
-                                        width: 12px;
-                                        height: 1px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_pce_options;
+                                    value: state.pces_options;
+                                    placeholder: "e.g. SEED=1";
+                                    multiline: true;
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.pces_options = value;
+                                        state_changed(state);
                                     }
                                 }
                             }
@@ -185,6 +173,7 @@ component PceSection {
                     }
 
                     PrintSection {
+                        level: 2;
                         state: print;
                         show_type: false;
                         show_power: false;

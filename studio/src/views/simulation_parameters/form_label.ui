@@ -3,16 +3,10 @@
 component FormLabel {
     // the caption the row shows
     in property<string> text: "";
+    in property<float> min_width: 200px;
 
-    Column {
-        spacing: 0px;
-        horizontal_align: Align.start;
-
-        // the spacer fixes the caption column, which every field row shares
-        Canvas {
-            width: 120px;
-            height: 1px;
-        }
+    SizedBox {
+        min_width: min_width;
 
         Label {
             font_size: 13px;

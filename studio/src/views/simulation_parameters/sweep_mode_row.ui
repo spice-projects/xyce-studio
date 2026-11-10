@@ -20,11 +20,15 @@ component SweepModeRow {
             FormLabel {
                 text: label;
             }
-            ComboBox {
-                items: items;
-                selected: selected;
-                on_selection_changed: {
-                    selection_changed(index);
+            SizedBox {
+                width: 300px;
+                ComboBox {
+                    horizontal_align: Align.stretch;
+                    items: items;
+                    selected: selected;
+                    on_selection_changed: {
+                        selection_changed(index);
+                    }
                 }
             }
         }

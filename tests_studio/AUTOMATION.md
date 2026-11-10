@@ -183,7 +183,7 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
 - The dialog ids are `simulation_op_*`, `simulation_dc_*`, `simulation_tran_*`,
   `simulation_ac_*`, `simulation_noise_*`, `simulation_hb_*` and
   `simulation_lin_*` for the seven analysis tabs, with
-  `simulation_parameters_page` for the scrolling form, and
+  `simulation_parameters_page` for the transient panel's scrolling form, and
   `simulation_parameters_error`, `simulation_parameters_ok` and
   `simulation_parameters_cancel` for the footer. The window chrome owns the
   close action, so there is no in-form close button. The DC sweep table adds
@@ -201,7 +201,7 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
   `print_section.ui`, `pce_section.ui` and `option_package_card.ui` hold the
   rows more than one analysis uses.
 - The tab order is `.OP`, `.DC`, `.TRAN`, `.AC`, `.NOISE`, `.HB`, `.LIN`, and
-  the sidebar buttons carry the `simulation_tab_*` ids; click
+  the sidebar tab pages carry the `simulation_tab_*` ids; click
   `simulation_tab_dc` to switch to the DC page.
 - A validation failure keeps the dialog open and writes its message into the
   error label, so the assertion reads `simulation_parameters_error` by name.

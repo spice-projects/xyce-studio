@@ -26,215 +26,212 @@ component HbParametersPanel {
             font_size: 13px;
         }
 
-        PrintSection {
-            state: print;
-            type_items: ["HB", "HB_FD", "HB_TD"];
-            show_power: false;
-            show_bjt: false;
-            show_fet: false;
-            on_state_changed: {
-                print_changed(value);
-            }
-        }
-
-        Panel {
-            padding: 10px;
-            corner_radius: 6px;
-            background: #00000010;
-            border_width: 1px;
-            vertical_align: Align.start;
+        ScrollView {
+            scrollbar: Scrollbar.as_needed;
+            vertical_align: Align.stretch;
 
             Column {
-                spacing: 8px;
-                Row {
-                    spacing: 8px;
-                    vertical_align: Align.center;
-                    FormLabel {
-                        text: "Frequencies";
-                    }
-                    TextField {
-                        font_size: 13px;
-                        id: simulation_hb_frequencies;
-                        value: state.frequencies;
-                        placeholder: "space-separated fundamental frequencies";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.frequencies = value;
-                            state_changed(state);
-                        }
+                spacing: 10px;
+
+                PrintSection {
+                    level: 1;
+                    state: print;
+                    type_items: ["HB", "HB_FD", "HB_TD"];
+                    show_power: false;
+                    show_bjt: false;
+                    show_fet: false;
+                    on_state_changed: {
+                        print_changed(value);
                     }
                 }
-                Row {
-                    spacing: 8px;
-                    vertical_align: Align.center;
-                    FormLabel {
-                        text: "Harmonics / NUMFREQ";
-                    }
-                    TextField {
-                        font_size: 13px;
-                        id: simulation_hb_harmonics;
-                        value: state.harmonics;
-                        placeholder: "comma-separated integers";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.harmonics = value;
-                            state_changed(state);
-                        }
-                    }
-                }
-                Row {
-                    spacing: 8px;
-                    vertical_align: Align.center;
-                    FormLabel {
-                        text: "TAHB";
-                    }
-                    TextField {
-                        font_size: 13px;
-                        id: simulation_hb_tahb;
-                        value: state.tahb;
-                        placeholder: "e.g. 0 1 2 5 10 20";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.tahb = value;
-                            state_changed(state);
-                        }
-                    }
-                }
-                Row {
-                    spacing: 8px;
-                    vertical_align: Align.center;
-                    FormLabel {
-                        text: "SELECTHARMS";
-                    }
-                    TextField {
-                        font_size: 13px;
-                        id: simulation_hb_selectharms;
-                        value: state.selectharms;
-                        placeholder: "e.g. ALL 1 2 3 5 10";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.selectharms = value;
-                            state_changed(state);
-                        }
-                    }
-                }
-                Row {
-                    spacing: 8px;
-                    vertical_align: Align.center;
-                    FormLabel {
-                        text: "Startup periods";
-                    }
-                    TextField {
-                        font_size: 13px;
-                        id: simulation_hb_startup_periods;
-                        value: state.startup_periods;
-                        placeholder: "startup periods";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            state.startup_periods = value;
-                            state_changed(state);
-                        }
-                    }
-                }
-            }
-        }
 
-        Panel {
-            padding: 10px;
-            corner_radius: 6px;
-            background: #00000010;
-            border_width: 1px;
-            vertical_align: Align.start;
+                Panel {
+                    vertical_align: Align.start;
 
-            Column {
-                spacing: 6px;
-
-                Label {
-                    font_size: 13px;
-                    text: "Nonlinear solver options (one key=value per line)";
-                    font_weight: Weight.semibold;
-                }
-
-                ScrollView {
-                    viewport_height: 64px;
-
-                    Row {
-                        spacing: 0px;
-
-                        TextField {
-                            font_size: 13px;
-                            id: simulation_hb_nonlin_options;
-                            value: state.nonlin_options;
-                            placeholder: "e.g. RHOMAX=1.0";
-                            multiline: true;
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.nonlin_options = value;
-                                state_changed(state);
+                    Column {
+                        spacing: 8px;
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                            FormLabel {
+                                text: "Frequencies";
+                            }
+                            SizedBox {
+                                width: 300px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_hb_frequencies;
+                                    value: state.frequencies;
+                                    placeholder: "space-separated fundamental frequencies";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.frequencies = value;
+                                        state_changed(state);
+                                    }
+                                }
                             }
                         }
-
-                        // the gutter the scrollbar rides in
-                        Canvas {
-                            width: 12px;
-                            height: 1px;
-                        }
-                    }
-                }
-            }
-        }
-
-        Panel {
-            padding: 10px;
-            corner_radius: 6px;
-            background: #00000010;
-            border_width: 1px;
-            vertical_align: Align.start;
-
-            Column {
-                spacing: 6px;
-
-                Label {
-                    font_size: 13px;
-                    text: "Linear solver options (one key=value per line)";
-                    font_weight: Weight.semibold;
-                }
-
-                ScrollView {
-                    viewport_height: 64px;
-
-                    Row {
-                        spacing: 0px;
-
-                        TextField {
-                            font_size: 13px;
-                            id: simulation_hb_linsol_options;
-                            value: state.linsol_options;
-                            placeholder: "e.g. METHOD=KLU";
-                            multiline: true;
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                state.linsol_options = value;
-                                state_changed(state);
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                            FormLabel {
+                                text: "Harmonics / NUMFREQ";
+                            }
+                            SizedBox {
+                                width: 300px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_hb_harmonics;
+                                    value: state.harmonics;
+                                    placeholder: "comma-separated integers";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.harmonics = value;
+                                        state_changed(state);
+                                    }
+                                }
                             }
                         }
-
-                        // the gutter the scrollbar rides in
-                        Canvas {
-                            width: 12px;
-                            height: 1px;
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                            FormLabel {
+                                text: "TAHB";
+                            }
+                            SizedBox {
+                                width: 300px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_hb_tahb;
+                                    value: state.tahb;
+                                    placeholder: "e.g. 0 1 2 5 10 20";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.tahb = value;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                            FormLabel {
+                                text: "SELECTHARMS";
+                            }
+                            SizedBox {
+                                width: 300px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_hb_selectharms;
+                                    value: state.selectharms;
+                                    placeholder: "e.g. ALL 1 2 3 5 10";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.selectharms = value;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 8px;
+                            vertical_align: Align.center;
+                            FormLabel {
+                                text: "Startup periods";
+                            }
+                            SizedBox {
+                                width: 300px;
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_hb_startup_periods;
+                                    value: state.startup_periods;
+                                    placeholder: "startup periods";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.startup_periods = value;
+                                        state_changed(state);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        GroundReplaceRow {
-            id: simulation_hb_replace_ground;
-            checked: state.replace_ground;
-            on_toggled: {
-                state.replace_ground = value;
-                state_changed(state);
+                Panel {
+                    vertical_align: Align.start;
+
+                    Column {
+                        spacing: 6px;
+
+                        Label {
+                            font_size: 13px;
+                            text: "Nonlinear solver options (one key=value per line)";
+                            font_weight: Weight.semibold;
+                        }
+
+                        SizedBox {
+                            width: 508px;
+                            height: 64px;
+                            horizontal_align: Align.start;
+
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_nonlin_options;
+                                value: state.nonlin_options;
+                                placeholder: "e.g. RHOMAX=1.0";
+                                multiline: true;
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.nonlin_options = value;
+                                    state_changed(state);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Panel {
+                    vertical_align: Align.start;
+
+                    Column {
+                        spacing: 6px;
+
+                        Label {
+                            font_size: 13px;
+                            text: "Linear solver options (one key=value per line)";
+                            font_weight: Weight.semibold;
+                        }
+
+                        SizedBox {
+                            width: 508px;
+                            height: 64px;
+                            horizontal_align: Align.start;
+
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_linsol_options;
+                                value: state.linsol_options;
+                                placeholder: "e.g. METHOD=KLU";
+                                multiline: true;
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.linsol_options = value;
+                                    state_changed(state);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                GroundReplaceRow {
+                    id: simulation_hb_replace_ground;
+                    checked: state.replace_ground;
+                    on_toggled: {
+                        state.replace_ground = value;
+                        state_changed(state);
+                    }
+                }
             }
         }
     }

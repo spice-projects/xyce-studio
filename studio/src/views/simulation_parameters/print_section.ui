@@ -5,6 +5,8 @@ import simulation_ui;
 import "form_label.ui";
 
 component PrintSection {
+    // the panel indentation Level
+    in property<int> level;
     // the print state the host analysis owns
     inout property<PrintUi> state;
     // the print types the analysis offers, where the selected index names one
@@ -23,10 +25,6 @@ component PrintSection {
     signal state_changed(PrintUi value);
 
     Panel {
-        padding: 10px;
-        corner_radius: 6px;
-        background: #0000000A;
-        border_width: 1px;
         vertical_align: Align.start;
 
         Column {
@@ -52,14 +50,8 @@ component PrintSection {
             }
 
             if state.enabled {
-                Row {
-                    spacing: 0px;
-
-                    // the reference indents the enabled controls under their toggle
-                    Canvas {
-                        width: 24px;
-                        height: 1px;
-                    }
+                Padding {
+                    padding: Insets { left: 24px };
 
                     Column {
                         spacing: 8px;
@@ -73,13 +65,18 @@ component PrintSection {
                                     vertical_align: Align.center;
                                     FormLabel {
                                         text: "Print type";
+                                        min_width: 200.0 - 24.0 - (level - 1) * 10.0;
                                     }
-                                    ComboBox {
-                                        items: type_items;
-                                        selected: state.type_index;
-                                        on_selection_changed: {
-                                            state.type_index = index;
-                                            state_changed(state);
+                                    SizedBox {
+                                        width: 300px;
+                                        ComboBox {
+                                            horizontal_align: Align.stretch;
+                                            items: type_items;
+                                            selected: state.type_index;
+                                            on_selection_changed: {
+                                                state.type_index = index;
+                                                state_changed(state);
+                                            }
                                         }
                                     }
                                 }
@@ -193,15 +190,19 @@ component PrintSection {
                                 vertical_align: Align.center;
                                 FormLabel {
                                     text: "Additional variables";
+                                    min_width: 200.0 - 24.0 - (level - 1) * 10.0;
                                 }
-                                TextField {
-                                    font_size: 13px;
-                                    value: state.specific_variables;
-                                    placeholder: "e.g. V(out) V(in)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.specific_variables = value;
-                                        state_changed(state);
+                                SizedBox {
+                                    width: 300px;
+                                    TextField {
+                                        font_size: 13px;
+                                        value: state.specific_variables;
+                                        placeholder: "e.g. V(out) V(in)";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.specific_variables = value;
+                                            state_changed(state);
+                                        }
                                     }
                                 }
                             }
@@ -210,13 +211,18 @@ component PrintSection {
                                 vertical_align: Align.center;
                                 FormLabel {
                                     text: "Format";
+                                    min_width: 200.0 - 24.0 - (level - 1) * 10.0;
                                 }
-                                ComboBox {
-                                    items: format_items;
-                                    selected: state.format_index;
-                                    on_selection_changed: {
-                                        state.format_index = index;
-                                        state_changed(state);
+                                SizedBox {
+                                    width: 300px;
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        items: format_items;
+                                        selected: state.format_index;
+                                        on_selection_changed: {
+                                            state.format_index = index;
+                                            state_changed(state);
+                                        }
                                     }
                                 }
                             }
@@ -225,15 +231,19 @@ component PrintSection {
                                 vertical_align: Align.center;
                                 FormLabel {
                                     text: "Output file";
+                                    min_width: 200.0 - 24.0 - (level - 1) * 10.0;
                                 }
-                                TextField {
-                                    font_size: 13px;
-                                    value: state.output_file;
-                                    placeholder: "optional output file path";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.output_file = value;
-                                        state_changed(state);
+                                SizedBox {
+                                    width: 300px;
+                                    TextField {
+                                        font_size: 13px;
+                                        value: state.output_file;
+                                        placeholder: "optional output file path";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.output_file = value;
+                                            state_changed(state);
+                                        }
                                     }
                                 }
                             }
@@ -247,15 +257,19 @@ component PrintSection {
                                     vertical_align: Align.center;
                                     FormLabel {
                                         text: "Extra options";
+                                        min_width: 200.0 - 24.0 - (level - 1) * 10.0;
                                     }
-                                    TextField {
-                                        font_size: 13px;
-                                        value: state.extra_options;
-                                        placeholder: "e.g. WIDTH=20 PRECISION=12";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.extra_options = value;
-                                            state_changed(state);
+                                    SizedBox {
+                                        width: 300px;
+                                        TextField {
+                                            font_size: 13px;
+                                            value: state.extra_options;
+                                            placeholder: "e.g. WIDTH=20 PRECISION=12";
+                                            horizontal_align: Align.stretch;
+                                            on_changed: {
+                                                state.extra_options = value;
+                                                state_changed(state);
+                                            }
                                         }
                                     }
                                 }

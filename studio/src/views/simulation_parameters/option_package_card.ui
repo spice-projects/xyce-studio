@@ -15,10 +15,6 @@ component OptionPackageCard {
     signal choice_selected(string key, int index);
 
     Panel {
-        padding: 10px;
-        corner_radius: 6px;
-        background: #0000000A;
-        border_width: 1px;
         vertical_align: Align.start;
 
         Column {

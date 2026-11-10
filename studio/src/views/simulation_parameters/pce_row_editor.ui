@@ -49,15 +49,19 @@ component PceRowEditor {
                 vertical_align: Align.center;
                 FormLabel {
                     text: "Parameter";
+                    min_width: 180px;
                 }
-                TextField {
-                    font_size: 13px;
-                    value: row_data.name;
-                    placeholder: "e.g. R1";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        row_data.name = value;
-                        edited(row_data.key, row_data);
+                SizedBox {
+                    width: 300px;
+                    TextField {
+                        font_size: 13px;
+                        value: row_data.name;
+                        placeholder: "e.g. R1";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            row_data.name = value;
+                            edited(row_data.key, row_data);
+                        }
                     }
                 }
             }
@@ -67,13 +71,18 @@ component PceRowEditor {
                 vertical_align: Align.center;
                 FormLabel {
                     text: "Distribution";
+                    min_width: 180px;
                 }
-                ComboBox {
-                    items: ["uniform", "normal", "gamma"];
-                    selected: row_data.type_index;
-                    on_selection_changed: {
-                        row_data.type_index = index;
-                        edited(row_data.key, row_data);
+                SizedBox {
+                    width: 300px;
+                    ComboBox {
+                        horizontal_align: Align.stretch;
+                        items: ["uniform", "normal", "gamma"];
+                        selected: row_data.type_index;
+                        on_selection_changed: {
+                            row_data.type_index = index;
+                            edited(row_data.key, row_data);
+                        }
                     }
                 }
             }
@@ -85,27 +94,33 @@ component PceRowEditor {
                 if row_data.type_index == 0 {
                     FormLabel {
                         text: "Lower bound";
+                        min_width: 180px;
                     }
                 }
                 if row_data.type_index == 1 {
                     FormLabel {
                         text: "Mean";
+                        min_width: 180px;
                     }
                 }
                 if row_data.type_index == 2 {
                     FormLabel {
                         text: "Alpha";
+                        min_width: 180px;
                     }
                 }
 
-                TextField {
-                    font_size: 13px;
-                    value: row_data.first_value;
-                    placeholder: "e.g. 1K";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        row_data.first_value = value;
-                        edited(row_data.key, row_data);
+                SizedBox {
+                    width: 300px;
+                    TextField {
+                        font_size: 13px;
+                        value: row_data.first_value;
+                        placeholder: "e.g. 1K";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            row_data.first_value = value;
+                            edited(row_data.key, row_data);
+                        }
                     }
                 }
             }
@@ -117,27 +132,33 @@ component PceRowEditor {
                 if row_data.type_index == 0 {
                     FormLabel {
                         text: "Upper bound";
+                        min_width: 180px;
                     }
                 }
                 if row_data.type_index == 1 {
                     FormLabel {
                         text: "Std deviation";
+                        min_width: 180px;
                     }
                 }
                 if row_data.type_index == 2 {
                     FormLabel {
                         text: "Beta";
+                        min_width: 180px;
                     }
                 }
 
-                TextField {
-                    font_size: 13px;
-                    value: row_data.second_value;
-                    placeholder: "e.g. 5K";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        row_data.second_value = value;
-                        edited(row_data.key, row_data);
+                SizedBox {
+                    width: 300px;
+                    TextField {
+                        font_size: 13px;
+                        value: row_data.second_value;
+                        placeholder: "e.g. 5K";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            row_data.second_value = value;
+                            edited(row_data.key, row_data);
+                        }
                     }
                 }
             }

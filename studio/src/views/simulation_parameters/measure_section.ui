@@ -11,10 +11,6 @@ component MeasureSection {
     signal text_changed(string value);
 
     Panel {
-        padding: 10px;
-        corner_radius: 6px;
-        background: #00000010;
-        border_width: 1px;
         vertical_align: Align.start;
 
         Column {
@@ -26,27 +22,19 @@ component MeasureSection {
                 font_weight: Weight.semibold;
             }
 
-            ScrollView {
-                viewport_height: 64px;
+            SizedBox {
+                width: 508px;
+                height: 64px;
+                horizontal_align: Align.start;
 
-                Row {
-                    spacing: 0px;
-
-                    TextField {
-                        font_size: 13px;
-                        value: text;
-                        placeholder: placeholder;
-                        multiline: true;
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            text_changed(value);
-                        }
-                    }
-
-                    // the gutter the scrollbar rides in
-                    Canvas {
-                        width: 12px;
-                        height: 1px;
+                TextField {
+                    font_size: 13px;
+                    value: text;
+                    placeholder: placeholder;
+                    multiline: true;
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        text_changed(value);
                     }
                 }
             }

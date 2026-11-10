@@ -1330,6 +1330,9 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     }
     // theme the dialog from the same system appearance as the shell
     m_theme = install_theme(*m_app, m_handle);
+    // the system accent the sidebar highlights the selected analysis with
+    if (albor::Window* window = m_app->window(m_handle))
+        m_root->set_accent_color(window->system_appearance().accent);
     // the tab the configured analysis lives on is the one the dialog opens
     m_root->set_selected_tab(tab_for(current));
     // every panel starts from its own record, so switching analyses never loses a value
