@@ -254,13 +254,7 @@ component MainWindow {
 
                 ScrollView {
                     id: output_scroll;
-                    // the viewport is the fixed extent the log reads through,
-                    // which is what pins the panel while the content scrolls
                     viewport_height: 152px;
-
-                    // the offset pins the log to its bottom: the presented
-                    // offset clamps into the content range, which is what keeps
-                    // the viewport on the last line
                     offset: output_pin_offset;
 
                     TextField {
@@ -286,9 +280,16 @@ component MainWindow {
                 spacing: 12px;
 
                 Label {
+                    text: " ";
+                    vertical_align: Align.start;
+                    font_size: 10px;
+                }
+
+                Label {
                     id: main_status;
                     text: status;
-                    vertical_align: Align.center;
+                    vertical_align: Align.start;
+                    font_size: 10px;
                 }
 
                 // the stretch spacer pushes the run progress to the far end
@@ -301,18 +302,32 @@ component MainWindow {
                         spacing: 8px;
                         vertical_align: Align.center;
 
-                        // the bar sweeps while the analysis reports no percentage, and fills once it does
-                        ProgressBar {
-                            id: main_progress_bar;
-                            indeterminate: !progress_determinate;
-                            value: progress_value;
-                            vertical_align: Align.center;
+                        SizedBox {
+                            width: 200px;
+
+                            ProgressBar {
+                                id: main_progress_bar;
+                                indeterminate: !progress_determinate;
+                                value: progress_value;
+                                vertical_align: Align.center;
+                            }
+                        }
+
+                        SizedBox {
+                            width: 200px;
+
+                            Label {
+                                id: main_progress;
+                                text: progress_text;
+                                vertical_align: Align.center;
+                                font_size: 10px;
+                            }
                         }
 
                         Label {
-                            id: main_progress;
-                            text: progress_text;
-                            vertical_align: Align.center;
+                            text: " ";
+                            vertical_align: Align.end;
+                            font_size: 10px;
                         }
                     }
                 }
