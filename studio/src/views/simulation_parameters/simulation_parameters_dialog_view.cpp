@@ -1330,9 +1330,16 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
     }
     // theme the dialog from the same system appearance as the shell
     m_theme = install_theme(*m_app, m_handle);
-    // the system accent the sidebar highlights the selected analysis with
-    if (albor::Window* window = m_app->window(m_handle))
-        m_root->set_accent_color(window->system_appearance().accent);
+    // the preset owns the sidebar inks, because a hand painted row would double the native selection
+    if (m_theme != nullptr) {
+        // the normal state is the ink every idle row reads with
+        const albor::Palette& palette = m_theme->theme().palette();
+        const std::size_t normal = albor::state_index(albor::ControlState::Normal);
+        m_root->set_sidebar_label_color(palette.tab_label[normal]);
+        // a filled selection pair carries its own ink, while a preset without a row keeps the indicator ink
+        const bool row = palette.tab_selection_plate[normal].alpha > 0.0f && palette.tab_selection_label[normal].alpha > 0.0f;
+        m_root->set_sidebar_selected_label_color(row ? palette.tab_selection_label[normal] : palette.tab_label_selected[normal]);
+    }
     // the tab the configured analysis lives on is the one the dialog opens
     m_root->set_selected_tab(tab_for(current));
     // every panel starts from its own record, so switching analyses never loses a value

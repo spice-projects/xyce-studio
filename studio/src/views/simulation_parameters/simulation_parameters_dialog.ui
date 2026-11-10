@@ -14,8 +14,10 @@ component SimulationParametersDialog {
     // the selected analysis tab, in the order OP, DC, TRAN, AC, NOISE, HB, LIN
     inout property<int> selected_tab: 0;
 
-    // the system accent the sidebar highlights the selected analysis with
-    in property<color> accent_color: #0091FF;
+    // the ink an idle sidebar row reads with, which the installed theme names
+    in property<color> sidebar_label_color: #000000;
+    // the ink the selected row reads with, which the installed preset resolves per scheme
+    in property<color> sidebar_selected_label_color: #FFFFFF;
 
     // the transient analysis state
     inout property<TranUi> tran;
@@ -106,46 +108,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 0 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".OP";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".OP";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 0 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".OP";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".OP";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -177,46 +153,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 1 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".DC";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".DC";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 1 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".DC";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".DC";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -278,46 +228,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 2 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".TRAN";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".TRAN";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 2 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".TRAN";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".TRAN";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -372,46 +296,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 3 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".AC";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".AC";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 3 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".AC";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".AC";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -443,46 +341,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 4 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".NOISE";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".NOISE";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 4 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".NOISE";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".NOISE";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -507,46 +379,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 5 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".HB";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".HB";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 5 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".HB";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".HB";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
@@ -571,46 +417,20 @@ component SimulationParametersDialog {
                 TabTitle {
                     SizedBox {
                         width: 150px;
-                        height: 28px;
 
                         Stack {
                             if selected_tab == 6 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: accent_color;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".LIN";
-                                            font_size: 13px;
-                                            foreground: #FFFFFF;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".LIN";
+                                    font_size: 13px;
+                                    foreground: sidebar_selected_label_color;
                                 }
                             }
                             if selected_tab != 6 {
-                                Panel {
-                                    padding: 0px;
-                                    corner_radius: 6px;
-                                    border_width: 0px;
-                                    background: #00000000;
-
-                                    Padding {
-                                        padding: Insets { left: 8px, right: 8px };
-                                        vertical_align: Align.stretch;
-
-                                        Label {
-                                            text: ".LIN";
-                                            font_size: 13px;
-                                            vertical_align: Align.center;
-                                        }
-                                    }
+                                Label {
+                                    text: ".LIN";
+                                    font_size: 13px;
+                                    foreground: sidebar_label_color;
                                 }
                             }
                         }
