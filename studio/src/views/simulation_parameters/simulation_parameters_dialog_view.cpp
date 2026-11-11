@@ -1339,6 +1339,10 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
         // a filled selection pair carries its own ink, while a preset without a row keeps the indicator ink
         const bool row = palette.tab_selection_plate[normal].alpha > 0.0f && palette.tab_selection_label[normal].alpha > 0.0f;
         m_root->set_sidebar_selected_label_color(row ? palette.tab_selection_label[normal] : palette.tab_label_selected[normal]);
+        // the source list plate is the strip plate, which the dialog backs to the window edge
+        m_root->set_sidebar_background(palette.tab_strip_background[normal]);
+        // the plate spans the title box plus the strip padding on both sides, which is the width the rows use
+        m_root->set_sidebar_width(150.0f + m_theme->theme().metrics().tab_padding_horizontal * 2.0f);
     }
     // the tab the configured analysis lives on is the one the dialog opens
     m_root->set_selected_tab(tab_for(current));

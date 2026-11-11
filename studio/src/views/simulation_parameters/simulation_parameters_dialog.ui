@@ -18,6 +18,10 @@ component SimulationParametersDialog {
     in property<color> sidebar_label_color: #000000;
     // the ink the selected row reads with, which the installed preset resolves per scheme
     in property<color> sidebar_selected_label_color: #FFFFFF;
+    // the source list plate the preset names, which the dialog backs to the window edge
+    in property<color> sidebar_background: #F2F2F2;
+    // the width the tab rows span, which the source list plate follows
+    in property<float> sidebar_width: 174px;
 
     // the transient analysis state
     inout property<TranUi> tran;
@@ -89,396 +93,470 @@ component SimulationParametersDialog {
     // the user picked a combo entry for an option row of the package at this index
     signal option_choice_selected(int package, string key, int index);
 
-    Column {
-        padding: 16px;
-        spacing: 12px;
-
-        TabView {
-            vertical: true;
-            vertical_align: Align.stretch;
-            selected: selected_tab;
-
-            on_selection_changed: {
-                selected_tab = index;
-            }
-
-            Tab {
-                id: simulation_tab_op;
-                label: ".OP";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 0 {
-                                Label {
-                                    text: ".OP";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 0 {
-                                Label {
-                                    text: ".OP";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                OpParametersPanel {
-                    state: op;
-                    print: op_print;
-                    nonlin_rows: nonlin_rows;
-                    on_state_changed: {
-                        op = value;
-                    }
-                    on_print_changed: {
-                        op_print = value;
-                    }
-                    on_option_row_edited: {
-                        option_row_edited(package, key, row);
-                    }
-                    on_option_choice_selected: {
-                        option_choice_selected(package, key, index);
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_dc;
-                label: ".DC";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 1 {
-                                Label {
-                                    text: ".DC";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 1 {
-                                Label {
-                                    text: ".DC";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                DcParametersPanel {
-                    state: dc;
-                    sweeps: dc_sweeps;
-                    sweeps_empty: dc_sweeps_empty;
-                    print: dc_print;
-                    nonlin_rows: nonlin_rows;
-                    pce: pce;
-                    pce_print: pce_print;
-                    pce_rows: pce_rows;
-                    pce_rows_empty: pce_rows_empty;
-                    on_state_changed: {
-                        dc = value;
-                    }
-                    on_print_changed: {
-                        dc_print = value;
-                    }
-                    on_add_sweep: {
-                        add_sweep();
-                    }
-                    on_remove_sweep: {
-                        remove_sweep(key);
-                    }
-                    on_sweep_edited: {
-                        sweep_edited(key, row);
-                    }
-                    on_option_row_edited: {
-                        option_row_edited(package, key, row);
-                    }
-                    on_option_choice_selected: {
-                        option_choice_selected(package, key, index);
-                    }
-                    on_pce_changed: {
-                        pce = value;
-                    }
-                    on_pce_print_changed: {
-                        pce_print = value;
-                    }
-                    on_pce_add_row: {
-                        pce_add_row();
-                    }
-                    on_pce_remove_row: {
-                        pce_remove_row(key);
-                    }
-                    on_pce_row_edited: {
-                        pce_row_edited(key, row);
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_transient;
-                label: ".TRAN";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 2 {
-                                Label {
-                                    text: ".TRAN";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 2 {
-                                Label {
-                                    text: ".TRAN";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                TransientParametersPanel {
-                    state: tran;
-                    print: tran_print;
-                    timeint_rows: timeint_rows;
-                    nonlin_tran_rows: nonlin_tran_rows;
-                    loca_rows: loca_rows;
-                    fft_rows: fft_rows;
-                    output_rows: output_rows;
-                    pce: pce;
-                    pce_print: pce_print;
-                    pce_rows: pce_rows;
-                    pce_rows_empty: pce_rows_empty;
-                    on_state_changed: {
-                        tran = value;
-                    }
-                    on_print_changed: {
-                        tran_print = value;
-                    }
-                    on_pce_changed: {
-                        pce = value;
-                    }
-                    on_pce_print_changed: {
-                        pce_print = value;
-                    }
-                    on_pce_add_row: {
-                        pce_add_row();
-                    }
-                    on_pce_remove_row: {
-                        pce_remove_row(key);
-                    }
-                    on_pce_row_edited: {
-                        pce_row_edited(key, row);
-                    }
-                    on_option_row_edited: {
-                        option_row_edited(package, key, row);
-                    }
-                    on_option_choice_selected: {
-                        option_choice_selected(package, key, index);
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_ac;
-                label: ".AC";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 3 {
-                                Label {
-                                    text: ".AC";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 3 {
-                                Label {
-                                    text: ".AC";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                AcParametersPanel {
-                    state: ac;
-                    print: ac_print;
-                    linsol_ac_rows: linsol_ac_rows;
-                    on_state_changed: {
-                        ac = value;
-                    }
-                    on_print_changed: {
-                        ac_print = value;
-                    }
-                    on_option_row_edited: {
-                        option_row_edited(package, key, row);
-                    }
-                    on_option_choice_selected: {
-                        option_choice_selected(package, key, index);
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_noise;
-                label: ".NOISE";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 4 {
-                                Label {
-                                    text: ".NOISE";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 4 {
-                                Label {
-                                    text: ".NOISE";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                NoiseParametersPanel {
-                    state: noise;
-                    print: noise_print;
-                    on_state_changed: {
-                        noise = value;
-                    }
-                    on_print_changed: {
-                        noise_print = value;
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_hb;
-                label: ".HB";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 5 {
-                                Label {
-                                    text: ".HB";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 5 {
-                                Label {
-                                    text: ".HB";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                HbParametersPanel {
-                    state: hb;
-                    print: hb_print;
-                    on_state_changed: {
-                        hb = value;
-                    }
-                    on_print_changed: {
-                        hb_print = value;
-                    }
-                }
-            }
-
-            Tab {
-                id: simulation_tab_lin;
-                label: ".LIN";
-                TabTitle {
-                    SizedBox {
-                        width: 150px;
-
-                        Stack {
-                            if selected_tab == 6 {
-                                Label {
-                                    text: ".LIN";
-                                    font_size: 13px;
-                                    foreground: sidebar_selected_label_color;
-                                }
-                            }
-                            if selected_tab != 6 {
-                                Label {
-                                    text: ".LIN";
-                                    font_size: 13px;
-                                    foreground: sidebar_label_color;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                LinParametersPanel {
-                    state: lin;
-                    print: lin_print;
-                    on_state_changed: {
-                        lin = value;
-                    }
-                    on_print_changed: {
-                        lin_print = value;
-                    }
-                }
-            }
-        }
-
-        // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
-        Label {
-            font_size: 13px;
-            id: simulation_parameters_error;
-            text: error_message;
-            foreground: #CC0000;
-        }
-
+    Stack {
+        // the source list plate runs the full window height, so the tabs sit on a sidebar rather than a floating box
         Row {
-            spacing: 8px;
-            horizontal_align: Align.end;
+            spacing: 0px;
 
-            Button {
-                id: simulation_parameters_cancel;
-                text: "Cancel";
-                cancel: true;
-                on_clicked: {
-                    dismissed();
+            SizedBox {
+                width: sidebar_width;
+                vertical_align: Align.stretch;
+
+                Panel {
+                    background: sidebar_background;
+                    padding: 0px;
+                    corner_radius: 0px;
+                    border_width: 0px;
                 }
             }
 
-            Button {
-                id: simulation_parameters_ok;
-                text: "OK";
-                default: true;
-                on_clicked: {
-                    accepted();
+            SizedBox {
+                horizontal_align: Align.stretch;
+            }
+        }
+
+        Column {
+            spacing: 12px;
+
+            Padding {
+                padding: Insets { top: 16px };
+                vertical_align: Align.stretch;
+
+                TabView {
+                    vertical: true;
+                    vertical_align: Align.stretch;
+                    selected: selected_tab;
+
+                    on_selection_changed: {
+                        selected_tab = index;
+                    }
+
+                    Tab {
+                        id: simulation_tab_op;
+                        label: ".OP";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 0 {
+                                        Label {
+                                            text: ".OP";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 0 {
+                                        Label {
+                                            text: ".OP";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            OpParametersPanel {
+                                state: op;
+                                print: op_print;
+                                nonlin_rows: nonlin_rows;
+                                on_state_changed: {
+                                    op = value;
+                                }
+                                on_print_changed: {
+                                    op_print = value;
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_dc;
+                        label: ".DC";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 1 {
+                                        Label {
+                                            text: ".DC";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 1 {
+                                        Label {
+                                            text: ".DC";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            DcParametersPanel {
+                                state: dc;
+                                sweeps: dc_sweeps;
+                                sweeps_empty: dc_sweeps_empty;
+                                print: dc_print;
+                                nonlin_rows: nonlin_rows;
+                                pce: pce;
+                                pce_print: pce_print;
+                                pce_rows: pce_rows;
+                                pce_rows_empty: pce_rows_empty;
+                                on_state_changed: {
+                                    dc = value;
+                                }
+                                on_print_changed: {
+                                    dc_print = value;
+                                }
+                                on_add_sweep: {
+                                    add_sweep();
+                                }
+                                on_remove_sweep: {
+                                    remove_sweep(key);
+                                }
+                                on_sweep_edited: {
+                                    sweep_edited(key, row);
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                                on_pce_changed: {
+                                    pce = value;
+                                }
+                                on_pce_print_changed: {
+                                    pce_print = value;
+                                }
+                                on_pce_add_row: {
+                                    pce_add_row();
+                                }
+                                on_pce_remove_row: {
+                                    pce_remove_row(key);
+                                }
+                                on_pce_row_edited: {
+                                    pce_row_edited(key, row);
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_transient;
+                        label: ".TRAN";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 2 {
+                                        Label {
+                                            text: ".TRAN";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 2 {
+                                        Label {
+                                            text: ".TRAN";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            TransientParametersPanel {
+                                state: tran;
+                                print: tran_print;
+                                timeint_rows: timeint_rows;
+                                nonlin_tran_rows: nonlin_tran_rows;
+                                loca_rows: loca_rows;
+                                fft_rows: fft_rows;
+                                output_rows: output_rows;
+                                pce: pce;
+                                pce_print: pce_print;
+                                pce_rows: pce_rows;
+                                pce_rows_empty: pce_rows_empty;
+                                on_state_changed: {
+                                    tran = value;
+                                }
+                                on_print_changed: {
+                                    tran_print = value;
+                                }
+                                on_pce_changed: {
+                                    pce = value;
+                                }
+                                on_pce_print_changed: {
+                                    pce_print = value;
+                                }
+                                on_pce_add_row: {
+                                    pce_add_row();
+                                }
+                                on_pce_remove_row: {
+                                    pce_remove_row(key);
+                                }
+                                on_pce_row_edited: {
+                                    pce_row_edited(key, row);
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_ac;
+                        label: ".AC";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 3 {
+                                        Label {
+                                            text: ".AC";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 3 {
+                                        Label {
+                                            text: ".AC";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            AcParametersPanel {
+                                state: ac;
+                                print: ac_print;
+                                linsol_ac_rows: linsol_ac_rows;
+                                on_state_changed: {
+                                    ac = value;
+                                }
+                                on_print_changed: {
+                                    ac_print = value;
+                                }
+                                on_option_row_edited: {
+                                    option_row_edited(package, key, row);
+                                }
+                                on_option_choice_selected: {
+                                    option_choice_selected(package, key, index);
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_noise;
+                        label: ".NOISE";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 4 {
+                                        Label {
+                                            text: ".NOISE";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 4 {
+                                        Label {
+                                            text: ".NOISE";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            NoiseParametersPanel {
+                                state: noise;
+                                print: noise_print;
+                                on_state_changed: {
+                                    noise = value;
+                                }
+                                on_print_changed: {
+                                    noise_print = value;
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_hb;
+                        label: ".HB";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 5 {
+                                        Label {
+                                            text: ".HB";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 5 {
+                                        Label {
+                                            text: ".HB";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            HbParametersPanel {
+                                state: hb;
+                                print: hb_print;
+                                on_state_changed: {
+                                    hb = value;
+                                }
+                                on_print_changed: {
+                                    hb_print = value;
+                                }
+                            }
+                        }
+                    }
+
+                    Tab {
+                        id: simulation_tab_lin;
+                        label: ".LIN";
+                        TabTitle {
+                            SizedBox {
+                                width: 150px;
+
+                                Stack {
+                                    if selected_tab == 6 {
+                                        Label {
+                                            text: ".LIN";
+                                            font_size: 13px;
+                                            foreground: sidebar_selected_label_color;
+                                        }
+                                    }
+                                    if selected_tab != 6 {
+                                        Label {
+                                            text: ".LIN";
+                                            font_size: 13px;
+                                            foreground: sidebar_label_color;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Padding {
+                            padding: Insets { left: 20px, right: 20px };
+
+                            LinParametersPanel {
+                                state: lin;
+                                print: lin_print;
+                                on_state_changed: {
+                                    lin = value;
+                                }
+                                on_print_changed: {
+                                    lin_print = value;
+                                }
+                            }
+                        }
+                    }
                 }
             }
+
+            Row {
+                spacing: 0px;
+
+                SizedBox {
+                    width: sidebar_width;
+                }
+
+                Padding {
+                    padding: Insets { left: 20px, right: 20px, bottom: 16px };
+                    horizontal_align: Align.stretch;
+                    vertical_align: Align.stretch;
+
+                    Column {
+                        spacing: 8px;
+
+                        // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
+                        Label {
+                            font_size: 13px;
+                            id: simulation_parameters_error;
+                            text: error_message;
+                            foreground: #CC0000;
+                        }
+
+                        Row {
+                            spacing: 8px;
+                            horizontal_align: Align.end;
+
+                            Button {
+                                id: simulation_parameters_cancel;
+                                text: "Cancel";
+                                cancel: true;
+                                on_clicked: {
+                                    dismissed();
+                                }
+                            }
+
+                            Button {
+                                id: simulation_parameters_ok;
+                                text: "OK";
+                                default: true;
+                                on_clicked: {
+                                    accepted();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
         }
     }
 }
