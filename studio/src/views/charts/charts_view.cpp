@@ -7,6 +7,12 @@
 
 #include "albor/core/constraints.h"
 
+namespace
+{
+    // a damage area larger than any window, which makes the frame builder repaint the whole surface
+    const albor::Rect FULL_FRAME_DAMAGE = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 100000.0f, .height = 100000.0f});
+} // namespace
+
 studio::ChartsView::ChartsView(albor::BindingEngine* engine, albor::TimerScheduler* timers) :
     albor::Widget(engine, "charts_view"), m_timers(timers) {}
 
@@ -22,12 +28,18 @@ studio::ChartsView::~ChartsView() {
 void studio::ChartsView::set_scene(std::shared_ptr<const ChartScene> scene) {
     // a base republish ends a drag recorded against the old scene
     cancel_drag();
+    // the strip the replacement scene records
+    const float next_strip = scene != nullptr ? scene->tab_bar_height : 0.0f;
     // keep the retained picture the view replays
     m_scene = std::move(scene);
     // a base republish drops any selection recorded against the old scene
     m_overlay.reset();
-    // the whole panel changed, so the whole panel redraws
-    invalidate();
+    // a scene with a tab strip needs a whole-window frame, because a partial frame does not keep the strip
+    if (next_strip > 0.0f)
+        invalidate(FULL_FRAME_DAMAGE);
+    // a scene without a strip repaints only its panel
+    else
+        invalidate();
 }
 
 void studio::ChartsView::set_overlay(std::shared_ptr<const ChartOverlay> overlay) {
