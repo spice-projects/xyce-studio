@@ -1,4 +1,4 @@
-// the shell of the Albor frontend; the charts view arrives in a later slice
+// the shell of the Albor frontend; the native charts view is inserted at window creation
 component MainWindow {
     // toolbar actions the presenter drives
     signal open_clicked();
@@ -12,6 +12,8 @@ component MainWindow {
     signal exit_clicked();
     // the output action reveals the simulation output panel again
     signal output_clicked();
+    // the charts action switches the body between the netlist and the waveform panel
+    signal show_charts_clicked();
 
     // raised while the user edits the netlist text, which marks the netlist dirty
     signal netlist_edited();
@@ -37,6 +39,10 @@ component MainWindow {
     in property<bool> simulation_running: false;
     // the one line status the shell reports
     in property<string> status: "Ready";
+    // whether the waveform panel replaces the netlist editor in the body
+    in property<bool> charts_visible: false;
+    // whether a dataset is loaded, which makes the charts action reachable
+    in property<bool> charts_enabled: false;
 
     // the simulation output panel holds the live console log of the running or
     // finished simulation; the panel remounts on every show and the host owns
@@ -93,6 +99,17 @@ component MainWindow {
                 disabled: !save_enabled;
                 on_clicked: {
                     save_clicked();
+                }
+            }
+
+            Button {
+                id: main_charts;
+                tooltip: "Charts";
+                icon: @image("icons/simulator_48.png");
+                icon_size: 20px;
+                disabled: !charts_enabled;
+                on_clicked: {
+                    show_charts_clicked();
                 }
             }
 
@@ -166,22 +183,33 @@ component MainWindow {
             }
         }
 
-        // the editor is the content surface; it scrolls its own viewport once
-        // the column caps its height
-        TextField {
-            id: netlist_editor;
-            multiline: true;
-            value: netlist_text;
-            read_only: netlist_read_only;
-            decorations: netlist_decorations;
-            font_family: "JetBrains Mono";
-            font_size: 13px;
-            horizontal_align: Align.stretch;
-            vertical_align: Align.stretch;
-            on_changed: {
-                netlist_text = value;
-                netlist_edited();
+        // the editor is the content surface while the charts panel is folded away
+        if !charts_visible {
+            TextField {
+                id: netlist_editor;
+                multiline: true;
+                value: netlist_text;
+                read_only: netlist_read_only;
+                decorations: netlist_decorations;
+                font_family: "JetBrains Mono";
+                font_size: 13px;
+                horizontal_align: Align.stretch;
+                vertical_align: Align.stretch;
+                on_changed: {
+                    netlist_text = value;
+                    netlist_edited();
+                }
             }
+        }
+
+        // the host the native charts view is inserted into at window creation
+        Panel {
+            id: charts_host;
+            visible: charts_visible;
+            padding: 0px;
+            spacing: 0px;
+            corner_radius: 0px;
+            vertical_align: Align.stretch;
         }
 
         if output_visible {

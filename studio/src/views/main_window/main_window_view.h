@@ -24,6 +24,8 @@ namespace albor
 
 namespace studio
 {
+    class ChartsView;
+
     // the Albor shell window; it implements the surface the presenter drives and owns the run
     class MainWindowView final : public MainWindowViewDef
     {
@@ -47,6 +49,24 @@ namespace studio
 
         // install the handler the simulation parameters action reaches
         void set_on_configure_simulation(std::function<void()> handler);
+
+        // install the handler the charts action reaches
+        void set_on_show_charts(std::function<void()> handler);
+
+        // install the handler a light or dark scheme flip reaches
+        void set_on_scheme_changed(std::function<void(bool)> handler);
+
+        // report whether the installed theme is the dark scheme
+        [[nodiscard]] bool is_dark() const;
+
+        // swap the body between the netlist editor and the waveform panel
+        void set_charts_visible(bool visible);
+
+        // enable or disable the charts action, which needs a dataset
+        void set_charts_enabled(bool enabled);
+
+        // hand out the native charts view the presenter drives, null before the window is created
+        [[nodiscard]] ChartsView* charts_view() const;
 
         // clear the borrowed facade when the application reports the window is gone
         void on_window_closed(albor::WindowHandle handle);
@@ -141,6 +161,12 @@ namespace studio
 
         // the presenter that receives the shell interactions, null while none is wired
         MainWindowViewEvents* m_events = nullptr;
+
+        // the native charts view the tree owns after creation
+        ChartsView* m_charts_view = nullptr;
+
+        // the handler a scheme flip reaches
+        std::function<void(bool)> m_on_scheme_changed;
 
         // the theme bindings installed over the shell tree
         std::unique_ptr<albor::ThemeController> m_theme;

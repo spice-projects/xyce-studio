@@ -16,9 +16,14 @@ file(GLOB_RECURSE STUDIO_TEST_SOURCES CONFIGURE_DEPENDS "./*.cpp")
 
 add_executable(studio-tests
     ${STUDIO_TEST_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/charts/chart_scene_builder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/charts/chart_text_measurer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/charts/charts_controller.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/charts_presenter.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/main_window_presenter.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/plugin_config_presenter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/simulation_parameters_presenter.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/simulation_parameters_presenter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/views/charts/charts_view.cpp")
 
 target_include_directories(studio-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src")
 
@@ -31,6 +36,13 @@ endif()
 
 if(WIN32)
     target_compile_definitions(studio-tests PRIVATE NOMINMAX)
+endif()
+
+if(TARGET albor)
+    target_link_libraries(studio-tests PRIVATE albor)
+else()
+    find_package(albor CONFIG REQUIRED)
+    target_link_libraries(studio-tests PRIVATE albor)
 endif()
 
 target_link_libraries(studio-tests PRIVATE

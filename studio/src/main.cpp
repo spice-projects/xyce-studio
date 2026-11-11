@@ -25,6 +25,24 @@ namespace
         }
     }
 
+    // apply the two spellings of the dataset override, which the charts open at startup
+    void apply_dataset_override(studio::StudioApp& app, int argc, char** argv) {
+        // walk the arguments after the program name
+        for (int index = 1; index < argc; ++index) {
+            // read the argument as a view
+            const std::string_view argument(argv[index]);
+            // the separated spelling takes the next argument
+            if (argument == "--dataset" && index + 1 < argc) {
+                app.set_startup_dataset(argv[++index]);
+                continue;
+            }
+            // the joined spelling carries the value in the same argument
+            constexpr std::string_view prefix = "--dataset=";
+            if (argument.starts_with(prefix))
+                app.set_startup_dataset(std::string(argument.substr(prefix.size())));
+        }
+    }
+
     // apply the two spellings of the netlist override, which only netlist files reach
     void apply_netlist_override(studio::StudioApp& app, int argc, char** argv) {
         // walk the arguments after the program name
@@ -59,6 +77,8 @@ int main(int argc, char** argv) {
     studio::StudioApp app(std::move(config));
     // a --netlist argument opens a netlist through the file dispatch at startup
     apply_netlist_override(app, argc, argv);
+    // a --dataset argument opens an output file in the charts at startup
+    apply_dataset_override(app, argc, argv);
     // run the application
     return app.run();
 }

@@ -16,6 +16,7 @@
 #include "app/theme.h"
 #include "main_window.h"
 #include "netlist/netlist_lexer.h"
+#include "views/charts/charts_view.h"
 
 namespace
 {
@@ -147,6 +148,17 @@ namespace
         return text;
     }
 
+    // find a node by its author id, walking the retained tree
+    albor::UiNode* find_node(albor::UiNode& node, std::string_view explicit_id) {
+        if (node.identity().explicit_id == explicit_id)
+            return &node;
+        for (const auto& child : node.children()) {
+            if (albor::UiNode* found = find_node(*child, explicit_id); found != nullptr)
+                return found;
+        }
+        return nullptr;
+    }
+
     // find a text field by its author id, walking the retained tree
     albor::TextField* find_text_field(albor::UiNode& node, std::string_view explicit_id) {
         if (node.identity().explicit_id == explicit_id) {
@@ -161,7 +173,7 @@ namespace
     }
 
     // build the filter the open panel offers, which is the netlist format and its outputs
-    std::vector<albor::FileFilter> open_filters() { return {albor::FileFilter{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat"}}}; }
+    std::vector<albor::FileFilter> open_filters() { return {albor::FileFilter{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat", "s1p", "s2p", "s3p", "s4p", "ts"}}}; }
 } // namespace
 
 studio::MainWindowView::MainWindowView(albor::Application& application) :
@@ -190,9 +202,22 @@ bool studio::MainWindowView::create() {
     }
     // theme the tree before the first frame, which is what keeps every chrome widget palette driven
     m_theme = install_theme(*m_app, m_handle);
-    // a scheme flip rebuilds the token colours, which the palette owns
+    // a scheme flip rebuilds the token colours and the chart palette
     if (m_theme != nullptr)
-        m_theme->set_scheme_changed_handler([this](albor::ColorScheme) { schedule_netlist_highlight(); });
+        m_theme->set_scheme_changed_handler([this](const albor::ColorScheme scheme) {
+            schedule_netlist_highlight();
+            if (m_on_scheme_changed)
+                m_on_scheme_changed(scheme == albor::ColorScheme::Dark);
+        });
+    // create the native charts view and insert it into the host the shell always carries
+    if (albor::WindowStage* stage = m_app->stage(m_handle)) {
+        if (albor::UiNode* host = find_node(*m_root, "charts_host")) {
+            auto charts = std::make_unique<ChartsView>(&stage->binding_engine(), &m_app->timers());
+            m_charts_view = charts.get();
+            host->add_child(std::move(charts));
+            host->invalidate_layout();
+        }
+    }
     // seed the editor highlight from the empty netlist
     rebuild_netlist_highlight();
     // the shell is built but hidden, which the caller reveals once it is wired
@@ -217,12 +242,42 @@ void studio::MainWindowView::set_on_configure_simulation(std::function<void()> h
     m_root->set_on_configure_simulation_clicked(std::move(handler));
 }
 
+void studio::MainWindowView::set_on_show_charts(std::function<void()> handler) {
+    // without a live facade there is no signal to bind
+    if (m_root == nullptr)
+        return;
+    m_root->set_on_show_charts_clicked(std::move(handler));
+}
+
+void studio::MainWindowView::set_charts_visible(const bool visible) {
+    // without a live facade there is no body to swap
+    if (m_root == nullptr)
+        return;
+    m_root->set_charts_visible(visible);
+}
+
+void studio::MainWindowView::set_charts_enabled(const bool enabled) {
+    // without a live facade there is no action to enable
+    if (m_root == nullptr)
+        return;
+    m_root->set_charts_enabled(enabled);
+}
+
+studio::ChartsView* studio::MainWindowView::charts_view() const { return m_charts_view; }
+
+void studio::MainWindowView::set_on_scheme_changed(std::function<void(bool)> handler) { m_on_scheme_changed = std::move(handler); }
+
+bool studio::MainWindowView::is_dark() const { return m_theme != nullptr && m_theme->scheme() == albor::ColorScheme::Dark; }
+
 void studio::MainWindowView::on_window_closed(albor::WindowHandle handle) {
     // ignore windows this view does not own
     if (!(handle == m_handle))
         return;
     // the facade dies with the window, which the ui setters must not touch
     m_root = nullptr;
+    // the charts view dies with the tree
+    m_charts_view = nullptr;
+    // the window handle no longer names a live window
     m_handle = {};
 }
 

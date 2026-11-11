@@ -371,6 +371,32 @@ with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
     expect(field).to_have_state("focused")
 ```
 
+### Open a waveform dataset in the native chart panel (from `charts_test.py`)
+
+`--dataset` opens an output file at startup and reveals the native chart panel.
+The panel replaces the editor until the charts toolbar action swaps the body
+back:
+
+```python
+dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+    chart = app.get_by_id("charts_view")
+    chart.wait_for_exists()
+    expect(chart).to_have_name("1 line chart")
+    expect(app.get_by_id("netlist_editor")).not_().to_exist()
+    app.get_by_id("main_charts").click()
+    app.get_by_id("netlist_editor").wait_for_exists()
+```
+
+- The panel accepts `.raw`, `.prn`, `.csd`, `.csv`, `.dat` and touchstone
+  `.s1p`/`.s2p`/`.s3p`/`.s4p`/`.ts`. A touchstone file opens a Smith chart.
+- `charts_view` is the native canvas; its accessible name summarises the chart
+  count and kind (`1 line chart`, `1 smith chart`, `2 line charts`).
+- The chart text and series are pixels inside the canvas; scenario assertions
+  use the accessible summary, not the pixel content.
+- The zoom and hover math is covered by the controller unit tests; the native
+  context menu and pointer drag gestures are still open slices.
+
 ## Conventions
 
 - Every scenario starts with `# arrange`, uses `# step` for each interaction

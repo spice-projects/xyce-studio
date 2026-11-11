@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <deque>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -21,12 +22,18 @@ namespace studio
     class MainWindowPresenter final : public MainWindowViewEvents
     {
     public:
+        // the callback the open action reaches for an output file the charts load
+        using DatasetFileHandler = std::function<bool(const std::filesystem::path&)>;
+
         // the shell surface and the plugin configuration must outlive the presenter
         MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config);
 
         MainWindowPresenter(const MainWindowPresenter&) = delete;
 
         MainWindowPresenter& operator=(const MainWindowPresenter&) = delete;
+
+        // install the callback that adopts an output file the charts can plot
+        void set_dataset_file_handler(DatasetFileHandler handler);
 
         // the user picked a file in the open panel, which the view resolved
         void on_open_file(const std::filesystem::path& path) override;
@@ -95,6 +102,9 @@ namespace studio
 
         // the source the netlist loads from and saves into
         std::unique_ptr<NetlistSource> m_netlist_source;
+
+        // the callback that adopts an output file the charts load
+        DatasetFileHandler m_dataset_file_handler;
 
         // the plugin configuration the Xyce executable path is read from
         const PluginConfig& m_plugin_config;

@@ -264,7 +264,7 @@ Status (2026-11-10, through `030f4c5`): 6.1–6.3 and the plugin-config half of 
   - Implement line and Smith charts, zoom, cursor hover, step selection and the default plot layout.
   - Implementation plan and file map: [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md).
   - ImGui/ImPlot was evaluated and rejected; the textured-mesh primitive that path would need is tracked upstream as [AlborCore/albor#211](https://github.com/AlborCore/albor/issues/211), but native charts do not depend on it.
-  - Status: `studio/src/charts/` is still empty and the shell has no chart view yet; the plan is ready.
+  - Status: the first native slice is implemented (retained scene builder, `ChartsView`, dataset loader, line and Smith rendering, zoom/hover, unit and UI tests); plot tabs, run auto-load, context-menu actions and performance hardening remain.
 - [ ] **6.8. KiCad Integration & Multi-Window Mode**
   - Wire `KiCadSession` IPC into the Albor application lifecycle.
   - Implement native secondary chart windows (`new_window`).

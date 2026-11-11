@@ -13,6 +13,7 @@ class MainWindowShellChecks(unittest.TestCase):
             # assert: every icon-only action announces its tooltip as its name
             expect(app.get_by_id("main_open")).to_have_name("Open")
             expect(app.get_by_id("main_save")).to_have_name("Save")
+            expect(app.get_by_id("main_charts")).to_have_name("Charts")
             expect(app.get_by_id("main_output")).to_have_name("Sim Output")
             expect(app.get_by_id("main_plugin_settings")).to_have_name("Plugin Settings")
             expect(app.get_by_id("main_exit")).to_have_name("Exit")

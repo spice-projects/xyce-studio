@@ -9,6 +9,7 @@ namespace studio
 {
     class AlborPluginConfigDialogView;
     class AlborSimulationParametersDialogView;
+    class ChartsPresenter;
     class MainWindowView;
     class MainWindowPresenter;
     class PluginConfigPresenter;
@@ -32,6 +33,9 @@ namespace studio
         // the netlist the shell opens through the file dispatch once it is up
         void set_startup_netlist(const std::filesystem::path& path);
 
+        // the output file the charts open once the shell is up
+        void set_startup_dataset(const std::filesystem::path& path);
+
     private:
         // the configuration the shell starts from and keeps after a dialog accepts
         PluginConfig m_plugin_config;
@@ -39,11 +43,20 @@ namespace studio
         // the netlist the shell opens once it is up, empty when none was requested
         std::filesystem::path m_startup_netlist;
 
+        // the output file the charts open once the shell is up, empty when none was requested
+        std::filesystem::path m_startup_dataset;
+
         // the main shell window
         std::unique_ptr<MainWindowView> m_main_view;
 
         // the netlist lifecycle of the shell
         std::unique_ptr<MainWindowPresenter> m_main_presenter;
+
+        // the waveform datasets and the native charts view they drive
+        std::unique_ptr<ChartsPresenter> m_charts_presenter;
+
+        // whether the waveform panel currently replaces the editor
+        bool m_charts_visible = false;
 
         // the plugin configuration dialog surface
         std::unique_ptr<AlborPluginConfigDialogView> m_plugin_config_view;

@@ -23,10 +23,17 @@ studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const 
     refresh_action_states();
 }
 
+void studio::MainWindowPresenter::set_dataset_file_handler(DatasetFileHandler handler) { m_dataset_file_handler = std::move(handler); }
+
 void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path) {
-    // netlist file extension; the analysis output formats arrive with the dataset slice
-    if (path.extension().string() != ".cir")
+    // a non netlist file is offered to the charts before it is ignored
+    if (path.extension().string() != ".cir") {
+        // a chart dataset consumes the file and the editor keeps its content
+        if (m_dataset_file_handler && m_dataset_file_handler(path))
+            return;
+        // an unsupported file leaves the shell untouched
         return;
+    }
     // create an editor netlist source backed by the selected file, reading live editor text
     m_netlist_source = std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, path);
     // update the window title from the source
