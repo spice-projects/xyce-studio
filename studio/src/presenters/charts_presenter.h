@@ -127,6 +127,9 @@ namespace studio
             // the retained scene last built for this dataset
             std::shared_ptr<const ChartScene> scene;
 
+            // the charts the dataset was built with
+            std::vector<std::vector<std::string>> plot_groups;
+
             // the title the tab shows
             std::string title;
 

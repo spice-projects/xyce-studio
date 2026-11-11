@@ -987,3 +987,30 @@ TEST(StudioMainWindowPresenterChecks, an_unreadable_analysis_output_preserves_th
     EXPECT_EQ(copied_text, "previous\n");
     EXPECT_EQ(view.statuses.back(), "Simulation finished");
 }
+
+TEST(StudioMainWindowPresenterChecks, the_run_hands_the_plot_directives_to_the_charts) {
+    // arrange: a netlist declaring two charts with .PLOT directives
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-plots");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the analysis and its chart declarations
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.PLOT I(L1)\n.PLOT V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    std::vector<std::vector<std::string>> suggested;
+    presenter.set_run_output_handler([&](const studio::RunOutput& output, std::shared_ptr<TempOutputDirectory>) {
+        suggested = output.suggested_plots;
+        return studio::RunOutputResult{};
+    });
+    // act: start and finish the run
+    presenter.on_run_clicked();
+    presenter.on_simulation_finished(0, false);
+    // assert: the charts receive one group per .PLOT directive
+    ASSERT_EQ(suggested.size(), 2U);
+    EXPECT_EQ(suggested[0], std::vector<std::string>{"I(L1)"});
+    EXPECT_EQ(suggested[1], std::vector<std::string>{"V(1)"});
+}

@@ -661,3 +661,39 @@ TEST(StudioChartsPresenterChecks, an_unreadable_analysis_file_falls_back_to_anot
     EXPECT_EQ(presenter.dataset_count(), 1U);
     EXPECT_GT(presenter.series_count(0), 0U);
 }
+
+TEST(StudioChartsPresenterChecks, the_plot_groups_declare_the_primary_tab_charts) {
+    // arrange: a run directory whose primary carries three expressions
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "charts-presenter-plot-groups";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path netlist = root / "netlist.cir";
+    {
+        // write the produced table with the plotted quantities
+        std::ofstream file(root / "netlist.cir.csv");
+        file << "TIME,V(1),V(2),I(L1)\n0,0,0,0\n1,1,2,3\n2,2,4,5\n";
+    }
+    studio::RunOutput output;
+    output.config = SimulationConfig::from_xyce_directives({".TRAN 1u 2u", ".PRINT TRAN FORMAT=CSV V(1) V(2) I(L1)"});
+    output.netlist_path = netlist;
+    output.working_directory = root;
+    output.title = "tran.cir";
+    output.suggested_plots = {{"V(1)"}, {"I(L1)"}};
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    FakeTextEngine text;
+    studio::ChartsPresenter presenter(view, text);
+    // act: adopt the run output
+    ASSERT_EQ(presenter.show_run_output(output, nullptr).outcome, studio::RunOutputOutcome::Primary);
+    // assert: one chart per declared plot group
+    EXPECT_EQ(presenter.chart_count(), 2U);
+    EXPECT_EQ(presenter.series_count(0), 1U);
+    EXPECT_EQ(presenter.series_count(1), 1U);
+    // act: rerun with a different plot group set
+    output.suggested_plots = {{"I(L1)"}};
+    ASSERT_EQ(presenter.show_run_output(output, nullptr).outcome, studio::RunOutputOutcome::Primary);
+    // assert: the changed declarations rebuild the primary charts
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    EXPECT_EQ(presenter.series_count(0), 1U);
+}

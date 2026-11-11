@@ -139,6 +139,9 @@ namespace studio
         // the title the finished run's tab shows
         std::string m_run_title;
 
+        // the .PLOT groups the run netlist declared
+        std::vector<std::vector<std::string>> m_run_suggested_plots;
+
         // the working directory the simulator runs in
         std::filesystem::path m_run_working_directory;
 

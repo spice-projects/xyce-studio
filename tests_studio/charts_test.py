@@ -81,6 +81,33 @@ class ChartsPanelChecks(unittest.TestCase):
                 expect(chart).to_have_name("1 line chart")
                 expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
 
+    def test_a_run_uses_the_plot_directives_for_its_charts(self) -> None:
+        # arrange: a fake Xyce whose table carries the two declared quantities
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "DIR=$(dirname \"$1\")\n"
+                "cat > \"$DIR/netlist.cir.csv\" <<'EOF'\n"
+                "TIME,V(1),I(L1)\n"
+                "0,0,0\n"
+                "1,1,2\n"
+                "2,2,4\n"
+                "EOF\n"
+                "echo 'Simulation completed.'\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(*) I(*)\n.PLOT V(1)\n.PLOT I(L1)\n.END\n")
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # act: run the simulation
+                app.get_by_id("main_run").click()
+                # assert: the two .PLOT groups build two charts
+                chart = app.get_by_id("charts_view")
+                chart.wait_for_exists()
+                expect(chart).to_have_name("2 line charts")
+                expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
+
     def test_touchstone_dataset_opens_a_smith_chart(self) -> None:
         # arrange: a repository touchstone file and a session scoped to this test
         dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"

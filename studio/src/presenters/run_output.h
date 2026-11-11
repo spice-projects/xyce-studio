@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "simulation/simulation_config.h"
 
@@ -42,6 +43,9 @@ namespace studio
 
         // the number of ports the .LIN devices declare
         int num_ports = 2;
+
+        // the .PLOT groups the netlist declared, one chart per group
+        std::vector<std::vector<std::string>> suggested_plots;
 
         // the title the run tab shows
         std::string title;

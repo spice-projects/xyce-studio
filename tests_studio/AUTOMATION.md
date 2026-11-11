@@ -444,7 +444,9 @@ with tempfile.TemporaryDirectory() as tmp:
 ```
 
 - The primary tab is the analysis print file named by the configured
-  `.PRINT`; a Touchstone `.LIN` run adds line and Smith companion tabs.
+  `.PRINT`; its `.PLOT` directives build one chart per declared group, and a
+  netlist without them builds one default chart.
+- A Touchstone `.LIN` run adds line and Smith companion tabs.
 - A rerun repoints the primary tab in place, keeping its position and chart
   state, so the tab count does not grow.
 - A failed or canceled run never opens or replaces the charts; a successful

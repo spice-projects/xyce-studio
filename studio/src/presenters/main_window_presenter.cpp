@@ -10,6 +10,7 @@
 #include "core/util.h"
 #include "io/temp_output_directory.h"
 #include "netlist/editor_netlist_source.h"
+#include "simulation/plot_parameters.h"
 #include "simulation/print_parameters.h"
 
 namespace
@@ -299,6 +300,8 @@ void studio::MainWindowPresenter::run_simulation() {
     const auto [sanitized, topology] = parse_netlist(content);
     // remember the configuration and the paths a finished run resolves its datasets from
     m_run_config = SimulationConfig::from_xyce_directives(topology.m_directives);
+    // remember the charts the netlist's .PLOT directives declare
+    m_run_suggested_plots = plot_chart_groups(topology.m_plot_directives);
     m_run_num_ports = std::max(1, static_cast<int>(std::count_if(topology.m_devices.begin(), topology.m_devices.end(), [](const Device& device) { return device.m_type_letter == "P"; })));
     m_run_working_directory = working_directory;
     // create the private directory every output of this run writes into
@@ -430,7 +433,7 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
         // the run directory that owns the produced files
         std::shared_ptr<TempOutputDirectory> artifacts = m_active_run_artifacts;
         // describe the finished run so the charts resolve every produced dataset from one configuration
-        const RunOutput output{.config = m_run_config, .netlist_path = m_run_netlist_path, .working_directory = m_run_working_directory, .num_ports = m_run_num_ports, .title = m_run_title};
+        const RunOutput output{.config = m_run_config, .netlist_path = m_run_netlist_path, .working_directory = m_run_working_directory, .num_ports = m_run_num_ports, .suggested_plots = m_run_suggested_plots, .title = m_run_title};
         // a run output handler adopts the datasets and the directory lease together
         const bool handler_called = artifacts != nullptr && m_run_output_handler;
         // the handler reports the datasets it adopted

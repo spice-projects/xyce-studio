@@ -344,6 +344,9 @@ studio::RunOutputResult studio::ChartsPresenter::show_run_output(const RunOutput
             // keep the parsed file and its chart kind
             primary = std::move(parsed->first);
             primary_kind = parsed->second;
+            // the netlist's .PLOT groups declare the charts the primary tab builds
+            if (!output.suggested_plots.empty())
+                primary->set_suggested_plots(output.suggested_plots);
         }
     }
     // the companion data the configured analysis dumps
@@ -528,6 +531,8 @@ studio::ChartsPresenter::DatasetState& studio::ChartsPresenter::append_dataset(s
     // a file with no usable stem still needs a tab label
     if (title.empty())
         title = "Dataset " + std::to_string(state->id);
+    // remember the chart groups the dataset was built with
+    state->plot_groups = state->file->suggested_plots();
     // keep the tab labels unique so duplicate files stay distinguishable
     state->title = unique_title(title);
     // only a user file carries a close affordance
@@ -562,6 +567,8 @@ void studio::ChartsPresenter::adopt_primary(std::shared_ptr<XyceOutputFile> file
     DatasetState& state = **existing;
     // a changed chart kind cannot reuse the previous engines
     const bool kind_changed = state.kind != kind;
+    // a changed .PLOT group set rebuilds the charts the netlist declares
+    const bool plots_changed = state.plot_groups != file->suggested_plots();
     // repoint the engines while the previous file still owns the expressions they name
     state.controller->update_dataset(file->expression_manager(), file->step_information(), file->abscissa_scale());
     // remember the chart kind the new file needs
@@ -573,8 +580,10 @@ void studio::ChartsPresenter::adopt_primary(std::shared_ptr<XyceOutputFile> file
         all_resolved = all_resolved && state.controller->chart(index) != nullptr && !state.controller->chart(index)->series().empty();
     // replace the file only after the engines no longer reference the previous one
     state.file = std::move(file);
+    // remember the chart groups the new file carries
+    state.plot_groups = state.file->suggested_plots();
     // rebuild only when the preserved charts cannot describe the new file
-    if (kind_changed || !all_resolved) {
+    if (kind_changed || plots_changed || !all_resolved) {
         // drop the previous engines
         state.controller->clear_charts();
         // build the charts the new file suggests
