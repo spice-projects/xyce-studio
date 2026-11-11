@@ -338,8 +338,8 @@ with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), s
   tree while their count is zero.
 - Semantic ids of the output panel: `output_panel`, `output_title`,
   `output_warning_badge`, `output_error_badge`, `output_copy` (copies the
-  selection or the whole log), `output_close`, `output_scroll`, `output_log`
-  (read-only multiline field).
+  selection or the whole log), `output_close`, `output_log` (read-only
+  multiline field that follows its end).
 
 ### Reopen the closed simulation log from the toolbar (from `simulation_output_test.py`)
 

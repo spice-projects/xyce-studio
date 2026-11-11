@@ -54,9 +54,6 @@ component MainWindow {
     // the error badge text and visibility, which the header shows when the log carries one
     in property<string> output_error_text: "";
     in property<bool> output_error_visible: false;
-    // the scroll offset the log pins to; a value past the content end clamps
-    // into the range, which is what keeps the viewport on the last line
-    in property<float> output_pin_offset: 1000000.0;
 
     // the live run progress the status bar shows while a simulation is live
     in property<bool> progress_visible: false;
@@ -187,8 +184,6 @@ component MainWindow {
             }
         }
 
-        // the output panel docks over the lower part of the shell while a
-        // simulation runs or its log holds content
         if output_visible {
             Panel {
                 id: output_panel;
@@ -252,15 +247,14 @@ component MainWindow {
                     }
                 }
 
-                ScrollView {
-                    id: output_scroll;
-                    viewport_height: 152px;
-                    offset: output_pin_offset;
+                SizedBox {
+                    height: 152px;
 
                     TextField {
                         id: output_log;
                         multiline: true;
                         read_only: true;
+                        follow_end: true;
                         value: output_text;
                         decorations: output_decorations;
                         font_family: "JetBrains Mono";
