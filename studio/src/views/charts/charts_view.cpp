@@ -7,11 +7,19 @@
 
 #include "albor/core/constraints.h"
 #include "albor/render/draw_command.h"
+#include "albor/widgets/menu.h"
+#include "albor/widgets/menu_item.h"
+#include "albor/window/popup_host.h"
 
 studio::ChartsView::ChartsView(albor::BindingEngine* engine, albor::TimerScheduler* timers) :
-    albor::Widget(engine, "charts_view"), m_timers(timers) {}
+    albor::Widget(engine, "charts_view"), m_timers(timers) {
+    // a secondary press asks the panel for its chart context menu
+    set_on_context_menu([this](const albor::Point point) { open_context_menu(point); });
+}
 
 studio::ChartsView::~ChartsView() {
+    // the menu surface dies with the panel that anchors it
+    destroy_context_menu();
     // drop the pending resize timer so it cannot reach a destroyed view
     if (m_timers != nullptr && m_timers->scheduled(m_resize_timer))
         (void)m_timers->cancel(m_resize_timer);
@@ -76,6 +84,16 @@ void studio::ChartsView::set_on_tab_closed(std::function<void(int)> handler) { m
 void studio::ChartsView::set_on_resize_settled(std::function<void(float, float)> handler) { m_on_resize_settled = std::move(handler); }
 
 void studio::ChartsView::set_on_destroyed(std::function<void()> handler) { m_on_destroyed = std::move(handler); }
+
+void studio::ChartsView::set_text_engine(albor::TextEngine* text) { m_text = text; }
+
+void studio::ChartsView::set_on_chart_command(std::function<void(ChartCommand, std::size_t)> handler) { m_on_chart_command = std::move(handler); }
+
+void studio::ChartsView::run_chart_command(const ChartCommand command, const std::size_t chart_index) const {
+    // a command reaches the presenter only while the view is wired to it
+    if (m_on_chart_command)
+        m_on_chart_command(command, chart_index);
+}
 
 float studio::ChartsView::viewport_width() const { return bounds().width; }
 
@@ -308,6 +326,128 @@ void studio::ChartsView::arrange(const albor::Rect& bounds) {
         schedule_resize_settle();
 }
 
+std::vector<studio::ChartsView::ContextMenuEntry> studio::ChartsView::context_menu_entries(const std::size_t chart_index) const {
+    // a chart index past the recorded slots has no menu
+    if (m_scene == nullptr || chart_index >= m_scene->slots.size())
+        return {};
+    // the smith plane is fixed at the unit circle, so its chart only offers the plot command
+    const bool cartesian = m_scene->slots[chart_index].kind != ChartKind::SMITH;
+    // the menu under construction
+    std::vector<ContextMenuEntry> entries;
+    // the zoom commands apply to a cartesian chart only
+    if (cartesian) {
+        // fit both axes of the targeted chart
+        entries.push_back(ContextMenuEntry{.label = "Zoom to Fit", .command = ChartCommand::ZoomToFit});
+        // reset only the ordinate of the targeted chart
+        entries.push_back(ContextMenuEntry{.label = "Autorange", .command = ChartCommand::Autorange});
+        // reset the abscissa extent of every chart
+        entries.push_back(ContextMenuEntry{.label = "Zoom Abscissa Extent", .command = ChartCommand::ZoomAbscissaExtent});
+        // separate the zoom group from the plot commands
+        entries.push_back(ContextMenuEntry{.label = {}, .command = ChartCommand::ZoomToFit, .separator = true});
+    }
+    // the plot command applies to both chart kinds
+    entries.push_back(ContextMenuEntry{.label = "Delete All Plots", .command = ChartCommand::DeleteAllPlots});
+    // the chart stack commands apply to a cartesian chart only
+    if (cartesian) {
+        // separate the plot command from the chart stack commands
+        entries.push_back(ContextMenuEntry{.label = {}, .command = ChartCommand::ZoomToFit, .separator = true});
+        // insert an empty chart after the targeted one
+        entries.push_back(ContextMenuEntry{.label = "Add Chart", .command = ChartCommand::AddChart});
+        // remove the targeted chart
+        entries.push_back(ContextMenuEntry{.label = "Delete Chart", .command = ChartCommand::DeleteChart});
+    }
+    // hand the rows to the popup builder
+    return entries;
+}
+
+std::unique_ptr<albor::Menu> studio::ChartsView::build_context_menu(albor::BindingEngine& engine, albor::TextEngine& text, const std::size_t chart_index) {
+    // the menu is the whole popup surface
+    auto menu = std::make_unique<albor::Menu>(&engine, &text);
+    // every row routes its command to the presenter through this view
+    for (const ContextMenuEntry& entry : context_menu_entries(chart_index)) {
+        // a separator groups the rows around it
+        if (entry.separator) {
+            // the rule joins the menu between the rows it separates
+            menu->add_separator();
+            // next row
+            continue;
+        }
+        // one row presents the label and runs the command
+        auto item = std::make_unique<albor::MenuItem>(&engine, &text, entry.label);
+        // the press dismisses the menu before the scene it names changes
+        item->set_on_invoke([this, command = entry.command, chart_index] {
+            // hide the surface the press landed on
+            close_context_menu();
+            // forward the chosen command to the presenter
+            run_chart_command(command, chart_index);
+        });
+        // the row joins the menu, which lays it out and routes its input
+        menu->add_child(std::move(item));
+    }
+    // the popup reads the panel palette so its rows match the shell
+    if (const albor::Theme* installed = theme()) {
+        // the menu face takes the panel role the shell paints behind it
+        menu->set_background(installed->palette().panel_background[0]);
+        // every row takes the theme colors and metrics
+        albor::apply_theme(*menu, *installed);
+    }
+    // hand the built menu to the popup stage
+    return menu;
+}
+
+void studio::ChartsView::open_context_menu(const albor::Point local_point) {
+    // a panel with no engine, chart or text engine has no menu to offer
+    if (engine() == nullptr || m_scene == nullptr || m_scene->slots.empty() || m_text == nullptr)
+        return;
+    // the press in the logical scene coordinates the recorded slots use
+    const albor::Point scene_point = to_scene(local_point);
+    // the dataset strip keeps its own interactions, so a press there opens no menu
+    if (scene_point.y < m_scene->content_y)
+        return;
+    // the content the chart slots share
+    const float content_height = std::max(0.0f, m_scene->height - m_scene->content_y);
+    // the chart the press lands on, by the vertical slice it fills
+    const std::size_t index = content_height <= 0.0f ? 0 : std::min(static_cast<std::size_t>((scene_point.y - m_scene->content_y) / content_height * static_cast<float>(m_scene->slots.size())), m_scene->slots.size() - 1);
+    // the measuring pass measures the rows the popup will build
+    auto measuring = build_context_menu(*engine(), *m_text, index);
+    // the popup takes the extent the rows measured
+    albor::Size size{};
+    measuring->measure(albor::SizeConstraints::unconstrained(), size);
+    // a popup is opened by the process wide host the application installs
+    albor::PopupHost* host = albor::window_popup_host();
+    // no installed host leaves the menu without a surface
+    if (host == nullptr)
+        return;
+    // a surface from the previous open is released before the replacement takes its place
+    destroy_context_menu();
+    // the menu opens at the press, with the panel position the anchor expects
+    const albor::Rect anchor = albor::Rect::from_origin_size(albor::Point{.x = bounds().x + local_point.x, .y = bounds().y + local_point.y}, albor::Size{});
+    // the popup clears with the panel role so its first frame never flashes
+    const albor::Color background = theme() != nullptr ? theme()->palette().panel_background[0] : albor::Color::rgba(0.13f, 0.15f, 0.19f, 1.0f);
+    // the builder runs over the popup stage engines, which is where the menu tree lives
+    m_menu_popup = host->open_popup(*this, anchor, size, [this, index](albor::BindingEngine& popup_engine, albor::TextEngine& popup_text) { return build_context_menu(popup_engine, popup_text, index); }, background, {});
+}
+
+void studio::ChartsView::close_context_menu() {
+    // a view without a surface has nothing to hide
+    if (!m_menu_popup.valid())
+        return;
+    // a live host hides the surface while keeping its tree
+    if (albor::PopupHost* host = albor::window_popup_host())
+        host->close_popup(m_menu_popup);
+}
+
+void studio::ChartsView::destroy_context_menu() {
+    // a view without a surface has nothing to release
+    if (!m_menu_popup.valid())
+        return;
+    // a live host destroys the surface and the tree it built
+    if (albor::PopupHost* host = albor::window_popup_host())
+        host->destroy_popup(m_menu_popup);
+    // the handle no longer names a live surface
+    m_menu_popup = {};
+}
+
 albor::SemanticNode studio::ChartsView::semantic_node() const {
     // the chart panel is a drawing surface the user interacts with
     albor::SemanticNode node{albor::SemanticRole::Canvas};
@@ -336,6 +476,28 @@ albor::SemanticNode studio::ChartsView::semantic_node() const {
                     if (m_on_tab_closed)
                         m_on_tab_closed(tab_index);
                 });
+        }
+        // register the context menu commands for every recorded chart
+        for (const ChartSlot& slot : m_scene->slots) {
+            // the actions address the chart by its recorded index
+            const std::size_t chart_index = slot.chart_index;
+            // the command prefix keeps every chart's actions apart
+            const std::string prefix = "chart-" + std::to_string(chart_index) + "-";
+            // the smith plane keeps the plot command only
+            if (slot.kind != ChartKind::SMITH) {
+                // fit both axes of the chart
+                (void)node.add_action(prefix + "zoom-to-fit", [this, chart_index] { run_chart_command(ChartCommand::ZoomToFit, chart_index); });
+                // reset only the ordinate of the chart
+                (void)node.add_action(prefix + "autorange", [this, chart_index] { run_chart_command(ChartCommand::Autorange, chart_index); });
+                // reset the abscissa extent of every chart
+                (void)node.add_action(prefix + "zoom-abscissa-extent", [this, chart_index] { run_chart_command(ChartCommand::ZoomAbscissaExtent, chart_index); });
+                // insert an empty chart after the chart
+                (void)node.add_action(prefix + "add-chart", [this, chart_index] { run_chart_command(ChartCommand::AddChart, chart_index); });
+                // remove the chart, keeping at least one chart
+                (void)node.add_action(prefix + "delete-chart", [this, chart_index] { run_chart_command(ChartCommand::DeleteChart, chart_index); });
+            }
+            // drop every plotted series of the chart
+            (void)node.add_action(prefix + "delete-all-plots", [this, chart_index] { run_chart_command(ChartCommand::DeleteAllPlots, chart_index); });
         }
     }
     // hand the node to the adapter

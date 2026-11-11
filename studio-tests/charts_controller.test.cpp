@@ -265,3 +265,139 @@ TEST(StudioChartsControllerChecks, update_dataset_repoints_the_charts_and_keeps_
     ASSERT_EQ(controller.frames().size(), 1U);
     EXPECT_FALSE(controller.frames().front().series.empty());
 }
+
+TEST(StudioChartsControllerChecks, the_zoom_commands_reset_the_axes_the_context_menu_names) {
+    // arrange: two charts zoomed into the same abscissa window
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* first = controller.add_chart();
+    ChartEngine* second = controller.add_chart();
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    first->plot_series({manager.evaluate("V(out)")});
+    second->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    const auto [left, top, right, bottom] = controller.plot_rect(0);
+    ASSERT_TRUE(controller.zoom_drag_started(left + 20.0f, top + 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_moved(right - 20.0f, bottom - 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_ended());
+    // act: fit the second chart, which resets both axes there and the abscissa of the first
+    controller.zoom_to_fit(1);
+    // assert: the targeted chart keeps no window while its sibling keeps the ordinate
+    EXPECT_LT(std::get<0>(second->zoom_window()), 0.0);
+    EXPECT_LT(std::get<2>(second->zoom_window()), 0.0);
+    EXPECT_LT(std::get<0>(first->zoom_window()), 0.0);
+    EXPECT_GE(std::get<1>(first->zoom_window()), 0.0);
+    // arrange: a fresh two axis window on the first chart
+    ASSERT_TRUE(controller.zoom_drag_started(left + 20.0f, top + 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_moved(right - 20.0f, bottom - 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_ended());
+    // act: autorange the first chart
+    controller.autorange(0);
+    // assert: only the ordinate reset, because the abscissa belongs to the whole panel
+    EXPECT_LT(std::get<1>(first->zoom_window()), 0.0);
+    EXPECT_GE(std::get<0>(first->zoom_window()), 0.0);
+    // act: reset the shared abscissa extent
+    controller.zoom_abscissa_extent();
+    // assert: every chart dropped its horizontal window while the ordinate stays per chart
+    EXPECT_LT(std::get<0>(first->zoom_window()), 0.0);
+    EXPECT_LT(std::get<0>(second->zoom_window()), 0.0);
+}
+
+TEST(StudioChartsControllerChecks, the_chart_stack_commands_insert_and_delete_around_the_target) {
+    // arrange: two charts over the same dataset
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* first = controller.add_chart();
+    ASSERT_NE(first, nullptr);
+    first->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    // act: insert an empty chart after the first one
+    ChartEngine* inserted = controller.insert_chart(0);
+    // assert: the new chart sits at the second position and carries no series
+    ASSERT_NE(inserted, nullptr);
+    ASSERT_EQ(controller.chart_count(), 2U);
+    EXPECT_EQ(controller.chart(1), inserted);
+    ASSERT_EQ(controller.frames().size(), 2U);
+    EXPECT_TRUE(controller.frames()[1].series.empty());
+    // act: delete the inserted chart
+    controller.delete_chart(1);
+    // assert: the original chart remains
+    ASSERT_EQ(controller.chart_count(), 1U);
+    EXPECT_EQ(controller.chart(0), first);
+    // act: delete the last chart
+    controller.delete_chart(0);
+    // assert: the panel keeps one replacement chart with no series
+    ASSERT_EQ(controller.chart_count(), 1U);
+    EXPECT_TRUE(controller.frames().front().series.empty());
+    // act: delete the replacement with a smith kind
+    controller.delete_chart(0, ChartKind::SMITH);
+    // assert: the replacement keeps the dataset kind
+    ASSERT_EQ(controller.chart_count(), 1U);
+    EXPECT_EQ(controller.frames().front().smith, true);
+}
+
+TEST(StudioChartsControllerChecks, clearing_a_chart_drops_only_its_series) {
+    // arrange: two charts plotting the same expression
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* first = controller.add_chart();
+    ChartEngine* second = controller.add_chart();
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    first->plot_series({manager.evaluate("V(out)")});
+    second->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    // act: clear the first chart
+    controller.clear_chart(0);
+    // assert: only the first chart lost its series
+    ASSERT_EQ(controller.chart_count(), 2U);
+    EXPECT_TRUE(controller.frames()[0].series.empty());
+    EXPECT_FALSE(controller.frames()[1].series.empty());
+}
+
+TEST(StudioChartsControllerChecks, a_chart_added_after_a_zoom_joins_the_shared_abscissa) {
+    // arrange: one chart zoomed into the middle of the abscissa
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* first = controller.add_chart();
+    ASSERT_NE(first, nullptr);
+    first->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    const auto [left, top, right, bottom] = controller.plot_rect(0);
+    ASSERT_TRUE(controller.zoom_drag_started(left + 20.0f, top + 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_moved(right - 20.0f, bottom - 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_ended());
+    // act: add a chart after the zoomed one
+    ChartEngine* added = controller.insert_chart(0);
+    // assert: the new chart shares the horizontal window and keeps its full ordinate
+    ASSERT_NE(added, nullptr);
+    EXPECT_EQ(std::get<0>(added->zoom_window()), std::get<0>(first->zoom_window()));
+    EXPECT_EQ(std::get<2>(added->zoom_window()), std::get<2>(first->zoom_window()));
+    EXPECT_LT(std::get<1>(added->zoom_window()), 0.0);
+    EXPECT_LT(std::get<3>(added->zoom_window()), 0.0);
+}

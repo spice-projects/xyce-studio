@@ -1,11 +1,104 @@
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
 #include "albor/core/constraints.h"
+#include "albor/render/shaped_run.h"
 #include "albor/runtime/binding_engine.h"
+#include "albor/text/text_engine.h"
 #include "albor/ui/ui_event.h"
+#include "albor/widgets/menu.h"
+#include "albor/widgets/menu_item.h"
+#include "albor/window/popup_host.h"
 #include "views/charts/charts_view.h"
+
+namespace
+{
+    // the text engine double shapes every menu label into a fixed run
+    class FakeTextEngine final : public albor::TextEngine
+    {
+    public:
+        albor::TextLayout measure(const std::string_view text, const float max_width) const override {
+            // the unbounded measure delegates to the explicit size overload
+            return measure(text, max_width, DEFAULT_FONT_SIZE);
+        }
+
+        albor::TextLayout measure(const std::string_view text, const float max_width, const float font_size) const override {
+            // ignore the ceiling, because menu labels are single line
+            (void)max_width;
+            // build the line the run hands to the renderer
+            albor::ShapedRun::Line line;
+            // place the baseline below the run origin
+            line.origin = albor::Point{.x = 0.0f, .y = font_size * 0.8f};
+            // give the run one glyph per character so it is not empty
+            for (std::size_t index = 0; index < text.size(); ++index)
+                line.glyphs.push_back(albor::ShapedGlyph{.id = static_cast<std::uint32_t>(index), .position = albor::Point{.x = static_cast<float>(index) * 6.0f, .y = 0.0f}});
+            // wrap the line in an immutable shaped run
+            std::shared_ptr<const albor::ShapedRun> run = albor::ShapedRun::make({std::move(line)}, font_size);
+            // return a deterministic run whose extent grows with the text
+            return albor::TextLayout{.run = std::move(run), .size = albor::Size{.width = static_cast<float>(text.size()) * 6.0f, .height = font_size}, .ascent = font_size * 0.8f, .descent = font_size * 0.2f};
+        }
+
+        [[nodiscard]] bool ready() const override { return true; }
+    };
+
+    // the popup host double records the surface the view opens
+    class FakePopupHost final : public albor::PopupHost
+    {
+    public:
+        // the handle every accepted surface is named by
+        albor::WindowHandle handle = albor::WindowHandle::from_id(1000);
+
+        // the anchor rectangle the last opening named
+        albor::Rect anchor_rect{};
+
+        // the surface extent the last opening named
+        albor::Size size{};
+
+        // how many openings, hides and destructions arrived
+        std::size_t opens = 0;
+
+        std::size_t closes = 0;
+
+        std::size_t destroys = 0;
+
+        // the tree builder the host received, which the test invokes to cover the surface
+        albor::PopupRootBuilder builder;
+
+        // the dismissal work the view installed
+        std::function<void()> on_closed;
+
+        [[nodiscard]] albor::WindowHandle open_popup(const albor::UiNode&, const albor::Rect anchor_bounds, const albor::Size surface_size, albor::PopupRootBuilder root_builder, const albor::Color, std::function<void()> closed) override {
+            // the request is recorded before the answer
+            opens++;
+            // remember where and how large the surface opens
+            anchor_rect = anchor_bounds;
+            size = surface_size;
+            // keep the builder the test invokes
+            builder = std::move(root_builder);
+            on_closed = std::move(closed);
+            return handle;
+        }
+
+        void close_popup(albor::WindowHandle) override {
+            // count the hide the view asked for
+            closes++;
+        }
+
+        void show_popup(albor::WindowHandle) override {}
+
+        void destroy_popup(albor::WindowHandle) override {
+            // count the release the view asked for
+            destroys++;
+        }
+    };
+} // namespace
 
 TEST(StudioChartsViewChecks, a_bounded_measure_fills_the_host_page) {
     // arrange: a view over a binding engine and no timer registry
@@ -330,4 +423,219 @@ TEST(StudioChartsViewChecks, the_semantic_node_exposes_tab_select_and_close_acti
     EXPECT_EQ(selected, 0);
     EXPECT_TRUE(node.invoke("close-tab-0"));
     EXPECT_EQ(closed, 0);
+}
+
+TEST(StudioChartsViewChecks, the_context_menu_offers_the_line_chart_commands) {
+    // arrange: a view showing one cartesian chart over a fake popup host
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    FakePopupHost host;
+    albor::set_window_popup_host(&host);
+    studio::ChartsView view(&engine, nullptr);
+    view.set_text_engine(&text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::XY, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 340.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    // act: a secondary press opens the chart menu
+    (void)view.request_context_menu(albor::Point{.x = 100.0f, .y = 120.0f});
+    // assert: one surface opened where the press landed
+    ASSERT_EQ(host.opens, 1U);
+    EXPECT_FLOAT_EQ(host.anchor_rect.x, 100.0f);
+    EXPECT_FLOAT_EQ(host.anchor_rect.y, 120.0f);
+    EXPECT_GT(host.size.width, 0.0f);
+    EXPECT_GT(host.size.height, 0.0f);
+    // act: build the tree the popup stage would show
+    albor::BindingEngine popup_engine;
+    FakeTextEngine popup_text;
+    std::unique_ptr<albor::UiNode> root = host.builder(popup_engine, popup_text);
+    auto* menu = dynamic_cast<albor::Menu*>(root.get());
+    ASSERT_NE(menu, nullptr);
+    // assert: the rows present the cartesian commands in menu order
+    std::vector<std::string> labels;
+    for (const auto& child : menu->children()) {
+        // a separator has no label to present
+        const auto* item = dynamic_cast<const albor::MenuItem*>(child.get());
+        labels.push_back(item != nullptr ? item->label() : std::string("-"));
+    }
+    EXPECT_EQ(labels, (std::vector<std::string>{"Zoom to Fit", "Autorange", "Zoom Abscissa Extent", "-", "Delete All Plots", "-", "Add Chart", "Delete Chart"}));
+    // the process wide host is restored before the next test
+    albor::set_window_popup_host(nullptr);
+}
+
+TEST(StudioChartsViewChecks, a_smith_chart_context_menu_offers_only_the_plot_command) {
+    // arrange: a view showing one smith chart over a fake popup host
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    FakePopupHost host;
+    albor::set_window_popup_host(&host);
+    studio::ChartsView view(&engine, nullptr);
+    view.set_text_engine(&text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::SMITH, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 260.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    // act: a secondary press opens the chart menu
+    (void)view.request_context_menu(albor::Point{.x = 100.0f, .y = 120.0f});
+    ASSERT_EQ(host.opens, 1U);
+    // act: build the tree the popup stage would show
+    albor::BindingEngine popup_engine;
+    FakeTextEngine popup_text;
+    std::unique_ptr<albor::UiNode> root = host.builder(popup_engine, popup_text);
+    auto* menu = dynamic_cast<albor::Menu*>(root.get());
+    ASSERT_NE(menu, nullptr);
+    // assert: the fixed plane offers the plot command only
+    std::vector<std::string> labels;
+    for (const auto& child : menu->children()) {
+        // a separator has no label to present
+        const auto* item = dynamic_cast<const albor::MenuItem*>(child.get());
+        labels.push_back(item != nullptr ? item->label() : std::string("-"));
+    }
+    EXPECT_EQ(labels, (std::vector<std::string>{"Delete All Plots"}));
+    // the process wide host is restored before the next test
+    albor::set_window_popup_host(nullptr);
+}
+
+TEST(StudioChartsViewChecks, a_context_menu_press_runs_the_command_once_and_closes_the_surface) {
+    // arrange: a view whose menu rows report to a command recorder
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    FakePopupHost host;
+    albor::set_window_popup_host(&host);
+    studio::ChartsView view(&engine, nullptr);
+    view.set_text_engine(&text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::XY, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 340.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    std::vector<std::pair<studio::ChartCommand, std::size_t>> commands;
+    view.set_on_chart_command([&](const studio::ChartCommand command, const std::size_t index) { commands.emplace_back(command, index); });
+    // act: open the menu and build the tree the popup stage would show
+    (void)view.request_context_menu(albor::Point{.x = 100.0f, .y = 120.0f});
+    ASSERT_EQ(host.opens, 1U);
+    albor::BindingEngine popup_engine;
+    FakeTextEngine popup_text;
+    std::unique_ptr<albor::UiNode> root = host.builder(popup_engine, popup_text);
+    auto* menu = dynamic_cast<albor::Menu*>(root.get());
+    ASSERT_NE(menu, nullptr);
+    // arrange the menu to its measured extent so the rows carry bounds
+    albor::Size size{};
+    menu->measure(albor::SizeConstraints::unconstrained(), size);
+    menu->arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, size));
+    // find the row that removes the chart
+    albor::MenuItem* target = nullptr;
+    for (const auto& child : menu->children()) {
+        auto* item = dynamic_cast<albor::MenuItem*>(child.get());
+        if (item != nullptr && item->label() == "Delete Chart")
+            target = item;
+    }
+    ASSERT_NE(target, nullptr);
+    // act: press the row
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.button = albor::PointerButton::Left;
+    press.position = albor::Point{.x = target->bounds().x + 5.0f, .y = target->bounds().y + 5.0f};
+    target->dispatch_event(press);
+    // assert: the command reached the presenter once and the surface hid
+    ASSERT_EQ(commands.size(), 1U);
+    EXPECT_EQ(commands[0].first, studio::ChartCommand::DeleteChart);
+    EXPECT_EQ(commands[0].second, 0U);
+    EXPECT_TRUE(press.handled);
+    EXPECT_EQ(host.closes, 1U);
+    // the process wide host is restored before the next test
+    albor::set_window_popup_host(nullptr);
+}
+
+TEST(StudioChartsViewChecks, the_context_menu_ignores_the_dataset_strip) {
+    // arrange: a view whose strip sits above the chart content
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    FakePopupHost host;
+    albor::set_window_popup_host(&host);
+    studio::ChartsView view(&engine, nullptr);
+    view.set_text_engine(&text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->tab_bar_height = studio::CHART_TAB_HEIGHT;
+    scene->content_y = studio::CHART_TAB_HEIGHT;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::XY, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = studio::CHART_TAB_HEIGHT}, albor::Size{.width = 400.0f, .height = 300.0f - studio::CHART_TAB_HEIGHT}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = studio::CHART_TAB_HEIGHT + 20.0f}, albor::Size{.width = 340.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    // act: a secondary press lands on the strip
+    (void)view.request_context_menu(albor::Point{.x = 100.0f, .y = 10.0f});
+    // assert: the strip keeps its own interactions and opens no menu
+    EXPECT_EQ(host.opens, 0U);
+    // the process wide host is restored before the next test
+    albor::set_window_popup_host(nullptr);
+}
+
+TEST(StudioChartsViewChecks, the_semantic_node_exposes_the_chart_menu_actions) {
+    // arrange: a view that records the commands its actions run
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::XY, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 340.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    std::vector<std::pair<studio::ChartCommand, std::size_t>> commands;
+    view.set_on_chart_command([&](const studio::ChartCommand command, const std::size_t index) { commands.emplace_back(command, index); });
+    // act: read the actions the semantic node publishes
+    const albor::SemanticNode node = view.semantic_node();
+    // assert: the cartesian chart exposes every menu command
+    EXPECT_TRUE(node.has_action("chart-0-zoom-to-fit"));
+    EXPECT_TRUE(node.has_action("chart-0-autorange"));
+    EXPECT_TRUE(node.has_action("chart-0-zoom-abscissa-extent"));
+    EXPECT_TRUE(node.has_action("chart-0-delete-all-plots"));
+    EXPECT_TRUE(node.has_action("chart-0-add-chart"));
+    // act: run the add chart action
+    EXPECT_TRUE(node.invoke("chart-0-add-chart"));
+    // assert: the command reached the presenter with the chart index
+    ASSERT_EQ(commands.size(), 1U);
+    EXPECT_EQ(commands[0].first, studio::ChartCommand::AddChart);
+    EXPECT_EQ(commands[0].second, 0U);
+    // arrange: replace the scene with a smith chart
+    auto smith = std::make_shared<studio::ChartScene>();
+    smith->width = 400.0f;
+    smith->height = 300.0f;
+    smith->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::SMITH, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 260.0f, .height = 260.0f})});
+    view.set_scene(smith);
+    const albor::SemanticNode smith_node = view.semantic_node();
+    // assert: the fixed plane exposes the plot command only
+    EXPECT_FALSE(smith_node.has_action("chart-0-zoom-to-fit"));
+    EXPECT_FALSE(smith_node.has_action("chart-0-add-chart"));
+    EXPECT_TRUE(smith_node.has_action("chart-0-delete-all-plots"));
+}
+
+TEST(StudioChartsViewChecks, the_next_context_menu_releases_the_previous_surface) {
+    // arrange: a view showing one chart over a fake popup host
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    FakePopupHost host;
+    albor::set_window_popup_host(&host);
+    studio::ChartsView view(&engine, nullptr);
+    view.set_text_engine(&text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    auto scene = std::make_shared<studio::ChartScene>();
+    scene->width = 400.0f;
+    scene->height = 300.0f;
+    scene->slots.push_back(studio::ChartSlot{.chart_index = 0, .kind = ChartKind::XY, .frame = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}), .plot = albor::Rect::from_origin_size(albor::Point{.x = 40.0f, .y = 20.0f}, albor::Size{.width = 340.0f, .height = 260.0f})});
+    view.set_scene(scene);
+    // act: open the menu twice in a row
+    (void)view.request_context_menu(albor::Point{.x = 100.0f, .y = 120.0f});
+    (void)view.request_context_menu(albor::Point{.x = 140.0f, .y = 160.0f});
+    // assert: the replacement released the surface it replaced
+    EXPECT_EQ(host.opens, 2U);
+    EXPECT_EQ(host.destroys, 1U);
+    EXPECT_FLOAT_EQ(host.anchor_rect.x, 140.0f);
+    // the process wide host is restored before the next test
+    albor::set_window_popup_host(nullptr);
 }

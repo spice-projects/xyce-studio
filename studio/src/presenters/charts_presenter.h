@@ -10,6 +10,7 @@
 
 #include "albor/render/resource_factory.h"
 #include "albor/text/text_engine.h"
+#include "charts/chart_commands.h"
 #include "charts/chart_scene.h"
 #include "charts/chart_scene_builder.h"
 #include "charts/chart_text_measurer.h"
@@ -81,6 +82,9 @@ namespace studio
 
         // close a closable dataset tab
         void close_dataset(std::size_t index);
+
+        // run one chart context menu command on the chart at an index
+        void run_chart_command(ChartCommand command, std::size_t chart_index);
 
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;

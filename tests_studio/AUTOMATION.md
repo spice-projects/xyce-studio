@@ -453,6 +453,31 @@ with tempfile.TemporaryDirectory() as tmp:
   run without its expected output reports
   `Simulation finished but output file could not be found`.
 
+### Drive the chart context menu (from `charts_test.py`)
+
+The native context menu is a popup window that the automation host does not
+bind, and a secondary press is not reachable either. The chart surface exposes
+one semantic action per chart and command instead, and each action runs the
+same presenter path the menu rows run:
+
+```python
+chart = app.get_by_id("charts_view")
+chart.wait_for_exists()
+expect(chart).to_have_name("1 line chart")
+chart.click("chart-0-add-chart")
+expect(chart).to_have_name("2 line charts")
+chart.click("chart-1-delete-chart")
+expect(chart).to_have_name("1 line chart")
+```
+
+- The actions are `chart-<index>-zoom-to-fit`, `chart-<index>-autorange`,
+  `chart-<index>-zoom-abscissa-extent`, `chart-<index>-delete-all-plots`,
+  `chart-<index>-add-chart` and `chart-<index>-delete-chart`.
+- A Smith chart exposes only `chart-<index>-delete-all-plots`, because its
+  plane is fixed at the unit circle.
+- Add Chart inserts an empty chart after the named chart; Delete Chart removes
+  it and keeps one replacement when the last chart goes.
+
 ## Conventions
 
 - Every scenario starts with `# arrange`, uses `# step` for each interaction

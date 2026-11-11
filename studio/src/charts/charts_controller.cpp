@@ -4,6 +4,12 @@
 #include <cmath>
 #include <utility>
 
+namespace
+{
+    // the decimation target every chart engine is built with
+    constexpr std::size_t DECIMATE_TARGET = 4000;
+} // namespace
+
 studio::ChartsController::ChartsController(const float width, const float height, TextMeasurer measure) :
     m_layout(std::move(measure)), m_width(width), m_height(height) {}
 
@@ -51,7 +57,7 @@ ChartEngine* studio::ChartsController::add_chart(const ChartKind kind) {
     if (m_expression_manager == nullptr || m_step_information == nullptr)
         return nullptr;
     // build the engine over the active dataset
-    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, 4000, kind);
+    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind);
     // keep the engine and hand its address to the caller
     ChartEngine* chart = engine.get();
     // append the chart to the stack
@@ -124,6 +130,96 @@ void studio::ChartsController::reset_zoom(const std::size_t index, const bool ho
     // reset the requested zoom axes and replot
     engine->reset_zoom_window(horizontal, vertical);
     // republish the frame the zoom changed
+    rebuild_frames();
+}
+
+void studio::ChartsController::zoom_to_fit(const std::size_t index) {
+    // a chart index past the stack has no window to fit
+    if (index >= m_charts.size())
+        return;
+    // the targeted chart fits both axes, while the siblings keep their ordinate
+    for (std::size_t position = 0; position < m_charts.size(); ++position)
+        m_charts[position]->reset_zoom_window(true, position == index);
+    // republish every frame the reset changed
+    rebuild_frames();
+}
+
+void studio::ChartsController::autorange(const std::size_t index) {
+    // a chart index past the stack has no ordinate to reset
+    ChartEngine* engine = chart(index);
+    // nothing to reset without an engine
+    if (engine == nullptr)
+        return;
+    // a sibling keeps its window, because the ordinate belongs to one chart
+    engine->reset_zoom_window(false, true);
+    // republish the frame the zoom changed
+    rebuild_frames();
+}
+
+void studio::ChartsController::zoom_abscissa_extent() {
+    // every chart shares the abscissa extent, so every one resets horizontally
+    for (const std::unique_ptr<ChartEngine>& engine : m_charts)
+        engine->reset_zoom_window(true, false);
+    // republish the frames the reset changed
+    rebuild_frames();
+}
+
+void studio::ChartsController::clear_chart(const std::size_t index) {
+    // a chart index past the stack has no series to clear
+    ChartEngine* engine = chart(index);
+    // nothing to clear without an engine
+    if (engine == nullptr)
+        return;
+    // the pointer state names series the clear removes
+    hover_ended();
+    zoom_drag_canceled();
+    // drop every plotted series and reset the axes they used
+    engine->clear();
+    // republish the cleared chart
+    rebuild_frames();
+}
+
+ChartEngine* studio::ChartsController::insert_chart(const std::size_t after_index, const ChartKind kind) {
+    // a chart needs a dataset to resolve its abscissa and steps
+    if (m_expression_manager == nullptr || m_step_information == nullptr)
+        return nullptr;
+    // the new chart goes directly after the chart the command named
+    const std::size_t position = std::min(after_index + 1, m_charts.size());
+    // build the engine over the active dataset
+    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind);
+    // keep the engine and hand its address to the caller
+    ChartEngine* chart = engine.get();
+    // insert the empty chart at its final position
+    m_charts.insert(m_charts.begin() + static_cast<std::ptrdiff_t>(position), std::move(engine));
+    // a chart added after a zoom joins the shared abscissa window
+    if (m_charts.size() > 1) {
+        // the first chart carries the window every chart shares horizontally
+        const std::tuple<double, double, double, double>& shared = m_charts.front()->zoom_window();
+        // the new chart keeps its full ordinate while it takes the shared abscissa
+        m_charts[position]->update_zoom_window(std::get<0>(shared), std::get<2>(shared), -1.0, -1.0);
+    }
+    // the stack changed under any readout or drag that named an index
+    hover_ended();
+    zoom_drag_canceled();
+    // lay the new chart out with its siblings
+    rebuild_frames();
+    // hand the caller the chart it drives
+    return chart;
+}
+
+void studio::ChartsController::delete_chart(const std::size_t index, const ChartKind replacement_kind) {
+    // a chart index past the stack has no chart to remove
+    if (index >= m_charts.size())
+        return;
+    // the stack changed under any readout or drag that named an index
+    hover_ended();
+    zoom_drag_canceled();
+    // remove the chart the command named
+    m_charts.erase(m_charts.begin() + static_cast<std::ptrdiff_t>(index));
+    // a panel always keeps one chart, like the reference frontend
+    if (m_charts.empty() && m_expression_manager != nullptr && m_step_information != nullptr)
+        m_charts.push_back(std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, replacement_kind));
+    // republish the remaining chart or its replacement
     rebuild_frames();
 }
 

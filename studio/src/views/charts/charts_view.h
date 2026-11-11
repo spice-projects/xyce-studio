@@ -3,10 +3,20 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "albor/application/timer.h"
 #include "albor/widgets/widget.h"
+#include "albor/window/window_handle.h"
+#include "charts/chart_commands.h"
 #include "charts/chart_scene.h"
+
+namespace albor
+{
+    class Menu;
+
+    class TextEngine;
+} // namespace albor
 
 namespace studio
 {
@@ -57,6 +67,15 @@ namespace studio
         // install the callback the destructor runs before the widget leaves the tree
         void set_on_destroyed(std::function<void()> handler);
 
+        // install the text engine the chart context menu measures its rows with
+        void set_text_engine(albor::TextEngine* text);
+
+        // install the callback the chart context menu commands reach
+        void set_on_chart_command(std::function<void(ChartCommand, std::size_t)> handler);
+
+        // run one chart command on the chart at an index, which the semantic actions reuse
+        void run_chart_command(ChartCommand command, std::size_t chart_index) const;
+
         // cancel an active zoom drag, which a capture loss or an escape asks for
         void cancel_drag();
 
@@ -81,6 +100,34 @@ namespace studio
         [[nodiscard]] albor::SemanticNode semantic_node() const override;
 
     private:
+        // one row of the chart context menu
+        struct ContextMenuEntry
+        {
+            // the label the row shows
+            std::string label;
+
+            // the command the row runs
+            ChartCommand command = ChartCommand::ZoomToFit;
+
+            // whether the row separates the groups around it
+            bool separator = false;
+        };
+
+        // the rows the context menu offers for one chart
+        [[nodiscard]] std::vector<ContextMenuEntry> context_menu_entries(std::size_t chart_index) const;
+
+        // build the menu the popup surface shows over the given engines
+        [[nodiscard]] std::unique_ptr<albor::Menu> build_context_menu(albor::BindingEngine& engine, albor::TextEngine& text, std::size_t chart_index);
+
+        // open the context menu at a view local point
+        void open_context_menu(albor::Point local_point);
+
+        // hide the open context menu, keeping its tree for the next dismissal
+        void close_context_menu();
+
+        // destroy the menu surface a previous open left behind
+        void destroy_context_menu();
+
         // schedule the one shot rebuild after a resize settles
         void schedule_resize_settle();
 
@@ -129,6 +176,15 @@ namespace studio
         std::function<void(int)> m_on_tab_selected;
 
         std::function<void(int)> m_on_tab_closed;
+
+        // the text engine the context menu measures its rows with
+        albor::TextEngine* m_text = nullptr;
+
+        // the menu surface the last context menu opened
+        albor::WindowHandle m_menu_popup;
+
+        // the command sink the context menu rows report to
+        std::function<void(ChartCommand, std::size_t)> m_on_chart_command;
 
         // the resize settle callback
         std::function<void(float, float)> m_on_resize_settled;

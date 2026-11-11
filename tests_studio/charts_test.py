@@ -108,6 +108,23 @@ class ChartsPanelChecks(unittest.TestCase):
                 expect(chart).to_have_name("2 line charts")
                 expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
 
+    def test_the_chart_context_menu_commands_change_the_panel(self) -> None:
+        # arrange: one dataset whose chart offers the context menu commands
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            # arrange: the chart panel is the body
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 line chart")
+            # act: add a chart through the menu trigger the automation reaches
+            chart.click("chart-0-add-chart")
+            # assert: the empty chart joins the panel
+            expect(chart).to_have_name("2 line charts")
+            # act: delete the added chart through the same menu path
+            chart.click("chart-1-delete-chart")
+            # assert: the original chart remains
+            expect(chart).to_have_name("1 line chart")
+
     def test_touchstone_dataset_opens_a_smith_chart(self) -> None:
         # arrange: a repository touchstone file and a session scoped to this test
         dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"

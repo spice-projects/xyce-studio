@@ -65,6 +65,24 @@ namespace studio
         // reset the zoom window of one chart
         void reset_zoom(std::size_t index, bool horizontal, bool vertical);
 
+        // reset both axes of one chart and the abscissa of its siblings
+        void zoom_to_fit(std::size_t index);
+
+        // reset the ordinate of one chart
+        void autorange(std::size_t index);
+
+        // reset the abscissa extent of every chart
+        void zoom_abscissa_extent();
+
+        // remove every plotted series from one chart
+        void clear_chart(std::size_t index);
+
+        // insert an empty chart directly after the given index
+        ChartEngine* insert_chart(std::size_t after_index, ChartKind kind = ChartKind::XY);
+
+        // remove one chart, keeping a replacement when the last chart goes
+        void delete_chart(std::size_t index, ChartKind replacement_kind = ChartKind::XY);
+
         // move a chart to another position in the stack
         void move_chart(std::size_t from, std::size_t to);
 

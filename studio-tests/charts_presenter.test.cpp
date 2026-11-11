@@ -697,3 +697,49 @@ TEST(StudioChartsPresenterChecks, the_plot_groups_declare_the_primary_tab_charts
     EXPECT_EQ(presenter.chart_count(), 1U);
     EXPECT_EQ(presenter.series_count(0), 1U);
 }
+
+TEST(StudioChartsPresenterChecks, the_context_menu_commands_drive_the_active_dataset) {
+    // arrange: a run directory whose table carries two plotted series
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "charts-presenter-menu";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path csv = root / "tran.csv";
+    {
+        // write the header and two rows the parser reads as one step
+        std::ofstream file(csv);
+        file << "TIME,V(1),I(L1)\n0,0,0\n1,1,2\n2,2,4\n";
+    }
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    FakeTextEngine text;
+    studio::ChartsPresenter presenter(view, text);
+    ASSERT_TRUE(presenter.show_file(csv));
+    ASSERT_EQ(presenter.chart_count(), 1U);
+    ASSERT_EQ(presenter.series_count(0), 2U);
+    // act: add a chart after the plotted one
+    presenter.run_chart_command(studio::ChartCommand::AddChart, 0);
+    // assert: the empty chart joins the stack and the scene
+    EXPECT_EQ(presenter.chart_count(), 2U);
+    ASSERT_NE(presenter.scene(), nullptr);
+    EXPECT_EQ(presenter.scene()->slots.size(), 2U);
+    // act: delete the chart the command targets
+    presenter.run_chart_command(studio::ChartCommand::DeleteChart, 1);
+    // assert: the original chart remains
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    // act: clear every plot of the remaining chart
+    presenter.run_chart_command(studio::ChartCommand::DeleteAllPlots, 0);
+    // assert: the chart stays with no series
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    EXPECT_EQ(presenter.series_count(0), 0U);
+    // act: run the zoom commands on the empty chart
+    presenter.run_chart_command(studio::ChartCommand::ZoomToFit, 0);
+    presenter.run_chart_command(studio::ChartCommand::Autorange, 0);
+    presenter.run_chart_command(studio::ChartCommand::ZoomAbscissaExtent, 0);
+    // assert: the commands leave the chart in place
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    // act: address a chart past the stack
+    presenter.run_chart_command(studio::ChartCommand::AddChart, 9);
+    // assert: an absent chart changes nothing
+    EXPECT_EQ(presenter.chart_count(), 1U);
+}

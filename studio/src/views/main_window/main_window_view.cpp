@@ -213,6 +213,8 @@ bool studio::MainWindowView::create() {
     if (albor::WindowStage* stage = m_app->stage(m_handle)) {
         if (albor::UiNode* host = find_node(*m_root, "charts_host")) {
             auto charts = std::make_unique<ChartsView>(&stage->binding_engine(), &m_app->timers());
+            // the context menu measures its rows through the window text engine
+            charts->set_text_engine(&stage->text_engine());
             m_charts_view = charts.get();
             host->add_child(std::move(charts));
             host->invalidate_layout();

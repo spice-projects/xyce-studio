@@ -144,6 +144,8 @@ studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& te
     m_view->set_on_tab_selected([this](const int index) { activate_dataset(static_cast<std::size_t>(index)); });
     // install the dataset close callback
     m_view->set_on_tab_closed([this](const int index) { close_dataset(static_cast<std::size_t>(index)); });
+    // install the context menu command sink
+    m_view->set_on_chart_command([this](const ChartCommand command, const std::size_t index) { run_chart_command(command, index); });
     // install the resize settle callback
     m_view->set_on_resize_settled([this](const float width, const float height) { set_viewport(width, height); });
     // the view clears the borrowed pointer before the window tree frees it
@@ -172,6 +174,8 @@ void studio::ChartsPresenter::detach() {
     m_view->set_on_tab_selected({});
     // clear the tab close callback
     m_view->set_on_tab_closed({});
+    // clear the context menu command sink
+    m_view->set_on_chart_command({});
     // clear the resize callback
     m_view->set_on_resize_settled({});
     // clear the destructor callback
@@ -846,6 +850,46 @@ void studio::ChartsPresenter::close_dataset(const std::size_t index) {
         return;
     }
     // publish the remaining active dataset
+    publish_scene();
+}
+
+void studio::ChartsPresenter::run_chart_command(const ChartCommand command, const std::size_t chart_index) {
+    // the active dataset owns the chart the command names
+    DatasetState* state = active_state();
+    // no dataset has no chart to change
+    if (state == nullptr)
+        return;
+    // a command names a chart that must still exist
+    if (chart_index >= state->controller->chart_count())
+        return;
+    // apply the command to the active dataset
+    switch (command) {
+    case ChartCommand::ZoomToFit:
+        // fit the targeted chart and the shared abscissa
+        state->controller->zoom_to_fit(chart_index);
+        break;
+    case ChartCommand::Autorange:
+        // reset the targeted chart's ordinate
+        state->controller->autorange(chart_index);
+        break;
+    case ChartCommand::ZoomAbscissaExtent:
+        // reset every chart's abscissa extent
+        state->controller->zoom_abscissa_extent();
+        break;
+    case ChartCommand::DeleteAllPlots:
+        // drop every plotted series of the targeted chart
+        state->controller->clear_chart(chart_index);
+        break;
+    case ChartCommand::AddChart:
+        // insert an empty chart after the targeted one
+        state->controller->insert_chart(chart_index, state->kind);
+        break;
+    case ChartCommand::DeleteChart:
+        // remove the targeted chart, keeping one replacement when it was the last
+        state->controller->delete_chart(chart_index, state->kind);
+        break;
+    }
+    // the retained scene follows the rebuilt frames
     publish_scene();
 }
 
