@@ -107,18 +107,20 @@ std::shared_ptr<const studio::ChartScene> studio::ChartSceneBuilder::build(const
     // a panel with no area has no picture to record
     if (width <= 0.0f || height <= 0.0f)
         return scene;
-    // the base picture records the strip and every chart in panel local coordinates
-    albor::PictureRecorder recorder;
+    // the strip picture records the dataset tabs in panel local coordinates
+    albor::PictureRecorder strip_recorder;
     // record the dataset strip when the caller reserved one
-    if (strip_height > 0.0f)
-        scene->tabs = draw_tabs(recorder, tabs, width, strip_height, palette);
-    // a panel with no chart still keeps its tab strip usable
-    if (frames.empty()) {
-        // hand the scene its tab picture
-        scene->base = m_resources->create_picture(recorder);
-        // hand the scene to the view
-        return scene;
+    if (strip_height > 0.0f) {
+        // record the tabs and their hit-test rectangles
+        scene->tabs = draw_tabs(strip_recorder, tabs, width, strip_height, palette);
+        // hand the scene the strip picture the view flattens above the charts
+        scene->strip = m_resources->create_picture(strip_recorder);
     }
+    // the base picture records every chart in panel local coordinates
+    albor::PictureRecorder recorder;
+    // a panel with no chart has no chart picture, but keeps its tab strip usable
+    if (frames.empty())
+        return scene;
     // the charts share the height the strip leaves equally
     const float content_height = std::max(0.0f, height - strip_height);
     // the charts share the content height equally

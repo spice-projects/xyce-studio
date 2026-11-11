@@ -69,6 +69,9 @@ namespace studio
         // the base picture, which changes only with data, zoom, steps, size or theme
         std::shared_ptr<const albor::PictureResource> base;
 
+        // the retained tab strip picture, which the view flattens above the chart content
+        std::shared_ptr<const albor::PictureResource> strip;
+
         // the transient overlay picture, which changes on a drag
         std::shared_ptr<const albor::PictureResource> overlay;
 

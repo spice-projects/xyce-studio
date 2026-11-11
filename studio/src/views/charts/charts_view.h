@@ -90,8 +90,14 @@ namespace studio
         // map a view local position into the logical scene coordinates the retained picture uses
         [[nodiscard]] albor::Point to_scene(const albor::Point& local) const;
 
+        // build the transform the scene pictures are drawn under
+        [[nodiscard]] albor::Transform scene_transform() const;
+
         // draw one picture under the scene transform
         void draw_scene_picture(albor::RenderContext& context, const std::shared_ptr<const albor::PictureResource>& picture);
+
+        // flatten the retained tab strip into the scene so partial frames keep it
+        void draw_strip(albor::RenderContext& context);
 
         // the timer registry the resize settle is armed on
         albor::TimerScheduler* m_timers;

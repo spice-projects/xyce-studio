@@ -220,6 +220,7 @@ TEST(StudioChartSceneBuilderChecks, an_empty_frame_list_records_no_picture) {
     // assert: the scene is valid but carries no picture or slot
     ASSERT_NE(scene, nullptr);
     EXPECT_EQ(scene->base, nullptr);
+    EXPECT_EQ(scene->strip, nullptr);
     EXPECT_TRUE(scene->slots.empty());
 }
 
@@ -264,6 +265,7 @@ TEST(StudioChartSceneBuilderChecks, a_tab_strip_records_bounds_and_shifts_the_ch
     // assert: both tabs are recorded and the chart starts under the strip
     ASSERT_NE(scene, nullptr);
     ASSERT_NE(scene->base, nullptr);
+    ASSERT_NE(scene->strip, nullptr);
     EXPECT_FLOAT_EQ(scene->tab_bar_height, studio::CHART_TAB_HEIGHT);
     EXPECT_FLOAT_EQ(scene->content_y, studio::CHART_TAB_HEIGHT);
     ASSERT_EQ(scene->tabs.size(), 2U);
@@ -317,7 +319,8 @@ TEST(StudioChartSceneBuilderChecks, an_empty_frame_list_keeps_the_tab_strip) {
     const auto scene = builder.build({}, 400.0f, 300.0f, CHART_PALETTE_LIGHT, tabs, studio::CHART_TAB_HEIGHT);
     // assert: the strip stays recorded and the picture carries it
     ASSERT_NE(scene, nullptr);
-    ASSERT_NE(scene->base, nullptr);
+    EXPECT_EQ(scene->base, nullptr);
+    ASSERT_NE(scene->strip, nullptr);
     EXPECT_FLOAT_EQ(scene->tab_bar_height, studio::CHART_TAB_HEIGHT);
     EXPECT_FLOAT_EQ(scene->content_y, studio::CHART_TAB_HEIGHT);
     EXPECT_EQ(scene->tabs.size(), 2U);
@@ -342,6 +345,7 @@ TEST(StudioChartSceneBuilderChecks, an_empty_tab_list_reserves_no_strip) {
     ASSERT_NE(scene, nullptr);
     EXPECT_FLOAT_EQ(scene->tab_bar_height, 0.0f);
     EXPECT_FLOAT_EQ(scene->content_y, 0.0f);
+    EXPECT_EQ(scene->strip, nullptr);
     EXPECT_TRUE(scene->tabs.empty());
     ASSERT_EQ(scene->slots.size(), 1U);
     EXPECT_FLOAT_EQ(scene->slots[0].frame.y, 0.0f);

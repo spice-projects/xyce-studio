@@ -6,12 +6,7 @@
 #include <utility>
 
 #include "albor/core/constraints.h"
-
-namespace
-{
-    // a damage area larger than any window, which makes the frame builder repaint the whole surface
-    const albor::Rect FULL_FRAME_DAMAGE = albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 100000.0f, .height = 100000.0f});
-} // namespace
+#include "albor/render/draw_command.h"
 
 studio::ChartsView::ChartsView(albor::BindingEngine* engine, albor::TimerScheduler* timers) :
     albor::Widget(engine, "charts_view"), m_timers(timers) {}
@@ -28,18 +23,12 @@ studio::ChartsView::~ChartsView() {
 void studio::ChartsView::set_scene(std::shared_ptr<const ChartScene> scene) {
     // a base republish ends a drag recorded against the old scene
     cancel_drag();
-    // the strip the replacement scene records
-    const float next_strip = scene != nullptr ? scene->tab_bar_height : 0.0f;
     // keep the retained picture the view replays
     m_scene = std::move(scene);
     // a base republish drops any selection recorded against the old scene
     m_overlay.reset();
-    // a scene with a tab strip needs a whole-window frame, because a partial frame does not keep the strip
-    if (next_strip > 0.0f)
-        invalidate(FULL_FRAME_DAMAGE);
-    // a scene without a strip repaints only its panel
-    else
-        invalidate();
+    // the whole panel changed, so the whole panel redraws
+    invalidate();
 }
 
 void studio::ChartsView::set_overlay(std::shared_ptr<const ChartOverlay> overlay) {
@@ -98,24 +87,42 @@ void studio::ChartsView::paint_content(albor::RenderContext& context) {
         return;
     // the retained base scene is the whole chart panel
     draw_scene_picture(context, m_scene != nullptr ? m_scene->base : nullptr);
+    // the strip flattens into the scene, so a partial frame records its commands individually
+    draw_strip(context);
     // the transient zoom selection draws above the base
     if (m_overlay != nullptr)
         draw_scene_picture(context, m_overlay->picture);
+}
+
+albor::Transform studio::ChartsView::scene_transform() const {
+    // the scene picture is recorded in panel local coordinates
+    albor::Transform transform = albor::Transform::translation(bounds().x, bounds().y);
+    // a stale scene is stretched until the resize settle rebuilds it
+    if (m_scene != nullptr && m_scene->width > 0.0f && m_scene->height > 0.0f && (std::abs(m_scene->width - bounds().width) > 0.01f || std::abs(m_scene->height - bounds().height) > 0.01f))
+        transform = albor::Transform::scaling(bounds().width / m_scene->width, bounds().height / m_scene->height).then(transform);
+    // hand out the panel transform
+    return transform;
 }
 
 void studio::ChartsView::draw_scene_picture(albor::RenderContext& context, const std::shared_ptr<const albor::PictureResource>& picture) {
     // a picture with no command draws nothing
     if (picture == nullptr)
         return;
-    // the scene picture is recorded in panel local coordinates
-    albor::Transform transform = albor::Transform::translation(bounds().x, bounds().y);
-    // a stale scene is stretched until the resize settle rebuilds it
-    if (m_scene != nullptr && m_scene->width > 0.0f && m_scene->height > 0.0f && (std::abs(m_scene->width - bounds().width) > 0.01f || std::abs(m_scene->height - bounds().height) > 0.01f)) {
-        // scale the old picture into the current extent
-        transform = albor::Transform::scaling(bounds().width / m_scene->width, bounds().height / m_scene->height).then(transform);
-    }
     // replay the retained command list under the panel transform
-    context.draw_picture(picture, transform);
+    context.draw_picture(picture, scene_transform());
+}
+
+void studio::ChartsView::draw_strip(albor::RenderContext& context) {
+    // a scene without a strip picture has no tab to draw
+    if (m_scene == nullptr || m_scene->strip == nullptr)
+        return;
+    // the strip commands are recorded in panel local coordinates
+    context.save();
+    context.set_transform(scene_transform());
+    // flatten every strip command so the scene records it on its own damage bound
+    for (const albor::DrawCommand& command : m_scene->strip->commands())
+        command.replay(context);
+    context.restore();
 }
 
 void studio::ChartsView::cancel_drag() {
