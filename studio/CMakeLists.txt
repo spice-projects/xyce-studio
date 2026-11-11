@@ -69,6 +69,7 @@ albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/lin_parameters_panel.ui" IMPORTS "form_label.ui" "ground_replace_row.ui" "print_section.ui" "sweep_mode_row.ui" --manifest "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_ui.manifest")
 
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/main_window/main_window.ui")
+albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/charts/add_plot_dialog.ui")
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/plugin_config/plugin_config_dialog.ui")
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_parameters_dialog.ui" IMPORTS "transient_parameters_panel.ui" "dc_parameters_panel.ui" "ac_parameters_panel.ui" "op_parameters_panel.ui" "noise_parameters_panel.ui" "hb_parameters_panel.ui" "lin_parameters_panel.ui" --manifest "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_ui.manifest")
 

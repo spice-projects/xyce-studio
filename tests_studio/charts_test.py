@@ -125,6 +125,88 @@ class ChartsPanelChecks(unittest.TestCase):
             # assert: the original chart remains
             expect(chart).to_have_name("1 line chart")
 
+    def test_the_plot_selection_dialog_edits_a_chart(self) -> None:
+        # arrange: one dataset whose chart plots two expressions
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            # arrange: open the dialog through the chart menu trigger
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # assert: the dialog lists the two plotted expressions selected
+            expect(app.get_by_id("add_plot_name_0")).to_have_name("V(1)")
+            expect(app.get_by_id("add_plot_name_1")).to_have_name("V(2)")
+            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
+            # act: filter the list down to one expression
+            app.get_by_id("add_plot_filter").fill("V(1)")
+            # assert: the other row leaves the list
+            expect(app.get_by_id("add_plot_row_1")).not_().to_exist()
+            # act: clear the filter and deselect the first expression
+            app.get_by_id("add_plot_filter").fill("")
+            app.get_by_id("add_plot_check_0").click("toggle")
+            # assert: the footer counts the remaining selection
+            expect(app.get_by_id("add_plot_selected")).to_have_name("1 of 2 checked")
+            # act: apply the selection
+            app.get_by_id("add_plot_ok").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+            # act: reopen the dialog over the edited chart
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # assert: the chart kept the accepted selection
+            expect(app.get_by_id("add_plot_selected")).to_have_name("1 of 2 checked")
+            # act: add a custom expression and apply it
+            app.get_by_id("add_plot_custom").fill("V(1) * 2")
+            app.get_by_id("add_plot_add").click()
+            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 3 checked")
+            expect(app.get_by_id("add_plot_name_2")).to_have_name("V(1) * 2")
+            app.get_by_id("add_plot_ok").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+            # act: reopen the dialog one last time
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # assert: the custom expression joined the chart selection
+            expect(app.get_by_id("add_plot_name_2")).to_have_name("V(1) * 2")
+            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 3 checked")
+            app.get_by_id("add_plot_cancel").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+
+    def test_a_refused_custom_expression_keeps_the_dialog_open(self) -> None:
+        # arrange: one dataset whose chart plots two expressions
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # act: add an expression the parser refuses
+            app.get_by_id("add_plot_custom").fill("V(1) *")
+            app.get_by_id("add_plot_add").click()
+            # assert: the dialog stays open with the message and the selection unchanged
+            expect(app.get_by_id("add_plot_error")).to_have_name("The expression could not be evaluated")
+            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
+            # step: cancel the dialog
+            app.get_by_id("add_plot_cancel").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+
+    def test_a_smith_plot_selection_offers_no_custom_expression(self) -> None:
+        # arrange: a touchstone dataset the charts show on the smith plane
+        dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 smith chart")
+            # act: open the plot selection dialog
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # assert: only the diagonal entries are offered and no custom row shows
+            expect(app.get_by_id("add_plot_name_0")).to_have_name("S11")
+            expect(app.get_by_id("add_plot_name_1")).to_have_name("S22")
+            expect(app.get_by_id("add_plot_custom")).not_().to_exist()
+            # step: cancel the dialog
+            app.get_by_id("add_plot_cancel").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+
     def test_touchstone_dataset_opens_a_smith_chart(self) -> None:
         # arrange: a repository touchstone file and a session scoped to this test
         dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"

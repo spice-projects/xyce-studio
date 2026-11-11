@@ -15,6 +15,7 @@
 #include "charts/chart_scene_builder.h"
 #include "charts/chart_text_measurer.h"
 #include "charts/charts_controller.h"
+#include "charts/plot_selection.h"
 #include "presenters/run_output.h"
 
 class XyceOutputFile;
@@ -85,6 +86,18 @@ namespace studio
 
         // run one chart context menu command on the chart at an index
         void run_chart_command(ChartCommand command, std::size_t chart_index);
+
+        // install the callback the add/remove plots command reaches
+        void set_on_add_remove_plots(std::function<void(std::size_t)> handler);
+
+        // hand out the expressions and rules the add/remove plots dialog opens with
+        [[nodiscard]] std::optional<PlotSelectionState> plot_selection(std::size_t chart_index) const;
+
+        // resolve a custom expression against the active dataset, nothing when it does not parse
+        [[nodiscard]] std::optional<PlotExpression> resolve_plot_expression(std::size_t chart_index, const std::string& expression) const;
+
+        // apply the accepted expression names to one chart, returning false when a name does not resolve
+        bool apply_plot_selection(std::size_t chart_index, const std::vector<std::string>& names);
 
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
@@ -219,6 +232,9 @@ namespace studio
 
         // the shell sink for a dataset tab change
         std::function<void()> m_on_tabs_changed;
+
+        // the shell sink for the add/remove plots command
+        std::function<void(std::size_t)> m_on_add_remove_plots;
 
         // whether the dark chart palette is active
         bool m_dark_mode = false;

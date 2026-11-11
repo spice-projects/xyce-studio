@@ -1,0 +1,130 @@
+// the native add/remove plots dialog, which edits the expressions one chart plots
+
+component AddPlotDialog {
+    // whether the chart accepts a custom expression, which a smith chart refuses
+    in property<bool> allow_custom: true;
+    // the message a refused custom expression produced
+    in property<string> error_message: "";
+    // the selection count the footer names
+    in property<string> selected_summary: "";
+    // the filter the text field edits
+    inout property<string> filter_text: "";
+    // the custom expression the text field edits
+    inout property<string> custom_text: "";
+
+    signal filter_changed(string text);
+    signal custom_added();
+    signal accepted();
+    signal dismissed();
+
+    Panel {
+        padding: 16px;
+
+        Column {
+            spacing: 12px;
+
+            Label {
+                text: "Select Plot Expressions";
+                font_size: 18px;
+                font_weight: Weight.semibold;
+            }
+
+            Label {
+                text: "Select one or more expressions to plot:";
+                font_size: 13px;
+            }
+
+            TextField {
+                id: add_plot_filter;
+                placeholder: "Filter expressions...";
+                value: filter_text;
+                on_changed: {
+                    filter_text = value;
+                    filter_changed(value);
+                }
+            }
+
+            Panel {
+                padding: 8px;
+                vertical_align: Align.stretch;
+
+                ScrollView {
+                    vertical_align: Align.stretch;
+                    scrollbar: Scrollbar.as_needed;
+
+                    Column {
+                        id: add_plot_rows_host;
+                        spacing: 4px;
+                        horizontal_align: Align.stretch;
+                    }
+                }
+            }
+
+            if allow_custom {
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+
+                    Label {
+                        text: "Expression:";
+                        font_size: 13px;
+                    }
+
+                    TextField {
+                        id: add_plot_custom;
+                        placeholder: "e.g. V(net1) / I(R1)";
+                        value: custom_text;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            custom_text = value;
+                        }
+                    }
+
+                    Button {
+                        id: add_plot_add;
+                        text: "Add";
+                        on_clicked: {
+                            custom_added();
+                        }
+                    }
+                }
+            }
+
+            Label {
+                id: add_plot_selected;
+                text: selected_summary;
+                font_size: 12px;
+                foreground: #666666;
+            }
+
+            Label {
+                id: add_plot_error;
+                text: error_message;
+                font_size: 12px;
+                foreground: #CC0000;
+                visible: error_message != "";
+            }
+
+            Row {
+                spacing: 8px;
+                horizontal_align: Align.end;
+
+                Button {
+                    id: add_plot_cancel;
+                    text: "Cancel";
+                    on_clicked: {
+                        dismissed();
+                    }
+                }
+
+                Button {
+                    id: add_plot_ok;
+                    text: "OK";
+                    on_clicked: {
+                        accepted();
+                    }
+                }
+            }
+        }
+    }
+}

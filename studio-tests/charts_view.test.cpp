@@ -460,7 +460,7 @@ TEST(StudioChartsViewChecks, the_context_menu_offers_the_line_chart_commands) {
         const auto* item = dynamic_cast<const albor::MenuItem*>(child.get());
         labels.push_back(item != nullptr ? item->label() : std::string("-"));
     }
-    EXPECT_EQ(labels, (std::vector<std::string>{"Zoom to Fit", "Autorange", "Zoom Abscissa Extent", "-", "Delete All Plots", "-", "Add Chart", "Delete Chart"}));
+    EXPECT_EQ(labels, (std::vector<std::string>{"Zoom to Fit", "Autorange", "Zoom Abscissa Extent", "-", "Add/Remove Plots...", "Delete All Plots", "-", "Add Chart", "Delete Chart"}));
     // the process wide host is restored before the next test
     albor::set_window_popup_host(nullptr);
 }
@@ -495,7 +495,7 @@ TEST(StudioChartsViewChecks, a_smith_chart_context_menu_offers_only_the_plot_com
         const auto* item = dynamic_cast<const albor::MenuItem*>(child.get());
         labels.push_back(item != nullptr ? item->label() : std::string("-"));
     }
-    EXPECT_EQ(labels, (std::vector<std::string>{"Delete All Plots"}));
+    EXPECT_EQ(labels, (std::vector<std::string>{"Add/Remove Plots...", "Delete All Plots"}));
     // the process wide host is restored before the next test
     albor::set_window_popup_host(nullptr);
 }
@@ -594,6 +594,7 @@ TEST(StudioChartsViewChecks, the_semantic_node_exposes_the_chart_menu_actions) {
     EXPECT_TRUE(node.has_action("chart-0-zoom-to-fit"));
     EXPECT_TRUE(node.has_action("chart-0-autorange"));
     EXPECT_TRUE(node.has_action("chart-0-zoom-abscissa-extent"));
+    EXPECT_TRUE(node.has_action("chart-0-add-remove-plots"));
     EXPECT_TRUE(node.has_action("chart-0-delete-all-plots"));
     EXPECT_TRUE(node.has_action("chart-0-add-chart"));
     // act: run the add chart action
@@ -612,6 +613,7 @@ TEST(StudioChartsViewChecks, the_semantic_node_exposes_the_chart_menu_actions) {
     // assert: the fixed plane exposes the plot command only
     EXPECT_FALSE(smith_node.has_action("chart-0-zoom-to-fit"));
     EXPECT_FALSE(smith_node.has_action("chart-0-add-chart"));
+    EXPECT_TRUE(smith_node.has_action("chart-0-add-remove-plots"));
     EXPECT_TRUE(smith_node.has_action("chart-0-delete-all-plots"));
 }
 

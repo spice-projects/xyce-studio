@@ -471,12 +471,36 @@ expect(chart).to_have_name("1 line chart")
 ```
 
 - The actions are `chart-<index>-zoom-to-fit`, `chart-<index>-autorange`,
-  `chart-<index>-zoom-abscissa-extent`, `chart-<index>-delete-all-plots`,
-  `chart-<index>-add-chart` and `chart-<index>-delete-chart`.
-- A Smith chart exposes only `chart-<index>-delete-all-plots`, because its
-  plane is fixed at the unit circle.
+  `chart-<index>-zoom-abscissa-extent`, `chart-<index>-add-remove-plots`,
+  `chart-<index>-delete-all-plots`, `chart-<index>-add-chart` and
+  `chart-<index>-delete-chart`.
+- A Smith chart exposes only `chart-<index>-add-remove-plots` and
+  `chart-<index>-delete-all-plots`, because its plane is fixed at the unit
+  circle.
 - Add Chart inserts an empty chart after the named chart; Delete Chart removes
   it and keeps one replacement when the last chart goes.
+
+### Edit a chart's plots (from `charts_test.py`)
+
+`chart-<index>-add-remove-plots` opens the plot selection dialog, which is a
+modal window the automation does bind. The expression rows are host-built, so
+each row carries stable ids: `add_plot_check_<n>`, `add_plot_name_<n>` and
+`add_plot_row_<n>`:
+
+```python
+chart.click("chart-0-add-remove-plots")
+app.get_by_id("add_plot_filter").wait_for_exists()
+expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
+app.get_by_id("add_plot_check_0").click("toggle")
+app.get_by_id("add_plot_ok").click()
+app.get_by_id("add_plot_filter").wait_for_gone()
+```
+
+- Deselecting every row leaves the chart empty.
+- The filter hides the rows whose expression name does not match.
+- The custom field (`add_plot_custom`, `add_plot_add`) resolves through the
+  dataset expression manager and reports a refusal in `add_plot_error`.
+- A Smith chart lists the diagonal entries only and hides the custom row.
 
 ## Conventions
 

@@ -8,6 +8,7 @@
 
 namespace studio
 {
+    class AlborAddPlotDialogView;
     class AlborPluginConfigDialogView;
     class AlborSimulationParametersDialogView;
     class ChartsPresenter;
@@ -58,6 +59,9 @@ namespace studio
 
         // whether the waveform panel currently replaces the editor
         bool m_charts_visible = false;
+
+        // the add/remove plots dialog surface
+        std::unique_ptr<AlborAddPlotDialogView> m_add_plot_view;
 
         // the plugin configuration dialog surface
         std::unique_ptr<AlborPluginConfigDialogView> m_plugin_config_view;

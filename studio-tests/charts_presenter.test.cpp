@@ -743,3 +743,116 @@ TEST(StudioChartsPresenterChecks, the_context_menu_commands_drive_the_active_dat
     // assert: an absent chart changes nothing
     EXPECT_EQ(presenter.chart_count(), 1U);
 }
+
+TEST(StudioChartsPresenterChecks, the_plot_selection_lists_the_expressions_and_the_plotted_ones) {
+    // arrange: a run directory whose table carries two plotted series
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "charts-presenter-selection";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path csv = root / "tran.csv";
+    {
+        // write the header and two rows the parser reads as one step
+        std::ofstream file(csv);
+        file << "TIME,V(1),I(L1)\n0,0,0\n1,1,2\n2,2,4\n";
+    }
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    FakeTextEngine text;
+    studio::ChartsPresenter presenter(view, text);
+    ASSERT_TRUE(presenter.show_file(csv));
+    // act: read the state the add/remove plots dialog opens with
+    const std::optional<studio::PlotSelectionState> selection = presenter.plot_selection(0);
+    // assert: the abscissa is hidden and both plotted series are selected
+    ASSERT_TRUE(selection.has_value());
+    EXPECT_FALSE(selection->smith);
+    EXPECT_TRUE(selection->allow_custom);
+    ASSERT_EQ(selection->expressions.size(), 2U);
+    EXPECT_EQ(selection->expressions[0].name, "V(1)");
+    EXPECT_EQ(selection->expressions[1].name, "I(L1)");
+    EXPECT_TRUE(selection->expressions[0].selected);
+    EXPECT_TRUE(selection->expressions[1].selected);
+    // act: apply only the first expression
+    EXPECT_TRUE(presenter.apply_plot_selection(0, {"V(1)"}));
+    // assert: the chart now plots the one series and the dialog state follows
+    EXPECT_EQ(presenter.series_count(0), 1U);
+    const std::optional<studio::PlotSelectionState> updated = presenter.plot_selection(0);
+    ASSERT_TRUE(updated.has_value());
+    EXPECT_TRUE(updated->expressions[0].selected);
+    EXPECT_FALSE(updated->expressions[1].selected);
+    // act: apply an empty selection
+    EXPECT_TRUE(presenter.apply_plot_selection(0, {}));
+    // assert: the chart keeps its place with no series
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    EXPECT_EQ(presenter.series_count(0), 0U);
+}
+
+TEST(StudioChartsPresenterChecks, a_custom_expression_resolves_and_plots) {
+    // arrange: a run directory whose table carries one plotted series
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "charts-presenter-custom";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path csv = root / "tran.csv";
+    {
+        // write the header and two rows the parser reads as one step
+        std::ofstream file(csv);
+        file << "TIME,V(1)\n0,0\n1,1\n2,2\n";
+    }
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    FakeTextEngine text;
+    studio::ChartsPresenter presenter(view, text);
+    ASSERT_TRUE(presenter.show_file(csv));
+    // act: resolve a custom expression
+    const std::optional<studio::PlotExpression> custom = presenter.resolve_plot_expression(0, "V(1) * 2");
+    // assert: the manager names the parsed expression and the chart plots it
+    ASSERT_TRUE(custom.has_value());
+    EXPECT_FALSE(custom->name.empty());
+    EXPECT_TRUE(presenter.apply_plot_selection(0, {custom->name}));
+    EXPECT_EQ(presenter.series_count(0), 1U);
+    // act: resolve text that does not parse
+    const std::optional<studio::PlotExpression> refused = presenter.resolve_plot_expression(0, "V(1) *");
+    // assert: an unparsable expression resolves nothing
+    EXPECT_FALSE(refused.has_value());
+}
+
+TEST(StudioChartsPresenterChecks, a_smith_plot_selection_offers_the_diagonal_entries_only) {
+    // arrange: a touchstone file the charts load as a smith dataset
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "charts-presenter-smith-selection";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path touchstone = root / "lin.s2p";
+    {
+        // write a minimal two-port s parameter file
+        std::ofstream file(touchstone);
+        file << "# Hz S RI R 50\n";
+        file << "1e8 0.20 0.00 0.80 0.00 0.80 0.00 -0.20 0.00\n";
+        file << "2e8 0.10 0.10 0.70 -0.10 0.70 -0.10 -0.10 0.10\n";
+    }
+    albor::BindingEngine engine;
+    studio::ChartsView view(&engine, nullptr);
+    FakeTextEngine text;
+    studio::ChartsPresenter presenter(view, text);
+    ASSERT_TRUE(presenter.show_file(touchstone));
+    // act: read the state the dialog opens with
+    const std::optional<studio::PlotSelectionState> selection = presenter.plot_selection(0);
+    // assert: the plane offers the diagonal entries and no custom expression
+    ASSERT_TRUE(selection.has_value());
+    EXPECT_TRUE(selection->smith);
+    EXPECT_FALSE(selection->allow_custom);
+    ASSERT_FALSE(selection->expressions.empty());
+    for (const studio::PlotExpression& expression : selection->expressions) {
+        EXPECT_EQ(expression.name.size() >= 3, true);
+        EXPECT_EQ(expression.name[1], expression.name[2]);
+    }
+    // act: resolve a custom expression on the fixed plane
+    const std::optional<studio::PlotExpression> custom = presenter.resolve_plot_expression(0, "S11 * 2");
+    // assert: the smith plane refuses it
+    EXPECT_FALSE(custom.has_value());
+    // act: apply one diagonal entry
+    EXPECT_TRUE(presenter.apply_plot_selection(0, {"S11"}));
+    // assert: the plane plots the one gamma trace
+    EXPECT_EQ(presenter.series_count(0), 1U);
+}

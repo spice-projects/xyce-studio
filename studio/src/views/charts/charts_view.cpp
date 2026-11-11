@@ -345,6 +345,8 @@ std::vector<studio::ChartsView::ContextMenuEntry> studio::ChartsView::context_me
         // separate the zoom group from the plot commands
         entries.push_back(ContextMenuEntry{.label = {}, .command = ChartCommand::ZoomToFit, .separator = true});
     }
+    // the plot dialog applies to both chart kinds, because it filters the smith entries itself
+    entries.push_back(ContextMenuEntry{.label = "Add/Remove Plots...", .command = ChartCommand::AddRemovePlots});
     // the plot command applies to both chart kinds
     entries.push_back(ContextMenuEntry{.label = "Delete All Plots", .command = ChartCommand::DeleteAllPlots});
     // the chart stack commands apply to a cartesian chart only
@@ -496,6 +498,8 @@ albor::SemanticNode studio::ChartsView::semantic_node() const {
                 // remove the chart, keeping at least one chart
                 (void)node.add_action(prefix + "delete-chart", [this, chart_index] { run_chart_command(ChartCommand::DeleteChart, chart_index); });
             }
+            // edit the expressions the chart plots
+            (void)node.add_action(prefix + "add-remove-plots", [this, chart_index] { run_chart_command(ChartCommand::AddRemovePlots, chart_index); });
             // drop every plotted series of the chart
             (void)node.add_action(prefix + "delete-all-plots", [this, chart_index] { run_chart_command(ChartCommand::DeleteAllPlots, chart_index); });
         }

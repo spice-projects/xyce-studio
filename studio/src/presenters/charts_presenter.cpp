@@ -76,6 +76,35 @@ namespace
         // hand out the parsed file, or nothing when the table is unreadable
         return parsed ? *parsed : nullptr;
     }
+
+    // the name an expression carries across both value types
+    std::string expression_name(const AnyExpression& expression) {
+        return std::visit([](const auto& value) { return value.name(); }, expression);
+    }
+
+    // the unit an expression carries across both value types
+    std::string expression_unit(const AnyExpression& expression) {
+        return std::visit([](const auto& value) { return value.unit(); }, expression);
+    }
+
+    // whether the fixed gamma plane can plot the expression, which needs a diagonal network parameter
+    bool is_smith_expression(const AnyExpression& expression) {
+        // the diagonal entry is named S11, Y11, Z11, and so on
+        const std::string name = expression_name(expression);
+        // only a complex reflection coefficient has a gamma plane position
+        return name.size() >= 3 && std::isupper(static_cast<unsigned char>(name[0])) != 0 && name[1] == name[2] && std::holds_alternative<Expression<std::complex<double>>>(expression);
+    }
+
+    // whether a chart already plots the expression, including the derived traces a complex line chart draws
+    bool is_expression_plotted(const Series& series, const AnyExpression& expression) {
+        // the expression name the chart keys its series by
+        const std::string name = expression_name(expression);
+        // a real expression and a smith trace carry their own name
+        if (series.contains(name))
+            return true;
+        // a complex line chart plots the magnitude and phase under derived names
+        return std::holds_alternative<Expression<std::complex<double>>>(expression) && (series.contains("db(" + name + ")") || series.contains("phase(" + name + ")"));
+    }
 } // namespace
 
 studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& text) :
@@ -876,6 +905,12 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
         // reset every chart's abscissa extent
         state->controller->zoom_abscissa_extent();
         break;
+    case ChartCommand::AddRemovePlots:
+        // the dialog owns the selection, so the shell shows it
+        if (m_on_add_remove_plots)
+            m_on_add_remove_plots(chart_index);
+        // a dialog opens no scene change of its own
+        return;
     case ChartCommand::DeleteAllPlots:
         // drop every plotted series of the targeted chart
         state->controller->clear_chart(chart_index);
@@ -891,6 +926,97 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
     }
     // the retained scene follows the rebuilt frames
     publish_scene();
+}
+
+void studio::ChartsPresenter::set_on_add_remove_plots(std::function<void(std::size_t)> handler) { m_on_add_remove_plots = std::move(handler); }
+
+std::optional<studio::PlotSelectionState> studio::ChartsPresenter::plot_selection(const std::size_t chart_index) const {
+    // the active dataset owns the chart the dialog edits
+    const DatasetState* state = active_state();
+    // no dataset and no chart have no selection to offer
+    if (state == nullptr || state->file == nullptr || chart_index >= state->controller->chart_count())
+        return std::nullopt;
+    // the chart whose series the dialog marks
+    const ChartEngine* chart = state->controller->chart(chart_index);
+    // a chart that vanished under the dialog has no selection
+    if (chart == nullptr)
+        return std::nullopt;
+    // a smith chart offers the diagonal entries and no custom row
+    const bool smith = state->kind == ChartKind::SMITH;
+    // the state the dialog opens with
+    PlotSelectionState selection{.chart_index = chart_index, .smith = smith, .allow_custom = !smith};
+    // the expressions the dataset resolved
+    ExpressionManager& manager = state->file->expression_manager();
+    // the abscissa is not a plotted series
+    const std::string abscissa = manager.abscissa().name();
+    // list the dataset expressions in their stored order
+    for (const std::string& name : manager.expression_names()) {
+        // the abscissa never joins the selection
+        if (name == abscissa)
+            continue;
+        // resolve the name to the expression the chart plots
+        AnyExpression* expression = manager.evaluate(name);
+        // an unresolved name is not offered
+        if (expression == nullptr)
+            continue;
+        // a smith chart only offers the diagonal entries its plane can draw
+        if (smith && !is_smith_expression(*expression))
+            continue;
+        // the row carries the name, the unit and the chart's current state
+        selection.expressions.push_back(PlotExpression{.name = name, .unit = expression_unit(*expression), .selected = is_expression_plotted(chart->series(), *expression)});
+    }
+    // hand the state to the dialog
+    return selection;
+}
+
+std::optional<studio::PlotExpression> studio::ChartsPresenter::resolve_plot_expression(const std::size_t chart_index, const std::string& expression) const {
+    // the active dataset owns the chart the expression would plot on
+    const DatasetState* state = active_state();
+    // no dataset and no chart can resolve an expression
+    if (state == nullptr || state->file == nullptr || chart_index >= state->controller->chart_count())
+        return std::nullopt;
+    // the fixed gamma plane refuses an arbitrary expression
+    if (state->kind == ChartKind::SMITH)
+        return std::nullopt;
+    // trim the text the user typed
+    const std::string text = trim(expression);
+    // an empty entry resolves nothing
+    if (text.empty())
+        return std::nullopt;
+    // the manager parses the expression, or returns nothing when it does not parse
+    AnyExpression* resolved = state->file->expression_manager().evaluate(text);
+    // a refused expression leaves the dialog with its message
+    if (resolved == nullptr)
+        return std::nullopt;
+    // the dialog lists the canonical name and unit the manager produced
+    return PlotExpression{.name = expression_name(*resolved), .unit = expression_unit(*resolved), .selected = true};
+}
+
+bool studio::ChartsPresenter::apply_plot_selection(const std::size_t chart_index, const std::vector<std::string>& names) {
+    // the active dataset owns the chart the dialog edited
+    DatasetState* state = active_state();
+    // no dataset and no chart have a selection to apply
+    if (state == nullptr || state->file == nullptr || chart_index >= state->controller->chart_count())
+        return false;
+    // the expressions the accepted names resolve to
+    std::set<AnyExpression*> selected;
+    // the manager every name resolves through
+    ExpressionManager& manager = state->file->expression_manager();
+    // resolve every accepted name
+    for (const std::string& name : names) {
+        // resolve the name to the expression the chart plots
+        AnyExpression* expression = manager.evaluate(name);
+        // a name the manager cannot resolve refuses the whole selection
+        if (expression == nullptr)
+            return false;
+        // the expression joins the plotted set
+        selected.insert(expression);
+    }
+    // replace the plotted series of the chart
+    state->controller->plot_expressions(chart_index, selected);
+    // the retained scene follows the rebuilt frame
+    publish_scene();
+    return true;
 }
 
 std::size_t studio::ChartsPresenter::chart_count() const {

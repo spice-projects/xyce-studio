@@ -14,6 +14,9 @@ namespace studio
         // reset the abscissa extent of every chart
         ZoomAbscissaExtent,
 
+        // edit the expressions the targeted chart plots
+        AddRemovePlots,
+
         // remove every plotted series from the targeted chart
         DeleteAllPlots,
 

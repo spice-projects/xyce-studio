@@ -2,8 +2,10 @@
 
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "albor/application/application.h"
 #include "albor/application/window_stage.h"
@@ -13,6 +15,7 @@
 #include "presenters/main_window_presenter.h"
 #include "presenters/plugin_config_presenter.h"
 #include "presenters/simulation_parameters_presenter.h"
+#include "views/charts/add_plot_dialog_view.h"
 #include "views/charts/charts_view.h"
 #include "views/main_window/main_window_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
@@ -143,6 +146,35 @@ int studio::StudioApp::run() {
             m_main_view->set_charts_enabled(true);
         }
     }
+    // the add/remove plots dialog is parented to the shell and outlives individual shows
+    if (m_charts_presenter != nullptr) {
+        m_add_plot_view = std::make_unique<AlborAddPlotDialogView>(application, m_main_view->handle());
+        // the context menu opens the dialog over the chart it targets
+        m_charts_presenter->set_on_add_remove_plots([this](const std::size_t index) {
+            // a dialog that is already open owns the interaction
+            if (m_add_plot_view == nullptr || m_add_plot_view->is_open() || m_charts_presenter == nullptr)
+                return;
+            // the chart may have been removed while the menu was open
+            const std::optional<studio::PlotSelectionState> state = m_charts_presenter->plot_selection(index);
+            // a chart that vanished opens nothing
+            if (!state)
+                return;
+            // the dialog edits the selection and hands the accepted names back to the charts
+            m_add_plot_view->show(
+                *state,
+                [this, index](std::vector<std::string> names) {
+                    // a shell that closed while the dialog ran drops the selection
+                    if (m_charts_presenter != nullptr)
+                        m_charts_presenter->apply_plot_selection(index, names);
+                },
+                [this, index](const std::string& expression) -> std::optional<studio::PlotExpression> {
+                    // a shell that closed while the dialog ran resolves nothing
+                    if (m_charts_presenter == nullptr)
+                        return std::nullopt;
+                    return m_charts_presenter->resolve_plot_expression(index, expression);
+                });
+        });
+    }
     // the dialog is parented to the shell and outlives individual shows
     m_plugin_config_view = std::make_unique<AlborPluginConfigDialogView>(application, m_main_view->handle());
     m_plugin_config_presenter = std::make_unique<PluginConfigPresenter>();
@@ -170,9 +202,13 @@ int studio::StudioApp::run() {
     application.set_closed_handler([this](albor::WindowHandle handle) {
         // the charts view dies with the shell, so the presenter must stop borrowing it first
         if (m_charts_presenter != nullptr && handle == m_main_view->handle()) {
+            m_charts_presenter->set_on_add_remove_plots({});
             m_charts_presenter->detach();
             m_charts_presenter.reset();
         }
+        // the add/remove dialog clears its state before the shell clears its facade
+        if (m_add_plot_view != nullptr)
+            m_add_plot_view->on_window_closed(handle);
         // the dialog clears its presenter before the shell clears its facade
         m_plugin_config_view->on_window_closed(handle);
         m_simulation_parameters_view->on_window_closed(handle);
