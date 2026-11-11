@@ -56,18 +56,15 @@ component HbParametersPanel {
                             FormLabel {
                                 text: "Frequencies";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_hb_frequencies;
-                                    value: state.frequencies;
-                                    placeholder: "space-separated fundamental frequencies";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.frequencies = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_frequencies;
+                                value: state.frequencies;
+                                placeholder: "space-separated fundamental frequencies";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.frequencies = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -77,18 +74,15 @@ component HbParametersPanel {
                             FormLabel {
                                 text: "Harmonics / NUMFREQ";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_hb_harmonics;
-                                    value: state.harmonics;
-                                    placeholder: "comma-separated integers";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.harmonics = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_harmonics;
+                                value: state.harmonics;
+                                placeholder: "comma-separated integers";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.harmonics = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -98,18 +92,15 @@ component HbParametersPanel {
                             FormLabel {
                                 text: "TAHB";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_hb_tahb;
-                                    value: state.tahb;
-                                    placeholder: "e.g. 0 1 2 5 10 20";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.tahb = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_tahb;
+                                value: state.tahb;
+                                placeholder: "e.g. 0 1 2 5 10 20";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.tahb = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -119,18 +110,15 @@ component HbParametersPanel {
                             FormLabel {
                                 text: "SELECTHARMS";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_hb_selectharms;
-                                    value: state.selectharms;
-                                    placeholder: "e.g. ALL 1 2 3 5 10";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.selectharms = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_selectharms;
+                                value: state.selectharms;
+                                placeholder: "e.g. ALL 1 2 3 5 10";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.selectharms = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -140,18 +128,15 @@ component HbParametersPanel {
                             FormLabel {
                                 text: "Startup periods";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_hb_startup_periods;
-                                    value: state.startup_periods;
-                                    placeholder: "startup periods";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.startup_periods = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_hb_startup_periods;
+                                value: state.startup_periods;
+                                placeholder: "startup periods";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.startup_periods = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -171,9 +156,7 @@ component HbParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;
@@ -204,9 +187,7 @@ component HbParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;

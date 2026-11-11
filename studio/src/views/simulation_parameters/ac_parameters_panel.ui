@@ -55,16 +55,13 @@ component AcParametersPanel {
                             FormLabel {
                                 text: "Sweep mode";
                             }
-                            SizedBox {
-                                width: 300px;
-                                ComboBox {
-                                    horizontal_align: Align.stretch;
-                                    items: ["LIN", "DEC", "OCT", "DATA"];
-                                    selected: state.sweep_mode_index;
-                                    on_selection_changed: {
-                                        state.sweep_mode_index = index;
-                                        state_changed(state);
-                                    }
+                            ComboBox {
+                                horizontal_align: Align.stretch;
+                                items: ["LIN", "DEC", "OCT", "DATA"];
+                                selected: state.sweep_mode_index;
+                                on_selection_changed: {
+                                    state.sweep_mode_index = index;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -78,18 +75,15 @@ component AcParametersPanel {
                                     id: simulation_ac_points_caption;
                                     text: "Points";
                                 }
-                                SizedBox {
-                                    width: 300px;
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_ac_points;
-                                        value: state.points;
-                                        placeholder: "number of points per decade";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.points = value;
-                                            state_changed(state);
-                                        }
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_ac_points;
+                                    value: state.points;
+                                    placeholder: "number of points per decade";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.points = value;
+                                        state_changed(state);
                                     }
                                 }
                             }
@@ -103,18 +97,15 @@ component AcParametersPanel {
                                     id: simulation_ac_start_caption;
                                     text: "Start";
                                 }
-                                SizedBox {
-                                    width: 300px;
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_ac_start;
-                                        value: state.start;
-                                        placeholder: "start frequency (e.g. 1k)";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.start = value;
-                                            state_changed(state);
-                                        }
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_ac_start;
+                                    value: state.start;
+                                    placeholder: "start frequency (e.g. 1k)";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.start = value;
+                                        state_changed(state);
                                     }
                                 }
                             }
@@ -128,18 +119,15 @@ component AcParametersPanel {
                                     id: simulation_ac_end_caption;
                                     text: "End";
                                 }
-                                SizedBox {
-                                    width: 300px;
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_ac_end;
-                                        value: state.end;
-                                        placeholder: "stop frequency (e.g. 100MEG)";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.end = value;
-                                            state_changed(state);
-                                        }
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_ac_end;
+                                    value: state.end;
+                                    placeholder: "stop frequency (e.g. 100MEG)";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.end = value;
+                                        state_changed(state);
                                     }
                                 }
                             }
@@ -154,18 +142,15 @@ component AcParametersPanel {
                                     id: simulation_ac_table_caption;
                                     text: "Data table";
                                 }
-                                SizedBox {
-                                    width: 300px;
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_ac_table;
-                                        value: state.data_table;
-                                        placeholder: "name of the data block to sweep";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.data_table = value;
-                                            state_changed(state);
-                                        }
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_ac_table;
+                                    value: state.data_table;
+                                    placeholder: "name of the data block to sweep";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.data_table = value;
+                                        state_changed(state);
                                     }
                                 }
                             }

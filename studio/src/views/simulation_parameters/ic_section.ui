@@ -25,18 +25,13 @@ component IcSection {
                 font_size: 12px;
             }
 
-            SizedBox {
-                width: 508px;
-                horizontal_align: Align.start;
-
-                TextField {
-                    font_size: 13px;
-                    value: text;
-                    placeholder: "e.g. V(out)=1.0 V(in)=0";
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        text_changed(value);
-                    }
+            TextField {
+                font_size: 13px;
+                value: text;
+                placeholder: "e.g. V(out)=1.0 V(in)=0";
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    text_changed(value);
                 }
             }
         }

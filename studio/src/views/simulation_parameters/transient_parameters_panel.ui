@@ -78,18 +78,15 @@ component TransientParametersPanel {
                                 id: simulation_tran_initial_step_caption;
                                 text: "Initial step";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_tran_initial_step;
-                                    value: state.initial_step;
-                                    placeholder: "initial time step (e.g. 1n)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.initial_step = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_tran_initial_step;
+                                value: state.initial_step;
+                                placeholder: "initial time step (e.g. 1n)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.initial_step = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -100,18 +97,15 @@ component TransientParametersPanel {
                                 id: simulation_tran_final_time_caption;
                                 text: "Final time";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_tran_final_time;
-                                    value: state.final_time;
-                                    placeholder: "simulation end time (e.g. 1u)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.final_time = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_tran_final_time;
+                                value: state.final_time;
+                                placeholder: "simulation end time (e.g. 1u)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.final_time = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -122,18 +116,15 @@ component TransientParametersPanel {
                                 id: simulation_tran_start_time_caption;
                                 text: "Start time";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_tran_start_time;
-                                    value: state.start_time;
-                                    placeholder: "optional start time (e.g. 0)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.start_time = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_tran_start_time;
+                                value: state.start_time;
+                                placeholder: "optional start time (e.g. 0)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.start_time = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -144,18 +135,15 @@ component TransientParametersPanel {
                                 id: simulation_tran_step_ceiling_caption;
                                 text: "Max time step";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_tran_step_ceiling;
-                                    value: state.step_ceiling;
-                                    placeholder: "optional step ceiling";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.step_ceiling = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_tran_step_ceiling;
+                                value: state.step_ceiling;
+                                placeholder: "optional step ceiling";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.step_ceiling = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -166,17 +154,14 @@ component TransientParametersPanel {
                                 id: simulation_tran_op_keyword_caption;
                                 text: "OP keyword";
                             }
-                            SizedBox {
-                                width: 300px;
-                                ComboBox {
-                                    horizontal_align: Align.stretch;
-                                    id: simulation_tran_op_keyword;
-                                    items: ["(None)", "NOOP", "UIC"];
-                                    selected: state.op_keyword_index;
-                                    on_selection_changed: {
-                                        state.op_keyword_index = index;
-                                        state_changed(state);
-                                    }
+                            ComboBox {
+                                horizontal_align: Align.stretch;
+                                id: simulation_tran_op_keyword;
+                                items: ["(None)", "NOOP", "UIC"];
+                                selected: state.op_keyword_index;
+                                on_selection_changed: {
+                                    state.op_keyword_index = index;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -196,9 +181,7 @@ component TransientParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;
@@ -238,9 +221,7 @@ component TransientParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;
@@ -271,9 +252,7 @@ component TransientParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;

@@ -56,18 +56,15 @@ component NoiseParametersPanel {
                             FormLabel {
                                 text: "Output node";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_noise_output_node;
-                                    value: state.output_node;
-                                    placeholder: "e.g. V(out)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.output_node = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_output_node;
+                                value: state.output_node;
+                                placeholder: "e.g. V(out)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.output_node = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -77,18 +74,15 @@ component NoiseParametersPanel {
                             FormLabel {
                                 text: "Reference node";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_noise_ref_node;
-                                    value: state.ref_node;
-                                    placeholder: "e.g. V(0)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.ref_node = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_ref_node;
+                                value: state.ref_node;
+                                placeholder: "e.g. V(0)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.ref_node = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -98,18 +92,15 @@ component NoiseParametersPanel {
                             FormLabel {
                                 text: "Source name";
                             }
-                            SizedBox {
-                                width: 300px;
-                                TextField {
-                                    font_size: 13px;
-                                    id: simulation_noise_source_name;
-                                    value: state.source_name;
-                                    placeholder: "noise source (e.g. R1)";
-                                    horizontal_align: Align.stretch;
-                                    on_changed: {
-                                        state.source_name = value;
-                                        state_changed(state);
-                                    }
+                            TextField {
+                                font_size: 13px;
+                                id: simulation_noise_source_name;
+                                value: state.source_name;
+                                placeholder: "noise source (e.g. R1)";
+                                horizontal_align: Align.stretch;
+                                on_changed: {
+                                    state.source_name = value;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -119,17 +110,14 @@ component NoiseParametersPanel {
                             FormLabel {
                                 text: "Sweep type";
                             }
-                            SizedBox {
-                                width: 300px;
-                                ComboBox {
-                                    horizontal_align: Align.stretch;
-                                    id: simulation_noise_sweep_type;
-                                    items: ["LIN", "DEC", "OCT", "DATA"];
-                                    selected: state.sweep_type_index;
-                                    on_selection_changed: {
-                                        state.sweep_type_index = index;
-                                        state_changed(state);
-                                    }
+                            ComboBox {
+                                horizontal_align: Align.stretch;
+                                id: simulation_noise_sweep_type;
+                                items: ["LIN", "DEC", "OCT", "DATA"];
+                                selected: state.sweep_type_index;
+                                on_selection_changed: {
+                                    state.sweep_type_index = index;
+                                    state_changed(state);
                                 }
                             }
                         }
@@ -151,18 +139,15 @@ component NoiseParametersPanel {
                                     FormLabel {
                                         text: "Start frequency";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_noise_start_freq;
-                                            value: state.start_freq;
-                                            placeholder: "start frequency (e.g. 1)";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.start_freq = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_noise_start_freq;
+                                        value: state.start_freq;
+                                        placeholder: "start frequency (e.g. 1)";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.start_freq = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -172,18 +157,15 @@ component NoiseParametersPanel {
                                     FormLabel {
                                         text: "End frequency";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_noise_end_freq;
-                                            value: state.end_freq;
-                                            placeholder: "end frequency (e.g. 10k)";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.end_freq = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_noise_end_freq;
+                                        value: state.end_freq;
+                                        placeholder: "end frequency (e.g. 10k)";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.end_freq = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -193,18 +175,15 @@ component NoiseParametersPanel {
                                     FormLabel {
                                         text: "Number of points";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_noise_num_points;
-                                            value: state.num_points;
-                                            placeholder: "points per decade/octave";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.num_points = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_noise_num_points;
+                                        value: state.num_points;
+                                        placeholder: "points per decade/octave";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.num_points = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -220,18 +199,15 @@ component NoiseParametersPanel {
                                     FormLabel {
                                         text: "Data table";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_noise_table;
-                                            value: state.data_table;
-                                            placeholder: "name of the data block to sweep";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.data_table = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_noise_table;
+                                        value: state.data_table;
+                                        placeholder: "name of the data block to sweep";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.data_table = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -253,9 +229,7 @@ component NoiseParametersPanel {
                         }
 
                         SizedBox {
-                            width: 508px;
                             height: 64px;
-                            horizontal_align: Align.start;
 
                             TextField {
                                 font_size: 13px;

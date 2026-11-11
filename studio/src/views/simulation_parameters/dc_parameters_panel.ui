@@ -109,18 +109,15 @@ component DcParametersPanel {
                                     id: simulation_dc_table_caption;
                                     text: "Data table";
                                 }
-                                SizedBox {
-                                    width: 300px;
-                                    TextField {
-                                        font_size: 13px;
-                                        id: simulation_dc_table;
-                                        value: state.data_table;
-                                        placeholder: "name of the data block to sweep";
-                                        horizontal_align: Align.stretch;
-                                        on_changed: {
-                                            state.data_table = value;
-                                            state_changed(state);
-                                        }
+                                TextField {
+                                    font_size: 13px;
+                                    id: simulation_dc_table;
+                                    value: state.data_table;
+                                    placeholder: "name of the data block to sweep";
+                                    horizontal_align: Align.stretch;
+                                    on_changed: {
+                                        state.data_table = value;
+                                        state_changed(state);
                                     }
                                 }
                             }

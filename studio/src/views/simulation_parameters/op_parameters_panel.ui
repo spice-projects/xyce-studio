@@ -81,16 +81,13 @@ component OpParametersPanel {
                                 Row {
                                     spacing: 8px;
                                     vertical_align: Align.center;
-                                    SizedBox {
-                                        width: 300px;
-                                        ComboBox {
-                                            horizontal_align: Align.stretch;
-                                            items: ["Save as .NODESET", "Save as .IC"];
-                                            selected: state.save_type_index;
-                                            on_selection_changed: {
-                                                state.save_type_index = index;
-                                                state_changed(state);
-                                            }
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        items: ["Save as .NODESET", "Save as .IC"];
+                                        selected: state.save_type_index;
+                                        on_selection_changed: {
+                                            state.save_type_index = index;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -100,17 +97,14 @@ component OpParametersPanel {
                                     FormLabel {
                                         text: "Save file";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            value: state.save_file;
-                                            placeholder: "optional output file path";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.save_file = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        value: state.save_file;
+                                        placeholder: "optional output file path";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.save_file = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -120,16 +114,13 @@ component OpParametersPanel {
                                     FormLabel {
                                         text: "Level";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        ComboBox {
-                                            horizontal_align: Align.stretch;
-                                            items: ["(default)", "all", "none"];
-                                            selected: state.save_level_index;
-                                            on_selection_changed: {
-                                                state.save_level_index = index;
-                                                state_changed(state);
-                                            }
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        items: ["(default)", "all", "none"];
+                                        selected: state.save_level_index;
+                                        on_selection_changed: {
+                                            state.save_level_index = index;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -155,20 +146,15 @@ component OpParametersPanel {
                             font_size: 12px;
                         }
 
-                        SizedBox {
-                            width: 508px;
-                            horizontal_align: Align.start;
-
-                            TextField {
-                                font_size: 13px;
-                                id: simulation_op_nodeset;
-                                value: state.nodeset;
-                                placeholder: "e.g. V(1)=5.0 V(2)=3.3";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    state.nodeset = value;
-                                    state_changed(state);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            id: simulation_op_nodeset;
+                            value: state.nodeset;
+                            placeholder: "e.g. V(1)=5.0 V(2)=3.3";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                state.nodeset = value;
+                                state_changed(state);
                             }
                         }
                     }

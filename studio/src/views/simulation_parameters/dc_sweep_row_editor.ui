@@ -54,17 +54,14 @@ component DcSweepRowEditor {
                     FormLabel {
                         text: "Variable";
                     }
-                    SizedBox {
-                        width: 300px;
-                        TextField {
-                            font_size: 13px;
-                            value: row_data.variable;
-                            placeholder: "e.g. V1";
-                            horizontal_align: Align.stretch;
-                            on_changed: {
-                                row_data.variable = value;
-                                edited(row_data.key, row_data);
-                            }
+                    TextField {
+                        font_size: 13px;
+                        value: row_data.variable;
+                        placeholder: "e.g. V1";
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            row_data.variable = value;
+                            edited(row_data.key, row_data);
                         }
                     }
                 }
@@ -79,17 +76,14 @@ component DcSweepRowEditor {
                         FormLabel {
                             text: "Start";
                         }
-                        SizedBox {
-                            width: 300px;
-                            TextField {
-                                font_size: 13px;
-                                value: row_data.start;
-                                placeholder: "start value (e.g. 0)";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    row_data.start = value;
-                                    edited(row_data.key, row_data);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.start;
+                            placeholder: "start value (e.g. 0)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.start = value;
+                                edited(row_data.key, row_data);
                             }
                         }
                     }
@@ -99,17 +93,14 @@ component DcSweepRowEditor {
                         FormLabel {
                             text: "Stop";
                         }
-                        SizedBox {
-                            width: 300px;
-                            TextField {
-                                font_size: 13px;
-                                value: row_data.stop;
-                                placeholder: "stop value (e.g. 5)";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    row_data.stop = value;
-                                    edited(row_data.key, row_data);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.stop;
+                            placeholder: "stop value (e.g. 5)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.stop = value;
+                                edited(row_data.key, row_data);
                             }
                         }
                     }
@@ -125,17 +116,14 @@ component DcSweepRowEditor {
                         FormLabel {
                             text: "Step";
                         }
-                        SizedBox {
-                            width: 300px;
-                            TextField {
-                                font_size: 13px;
-                                value: row_data.step;
-                                placeholder: "step size (e.g. 0.1)";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    row_data.step = value;
-                                    edited(row_data.key, row_data);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.step;
+                            placeholder: "step size (e.g. 0.1)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.step = value;
+                                edited(row_data.key, row_data);
                             }
                         }
                     }
@@ -151,17 +139,14 @@ component DcSweepRowEditor {
                         FormLabel {
                             text: "Points";
                         }
-                        SizedBox {
-                            width: 300px;
-                            TextField {
-                                font_size: 13px;
-                                value: row_data.points;
-                                placeholder: "points per decade/octave";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    row_data.points = value;
-                                    edited(row_data.key, row_data);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.points;
+                            placeholder: "points per decade/octave";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.points = value;
+                                edited(row_data.key, row_data);
                             }
                         }
                     }
@@ -177,17 +162,14 @@ component DcSweepRowEditor {
                         FormLabel {
                             text: "List values";
                         }
-                        SizedBox {
-                            width: 300px;
-                            TextField {
-                                font_size: 13px;
-                                value: row_data.list_values;
-                                placeholder: "space-separated values (e.g. 0 1 2 5)";
-                                horizontal_align: Align.stretch;
-                                on_changed: {
-                                    row_data.list_values = value;
-                                    edited(row_data.key, row_data);
-                                }
+                        TextField {
+                            font_size: 13px;
+                            value: row_data.list_values;
+                            placeholder: "space-separated values (e.g. 0 1 2 5)";
+                            horizontal_align: Align.stretch;
+                            on_changed: {
+                                row_data.list_values = value;
+                                edited(row_data.key, row_data);
                             }
                         }
                     }

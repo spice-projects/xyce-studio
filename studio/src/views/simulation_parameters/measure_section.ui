@@ -23,9 +23,7 @@ component MeasureSection {
             }
 
             SizedBox {
-                width: 508px;
                 height: 64px;
-                horizontal_align: Align.start;
 
                 TextField {
                     font_size: 13px;

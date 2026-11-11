@@ -20,30 +20,26 @@ component OptionRowEditor {
             text: row_data.key;
         }
 
-        SizedBox {
-            width: 300px;
-
-            if row_data.choice_index >= 0 {
-                ComboBox {
-                    horizontal_align: Align.stretch;
-                    items: row_data.choices;
-                    selected: row_data.choice_index;
-                    on_selection_changed: {
-                        choice_selected(row_data.key, index);
-                    }
+        if row_data.choice_index >= 0 {
+            ComboBox {
+                horizontal_align: Align.stretch;
+                items: row_data.choices;
+                selected: row_data.choice_index;
+                on_selection_changed: {
+                    choice_selected(row_data.key, index);
                 }
             }
+        }
 
-            if row_data.choice_index < 0 {
-                TextField {
-                    value: row_data.value;
-                    placeholder: row_data.default_value;
-                    font_size: 13px;
-                    horizontal_align: Align.stretch;
-                    on_changed: {
-                        row_data.value = value;
-                        edited(row_data.key, row_data);
-                    }
+        if row_data.choice_index < 0 {
+            TextField {
+                value: row_data.value;
+                placeholder: row_data.default_value;
+                font_size: 13px;
+                horizontal_align: Align.stretch;
+                on_changed: {
+                    row_data.value = value;
+                    edited(row_data.key, row_data);
                 }
             }
         }

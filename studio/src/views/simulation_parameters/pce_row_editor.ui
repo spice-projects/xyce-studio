@@ -51,17 +51,14 @@ component PceRowEditor {
                     text: "Parameter";
                     min_width: 180px;
                 }
-                SizedBox {
-                    width: 300px;
-                    TextField {
-                        font_size: 13px;
-                        value: row_data.name;
-                        placeholder: "e.g. R1";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.name = value;
-                            edited(row_data.key, row_data);
-                        }
+                TextField {
+                    font_size: 13px;
+                    value: row_data.name;
+                    placeholder: "e.g. R1";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        row_data.name = value;
+                        edited(row_data.key, row_data);
                     }
                 }
             }
@@ -73,16 +70,13 @@ component PceRowEditor {
                     text: "Distribution";
                     min_width: 180px;
                 }
-                SizedBox {
-                    width: 300px;
-                    ComboBox {
-                        horizontal_align: Align.stretch;
-                        items: ["uniform", "normal", "gamma"];
-                        selected: row_data.type_index;
-                        on_selection_changed: {
-                            row_data.type_index = index;
-                            edited(row_data.key, row_data);
-                        }
+                ComboBox {
+                    horizontal_align: Align.stretch;
+                    items: ["uniform", "normal", "gamma"];
+                    selected: row_data.type_index;
+                    on_selection_changed: {
+                        row_data.type_index = index;
+                        edited(row_data.key, row_data);
                     }
                 }
             }
@@ -110,17 +104,14 @@ component PceRowEditor {
                     }
                 }
 
-                SizedBox {
-                    width: 300px;
-                    TextField {
-                        font_size: 13px;
-                        value: row_data.first_value;
-                        placeholder: "e.g. 1K";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.first_value = value;
-                            edited(row_data.key, row_data);
-                        }
+                TextField {
+                    font_size: 13px;
+                    value: row_data.first_value;
+                    placeholder: "e.g. 1K";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        row_data.first_value = value;
+                        edited(row_data.key, row_data);
                     }
                 }
             }
@@ -148,17 +139,14 @@ component PceRowEditor {
                     }
                 }
 
-                SizedBox {
-                    width: 300px;
-                    TextField {
-                        font_size: 13px;
-                        value: row_data.second_value;
-                        placeholder: "e.g. 5K";
-                        horizontal_align: Align.stretch;
-                        on_changed: {
-                            row_data.second_value = value;
-                            edited(row_data.key, row_data);
-                        }
+                TextField {
+                    font_size: 13px;
+                    value: row_data.second_value;
+                    placeholder: "e.g. 5K";
+                    horizontal_align: Align.stretch;
+                    on_changed: {
+                        row_data.second_value = value;
+                        edited(row_data.key, row_data);
                     }
                 }
             }

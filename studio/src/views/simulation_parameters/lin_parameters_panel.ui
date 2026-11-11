@@ -80,17 +80,14 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Format";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        ComboBox {
-                                            horizontal_align: Align.stretch;
-                                            id: simulation_lin_format;
-                                            items: ["TOUCHSTONE2", "TOUCHSTONE"];
-                                            selected: state.format_index;
-                                            on_selection_changed: {
-                                                state.format_index = index;
-                                                state_changed(state);
-                                            }
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        id: simulation_lin_format;
+                                        items: ["TOUCHSTONE2", "TOUCHSTONE"];
+                                        selected: state.format_index;
+                                        on_selection_changed: {
+                                            state.format_index = index;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -100,17 +97,14 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Type";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        ComboBox {
-                                            horizontal_align: Align.stretch;
-                                            id: simulation_lin_type;
-                                            items: ["S", "Y", "Z"];
-                                            selected: state.lintype_index;
-                                            on_selection_changed: {
-                                                state.lintype_index = index;
-                                                state_changed(state);
-                                            }
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        id: simulation_lin_type;
+                                        items: ["S", "Y", "Z"];
+                                        selected: state.lintype_index;
+                                        on_selection_changed: {
+                                            state.lintype_index = index;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -120,17 +114,14 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Data format";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        ComboBox {
-                                            horizontal_align: Align.stretch;
-                                            id: simulation_lin_dataformat;
-                                            items: ["RI", "MA", "DB"];
-                                            selected: state.dataformat_index;
-                                            on_selection_changed: {
-                                                state.dataformat_index = index;
-                                                state_changed(state);
-                                            }
+                                    ComboBox {
+                                        horizontal_align: Align.stretch;
+                                        id: simulation_lin_dataformat;
+                                        items: ["RI", "MA", "DB"];
+                                        selected: state.dataformat_index;
+                                        on_selection_changed: {
+                                            state.dataformat_index = index;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -140,18 +131,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Output file";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_file;
-                                            value: state.file;
-                                            placeholder: "touchstone output file path";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.file = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_file;
+                                        value: state.file;
+                                        placeholder: "touchstone output file path";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.file = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -161,18 +149,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Width";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_width;
-                                            value: state.output_width;
-                                            placeholder: "width in characters";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.output_width = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_width;
+                                        value: state.output_width;
+                                        placeholder: "width in characters";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.output_width = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -182,18 +167,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Precision";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_precision;
-                                            value: state.precision;
-                                            placeholder: "decimal precision";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.precision = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_precision;
+                                        value: state.precision;
+                                        placeholder: "decimal precision";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.precision = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -233,18 +215,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Points";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_points;
-                                            value: state.points;
-                                            placeholder: "number of points per decade";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.points = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_points;
+                                        value: state.points;
+                                        placeholder: "number of points per decade";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.points = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -254,18 +233,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Start";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_start;
-                                            value: state.start;
-                                            placeholder: "start frequency (e.g. 1k)";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.start = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_start;
+                                        value: state.start;
+                                        placeholder: "start frequency (e.g. 1k)";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.start = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -275,18 +251,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "End";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_end;
-                                            value: state.end;
-                                            placeholder: "stop frequency (e.g. 100MEG)";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.end = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_end;
+                                        value: state.end;
+                                        placeholder: "stop frequency (e.g. 100MEG)";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.end = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
@@ -302,18 +275,15 @@ component LinParametersPanel {
                                     FormLabel {
                                         text: "Data table";
                                     }
-                                    SizedBox {
-                                        width: 300px;
-                                        TextField {
-                                            font_size: 13px;
-                                            id: simulation_lin_table;
-                                            value: state.data_table;
-                                            placeholder: "name of the data block to sweep";
-                                            horizontal_align: Align.stretch;
-                                            on_changed: {
-                                                state.data_table = value;
-                                                state_changed(state);
-                                            }
+                                    TextField {
+                                        font_size: 13px;
+                                        id: simulation_lin_table;
+                                        value: state.data_table;
+                                        placeholder: "name of the data block to sweep";
+                                        horizontal_align: Align.stretch;
+                                        on_changed: {
+                                            state.data_table = value;
+                                            state_changed(state);
                                         }
                                     }
                                 }
