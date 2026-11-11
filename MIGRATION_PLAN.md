@@ -260,9 +260,11 @@ Status (2026-11-10, through `030f4c5`): 6.1–6.3 and the plugin-config half of 
   - [x] `PluginConfigPresenter` and `PluginConfigDialog` are complete: path validation, persistence, focus and cancel/accept coverage.
   - [ ] `AddPlotPresenter` and `AddPlotDialog` (or dockable signal picker) wait on the chart pipeline in 6.7.
 - [ ] **6.7. Chart Rendering Pipeline**
-  - Connect `ChartEngine` and `ChartLayout` from `xyce-core` to an Albor chart view.
-  - Implement zoom, pan, cursor hover, step selection and the default plot layout.
-  - Status: `studio/src/charts/` is still empty and the shell has no chart view yet.
+  - Connect `ChartEngine` and `ChartLayout` from `xyce-core` to a native Albor chart view.
+  - Implement line and Smith charts, zoom, cursor hover, step selection and the default plot layout.
+  - Implementation plan and file map: [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md).
+  - ImGui/ImPlot was evaluated and rejected; the textured-mesh primitive that path would need is tracked upstream as [AlborCore/albor#211](https://github.com/AlborCore/albor/issues/211), but native charts do not depend on it.
+  - Status: `studio/src/charts/` is still empty and the shell has no chart view yet; the plan is ready.
 - [ ] **6.8. KiCad Integration & Multi-Window Mode**
   - Wire `KiCadSession` IPC into the Albor application lifecycle.
   - Implement native secondary chart windows (`new_window`).
