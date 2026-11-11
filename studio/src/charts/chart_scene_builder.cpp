@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -88,7 +89,7 @@ namespace
 studio::ChartSceneBuilder::ChartSceneBuilder(albor::ResourceFactory& resources, AlborChartTextMeasurer& text) :
     m_resources(&resources), m_text(&text), m_outline_resolver(text.glyph_outline_resolver()) {}
 
-std::shared_ptr<const studio::ChartScene> studio::ChartSceneBuilder::build(const std::span<const ChartFrame> frames, const float width, const float height, const ChartPalette& palette) const {
+std::shared_ptr<const studio::ChartScene> studio::ChartSceneBuilder::build(const std::span<const ChartFrame> frames, const float width, const float height, const ChartPalette& palette, const std::span<const ChartTabSpec> tabs, const float tab_bar_height) const {
     // the scene under construction owns the slots and the picture
     auto scene = std::make_shared<ChartScene>();
     // remember the size and palette the picture was recorded for
@@ -97,17 +98,35 @@ std::shared_ptr<const studio::ChartScene> studio::ChartSceneBuilder::build(const
     scene->height = height;
     // remember the palette the commands carry
     scene->palette = palette;
-    // a panel with no chart has no picture to record
-    if (frames.empty() || width <= 0.0f || height <= 0.0f)
+    // the strip only shows when the caller reserved a height for it
+    const float strip_height = tabs.empty() ? 0.0f : tab_bar_height;
+    // remember where the strip ends and the chart content begins
+    scene->tab_bar_height = strip_height;
+    // the chart content starts under the strip
+    scene->content_y = strip_height;
+    // a panel with no area has no picture to record
+    if (width <= 0.0f || height <= 0.0f)
         return scene;
-    // the charts share the panel height equally
-    const float chart_height = height / static_cast<float>(frames.size());
-    // the base picture records every chart in panel local coordinates
+    // the base picture records the strip and every chart in panel local coordinates
     albor::PictureRecorder recorder;
+    // record the dataset strip when the caller reserved one
+    if (strip_height > 0.0f)
+        scene->tabs = draw_tabs(recorder, tabs, width, strip_height, palette);
+    // a panel with no chart still keeps its tab strip usable
+    if (frames.empty()) {
+        // hand the scene its tab picture
+        scene->base = m_resources->create_picture(recorder);
+        // hand the scene to the view
+        return scene;
+    }
+    // the charts share the height the strip leaves equally
+    const float content_height = std::max(0.0f, height - strip_height);
+    // the charts share the content height equally
+    const float chart_height = content_height / static_cast<float>(frames.size());
     // record one chart slot per frame
     for (std::size_t index = 0; index < frames.size(); ++index) {
-        // the chart slot starts at its share of the panel height
-        const float offset_y = chart_height * static_cast<float>(index);
+        // the chart slot starts at its share of the content height under the strip
+        const float offset_y = strip_height + chart_height * static_cast<float>(index);
         // the slot is shifted from the chart local frame coordinates
         const albor::Transform translation = albor::Transform::translation(0.0f, offset_y);
         // the frame this slot paints
@@ -354,6 +373,109 @@ std::shared_ptr<const studio::ChartScene> studio::ChartSceneBuilder::build(const
     scene->base = m_resources->create_picture(recorder);
     // hand the scene to the view
     return scene;
+}
+
+std::vector<studio::ChartTab> studio::ChartSceneBuilder::draw_tabs(albor::PictureRecorder& recorder, const std::span<const ChartTabSpec> tabs, const float width, const float height, const ChartPalette& palette) const {
+    // the strip plate separates the tabs from the toolbar above
+    recorder.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = width, .height = height}), albor::Paint{.fill = to_color(palette.background)});
+    // the hairlines under the strip close it against the chart pane
+    recorder.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = height - 1.0f}, albor::Size{.width = width, .height = 1.0f}), albor::Paint{.fill = to_color(palette.border)});
+    // the strip insets its first tab and leaves the same room at the east edge
+    constexpr float STRIP_INSET = 8.0f;
+    // the gap between neighbouring tabs
+    constexpr float TAB_GAP = 4.0f;
+    // the narrowest tab that still shows a label and its close slot
+    constexpr float MIN_TAB_WIDTH = 32.0f;
+    // the natural width of every tab
+    std::vector<float> widths;
+    // measure every title once through the shared cache
+    widths.reserve(tabs.size());
+    // the width the natural tabs occupy
+    float natural_total = 0.0f;
+    // measure the natural widths first so an overflowing strip can shrink them
+    for (const ChartTabSpec& spec : tabs) {
+        // measure the title once through the shared cache
+        const albor::TextLayout& layout = m_text->layout(spec.title);
+        // the close slot needs room beyond the label
+        const float natural = std::max(96.0f, layout.size.width + (spec.closable ? 40.0f : 24.0f));
+        // keep the natural width
+        widths.push_back(natural);
+        // accumulate the strip width including the gap
+        natural_total += natural + TAB_GAP;
+    }
+    // the width the strip actually offers
+    const float available = std::max(0.0f, width - 2.0f * STRIP_INSET);
+    // a strip that overflows shares its width equally between the tabs
+    if (!tabs.empty() && natural_total - TAB_GAP > available) {
+        // the share every tab receives
+        const float share = std::max(MIN_TAB_WIDTH, (available - TAB_GAP * static_cast<float>(tabs.size() - 1)) / static_cast<float>(tabs.size()));
+        // shrink every natural width to its share
+        for (float& tab_width : widths)
+            tab_width = std::min(tab_width, share);
+        // a tab count the minimum width cannot fit still shrinks every tab so none disappears
+        const float gaps = TAB_GAP * static_cast<float>(tabs.size() - 1);
+        // the width the shrunk tabs occupy
+        const float shrunk_total = std::accumulate(widths.begin(), widths.end(), 0.0f) + gaps;
+        // scale every tab down when the minimum share still overflows
+        if (shrunk_total > available && shrunk_total > gaps) {
+            // the factor that fits every tab into the strip
+            const float factor = std::max(0.05f, (available - gaps) / (shrunk_total - gaps));
+            // apply the fit factor to every tab
+            for (float& tab_width : widths)
+                tab_width = std::max(8.0f, tab_width * factor);
+        }
+    }
+    // the hit-test rectangles the view reports
+    std::vector<ChartTab> recorded;
+    // the strip starts at its west inset
+    float x = STRIP_INSET;
+    // record every tab in dataset order
+    for (std::size_t index = 0; index < tabs.size(); ++index) {
+        // the tab spec this slot draws
+        const ChartTabSpec& spec = tabs[index];
+        // a tab that would pass the strip edge is clipped to what remains
+        const float clipped_width = std::min(widths[index], std::max(0.0f, width - STRIP_INSET - x));
+        // a tab with no remaining width ends the strip
+        if (clipped_width <= 0.0f)
+            break;
+        // the tab rectangle spans the strip height
+        const albor::Rect bounds = albor::Rect::from_origin_size(albor::Point{.x = x, .y = 0.0f}, albor::Size{.width = clipped_width, .height = height});
+        // the active tab reads as the pane it reveals
+        if (spec.active)
+            recorder.draw_rect(bounds, albor::Paint{.fill = to_color(palette.panel)});
+        // clip the label and the close slot to the tab so neither bleeds into the next one
+        recorder.save();
+        // the clip follows the tab bounds
+        recorder.clip_rect(bounds);
+        // the label sits inside the tab with its west padding
+        const albor::TextLayout& layout = m_text->layout(spec.title);
+        // the label origin inside the tab
+        const albor::Point text_origin{.x = x + 12.0f, .y = (height - layout.size.height) * 0.5f};
+        // draw the tab title in the active or muted ink
+        draw_text(recorder, layout, text_origin, albor::Paint{.fill = to_color(spec.active ? palette.text : palette.muted)});
+        // the active tab carries the accent underline
+        if (spec.active)
+            recorder.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = x, .y = height - 2.0f}, albor::Size{.width = clipped_width, .height = 2.0f}), albor::Paint{.fill = albor::Color::rgba(0.0f, 0.48f, 1.0f, 1.0f)});
+        // the close affordance sits at the tab east edge
+        albor::Rect close_bounds;
+        // a tab wide enough carries the close cross
+        if (spec.closable && clipped_width >= 24.0f) {
+            // the close slot is centred on the strip height
+            close_bounds = albor::Rect::from_origin_size(albor::Point{.x = x + clipped_width - 18.0f, .y = (height - 16.0f) * 0.5f}, albor::Size{.width = 16.0f, .height = 16.0f});
+            // the two strokes of the cross
+            std::vector<albor::Point> cross = {{close_bounds.x + 4.0f, close_bounds.y + 4.0f}, {close_bounds.x + 12.0f, close_bounds.y + 12.0f}, {close_bounds.x + 12.0f, close_bounds.y + 4.0f}, {close_bounds.x + 4.0f, close_bounds.y + 12.0f}};
+            // draw the cross in the muted ink
+            draw_batch(recorder, make_batch(*m_resources, cross), albor::Transform{}, to_color(palette.muted), 1.0f);
+        }
+        // the label and close clip ends with the tab
+        recorder.restore();
+        // remember the tab for the view
+        recorded.push_back(ChartTab{.title = spec.title, .active = spec.active, .closable = spec.closable, .bounds = bounds, .close_bounds = close_bounds});
+        // advance past the tab and its gap
+        x += clipped_width + TAB_GAP;
+    }
+    // hand the recorded tabs to the scene
+    return recorded;
 }
 
 void studio::ChartSceneBuilder::draw_text(albor::PictureRecorder& recorder, const albor::TextLayout& layout, const albor::Point origin, const albor::Paint& paint) const {

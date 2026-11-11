@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "config/plugin_config.h"
+#include "io/temp_output_directory.h"
 #include "presenters/main_window_presenter.h"
 #include "simulation/transient_simulation_parameters.h"
 #include "views/main_window/main_window_view_def.h"
@@ -579,4 +580,410 @@ TEST(StudioMainWindowPresenterChecks, accepted_parameters_reuse_the_sanitized_ne
     EXPECT_NE(view.editor_text.find("R1 1 0 1k"), std::string::npos);
     EXPECT_NE(view.editor_text.find(".TRAN 5m 10m"), std::string::npos);
     EXPECT_EQ(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_successful_run_offers_its_output_to_the_charts) {
+    // arrange: a netlist with an explicit print destination the run must strip
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-auto-load");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist with a print file the run keeps private
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV FILE=ignored.csv V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    bool called = false;
+    studio::RunOutput captured_output;
+    std::shared_ptr<TempOutputDirectory> captured_artifacts;
+    presenter.set_run_output_handler([&](const studio::RunOutput& output, std::shared_ptr<TempOutputDirectory> artifacts) {
+        called = true;
+        captured_output = output;
+        captured_artifacts = std::move(artifacts);
+        return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = true};
+    });
+    presenter.on_open_file(netlist);
+    // act: launch the run and inspect the private netlist it wrote
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    {
+        // read the private netlist the runner was handed
+        std::ifstream file(view.start_netlist_path);
+        const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        // assert: the FILE= destination is removed so the output stays in the run directory
+        EXPECT_EQ(written.find("FILE="), std::string::npos);
+    }
+    // arrange: the fake run leaves an analysis output beside its private netlist
+    const std::filesystem::path output = view.start_netlist_path.string() + ".csv";
+    {
+        // write the table the charts parse
+        std::ofstream file(output);
+        file << "TIME,V(1)\n0,0\n1,1\n2,2\n";
+    }
+    // act: report a successful run
+    presenter.on_simulation_finished(0, false);
+    // assert: the run handler received the configuration, paths and run lease
+    EXPECT_TRUE(called);
+    EXPECT_EQ(captured_output.netlist_path, view.start_netlist_path);
+    EXPECT_EQ(captured_output.title, "tran.cir");
+    EXPECT_NE(captured_artifacts, nullptr);
+    EXPECT_TRUE(captured_artifacts->owns(captured_output.netlist_path));
+    ASSERT_TRUE(captured_output.config.analysis_print_parameters().has_value());
+    EXPECT_EQ(captured_output.config.analysis_print_parameters()->print_format, "CSV");
+    EXPECT_EQ(view.statuses.back(), "Simulation finished");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_print_file_option_on_a_continuation_line_is_removed_and_copied_back) {
+    // arrange: a netlist whose print destination sits on a continuation line
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-print-continuation");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the split print directive
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV\n+ FILE=requested.csv V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    bool called = false;
+    presenter.set_run_output_handler([&](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) {
+        called = true;
+        return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = true};
+    });
+    // act: launch the run and inspect the private netlist it wrote
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    {
+        // read the private netlist the runner was handed
+        std::ifstream file(view.start_netlist_path);
+        const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        // assert: the continuation was joined and the FILE= destination removed
+        EXPECT_EQ(written.find("FILE="), std::string::npos);
+        EXPECT_NE(written.find("V(1)"), std::string::npos);
+    }
+    // arrange: the run writes the default csv file
+    {
+        // write the produced table
+        std::ofstream file(view.start_netlist_path.string() + ".csv");
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    // act: report a successful run
+    presenter.on_simulation_finished(0, false);
+    // assert: the requested destination receives the produced file
+    EXPECT_TRUE(called);
+    std::ifstream copied(scratch.path() / "requested.csv");
+    ASSERT_TRUE(copied.is_open());
+    const std::string copied_text((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(copied_text, "TIME,V(1)\n0,0\n1,1\n");
+    EXPECT_EQ(view.statuses.back(), "Simulation finished");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_canceled_run_skips_the_run_output_handler) {
+    // arrange: a started run
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-cancel-output");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        // write a simulator that exits cleanly
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist with a print
+        std::ofstream file(netlist);
+        file << ".TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    int calls = 0;
+    presenter.set_run_output_handler([&](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) {
+        calls++;
+        return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = true};
+    });
+    presenter.on_run_clicked();
+    {
+        // write an output the canceled run must not adopt
+        std::ofstream file(view.start_netlist_path.string() + ".csv");
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    // act: the process reports a cancel
+    presenter.on_simulation_finished(0, true);
+    // assert: no dataset was adopted and the status reports the cancel
+    EXPECT_EQ(calls, 0);
+    EXPECT_EQ(view.statuses.back(), "Simulation canceled");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_failed_run_skips_the_run_output_handler) {
+    // arrange: a started run
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-failed-output");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        // write a simulator that exits with an error
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 2\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist with a print
+        std::ofstream file(netlist);
+        file << ".TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    int calls = 0;
+    presenter.set_run_output_handler([&](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) {
+        calls++;
+        return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = true};
+    });
+    presenter.on_run_clicked();
+    {
+        // write an output the failed run must not adopt
+        std::ofstream file(view.start_netlist_path.string() + ".csv");
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    // act: the process reports a failure
+    presenter.on_simulation_finished(2, false);
+    // assert: no dataset was adopted and the status reports the exit code
+    EXPECT_EQ(calls, 0);
+    EXPECT_EQ(view.statuses.back(), "Simulation failed with exit code 2");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_successful_run_without_its_expected_output_reports_the_miss) {
+    // arrange: a started run with a print directive but no produced file
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-no-output");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        // write a simulator that exits cleanly
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist with a print
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    int calls = 0;
+    presenter.set_run_output_handler([&](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) {
+        calls++;
+        return studio::RunOutputResult{};
+    });
+    presenter.on_run_clicked();
+    // act: the run finishes without writing its print output
+    presenter.on_simulation_finished(0, false);
+    // assert: the handler was asked and the status names the missing output
+    EXPECT_EQ(calls, 1);
+    EXPECT_EQ(view.statuses.back(), "Simulation finished but output file could not be found");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_run_notifies_the_started_handler_once) {
+    // arrange: a valid executable and a loaded netlist
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-started");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        // write a simulator that exits cleanly
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    int starts = 0;
+    presenter.set_run_started_handler([&] { starts++; });
+    // act: start a run
+    presenter.on_run_clicked();
+    // assert: the start handler ran once
+    EXPECT_EQ(starts, 1);
+    // act: the second click cancels the live run
+    presenter.on_run_clicked();
+    // assert: no second process was started
+    EXPECT_EQ(starts, 1);
+    EXPECT_EQ(view.start_count, 1);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_plot_directive_never_reaches_the_run_netlist) {
+    // arrange: a netlist with a chart-only plot directive
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-plot");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the plot directive between the analysis and the end marker
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PLOT V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    // act: start the run and inspect the private netlist
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    // assert: the simulator receives the analysis but not the chart directive
+    std::ifstream file(view.start_netlist_path);
+    const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(written.find(".PLOT"), std::string::npos);
+    EXPECT_NE(written.find(".TRAN"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_duplicate_finish_is_ignored) {
+    // arrange: a started run with a recording status bar
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-duplicate-finish");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        // write a simulator that exits cleanly
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write a transient netlist
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    presenter.on_run_clicked();
+    // act: report the same finish twice
+    presenter.on_simulation_finished(0, false);
+    const std::size_t statuses = view.statuses.size();
+    presenter.on_simulation_finished(0, false);
+    // assert: the late finish changed nothing
+    EXPECT_EQ(view.statuses.size(), statuses);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_netlist_without_end_keeps_its_analysis_in_the_run_netlist) {
+    // arrange: a netlist that omits the end marker
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-no-end");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the analysis without .END
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    // act: start the run and inspect the private netlist
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    // assert: the analysis survives and the rendered netlist gains the end marker
+    std::ifstream file(view.start_netlist_path);
+    const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT_NE(written.find(".TRAN"), std::string::npos);
+    EXPECT_NE(written.find(".END"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_subcircuit_end_does_not_hide_the_missing_netlist_end) {
+    // arrange: a netlist without a top-level .END but with a .ENDS line
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-ends");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the subcircuit and the analysis
+        std::ofstream file(netlist);
+        file << "Title\n.SUBCKT sub 1 2\nR1 1 2 1k\n.ENDS\n.TRAN 1m 10m\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    // act: start the run and inspect the private netlist
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    // assert: the analysis and the real end marker survive the .ENDS line
+    std::ifstream file(view.start_netlist_path);
+    const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    EXPECT_NE(written.find(".ENDS"), std::string::npos);
+    EXPECT_NE(written.find(".TRAN"), std::string::npos);
+    EXPECT_NE(written.find("\n.END\n"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_comment_that_ends_in_end_does_not_move_the_directives) {
+    // arrange: a comment line that ends with the end marker text before the devices
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-comment-end");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the misleading comment above the circuit
+        std::ofstream file(netlist);
+        file << "Title\n* .END\nR1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    // act: start the run and inspect the private netlist
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    // assert: the directives stay after the devices and before the real end marker
+    std::ifstream file(view.start_netlist_path);
+    const std::string written((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    const std::size_t device = written.find("R1 1 0 1k");
+    const std::size_t analysis = written.find(".TRAN");
+    const std::size_t end = written.rfind("\n.END\n");
+    ASSERT_NE(device, std::string::npos);
+    ASSERT_NE(analysis, std::string::npos);
+    ASSERT_NE(end, std::string::npos);
+    EXPECT_LT(device, analysis);
+    EXPECT_LT(analysis, end);
+}
+
+TEST(StudioMainWindowPresenterChecks, an_unreadable_analysis_output_preserves_the_user_copy) {
+    // arrange: a run whose analysis print writes the produced file
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-preserve-copy");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        // write the print with its user destination
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV FILE=requested.csv V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    presenter.set_run_output_handler([&](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) {
+        // the charts adopted a fallback file, not the configured analysis print
+        return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = false};
+    });
+    presenter.on_run_clicked();
+    ASSERT_FALSE(view.start_netlist_path.empty());
+    {
+        // the previous user copy
+        std::ofstream file(scratch.path() / "requested.csv");
+        file << "previous\n";
+    }
+    {
+        // the produced analysis file exists but the charts did not read it
+        std::ofstream file(view.start_netlist_path.string() + ".csv");
+        file << "produced\n";
+    }
+    // act: report the successful run
+    presenter.on_simulation_finished(0, false);
+    // assert: the user copy keeps its previous content
+    std::ifstream copied(scratch.path() / "requested.csv");
+    const std::string copied_text((std::istreambuf_iterator<char>(copied)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(copied_text, "previous\n");
+    EXPECT_EQ(view.statuses.back(), "Simulation finished");
 }

@@ -46,6 +46,11 @@ namespace studio
 
         void set_on_hover_ended(std::function<void()> handler);
 
+        // install the dataset tab callbacks
+        void set_on_tab_selected(std::function<void(int)> handler);
+
+        void set_on_tab_closed(std::function<void(int)> handler);
+
         // install the callback the resize settle asks for a fresh scene
         void set_on_resize_settled(std::function<void(float, float)> handler);
 
@@ -82,6 +87,9 @@ namespace studio
         // map a pointer position from window space into the view
         [[nodiscard]] albor::Point to_local(const albor::Point& window_position) const;
 
+        // map a view local position into the logical scene coordinates the retained picture uses
+        [[nodiscard]] albor::Point to_scene(const albor::Point& local) const;
+
         // draw one picture under the scene transform
         void draw_scene_picture(albor::RenderContext& context, const std::shared_ptr<const albor::PictureResource>& picture);
 
@@ -110,6 +118,11 @@ namespace studio
         std::function<void(float, float)> m_on_hover_moved;
 
         std::function<void()> m_on_hover_ended;
+
+        // the dataset tab callbacks
+        std::function<void(int)> m_on_tab_selected;
+
+        std::function<void(int)> m_on_tab_closed;
 
         // the resize settle callback
         std::function<void(float, float)> m_on_resize_settled;

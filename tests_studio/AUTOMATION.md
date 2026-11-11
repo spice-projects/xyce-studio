@@ -397,6 +397,60 @@ with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
 - The zoom and hover math is covered by the controller unit tests; the native
   context menu and pointer drag gestures are still open slices.
 
+### Open several datasets as tabs (from `charts_test.py`)
+
+Repeat `--dataset` to open one tab per file. With more than one tab the
+accessible name names the tab count and the active dataset, and the canvas
+exposes `select-tab-<index>` (every tab) and `close-tab-<index>` (closable
+tabs) semantic actions:
+
+```python
+dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
+    chart = app.get_by_id("charts_view")
+    chart.wait_for_exists()
+    expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
+    chart.click("select-tab-0")
+    expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
+    chart.click("close-tab-0")
+    expect(chart).to_have_name("1 line chart")
+```
+
+- A user tab carries a close cross; the run's primary and companion tabs do
+  not, because the next run replaces them.
+- Closing the last user tab disables the charts action and returns the body to
+  the netlist editor.
+
+### Open a run's charts automatically (from `charts_test.py`)
+
+A successful run hands its analysis print to the charts. The run netlist is
+written into a private directory with every `.PRINT FILE=` option removed, so
+the produced file stays beside it; the destination is copied back after the
+run:
+
+```python
+with tempfile.TemporaryDirectory() as tmp:
+    exe = Path(tmp) / "Xyce"
+    exe.write_text("#!/bin/sh\nDIR=$(dirname \"$1\")\ncat > \"$DIR/netlist.cir.csv\" <<'EOF'\nTIME,V(1)\n0,0\n1,1\nEOF\necho 'Simulation completed.'\n")
+    os.chmod(exe, 0o755)
+    netlist = Path(tmp) / "tran.cir"
+    netlist.write_text("R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV FILE=requested.csv V(1)\n.END\n")
+    with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+        app.get_by_id("main_run").click()
+        chart = app.get_by_id("charts_view")
+        chart.wait_for_exists()
+        expect(chart).to_have_name("1 line chart")
+        expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
+```
+
+- The primary tab is the analysis print file named by the configured
+  `.PRINT`; a Touchstone `.LIN` run adds line and Smith companion tabs.
+- A rerun repoints the primary tab in place, keeping its position and chart
+  state, so the tab count does not grow.
+- A failed or canceled run never opens or replaces the charts; a successful
+  run without its expected output reports
+  `Simulation finished but output file could not be found`.
+
 ## Conventions
 
 - Every scenario starts with `# arrange`, uses `# step` for each interaction

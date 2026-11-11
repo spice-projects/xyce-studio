@@ -6,9 +6,12 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "netlist/netlist.h"
 #include "netlist/netlist_source.h"
+#include "presenters/run_output.h"
+#include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
 #include "simulation/xyce_log_parser.h"
 #include "views/main_window/main_window_view_def.h"
@@ -23,7 +26,13 @@ namespace studio
     {
     public:
         // the callback the open action reaches for an output file the charts load
-        using DatasetFileHandler = std::function<bool(const std::filesystem::path&)>;
+        using DatasetFileHandler = std::function<bool(const std::filesystem::path&, std::shared_ptr<TempOutputDirectory>)>;
+
+        // the callback a finished run reaches with its configuration, paths and directory lease
+        using RunOutputHandler = std::function<RunOutputResult(const RunOutput&, std::shared_ptr<TempOutputDirectory>)>;
+
+        // the callback a run reaches before the process starts
+        using RunStartedHandler = std::function<void()>;
 
         // the shell surface and the plugin configuration must outlive the presenter
         MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config);
@@ -34,6 +43,12 @@ namespace studio
 
         // install the callback that adopts an output file the charts can plot
         void set_dataset_file_handler(DatasetFileHandler handler);
+
+        // install the callback a finished run reaches with its resolved output configuration
+        void set_run_output_handler(RunOutputHandler handler);
+
+        // install the callback a run reaches before the process starts
+        void set_run_started_handler(RunStartedHandler handler);
 
         // the user picked a file in the open panel, which the view resolved
         void on_open_file(const std::filesystem::path& path) override;
@@ -68,6 +83,9 @@ namespace studio
     private:
         // start a simulation run over the current netlist content
         void run_simulation();
+
+        // copy one produced .PRINT file to the destination the original directive named
+        bool copy_output_to_destination(const PrintOutputCopy& copy) const;
 
         // classify one console line, append it to the output log and refresh the progress
         void handle_simulation_log_line(const std::string& line, bool from_stderr);
@@ -105,6 +123,30 @@ namespace studio
 
         // the callback that adopts an output file the charts load
         DatasetFileHandler m_dataset_file_handler;
+
+        // the callback a finished run hands its output configuration to
+        RunOutputHandler m_run_output_handler;
+
+        // the callback a run reaches before the process starts
+        RunStartedHandler m_run_started_handler;
+
+        // the configuration the run netlist described
+        SimulationConfig m_run_config = SimulationConfig::from_xyce_directives({});
+
+        // the private netlist the run simulates
+        std::filesystem::path m_run_netlist_path;
+
+        // the title the finished run's tab shows
+        std::string m_run_title;
+
+        // the working directory the simulator runs in
+        std::filesystem::path m_run_working_directory;
+
+        // the number of ports the run netlist declares
+        int m_run_num_ports = 2;
+
+        // the FILE= destinations the run netlist named, with the default files the run produces
+        std::vector<PrintOutputCopy> m_run_output_copies;
 
         // the plugin configuration the Xyce executable path is read from
         const PluginConfig& m_plugin_config;

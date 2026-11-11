@@ -16,6 +16,21 @@ void studio::ChartsController::set_dataset(ExpressionManager& expression_manager
     clear_charts();
 }
 
+void studio::ChartsController::update_dataset(ExpressionManager& expression_manager, const StepInformation& step_information, const AbscissaScale abscissa_scale) {
+    // the pointer state belongs to the previous dataset
+    zoom_drag_canceled();
+    hover_ended();
+    // repoint every engine, which re-plots the same expression names against the new data
+    for (const std::unique_ptr<ChartEngine>& chart : m_charts)
+        chart->update(&expression_manager, &step_information, abscissa_scale);
+    // remember the new dataset for charts added later
+    m_expression_manager = &expression_manager;
+    m_step_information = &step_information;
+    m_abscissa_scale = abscissa_scale;
+    // rebuild the frames the repointed engines published
+    rebuild_frames();
+}
+
 void studio::ChartsController::set_viewport(const float width, const float height) {
     // ignore a degenerate panel, which no chart can fill
     if (width <= 0.0f || height <= 0.0f)

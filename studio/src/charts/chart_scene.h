@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "albor/core/geometry.h"
@@ -11,6 +12,41 @@
 
 namespace studio
 {
+    // the height of the dataset tab strip, which shows when the tabs need it
+    inline constexpr float CHART_TAB_HEIGHT = 32.0f;
+
+    // one dataset tab the scene records
+    struct ChartTabSpec
+    {
+        // the label the tab shows
+        std::string title;
+
+        // whether the tab is the active dataset
+        bool active = false;
+
+        // whether the tab carries a close affordance
+        bool closable = false;
+    };
+
+    // one recorded dataset tab, with the rectangles the view hit tests
+    struct ChartTab
+    {
+        // the label the tab shows
+        std::string title;
+
+        // whether the tab is the active dataset
+        bool active = false;
+
+        // whether the tab carries a close affordance
+        bool closable = false;
+
+        // the panel relative tab rectangle
+        albor::Rect bounds;
+
+        // the close affordance rectangle, empty when the tab is not closable
+        albor::Rect close_bounds;
+    };
+
     // one chart slot inside the retained panel scene
     struct ChartSlot
     {
@@ -38,6 +74,15 @@ namespace studio
 
         // the chart slots the scene paints, in top to bottom order
         std::vector<ChartSlot> slots;
+
+        // the dataset tabs the strip shows, empty when no strip is drawn
+        std::vector<ChartTab> tabs;
+
+        // the strip height, zero when no strip is drawn
+        float tab_bar_height = 0.0f;
+
+        // the panel relative Y where the chart content starts
+        float content_y = 0.0f;
 
         // the logical panel size the pictures were recorded for
         float width = 0.0f;

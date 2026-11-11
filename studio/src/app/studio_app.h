@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <vector>
 
 #include "config/plugin_config.h"
 
@@ -33,7 +34,7 @@ namespace studio
         // the netlist the shell opens through the file dispatch once it is up
         void set_startup_netlist(const std::filesystem::path& path);
 
-        // the output file the charts open once the shell is up
+        // add an output file the charts open once the shell is up
         void set_startup_dataset(const std::filesystem::path& path);
 
     private:
@@ -43,8 +44,8 @@ namespace studio
         // the netlist the shell opens once it is up, empty when none was requested
         std::filesystem::path m_startup_netlist;
 
-        // the output file the charts open once the shell is up, empty when none was requested
-        std::filesystem::path m_startup_dataset;
+        // the output files the charts open once the shell is up, empty when none was requested
+        std::vector<std::filesystem::path> m_startup_datasets;
 
         // the main shell window
         std::unique_ptr<MainWindowView> m_main_view;

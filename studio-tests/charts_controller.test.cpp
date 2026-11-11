@@ -231,3 +231,37 @@ TEST(StudioChartsControllerChecks, a_smith_dataset_builds_a_smith_frame_and_read
     // assert: the readout reports a trace point or the empty no-trace text
     EXPECT_EQ(controller.hover_text(), text);
 }
+
+TEST(StudioChartsControllerChecks, update_dataset_repoints_the_charts_and_keeps_the_zoom_window) {
+    // arrange: a chart with a zoom window over the first dataset
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* chart = controller.add_chart();
+    ASSERT_NE(chart, nullptr);
+    chart->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    const auto [left, top, right, bottom] = controller.plot_rect(0);
+    ASSERT_TRUE(controller.zoom_drag_started(left + 20.0f, top + 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_moved(right - 20.0f, bottom - 20.0f));
+    ASSERT_TRUE(controller.zoom_drag_ended());
+    const std::tuple<double, double, double, double> zoom = chart->zoom_window();
+    // arrange: a replacement dataset with the same expression names
+    std::vector<std::pair<size_t, size_t>> replacement_slices{{0, 11}};
+    std::vector<AnyExpression> replacement_expressions;
+    replacement_expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, replacement_slices, "s"));
+    replacement_expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0}, replacement_slices, "V"));
+    ExpressionManager replacement_manager(replacement_expressions, replacement_slices);
+    // act: repoint the controller at the replacement
+    controller.update_dataset(replacement_manager, steps, AbscissaScale::LINEAR);
+    // assert: the chart kept its window and re-plotted the same expression against the new data
+    ASSERT_EQ(controller.chart_count(), 1U);
+    EXPECT_EQ(chart->zoom_window(), zoom);
+    ASSERT_EQ(controller.frames().size(), 1U);
+    EXPECT_FALSE(controller.frames().front().series.empty());
+}

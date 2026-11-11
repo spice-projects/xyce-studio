@@ -31,6 +31,9 @@ namespace studio
         // point the controller at the dataset every chart of this tab reads
         void set_dataset(ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale);
 
+        // repoint the charts at a replacement dataset, preserving zoom windows and step selections
+        void update_dataset(ExpressionManager& expression_manager, const StepInformation& step_information, AbscissaScale abscissa_scale);
+
         // replace the panel size and rebuild every frame
         void set_viewport(float width, float height);
 

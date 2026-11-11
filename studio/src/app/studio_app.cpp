@@ -33,8 +33,8 @@ void studio::StudioApp::set_startup_netlist(const std::filesystem::path& path) {
 }
 
 void studio::StudioApp::set_startup_dataset(const std::filesystem::path& path) {
-    // the charts open the requested output file once they are wired
-    m_startup_dataset = path;
+    // the charts open every requested output file once they are wired
+    m_startup_datasets.push_back(path);
 }
 
 int studio::StudioApp::run() {
@@ -65,6 +65,23 @@ int studio::StudioApp::run() {
             if (m_charts_presenter != nullptr)
                 m_charts_presenter->set_dark_mode(dark);
         });
+        // the tab set controls the charts action and the body
+        m_charts_presenter->set_on_tabs_changed([this] {
+            // a presenter without a dataset disables the action
+            if (m_charts_presenter == nullptr)
+                return;
+            // the charts action only reaches a live dataset
+            const bool has_dataset = m_charts_presenter->has_dataset();
+            // reflect the dataset state on the toolbar
+            m_main_view->set_charts_enabled(has_dataset);
+            // the last closed tab returns the body to the editor
+            if (!has_dataset && m_charts_visible) {
+                // the waveform panel has no content to show
+                m_charts_visible = false;
+                // reveal the editor again
+                m_main_view->set_charts_visible(false);
+            }
+        });
         // render the hover readout in the status bar
         m_charts_presenter->set_on_hover([this](const std::string& text) { m_main_view->set_status_text(text.empty() ? "Ready" : text); });
         // the toolbar action toggles the body between the editor and the charts
@@ -73,9 +90,9 @@ int studio::StudioApp::run() {
             m_main_view->set_charts_visible(m_charts_visible);
         });
         // an output file the open action resolves loads into the charts
-        m_main_presenter->set_dataset_file_handler([this](const std::filesystem::path& path) {
+        m_main_presenter->set_dataset_file_handler([this](const std::filesystem::path& path, std::shared_ptr<TempOutputDirectory> artifacts) {
             // a dataset the charts cannot read belongs to no other action
-            if (m_charts_presenter == nullptr || !m_charts_presenter->show_file(path))
+            if (m_charts_presenter == nullptr || !m_charts_presenter->show_file(path, std::move(artifacts)))
                 return false;
             // reveal the waveform panel the new dataset fills
             m_charts_visible = true;
@@ -85,8 +102,40 @@ int studio::StudioApp::run() {
             // report the file was consumed
             return true;
         });
-        // a startup dataset opens the charts over the requested file
-        if (!m_startup_dataset.empty() && m_charts_presenter->show_file(m_startup_dataset)) {
+        // a finished run resolves its analysis and companion files into tabs
+        m_main_presenter->set_run_output_handler([this](const studio::RunOutput& output, std::shared_ptr<TempOutputDirectory> artifacts) {
+            // a detached charts presenter cannot show the run results
+            if (m_charts_presenter == nullptr)
+                return studio::RunOutputResult{};
+            // the charts resolve every produced dataset from the run configuration
+            const studio::RunOutputResult result = m_charts_presenter->show_run_output(output, std::move(artifacts));
+            // a shown run reveals the waveform panel and enables its action
+            if (result.outcome != studio::RunOutputOutcome::None) {
+                // reveal the waveform panel the run dataset fills
+                m_charts_visible = true;
+                m_main_view->set_charts_visible(true);
+                // the charts action now has a dataset to show
+                m_main_view->set_charts_enabled(true);
+            }
+            // report the datasets the run produced
+            return result;
+        });
+        // a run drops the previous companions before the simulator rewrites their files
+        m_main_presenter->set_run_started_handler([this] {
+            // a detached charts presenter has no companion tabs to drop
+            if (m_charts_presenter != nullptr)
+                m_charts_presenter->discard_run_companions();
+        });
+        // a startup dataset opens every requested file as a tab
+        bool startup_loaded = false;
+        // walk the files the command line named
+        for (const std::filesystem::path& dataset : m_startup_datasets) {
+            // a readable dataset joins the tab set
+            if (m_charts_presenter->show_file(dataset))
+                startup_loaded = true;
+        }
+        // reveal the waveform panel when at least one startup dataset loaded
+        if (startup_loaded) {
             // reveal the waveform panel the startup dataset fills
             m_charts_visible = true;
             m_main_view->set_charts_visible(true);

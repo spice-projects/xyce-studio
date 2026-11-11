@@ -20,6 +20,8 @@ studio::ChartsView::~ChartsView() {
 }
 
 void studio::ChartsView::set_scene(std::shared_ptr<const ChartScene> scene) {
+    // a base republish ends a drag recorded against the old scene
+    cancel_drag();
     // keep the retained picture the view replays
     m_scene = std::move(scene);
     // a base republish drops any selection recorded against the old scene
@@ -43,8 +45,12 @@ void studio::ChartsView::set_overlay(std::shared_ptr<const ChartOverlay> overlay
     if (damage) {
         // grow the damage so the overlay border and its antialias fringe erase
         const albor::Rect local = damage->inflated(1.0f);
+        // a stale scene is stretched into the arranged extent until the resize settles
+        const float scale_x = m_scene != nullptr && m_scene->width > 0.0f && bounds().width > 0.0f ? bounds().width / m_scene->width : 1.0f;
+        // the vertical scale matches the picture transform
+        const float scale_y = m_scene != nullptr && m_scene->height > 0.0f && bounds().height > 0.0f ? bounds().height / m_scene->height : 1.0f;
         // map the local damage into window coordinates
-        invalidate(albor::Rect::from_origin_size(albor::Point{.x = bounds().x + local.x, .y = bounds().y + local.y}, albor::Size{.width = local.width, .height = local.height}));
+        invalidate(albor::Rect::from_origin_size(albor::Point{.x = bounds().x + local.x * scale_x, .y = bounds().y + local.y * scale_y}, albor::Size{.width = local.width * scale_x, .height = local.height * scale_y}));
     }
 }
 
@@ -61,6 +67,10 @@ void studio::ChartsView::set_on_zoom_drag_canceled(std::function<void()> handler
 void studio::ChartsView::set_on_hover_moved(std::function<void(float, float)> handler) { m_on_hover_moved = std::move(handler); }
 
 void studio::ChartsView::set_on_hover_ended(std::function<void()> handler) { m_on_hover_ended = std::move(handler); }
+
+void studio::ChartsView::set_on_tab_selected(std::function<void(int)> handler) { m_on_tab_selected = std::move(handler); }
+
+void studio::ChartsView::set_on_tab_closed(std::function<void(int)> handler) { m_on_tab_closed = std::move(handler); }
 
 void studio::ChartsView::set_on_resize_settled(std::function<void(float, float)> handler) { m_on_resize_settled = std::move(handler); }
 
@@ -119,8 +129,42 @@ void studio::ChartsView::dispatch_event(albor::Event& event) {
     }
     // run the pointer transitions first, which the plate state reads
     handle_hover_transitions(event);
-    // map the window position into the view local coordinate space
-    const albor::Point local = to_local(event.position);
+    // map the window position into the logical scene coordinates the picture was recorded in
+    const albor::Point local = to_scene(to_local(event.position));
+    // the chart content starts under the dataset strip
+    const float content_y = m_scene != nullptr ? m_scene->content_y : 0.0f;
+    // the chart point is relative to the content, not the strip
+    const albor::Point chart_point{.x = local.x, .y = local.y - content_y};
+    // a press in the dataset strip selects or closes a tab
+    if (event.kind == albor::EventKind::PointerDown && m_scene != nullptr && local.y >= 0.0f && local.y < m_scene->tab_bar_height) {
+        // find the tab under the press
+        for (const studio::ChartTab& tab : m_scene->tabs) {
+            // a press on the close affordance closes the tab
+            if (tab.closable && tab.close_bounds.width > 0.0f && local.x >= tab.close_bounds.x && local.x <= tab.close_bounds.x + tab.close_bounds.width && local.y >= tab.close_bounds.y && local.y <= tab.close_bounds.y + tab.close_bounds.height) {
+                // the view consumed the close press
+                event.handled = true;
+                // report the tab to the presenter
+                if (m_on_tab_closed)
+                    m_on_tab_closed(static_cast<int>(&tab - m_scene->tabs.data()));
+                // the press is settled
+                return;
+            }
+            // a press on the tab body selects it
+            if (local.x >= tab.bounds.x && local.x <= tab.bounds.x + tab.bounds.width) {
+                // the view consumed the selection press
+                event.handled = true;
+                // report the tab to the presenter
+                if (m_on_tab_selected)
+                    m_on_tab_selected(static_cast<int>(&tab - m_scene->tabs.data()));
+                // the press is settled
+                return;
+            }
+        }
+        // the strip itself consumes a press so it cannot start a chart drag
+        event.handled = true;
+        // the press is settled
+        return;
+    }
     // a press inside the panel starts a zoom drag
     if (event.kind == albor::EventKind::PointerDown) {
         // a press outside the view belongs to whatever is behind it
@@ -132,7 +176,7 @@ void studio::ChartsView::dispatch_event(albor::Event& event) {
         event.handled = true;
         // report the drag anchor to the controller
         if (m_on_zoom_drag_started)
-            m_on_zoom_drag_started(local.x, local.y);
+            m_on_zoom_drag_started(chart_point.x, chart_point.y);
         // the press is settled
         return;
     }
@@ -144,13 +188,21 @@ void studio::ChartsView::dispatch_event(albor::Event& event) {
             event.handled = true;
             // report the moving corner to the controller
             if (m_on_zoom_drag_moved)
-                m_on_zoom_drag_moved(local.x, local.y);
+                m_on_zoom_drag_moved(chart_point.x, chart_point.y);
+            // the move is settled
+            return;
+        }
+        // a move over the strip clears the chart readout
+        if (local.y < content_y) {
+            // clear the readout the strip has no chart to explain
+            if (m_on_hover_ended)
+                m_on_hover_ended();
             // the move is settled
             return;
         }
         // report the hover position to the controller
         if (m_on_hover_moved)
-            m_on_hover_moved(local.x, local.y);
+            m_on_hover_moved(chart_point.x, chart_point.y);
         // the move is settled
         return;
     }
@@ -170,7 +222,7 @@ void studio::ChartsView::dispatch_event(albor::Event& event) {
         }
         // report the final hover position to the controller
         if (m_on_hover_moved)
-            m_on_hover_moved(local.x, local.y);
+            m_on_hover_moved(chart_point.x, chart_point.y);
         // the release is settled
         return;
     }
@@ -196,9 +248,9 @@ void studio::ChartsView::dispatch_event(albor::Event& event) {
     }
     // an enter refreshes the hover readout
     if (event.kind == albor::EventKind::PointerEnter) {
-        // report the hover position to the controller
-        if (m_on_hover_moved)
-            m_on_hover_moved(local.x, local.y);
+        // a pointer on the strip has no chart to explain
+        if (local.y >= content_y && m_on_hover_moved)
+            m_on_hover_moved(chart_point.x, chart_point.y);
     }
 }
 
@@ -246,6 +298,27 @@ albor::SemanticNode studio::ChartsView::semantic_node() const {
     node.set_name(!m_summary.empty() ? m_summary : (identity().explicit_id.empty() ? "charts" : identity().explicit_id));
     // place the announcement where the panel was arranged
     node.set_bounds(bounds());
+    // expose one select and close action per tab so automation can drive the strip
+    if (m_scene != nullptr) {
+        // register an action for every recorded tab
+        for (std::size_t index = 0; index < m_scene->tabs.size(); ++index) {
+            // the actions address the tab by its recorded position
+            const int tab_index = static_cast<int>(index);
+            // select the tab the action names
+            (void)node.add_action("select-tab-" + std::to_string(index), [this, tab_index] {
+                // report the selection to the presenter
+                if (m_on_tab_selected)
+                    m_on_tab_selected(tab_index);
+            });
+            // a closable tab also exposes its close affordance
+            if (m_scene->tabs[index].closable)
+                (void)node.add_action("close-tab-" + std::to_string(index), [this, tab_index] {
+                    // report the close to the presenter
+                    if (m_on_tab_closed)
+                        m_on_tab_closed(tab_index);
+                });
+        }
+    }
     // hand the node to the adapter
     return node;
 }
@@ -272,4 +345,12 @@ void studio::ChartsView::schedule_resize_settle() {
 albor::Point studio::ChartsView::to_local(const albor::Point& window_position) const {
     // the picture origin is the top left of the arranged panel
     return albor::Point{.x = window_position.x - bounds().x, .y = window_position.y - bounds().y};
+}
+
+albor::Point studio::ChartsView::to_scene(const albor::Point& local) const {
+    // a view without a scene or extent has no scale to apply
+    if (m_scene == nullptr || m_scene->width <= 0.0f || m_scene->height <= 0.0f || bounds().width <= 0.0f || bounds().height <= 0.0f)
+        return local;
+    // a stale scene is stretched into the arranged extent until the resize settles
+    return albor::Point{.x = local.x * (m_scene->width / bounds().width), .y = local.y * (m_scene->height / bounds().height)};
 }

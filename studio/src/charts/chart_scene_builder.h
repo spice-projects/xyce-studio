@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <span>
+#include <vector>
 
 #include "albor/render/glyph_outline.h"
 #include "albor/render/resource_factory.h"
@@ -22,8 +23,8 @@ namespace studio
 
         ChartSceneBuilder& operator=(const ChartSceneBuilder&) = delete;
 
-        // record one base picture for a stack of chart frames
-        [[nodiscard]] std::shared_ptr<const ChartScene> build(std::span<const ChartFrame> frames, float width, float height, const ChartPalette& palette) const;
+        // record one base picture for a stack of chart frames and the dataset tab strip
+        [[nodiscard]] std::shared_ptr<const ChartScene> build(std::span<const ChartFrame> frames, float width, float height, const ChartPalette& palette, std::span<const ChartTabSpec> tabs, float tab_bar_height) const;
 
         // record the zoom selection overlay for one rectangle
         [[nodiscard]] std::shared_ptr<const ChartOverlay> build_zoom_overlay(const albor::Rect& selection) const;
@@ -31,6 +32,9 @@ namespace studio
     private:
         // record one text run, expanding an embedded face into glyph outlines
         void draw_text(albor::PictureRecorder& recorder, const albor::TextLayout& layout, albor::Point origin, const albor::Paint& paint) const;
+
+        // record the dataset tab strip and hand out the hit-test rectangles
+        [[nodiscard]] std::vector<ChartTab> draw_tabs(albor::PictureRecorder& recorder, std::span<const ChartTabSpec> tabs, float width, float height, const ChartPalette& palette) const;
 
         // record the shared legend block of one chart
         void draw_legend(albor::PictureRecorder& recorder, const ChartFrame& frame, const ChartPalette& palette, float offset_y) const;

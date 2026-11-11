@@ -90,7 +90,7 @@ TEST(StudioChartSceneBuilderChecks, a_cartesian_frame_becomes_a_retained_picture
         return count;
     };
     // act: record the base picture
-    const std::shared_ptr<const studio::ChartScene> scene = builder.build(frames, 400.0f, 300.0f, CHART_PALETTE_LIGHT);
+    const std::shared_ptr<const studio::ChartScene> scene = builder.build(frames, 400.0f, 300.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     // assert: the scene carries one slot and every command family
     ASSERT_NE(scene, nullptr);
     ASSERT_NE(scene->base, nullptr);
@@ -120,9 +120,9 @@ TEST(StudioChartSceneBuilderChecks, a_second_build_reuses_the_measured_labels) {
     studio::ChartSceneBuilder builder(resources, measurer);
     const std::span<const ChartFrame> frames(&frame, 1);
     // act: record the same frame twice
-    const auto first = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT);
+    const auto first = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     const int calls_after_first = engine.calls;
-    const auto second = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT);
+    const auto second = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     // assert: the second build shapes no label again
     ASSERT_NE(first, nullptr);
     ASSERT_NE(second, nullptr);
@@ -162,7 +162,7 @@ TEST(StudioChartSceneBuilderChecks, a_smith_frame_records_the_grid_boundary_and_
         return count;
     };
     // act: record the base picture
-    const auto scene = builder.build(frames, 300.0f, 300.0f, CHART_PALETTE_LIGHT);
+    const auto scene = builder.build(frames, 300.0f, 300.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     // assert: the grid, boundary, series and label commands are present
     ASSERT_NE(scene, nullptr);
     ASSERT_NE(scene->base, nullptr);
@@ -190,7 +190,7 @@ TEST(StudioChartSceneBuilderChecks, a_minor_grid_keeps_its_per_line_density_alph
     studio::ChartSceneBuilder builder(resources, measurer);
     const std::span<const ChartFrame> frames(&frame, 1);
     // act: record the grid
-    const auto scene = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT);
+    const auto scene = builder.build(frames, 300.0f, 200.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     // assert: the two minor batches keep their own alphas
     ASSERT_NE(scene, nullptr);
     ASSERT_NE(scene->base, nullptr);
@@ -216,7 +216,7 @@ TEST(StudioChartSceneBuilderChecks, an_empty_frame_list_records_no_picture) {
     studio::AlborChartTextMeasurer measurer(engine);
     studio::ChartSceneBuilder builder(resources, measurer);
     // act: build a scene over an empty frame list
-    const auto scene = builder.build({}, 400.0f, 300.0f, CHART_PALETTE_LIGHT);
+    const auto scene = builder.build({}, 400.0f, 300.0f, CHART_PALETTE_LIGHT, {}, 0.0f);
     // assert: the scene is valid but carries no picture or slot
     ASSERT_NE(scene, nullptr);
     EXPECT_EQ(scene->base, nullptr);
@@ -239,4 +239,132 @@ TEST(StudioChartSceneBuilderChecks, a_zoom_selection_becomes_a_retained_overlay)
     EXPECT_EQ(overlay->picture->command_count(), 2U);
     EXPECT_EQ(overlay->picture->commands()[0].kind(), albor::DrawCommandKind::Rect);
     EXPECT_EQ(overlay->picture->commands()[1].kind(), albor::DrawCommandKind::Rect);
+}
+
+TEST(StudioChartSceneBuilderChecks, a_tab_strip_records_bounds_and_shifts_the_chart_content) {
+    // arrange: a builder and two dataset tabs over one chart frame
+    albor::ResourceFactory resources;
+    FakeTextEngine engine;
+    studio::AlborChartTextMeasurer measurer(engine);
+    studio::ChartSceneBuilder builder(resources, measurer);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 268.0f;
+    frame.plot_x = 40.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 340.0f;
+    frame.plot_h = 240.0f;
+    const std::vector<studio::ChartTabSpec> tabs = {
+        studio::ChartTabSpec{.title = "first", .active = true, .closable = false},
+        studio::ChartTabSpec{.title = "second", .active = false, .closable = true},
+    };
+    const std::span<const ChartFrame> frames(&frame, 1);
+    // act: record the scene with the strip
+    const auto scene = builder.build(frames, 400.0f, 300.0f, CHART_PALETTE_LIGHT, tabs, studio::CHART_TAB_HEIGHT);
+    // assert: both tabs are recorded and the chart starts under the strip
+    ASSERT_NE(scene, nullptr);
+    ASSERT_NE(scene->base, nullptr);
+    EXPECT_FLOAT_EQ(scene->tab_bar_height, studio::CHART_TAB_HEIGHT);
+    EXPECT_FLOAT_EQ(scene->content_y, studio::CHART_TAB_HEIGHT);
+    ASSERT_EQ(scene->tabs.size(), 2U);
+    EXPECT_FLOAT_EQ(scene->tabs[0].bounds.x, 8.0f);
+    EXPECT_FLOAT_EQ(scene->tabs[0].bounds.y, 0.0f);
+    EXPECT_GE(scene->tabs[0].bounds.width, 96.0f);
+    EXPECT_TRUE(scene->tabs[0].close_bounds.width <= 0.0f);
+    EXPECT_GT(scene->tabs[1].close_bounds.width, 0.0f);
+    EXPECT_GE(scene->tabs[1].close_bounds.x, scene->tabs[1].bounds.x);
+    EXPECT_LE(scene->tabs[1].close_bounds.x + scene->tabs[1].close_bounds.width, scene->tabs[1].bounds.x + scene->tabs[1].bounds.width);
+    ASSERT_EQ(scene->slots.size(), 1U);
+    EXPECT_FLOAT_EQ(scene->slots[0].frame.y, studio::CHART_TAB_HEIGHT);
+    EXPECT_GE(scene->slots[0].plot.y, studio::CHART_TAB_HEIGHT);
+    EXPECT_LE(scene->slots[0].frame.y + scene->slots[0].frame.height, 300.0f);
+}
+
+TEST(StudioChartSceneBuilderChecks, a_narrow_strip_shrinks_the_tabs_to_fit_the_panel) {
+    // arrange: three tabs over a narrow panel
+    albor::ResourceFactory resources;
+    FakeTextEngine engine;
+    studio::AlborChartTextMeasurer measurer(engine);
+    studio::ChartSceneBuilder builder(resources, measurer);
+    const std::vector<studio::ChartTabSpec> tabs = {
+        studio::ChartTabSpec{.title = "first dataset", .active = true, .closable = true},
+        studio::ChartTabSpec{.title = "second dataset", .active = false, .closable = true},
+        studio::ChartTabSpec{.title = "third dataset", .active = false, .closable = true},
+    };
+    // act: record the strip into a 200 pixel panel
+    const auto scene = builder.build({}, 200.0f, 300.0f, CHART_PALETTE_LIGHT, tabs, studio::CHART_TAB_HEIGHT);
+    // assert: every tab is recorded inside the panel
+    ASSERT_NE(scene, nullptr);
+    ASSERT_EQ(scene->tabs.size(), 3U);
+    for (const studio::ChartTab& tab : scene->tabs) {
+        EXPECT_GE(tab.bounds.x, 0.0f);
+        EXPECT_LE(tab.bounds.x + tab.bounds.width, 200.0f);
+        EXPECT_GT(tab.bounds.width, 0.0f);
+    }
+}
+
+TEST(StudioChartSceneBuilderChecks, an_empty_frame_list_keeps_the_tab_strip) {
+    // arrange: a panel showing tabs but no chart frame
+    albor::ResourceFactory resources;
+    FakeTextEngine engine;
+    studio::AlborChartTextMeasurer measurer(engine);
+    studio::ChartSceneBuilder builder(resources, measurer);
+    const std::vector<studio::ChartTabSpec> tabs = {
+        studio::ChartTabSpec{.title = "first", .active = true, .closable = false},
+        studio::ChartTabSpec{.title = "second", .active = false, .closable = true},
+    };
+    // act: build the scene without a chart
+    const auto scene = builder.build({}, 400.0f, 300.0f, CHART_PALETTE_LIGHT, tabs, studio::CHART_TAB_HEIGHT);
+    // assert: the strip stays recorded and the picture carries it
+    ASSERT_NE(scene, nullptr);
+    ASSERT_NE(scene->base, nullptr);
+    EXPECT_FLOAT_EQ(scene->tab_bar_height, studio::CHART_TAB_HEIGHT);
+    EXPECT_FLOAT_EQ(scene->content_y, studio::CHART_TAB_HEIGHT);
+    EXPECT_EQ(scene->tabs.size(), 2U);
+    EXPECT_TRUE(scene->slots.empty());
+}
+
+TEST(StudioChartSceneBuilderChecks, an_empty_tab_list_reserves_no_strip) {
+    // arrange: a chart frame with the caller offering a strip height
+    albor::ResourceFactory resources;
+    FakeTextEngine engine;
+    studio::AlborChartTextMeasurer measurer(engine);
+    studio::ChartSceneBuilder builder(resources, measurer);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 300.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 200.0f;
+    const std::span<const ChartFrame> frames(&frame, 1);
+    // act: build with no tab specs
+    const auto scene = builder.build(frames, 400.0f, 300.0f, CHART_PALETTE_LIGHT, {}, studio::CHART_TAB_HEIGHT);
+    // assert: no strip is reserved
+    ASSERT_NE(scene, nullptr);
+    EXPECT_FLOAT_EQ(scene->tab_bar_height, 0.0f);
+    EXPECT_FLOAT_EQ(scene->content_y, 0.0f);
+    EXPECT_TRUE(scene->tabs.empty());
+    ASSERT_EQ(scene->slots.size(), 1U);
+    EXPECT_FLOAT_EQ(scene->slots[0].frame.y, 0.0f);
+}
+
+TEST(StudioChartSceneBuilderChecks, a_crowded_strip_keeps_every_tab_selectable) {
+    // arrange: eight tabs over a narrow panel
+    albor::ResourceFactory resources;
+    FakeTextEngine engine;
+    studio::AlborChartTextMeasurer measurer(engine);
+    studio::ChartSceneBuilder builder(resources, measurer);
+    std::vector<studio::ChartTabSpec> tabs;
+    for (int index = 0; index < 8; ++index)
+        tabs.push_back(studio::ChartTabSpec{.title = "dataset " + std::to_string(index), .active = index == 7, .closable = true});
+    // act: record the strip into a 200 pixel panel
+    const auto scene = builder.build({}, 200.0f, 300.0f, CHART_PALETTE_LIGHT, tabs, studio::CHART_TAB_HEIGHT);
+    // assert: every tab is recorded inside the panel
+    ASSERT_NE(scene, nullptr);
+    ASSERT_EQ(scene->tabs.size(), 8U);
+    for (const studio::ChartTab& tab : scene->tabs) {
+        EXPECT_GE(tab.bounds.x, 0.0f);
+        EXPECT_LE(tab.bounds.x + tab.bounds.width, 200.0f);
+        EXPECT_GT(tab.bounds.width, 0.0f);
+    }
+    EXPECT_TRUE(scene->tabs.back().active);
 }
