@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "albor/window/window_handle.h"
+#include "charts/expression_tree.h"
 #include "charts/plot_selection.h"
 
 namespace albor
@@ -15,8 +17,7 @@ namespace albor
     class AddPlotDialog;
     class Application;
     class BindingEngine;
-    class CheckBox;
-    class RowLayout;
+    class GridLayout;
     class TextEngine;
     class ThemeController;
     class UiNode;
@@ -24,7 +25,11 @@ namespace albor
 
 namespace studio
 {
-    // the Albor window that renders the add/remove plots dialog
+    class ExpressionChip;
+    class PlotBreadcrumb;
+    class PlotLegend;
+
+    // the Albor dialog window that edits the expressions one chart plots
     class AlborAddPlotDialogView final
     {
     public:
@@ -56,30 +61,20 @@ namespace studio
         void on_window_closed(albor::WindowHandle handle);
 
     private:
-        // one expression row the dialog shows
-        struct RowEntry
-        {
-            // the expression the row edits
-            PlotExpression expression;
-
-            // the row container the filter hides
-            albor::RowLayout* row = nullptr;
-
-            // the checkbox whose state mirrors the expression
-            albor::CheckBox* check = nullptr;
-        };
-
-        // build one row for an expression and add it to the host column
-        void append_row(albor::UiNode& host, const PlotExpression& expression);
-
-        // build the rows the state lists
+        // build the tree and the first card set for the state the dialog opened with
         void populate();
 
-        // hide the rows the filter does not match
-        void apply_filter(std::string text);
+        // drop the previous chips and build the cards the tree publishes
+        void rebuild_cards();
 
-        // name the number of selected expressions in the footer
-        void refresh_summary();
+        // update the breadcrumb path and the legend
+        void refresh_chrome();
+
+        // show or clear the custom expression error
+        void set_error(std::string message);
+
+        // append a full expression name to the custom builder
+        void append_expression(std::string name);
 
         // resolve the typed custom expression and add it selected
         void add_custom();
@@ -105,21 +100,41 @@ namespace studio
         // the theme bindings installed over the dialog tree
         std::unique_ptr<albor::ThemeController> m_theme;
 
-        // the stage engines the host-built rows borrow
+        // the stage engines the host-built chips borrow
         albor::BindingEngine* m_engine = nullptr;
 
         albor::TextEngine* m_text = nullptr;
 
-        // the expression rows the dialog currently shows
-        std::vector<RowEntry> m_rows;
+        // the grid the expression chips fill
+        albor::GridLayout* m_grid = nullptr;
 
-        // the state the dialog opened with
-        PlotSelectionState m_state;
+        // the expression chips of the current cards, null for a scope card
+        std::vector<ExpressionChip*> m_chips;
 
-        // the sink the accepted selection reaches
+        // the breadcrumb and legend bars the chrome hosts
+        PlotBreadcrumb* m_breadcrumb = nullptr;
+
+        PlotLegend* m_legend = nullptr;
+
+        // the expression selection tree the cards and the breadcrumb read
+        ExpressionTree m_tree;
+
+        // the expressions the dataset offered when the dialog opened
+        std::vector<PlotExpression> m_expressions;
+
+        // the accepted sink the dialog reports to
         AcceptedHandler m_accepted;
 
         // the resolver a custom expression goes through
         CustomResolver m_resolve;
+
+        // the state the dialog opened with
+        PlotSelectionState m_state;
+
+        // the show generation, which a posted rebuild checks before it runs
+        std::uint64_t m_generation = 0;
+
+        // whether the view still exists, which a posted rebuild checks
+        std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
     };
 } // namespace studio

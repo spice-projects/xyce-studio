@@ -1,6 +1,8 @@
 #include "views/charts/add_plot_dialog_view.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -10,17 +12,24 @@
 #include "add_plot_dialog.h"
 #include "albor/application/application.h"
 #include "albor/application/window_stage.h"
-#include "albor/layout/row_layout.h"
+#include "albor/layout/grid_layout.h"
+#include "albor/style/theme.h"
 #include "albor/ui/ui_node.h"
-#include "albor/widgets/checkbox.h"
-#include "albor/widgets/label.h"
 #include "albor/widgets/theme_controller.h"
 #include "albor/window/window.h"
 #include "app/theme.h"
+#include "charts/expression_colors.h"
+#include "charts/expression_tree.h"
 #include "core/util.h"
+#include "views/charts/add_plot_widgets.h"
 
 namespace
 {
+    // the size the dialog window opens with, which is the reference card size
+    constexpr float DIALOG_WIDTH = 600.0f;
+
+    constexpr float DIALOG_HEIGHT = 560.0f;
+
     // find a node by the author id a compiled tree carries
     albor::UiNode* find_node(albor::UiNode& node, const std::string_view explicit_id) {
         // the node itself can be the match
@@ -41,6 +50,8 @@ studio::AlborAddPlotDialogView::AlborAddPlotDialogView(albor::Application& appli
     m_app(&application), m_parent(parent) {}
 
 studio::AlborAddPlotDialogView::~AlborAddPlotDialogView() {
+    // a posted rebuild must not reach a destroyed view
+    *m_alive = false;
     // a dialog still up at teardown asks the application to release it
     if (m_handle.valid())
         (void)m_app->request_close(m_handle);
@@ -52,13 +63,15 @@ void studio::AlborAddPlotDialogView::show(PlotSelectionState state, AcceptedHand
         return;
     // remember the state and the sinks the dialog works from
     m_state = std::move(state);
+    m_expressions = m_state.expressions;
     m_accepted = std::move(accepted);
     m_resolve = std::move(resolve);
-    m_rows.clear();
+    // the new show owns a fresh generation
+    ++m_generation;
     // describe a fixed size modal dialog owned by the shell
     albor::WindowOptions options;
     options.title = "Select Plot Expressions";
-    options.size = albor::Size{.width = 600.0f, .height = 560.0f};
+    options.size = albor::Size{.width = DIALOG_WIDTH, .height = DIALOG_HEIGHT};
     options.role = albor::WindowRole::Dialog;
     options.modality = albor::Modality::WindowModal;
     options.parent = m_parent;
@@ -74,29 +87,79 @@ void studio::AlborAddPlotDialogView::show(PlotSelectionState state, AcceptedHand
         m_resolve = nullptr;
         return;
     }
-    // the host-built rows borrow the stage engines
+    // the host-built chips borrow the stage engines
     albor::WindowStage* stage = m_app->stage(m_handle);
-    // a stage that is not wired cannot host the rows
+    // a stage that is not wired cannot host the chips
     if (stage == nullptr) {
         (void)m_app->request_close(m_handle);
         return;
     }
-    // remember the engines the rows read
+    // remember the engines the chips read
     m_engine = &stage->binding_engine();
     m_text = &stage->text_engine();
-    // build the rows before the theme walks the tree, so every row takes the palette
+    // mount the grid and the chrome bars before the theme walks the tree
+    albor::UiNode* grid_host = find_node(*m_root, "add_plot_grid");
+    // the typed pin keeps the grid as the grid layout it is
+    m_grid = dynamic_cast<albor::GridLayout*>(grid_host);
+    // the breadcrumb mounts into the host the card declares
+    albor::UiNode* breadcrumb_host = find_node(*m_root, "add_plot_breadcrumb_host");
+    // the legend mounts the same way
+    albor::UiNode* legend_host = find_node(*m_root, "add_plot_legend_host");
+    // the breadcrumb navigates the expression scopes
+    auto breadcrumb = std::make_unique<PlotBreadcrumb>(m_engine, m_text);
+    // keep the bar so the view can seed it
+    m_breadcrumb = breadcrumb.get();
+    // the breadcrumb only exists once its host does
+    if (breadcrumb_host != nullptr)
+        breadcrumb_host->add_child(std::move(breadcrumb));
+    // the legend names the units the grid shows
+    auto legend = std::make_unique<PlotLegend>(m_engine, m_text);
+    // keep the bar so the view can seed it
+    m_legend = legend.get();
+    // the legend only exists once its host does
+    if (legend_host != nullptr)
+        legend_host->add_child(std::move(legend));
+    // a segment press restores its scope
+    m_breadcrumb->set_on_segment_clicked([this](const std::size_t level) {
+        // restore the scope the segment names
+        m_tree.open_breadcrumb(level);
+        // the cards and the chrome follow the scope
+        refresh_chrome();
+        // rebuild the cards the new scope publishes
+        rebuild_cards();
+    });
+    // the selected-only link flattens the grid to the selected expressions
+    m_breadcrumb->set_on_selected_clicked([this] {
+        // flip the selected-only view
+        m_tree.set_show_selected(!m_tree.show_selected());
+        // the cards and the chrome follow the view
+        refresh_chrome();
+        // rebuild the cards the view publishes
+        rebuild_cards();
+    });
+    // build the tree and the first card set from the offered expressions
     populate();
     // theme the dialog from the same system appearance as the shell
     m_theme = install_theme(*m_app, m_handle);
-    // forward the filter, the custom row and the footer actions to this view
-    m_root->set_on_filter_changed([this](std::string text) { apply_filter(std::move(text)); });
+    // the filter flattens the grid to the matching expressions
+    m_root->set_on_filter_changed([this](std::string text) {
+        // the tree applies the filter to its own names
+        m_tree.set_filter(std::move(text));
+        // the cards and the chrome follow the filter
+        refresh_chrome();
+        // rebuild the cards the filter leaves
+        rebuild_cards();
+    });
+    // the custom row resolves the typed expression
     m_root->set_on_custom_added([this] { add_custom(); });
+    // the footer commits the selection
     m_root->set_on_accepted([this] { accept(); });
+    // the footer dismisses the dialog
     m_root->set_on_dismissed([this] { dismiss(); });
     // seed the chrome the state names
     m_root->set_allow_custom(m_state.allow_custom);
-    m_root->set_error_message("");
-    refresh_summary();
+    // clear any stale validation feedback
+    set_error({});
     // show the fully seeded window, which avoids a blank first frame
     if (albor::Window* window = m_app->window(m_handle))
         window->show();
@@ -127,94 +190,164 @@ void studio::AlborAddPlotDialogView::on_window_closed(const albor::WindowHandle 
     // ignore windows this view does not own
     if (handle != m_handle)
         return;
+    // a posted rebuild belongs to the window that just closed
+    ++m_generation;
     // the facade and the theme bindings die with the window
     m_handle = {};
     m_root = nullptr;
     m_theme.reset();
     m_engine = nullptr;
     m_text = nullptr;
-    m_rows.clear();
+    m_grid = nullptr;
+    m_chips.clear();
+    m_breadcrumb = nullptr;
+    m_legend = nullptr;
     m_state = PlotSelectionState{};
+    m_expressions.clear();
     m_accepted = nullptr;
     m_resolve = nullptr;
 }
 
-void studio::AlborAddPlotDialogView::append_row(albor::UiNode& host, const PlotExpression& expression) {
-    // the row index keeps the row ids and the toggle callback apart
-    const std::size_t index = m_rows.size();
-    // the row stacks the box and the expression text side by side
-    auto row = std::make_unique<albor::RowLayout>();
-    row->set_explicit_id("add_plot_row_" + std::to_string(index));
-    row->set_gap(8.0f);
-    // the box mirrors the selection and reports every toggle
-    auto check = std::make_unique<albor::CheckBox>(m_engine, "add_plot_check_" + std::to_string(index));
-    check->set_checked(expression.selected);
-    check->set_on_toggle([this, index](const bool checked) {
-        // the dialog state follows the box the user toggled
-        if (index < m_rows.size())
-            m_rows[index].expression.selected = checked;
-        // the footer names the new selection count
-        refresh_summary();
-    });
-    // the raw pointers stay valid because the row owns the children
-    albor::CheckBox* check_ptr = check.get();
-    // the name is the row identity the user reads
-    auto name = std::make_unique<albor::Label>(m_engine, m_text, expression.name, "add_plot_name_" + std::to_string(index));
-    // the box and the name join the row
-    row->add_child(std::move(check));
-    row->add_child(std::move(name));
-    // a unit reads beside the name when the expression carries one
-    if (!expression.unit.empty()) {
-        auto unit = std::make_unique<albor::Label>(m_engine, m_text, expression.unit, "add_plot_unit_" + std::to_string(index));
-        unit->set_foreground(albor::Color::rgba(0.45f, 0.47f, 0.50f, 1.0f));
-        row->add_child(std::move(unit));
-    }
-    // the host keeps the row pointer so the filter can hide it
-    albor::RowLayout* row_ptr = row.get();
-    host.add_child(std::move(row));
-    m_rows.push_back(RowEntry{.expression = expression, .row = row_ptr, .check = check_ptr});
-}
-
 void studio::AlborAddPlotDialogView::populate() {
-    // the host column the rows stack inside
-    albor::UiNode* host = m_root != nullptr ? find_node(*m_root, "add_plot_rows_host") : nullptr;
-    // a dialog without its host cannot show a row
-    if (host == nullptr || m_engine == nullptr || m_text == nullptr)
-        return;
-    // one row per expression the state lists
-    for (const PlotExpression& expression : m_state.expressions)
-        append_row(*host, expression);
-    // the dialog opens without a filter, so every row shows
-    apply_filter(std::string{});
-}
-
-void studio::AlborAddPlotDialogView::apply_filter(std::string text) {
-    // the filter the text field carries, matched case insensitively
-    const std::string needle = to_lower(text);
-    // every row shows or hides by the expression name it carries
-    for (RowEntry& entry : m_rows) {
-        // a row without the needle in its name is hidden
-        const bool match = needle.empty() || to_lower(entry.expression.name).find(needle) != std::string::npos;
-        entry.row->set_visible(match);
-    }
-    // the host remeasures the visible rows
-    if (albor::UiNode* host = m_root != nullptr ? find_node(*m_root, "add_plot_rows_host") : nullptr)
-        host->invalidate_layout();
-}
-
-void studio::AlborAddPlotDialogView::refresh_summary() {
-    // a dialog without its facade has no footer to update
+    // a dialog without its window has no tree to fill
     if (m_root == nullptr)
         return;
-    // count the rows the selection carries
-    std::size_t selected = 0;
-    for (const RowEntry& entry : m_rows) {
-        // a selected row joins the count
-        if (entry.expression.selected)
-            selected++;
+    // the items the expression tree groups
+    std::vector<std::pair<std::string, std::string>> items;
+    // every offered expression becomes a tree leaf
+    for (const PlotExpression& expression : m_expressions)
+        items.emplace_back(expression.name, expression.unit);
+    // rebuild the tree from the offered expressions
+    m_tree.rebuild(items);
+    // the chart marks the expressions it plots
+    for (const PlotExpression& expression : m_expressions) {
+        // only the plotted expressions start selected
+        if (expression.selected)
+            m_tree.set_selected(expression.name, true);
     }
-    // name the selection beside the row count
-    m_root->set_selected_summary(std::to_string(selected) + " of " + std::to_string(m_rows.size()) + " checked");
+    // the dialog opens at the root with no filter and the full list
+    m_tree.set_filter("");
+    // the selected-only view starts off
+    m_tree.set_show_selected(false);
+    // the root scope is the initial path
+    m_tree.open_breadcrumb(0);
+    // the chrome and the cards follow the tree
+    refresh_chrome();
+    // build the cards the tree publishes
+    rebuild_cards();
+}
+
+void studio::AlborAddPlotDialogView::rebuild_cards() {
+    // a grid that failed to mount cannot show a card
+    if (m_grid == nullptr)
+        return;
+    // drop the chips the previous cards built
+    while (m_grid->child_count() > 0) {
+        // the grid owns the chip until the removal hands it back
+        std::unique_ptr<albor::UiNode> removed = m_grid->remove_child(m_grid->child_at(m_grid->child_count() - 1));
+        // the removed chip releases here
+        (void)removed;
+    }
+    // the chips the new cards build
+    m_chips.clear();
+    // the cards the tree publishes
+    const std::vector<ExpressionCard>& cards = m_tree.cards();
+    // build one chip per card
+    for (std::size_t index = 0; index < cards.size(); ++index) {
+        // the card this chip presents
+        const ExpressionCard& card = cards[index];
+        // a scope card drills in, an expression card toggles
+        if (card.is_scope) {
+            // the scope chip carries the scope ink and count
+            auto chip = std::make_unique<ScopeChip>(m_engine, m_text, card.label, card.kind, card.count, "add_plot_card_" + std::to_string(index));
+            // the show the press belongs to
+            const std::uint64_t generation = m_generation;
+            // a press drills into the scope after the chip leaves the dispatch
+            chip->set_on_clicked([this, index, generation, alive = m_alive] {
+                // the posted rebuild drops when the view or dialog is gone
+                albor::Application::instance().post([this, alive, index, generation] {
+                    // a destroyed view, a closed dialog or a newer show drops the rebuild
+                    if (!*alive || generation != m_generation || !m_handle.valid())
+                        return;
+                    // drill into the scope the card names
+                    m_tree.activate(index);
+                    // the chrome and the cards follow the scope
+                    refresh_chrome();
+                    // rebuild the cards the new scope publishes
+                    rebuild_cards();
+                });
+            });
+            // the chip joins the grid
+            m_grid->add_child(std::move(chip));
+            // a scope card has no expression chip to update
+            m_chips.push_back(nullptr);
+            // next card
+            continue;
+        }
+        // the expression chip carries the unit ink and the selection
+        auto chip = std::make_unique<ExpressionChip>(m_engine, m_text, card.label, card.full_name, expression_colors::expression_unit_color(card.type), card.selected, "add_plot_card_" + std::to_string(index));
+        // a press toggles the expression in place, so the chip survives its own dispatch
+        chip->set_on_clicked([this, index] {
+            // toggle the leaf the card names
+            m_tree.activate(index);
+            // the chip follows the state the tree reports
+            if (index < m_chips.size() && m_chips[index] != nullptr)
+                m_chips[index]->set_selected(m_tree.cards()[index].selected);
+        });
+        // a secondary press appends the full name to the custom builder
+        chip->set_on_context_menu([this, name = card.full_name](albor::Point) { append_expression(name); });
+        // the raw pointer lets the view update the chip in place
+        ExpressionChip* raw = chip.get();
+        // the chip joins the grid
+        m_grid->add_child(std::move(chip));
+        // the chip is addressable until the next rebuild
+        m_chips.push_back(raw);
+    }
+    // the grid lays the chips out again
+    m_grid->invalidate_layout();
+}
+
+void studio::AlborAddPlotDialogView::refresh_chrome() {
+    // the breadcrumb shows the browsed path and the selected-only state
+    if (m_breadcrumb != nullptr)
+        m_breadcrumb->set_entries(m_tree.breadcrumb(), m_tree.show_selected());
+    // the units the legend names
+    std::vector<std::string> units;
+    // the scope kinds the dataset carries
+    bool has_subcircuit = false;
+    bool has_sheet = false;
+    // scan every offered expression
+    for (const PlotExpression& expression : m_expressions) {
+        // every unit feeds the legend, which deduplicates
+        units.push_back(expression.unit);
+        // a subcircuit probe names a drill-in scope
+        if (ExpressionTree::kind_of(expression.name) == GroupKind::Subcircuit)
+            has_subcircuit = true;
+        // a sheet probe names a drill-in scope
+        if (ExpressionTree::kind_of(expression.name) == GroupKind::Sheet)
+            has_sheet = true;
+    }
+    // the legend rows the units and scopes name
+    if (m_legend != nullptr)
+        m_legend->set_entries(expression_colors::expression_legend_entries(units, has_subcircuit, has_sheet));
+}
+
+void studio::AlborAddPlotDialogView::set_error(std::string message) {
+    // the dialog only exists while its facade does
+    if (m_root == nullptr)
+        return;
+    // the card shows the message only while it is non empty
+    m_root->set_error_message(std::move(message));
+    // the message row follows the text
+    m_root->set_show_error(!m_root->error_message().empty());
+}
+
+void studio::AlborAddPlotDialogView::append_expression(std::string name) {
+    // a dialog without its facade has no builder to fill
+    if (m_root == nullptr)
+        return;
+    // the full name appends to what the builder already carries
+    m_root->set_custom_text(m_root->custom_text() + std::move(name));
 }
 
 void studio::AlborAddPlotDialogView::add_custom() {
@@ -230,39 +363,35 @@ void studio::AlborAddPlotDialogView::add_custom() {
     const std::optional<PlotExpression> resolved = m_resolve(text);
     // a refused expression keeps the dialog open with its message
     if (!resolved) {
-        m_root->set_error_message("The expression could not be evaluated");
+        set_error("The expression could not be evaluated");
         return;
     }
     // a parsed expression clears the previous message
-    m_root->set_error_message("");
-    // an expression the list already carries selects in place
-    for (RowEntry& entry : m_rows) {
-        if (entry.expression.name != resolved->name)
-            continue;
-        // the existing row takes the selection without a duplicate
-        entry.expression.selected = true;
-        entry.check->set_checked(true);
-        refresh_summary();
-        m_root->set_custom_text("");
-        return;
+    set_error({});
+    // an expression the tree already carries selects in place
+    if (m_tree.contains(resolved->name)) {
+        // the existing leaf takes the selection without a duplicate
+        m_tree.set_selected(resolved->name, true);
     }
-    // the new expression joins the state and the list selected
-    m_state.expressions.push_back(*resolved);
-    if (albor::UiNode* host = find_node(*m_root, "add_plot_rows_host"))
-        append_row(*host, *resolved);
-    refresh_summary();
+    else {
+        // the new leaf joins the tree path its name encodes
+        m_tree.add_leaf(resolved->name, resolved->unit);
+        // the leaf starts selected
+        m_tree.set_selected(resolved->name, true);
+        // the legend learns the unit the new leaf carries
+        m_expressions.push_back(*resolved);
+    }
     // the field empties for the next entry
     m_root->set_custom_text("");
+    // the chrome and the cards follow the new leaf
+    refresh_chrome();
+    // rebuild the cards the tree publishes
+    rebuild_cards();
 }
 
 void studio::AlborAddPlotDialogView::accept() {
     // the names the user left selected
-    std::vector<std::string> names;
-    for (const RowEntry& entry : m_rows) {
-        // a selected row is part of the applied set
-        if (entry.expression.selected)
-            names.push_back(entry.expression.name);
-    }
+    const std::vector<std::string> names = m_tree.selected_names();
     // take the sink out before the teardown clears the view state
     AcceptedHandler accepted = std::move(m_accepted);
     m_accepted = nullptr;
@@ -270,11 +399,12 @@ void studio::AlborAddPlotDialogView::accept() {
     close();
     // hand the selection to the charts presenter
     if (accepted)
-        accepted(std::move(names));
+        accepted(names);
 }
 
 void studio::AlborAddPlotDialogView::dismiss() {
     // a dismissed dialog applies nothing
     m_accepted = nullptr;
+    (void)m_resolve;
     close();
 }

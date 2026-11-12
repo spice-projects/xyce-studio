@@ -134,40 +134,42 @@ class ChartsPanelChecks(unittest.TestCase):
             chart.wait_for_exists()
             chart.click("chart-0-add-remove-plots")
             app.get_by_id("add_plot_filter").wait_for_exists()
-            # assert: the dialog lists the two plotted expressions selected
-            expect(app.get_by_id("add_plot_name_0")).to_have_name("V(1)")
-            expect(app.get_by_id("add_plot_name_1")).to_have_name("V(2)")
-            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
-            # act: filter the list down to one expression
+            # assert: the grid carries the two plotted expressions as selected chips
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(1)")
+            expect(app.get_by_id("add_plot_card_1")).to_have_name("V(2)")
+            # act: filter the grid down to one expression
             app.get_by_id("add_plot_filter").fill("V(1)")
-            # assert: the other row leaves the list
-            expect(app.get_by_id("add_plot_row_1")).not_().to_exist()
+            # assert: the other chip leaves the grid
+            expect(app.get_by_id("add_plot_card_1")).not_().to_exist()
             # act: clear the filter and deselect the first expression
             app.get_by_id("add_plot_filter").fill("")
-            app.get_by_id("add_plot_check_0").click("toggle")
-            # assert: the footer counts the remaining selection
-            expect(app.get_by_id("add_plot_selected")).to_have_name("1 of 2 checked")
-            # act: apply the selection
+            app.get_by_id("add_plot_card_0").click("toggle")
+            # step: apply the selection
             app.get_by_id("add_plot_ok").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
             # act: reopen the dialog over the edited chart
             chart.click("chart-0-add-remove-plots")
             app.get_by_id("add_plot_filter").wait_for_exists()
-            # assert: the chart kept the accepted selection
-            expect(app.get_by_id("add_plot_selected")).to_have_name("1 of 2 checked")
-            # act: add a custom expression and apply it
+            # step: show only the selected expressions
+            app.get_by_id("add_plot_breadcrumb").click("selected-only")
+            # assert: the chart kept the one accepted expression
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(2)")
+            expect(app.get_by_id("add_plot_card_1")).not_().to_exist()
+            # step: leave the selected view and add a custom expression
+            app.get_by_id("add_plot_breadcrumb").click("selected-only")
             app.get_by_id("add_plot_custom").fill("V(1) * 2")
             app.get_by_id("add_plot_add").click()
-            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 3 checked")
-            expect(app.get_by_id("add_plot_name_2")).to_have_name("V(1) * 2")
+            # assert: the custom expression joins the grid selected
+            expect(app.get_by_id("add_plot_card_2")).to_have_name("V(1) * 2")
+            # step: apply and reopen
             app.get_by_id("add_plot_ok").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
-            # act: reopen the dialog one last time
             chart.click("chart-0-add-remove-plots")
             app.get_by_id("add_plot_filter").wait_for_exists()
-            # assert: the custom expression joined the chart selection
-            expect(app.get_by_id("add_plot_name_2")).to_have_name("V(1) * 2")
-            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 3 checked")
+            app.get_by_id("add_plot_breadcrumb").click("selected-only")
+            # assert: the chart kept the custom expression beside the remaining signal
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(2)")
+            expect(app.get_by_id("add_plot_card_1")).to_have_name("V(1) * 2")
             app.get_by_id("add_plot_cancel").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
 
@@ -182,9 +184,9 @@ class ChartsPanelChecks(unittest.TestCase):
             # act: add an expression the parser refuses
             app.get_by_id("add_plot_custom").fill("V(1) *")
             app.get_by_id("add_plot_add").click()
-            # assert: the dialog stays open with the message and the selection unchanged
+            # assert: the dialog stays open with the message and the grid unchanged
             expect(app.get_by_id("add_plot_error")).to_have_name("The expression could not be evaluated")
-            expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(1)")
             # step: cancel the dialog
             app.get_by_id("add_plot_cancel").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
@@ -200,8 +202,8 @@ class ChartsPanelChecks(unittest.TestCase):
             chart.click("chart-0-add-remove-plots")
             app.get_by_id("add_plot_filter").wait_for_exists()
             # assert: only the diagonal entries are offered and no custom row shows
-            expect(app.get_by_id("add_plot_name_0")).to_have_name("S11")
-            expect(app.get_by_id("add_plot_name_1")).to_have_name("S22")
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("S11")
+            expect(app.get_by_id("add_plot_card_1")).to_have_name("S22")
             expect(app.get_by_id("add_plot_custom")).not_().to_exist()
             # step: cancel the dialog
             app.get_by_id("add_plot_cancel").click()

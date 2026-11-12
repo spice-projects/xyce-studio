@@ -483,24 +483,32 @@ expect(chart).to_have_name("1 line chart")
 ### Edit a chart's plots (from `charts_test.py`)
 
 `chart-<index>-add-remove-plots` opens the plot selection dialog, which is a
-modal window the automation does bind. The expression rows are host-built, so
-each row carries stable ids: `add_plot_check_<n>`, `add_plot_name_<n>` and
-`add_plot_row_<n>`:
+modal `WindowRole::Dialog` Albor window and therefore binds to the automation.
+The expression chips are host-built and carry stable ids
+`add_plot_card_<n>`; each chip exposes `toggle` (expression) or `activate`
+(scope) as its semantic action:
 
 ```python
 chart.click("chart-0-add-remove-plots")
 app.get_by_id("add_plot_filter").wait_for_exists()
-expect(app.get_by_id("add_plot_selected")).to_have_name("2 of 2 checked")
-app.get_by_id("add_plot_check_0").click("toggle")
+expect(app.get_by_id("add_plot_card_0")).to_have_name("V(1)")
+app.get_by_id("add_plot_card_0").click("toggle")
+app.get_by_id("add_plot_breadcrumb").click("selected-only")
+expect(app.get_by_id("add_plot_card_0")).to_have_name("V(2)")
 app.get_by_id("add_plot_ok").click()
 app.get_by_id("add_plot_filter").wait_for_gone()
 ```
 
-- Deselecting every row leaves the chart empty.
-- The filter hides the rows whose expression name does not match.
+- The filter (`add_plot_filter`) hides the chips whose expression name does not
+  match.
+- The breadcrumb (`add_plot_breadcrumb`) exposes `selected-only` and one
+  `segment-<level>` action per parent scope; the selected-only view flattens the
+  grid to the expressions the chart plots.
 - The custom field (`add_plot_custom`, `add_plot_add`) resolves through the
   dataset expression manager and reports a refusal in `add_plot_error`.
 - A Smith chart lists the diagonal entries only and hides the custom row.
+- The footer buttons are `add_plot_cancel` and `add_plot_ok`; the window close
+  button dismisses the dialog without applying.
 
 ## Conventions
 
