@@ -72,9 +72,7 @@ namespace
 
     // scale-aware interpolation of an abscissa value at a window ratio
     double interpolate_abscissa(const double ratio, const double left_value, const double right_value, const AbscissaScale scale) {
-        // logarithmic scale: interpolate geometrically over the clamped range;
-        // non-positive bounds are clamped like the layout so the mapped
-        // interaction values match the drawn logarithmic plot
+        // interpolate geometrically over the clamped log range; non-positive bounds clamp like the layout
         if (scale != AbscissaScale::LINEAR) {
             // clamp non-positive bounds into the logarithmic domain
             double lo = std::min(left_value, right_value);
@@ -96,8 +94,7 @@ namespace
 
     // resolve the expressions to plot for one ordinate; complex expressions expand to magnitude and phase
     std::vector<AnyExpression*> get_expressions_to_plot(ExpressionManager* expression_manager, AnyExpression* expression, const ChartKind kind) {
-        // complex expression on a smith chart plots directly as a reflection
-        // coefficient, one gamma trace per expression
+        // complex expression on a smith chart plots directly as a reflection coefficient, one gamma trace per expression
         if (kind == ChartKind::SMITH) {
             // only complex expressions carry a gamma-plane position
             if (!std::holds_alternative<Expression<std::complex<double>>>(*expression)) {
@@ -178,8 +175,22 @@ std::vector<double> ChartEngine::log2_major_ticks(const double x_left, const dou
     return result;
 }
 
-ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target, const ChartKind kind) :
-    m_expression_manager(expression_manager), m_step_information(step_information), m_kind(kind), m_abscissa_scale(abscissa_scale), m_decimate_target(decimate_target) {
+ChartColor ChartColorRegistry::color_for(const std::string& name) {
+    // reuse the color the expression already owns
+    if (const auto found = m_colors.find(name); found != m_colors.end())
+        return found->second;
+    // a new expression takes the next palette slot
+    const ChartColor color = SERIES_COLOR_PALETTE[m_next_color % SERIES_COLOR_PALETTE.size()];
+    // advance the palette for the next expression
+    m_next_color++;
+    // remember the color for every chart that plots the expression
+    m_colors.emplace(name, color);
+    // hand the assigned color back
+    return color;
+}
+
+ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInformation* step_information, const AbscissaScale abscissa_scale, const size_t decimate_target, const ChartKind kind, ChartColorRegistry* colors) :
+    m_expression_manager(expression_manager), m_step_information(step_information), m_kind(kind), m_colors(colors), m_abscissa_scale(abscissa_scale), m_decimate_target(decimate_target) {
     // abscissa
     auto& abscissa = expression_manager->abscissa();
     // abscissa name & unit
@@ -219,7 +230,7 @@ std::vector<AnyExpression*> ChartEngine::selected_expressions() {
 }
 
 void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
-    // loop existing series to find those that need to be removed (those whose ordinate expression is not in the new expressions list)
+    // drop every series whose ordinate is not in the new expression list
     for (auto it = m_series.begin(); it != m_series.end();) {
         // plotted expression
         auto& plotted_expression = std::get<0>(it->second);
@@ -249,8 +260,7 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
             if (m_kind == ChartKind::SMITH) {
                 // complex ordinate expression
                 auto& complex_ordinate_variant = std::get<Expression<std::complex<double>>>(*ordinate_variant);
-                // lookup ordinate variant in series, create default if it does not exist;
-                // the unassigned axis is the -1 sentinel because smith charts have no y axes
+                // create the series with an unassigned axis; smith charts have no y axes
                 auto [it0, inserted0] = m_series.try_emplace(complex_ordinate_variant.name(), OrdinateSeries(ordinate_variant, -1, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
                 // ordinate series data
                 auto& [_, y_axis, rendered_series, min_value, max_value, color] = (it0->second);
@@ -268,8 +278,8 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
                 }
                 // process color
                 if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
-                    // assign next color in palette
-                    color = SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
+                    // a dataset registry keeps the color stable across charts
+                    color = m_colors != nullptr ? m_colors->color_for(complex_ordinate_variant.name()) : SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
                     // increment color index
                     m_next_color_index++;
                 }
@@ -291,8 +301,7 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
             }
             // ordinate expression is always an Expression<double> at this point
             Expression<double>& double_ordinate_variant = std::get<Expression<double>>(*ordinate_variant);
-            // lookup ordinate variant in series, create default if it does not exist;
-            // the unassigned axis is the -1 sentinel because 0 is a valid axis index
+            // create the series with an unassigned axis, because zero is a valid axis index
             auto [it0, inserted0] = m_series.try_emplace(double_ordinate_variant.name(), OrdinateSeries(ordinate_variant, -1, std::unordered_map<size_t, std::pair<View<double>, View<double>>>(), std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(), ChartColor()));
             // ordinate series data
             auto& [_, y_axis, rendered_series, min_value, max_value, color] = (it0->second);
@@ -308,8 +317,7 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
                 // next
                 ++it2;
             }
-            // recompute the extrema from the retained steps so a deselected
-            // outlier step no longer stretches the axis range
+            // recompute the extrema from the retained steps so a deselected outlier step no longer stretches the axis range
             min_value = std::numeric_limits<double>::max();
             max_value = -std::numeric_limits<double>::max();
             const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
@@ -342,8 +350,8 @@ void ChartEngine::plot_series(const std::set<AnyExpression*>& expressions) {
             }
             // process color
             if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
-                // assign next color in palette
-                color = SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
+                // a dataset registry keeps the color stable across charts
+                color = m_colors != nullptr ? m_colors->color_for(double_ordinate_variant.name()) : SERIES_COLOR_PALETTE[m_next_color_index % SERIES_COLOR_PALETTE.size()];
                 // increment color index
                 m_next_color_index++;
             }
@@ -410,9 +418,7 @@ void ChartEngine::auto_range() {
             // next
             continue;
         }
-        // no plottable data on this axis (all steps deselected): keep a finite
-        // default range and reset the stored extrema so a later vertical
-        // autorange or zoom reset computes a finite window
+        // keep a finite default range and reset the extrema so a later autorange computes a finite window
         if (axis_info.min_value > axis_info.max_value) {
             axis_info.min_value = 0.0;
             axis_info.max_value = 1.0;
@@ -454,9 +460,7 @@ std::tuple<bool, View<double>, View<double>, double, double> ChartEngine::plot_s
         return {};
     // decimate x and y values
     auto [x_np, y_np] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-    // collect the extrema over the plottable samples: finite pairs with a
-    // positive abscissa on logarithmic scales; non-finite samples stay in the
-    // rendered views so the layout can break the polyline across the gap
+    // collect extrema over finite pairs with a positive abscissa on log scales
     const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
     double step_min_value = std::numeric_limits<double>::max();
     double step_max_value = -std::numeric_limits<double>::max();
@@ -485,8 +489,7 @@ std::tuple<bool, View<double>, View<double>> ChartEngine::plot_smith_step(Expres
     // empty steps carry no plottable data
     if (ordinate_values.empty())
         return {};
-    // parameter type from the expression name prefix (s/y/z); smith charts
-    // default to s-parameters for names that carry no recognizable prefix
+    // read the parameter type from the s/y/z prefix, defaulting to s-parameters
     const std::string parameter_type(1, ordinate_variant.name()[0]);
     const std::string resolved_parameter_type = (parameter_type == "S" || parameter_type == "Y" || parameter_type == "Z") ? parameter_type : "S";
     // reference impedance for the conversion, from the expression metadata
@@ -504,16 +507,13 @@ std::tuple<bool, View<double>, View<double>> ChartEngine::plot_smith_step(Expres
     // reserve one slot per sample
     gamma_r_values.reserve(ordinate_values.size());
     gamma_i_values.reserve(ordinate_values.size());
-    // decimation is bypassed for smith traces: the curve geometry (issue
-    // requirement) survives only when every original sample is rendered, and
-    // s-parameter sweeps are small enough to plot in full
+    // keep every original smith sample, because the decimated curve loses its geometry
     bool plottable = false;
     // loop samples of the step
     for (const auto& value : ordinate_values) {
         // reflection coefficient of the parameter value
         const auto gamma = smith::reflection_coefficient(resolved_parameter_type, value, reference_impedance);
-        // non-finite reflections break the polyline in the layout but stay in
-        // the views so sample indexes remain aligned with the abscissa
+        // non-finite reflections stay in the views so sample indexes stay aligned
         gamma_r_values.push_back(gamma.real());
         gamma_i_values.push_back(gamma.imag());
         // finite samples make the step plottable
@@ -565,8 +565,7 @@ int ChartEngine::get_y_axis(const std::string& unit) {
     }
     // check we have an available axis
     if (available) {
-        // log information
-        // use it
+        // log information use it
         available->plots = 1;
         available->unit = unit;
         available->min_value = std::numeric_limits<double>::max();
@@ -588,8 +587,7 @@ bool ChartEngine::release_y_axis(const int axis) {
             axis_info.plots--;
             // check axis is no longer in use
             if (axis_info.plots == 0) {
-                // log information
-                // reset plot range
+                // log information reset plot range
                 axis_info.plot_min_value = 0.0;
                 axis_info.plot_max_value = 1.0;
                 // reset unit
@@ -701,9 +699,7 @@ void ChartEngine::update_zoom_window(double x_left_ratio, double x_right_ratio, 
             const double visual_y_max = axis_info.max_value + delta;
             // calculate visual axis range
             const double visual_y_range = visual_y_max - visual_y_min;
-            // y ratios measure downward from the top of the plot, so the band
-            // between them maps to an ascending value window (implot swaps
-            // inverted ranges on setup; the engine stores them ascending)
+            // y ratios measure downward from the top, so the band maps to an ascending value window
             axis_info.plot_min_value = visual_y_max - y_bottom_ratio * visual_y_range;
             axis_info.plot_max_value = visual_y_max - y_top_ratio * visual_y_range;
         }
@@ -711,20 +707,17 @@ void ChartEngine::update_zoom_window(double x_left_ratio, double x_right_ratio, 
 }
 
 void ChartEngine::update(ExpressionManager* expression_manager, const StepInformation* step_information, AbscissaScale abscissa_scale) {
-    // remember the plotted series names so the same plots can be restored
-    // against the new data (e.g. after a simulation re-run)
+    // remember the series names so a rerun can restore the same plots
     std::vector<std::string> plotted_names;
     plotted_names.reserve(m_series.size());
     for (const auto& name : m_series | std::views::keys)
         plotted_names.push_back(name);
-    // drop the rendered series: their expression pointers and data views point
-    // into the previous file, while zoom window, colors and step selection survive
+    // drop the rendered views, while zoom, colors and step selection survive
     clear();
     // update internal references
     m_expression_manager = expression_manager;
     m_step_information = step_information;
-    // prune step selections beyond the new step count so the replot never
-    // reaches a stale step index of the replaced dataset
+    // prune step selections past the new count so no stale index is reached
     while (!m_selected_steps.empty() && *std::prev(m_selected_steps.end()) >= step_information->length())
         m_selected_steps.erase(std::prev(m_selected_steps.end()));
     // abscissa
@@ -734,8 +727,7 @@ void ChartEngine::update(ExpressionManager* expression_manager, const StepInform
     m_abscissa_unit = abscissa.unit();
     // scale
     m_abscissa_scale = abscissa_scale;
-    // re-plot the previous expressions against the new data for the preserved
-    // step selection; names that no longer resolve are silently skipped
+    // re-plot the previous expressions against the new data, skipping names that no longer resolve
     if (!plotted_names.empty()) {
         // resolved expressions from the new manager
         std::set<AnyExpression*> expressions;
@@ -785,8 +777,7 @@ std::pair<size_t, size_t> ChartEngine::find_abscissa_indexes(const std::span<con
 }
 
 void ChartEngine::redraw_all_series() {
-    // smith charts plot the fixed +-1 gamma plane; the rendered traces never
-    // depend on a zoom window
+    // smith charts plot the fixed +-1 gamma plane; the rendered traces never depend on a zoom window
     if (m_kind == ChartKind::SMITH)
         return;
     // current zoom window
@@ -794,8 +785,7 @@ void ChartEngine::redraw_all_series() {
     // x0 and x1
     m_abscissa_left_value = x_left_ratio >= 0 ? ratio_to_abscissa_value(x_left_ratio) : m_step_information->abscissa_left_value();
     m_abscissa_right_value = x_right_ratio >= 0 ? ratio_to_abscissa_value(x_right_ratio) : m_step_information->abscissa_right_value();
-    // log information
-    // abscissa
+    // log information abscissa
     auto& abscissa = m_expression_manager->abscissa();
     // loop existing series
     for (auto& ordinate_series : m_series | std::views::values) {
@@ -825,8 +815,7 @@ void ChartEngine::redraw_all_series() {
             }
             // decimate x and y values
             auto [x, y] = decimate_xy(abscissa_values, ordinate_values, m_decimate_target, DECIMATE_M4);
-            // collect the extrema over the plottable samples: finite pairs
-            // with a positive abscissa on logarithmic scales
+            // collect the extrema over the plottable samples: finite pairs with a positive abscissa on logarithmic scales
             const bool log_axis = m_abscissa_scale != AbscissaScale::LINEAR;
             bool plottable = false;
             double step_min_value = std::numeric_limits<double>::max();
@@ -920,8 +909,7 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
     // smith charts report the trace point nearest the cursor
     if (m_kind != ChartKind::SMITH)
         return {};
-    // nearest trace point search state: squared distance, series name, step
-    // index and sample index inside the rendered views
+    // nearest trace state: distance, series name, step and sample index
     double best_distance = std::numeric_limits<double>::max();
     const std::string* best_name = nullptr;
     size_t best_step = 0;
@@ -962,9 +950,7 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
     const auto& ordinate_series = m_series.at(*best_name);
     // ordinate variant is a complex expression for smith charts
     auto& ordinate_variant = std::get<Expression<std::complex<double>>>(*std::get<0>(ordinate_series));
-    // frequency of the nearest sample from the abscissa; smith traces render
-    // every original sample without decimation, so sample indexes stay
-    // aligned with the abscissa of the step
+    // smith traces keep every sample, so sample indexes stay aligned with the abscissa
     auto abscissa_values = m_expression_manager->abscissa().step_data(best_step);
     // guard against a shorter abscissa view
     const double frequency = best_index < abscissa_values.size() ? abscissa_values[best_index] : 0.0;
@@ -985,9 +971,7 @@ std::string ChartEngine::hovered_smith_text(const double gamma_r, const double g
         if (const auto entry = expression_metadata.find("reference_impedance"); entry != expression_metadata.end())
             reference_impedance = std::stod(entry->second);
     }
-    // readout text: frequency, reflection coefficient (real, imaginary, magnitude,
-    // angle in degrees), normalized impedance, ohmic impedance, vswr and return
-    // loss at the nearest trace point
+    // readout: frequency, reflection, impedance, vswr and return loss at the nearest point
     std::string result = m_abscissa_name + "=" + format_metric(frequency, m_abscissa_unit);
     // series name
     result += " " + *best_name;

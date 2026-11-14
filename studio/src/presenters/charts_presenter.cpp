@@ -23,7 +23,7 @@
 #include "io/xyce_tecplot_file.h"
 #include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
-#include "views/charts/charts_view.h"
+#include "views/charts/chart_view.h"
 
 namespace
 {
@@ -107,15 +107,23 @@ namespace
     }
 } // namespace
 
-studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& text) :
-    m_text(text), m_builder(m_resources, m_text), m_view(&view) {
-    // install the zoom callbacks the view reports
+studio::ChartsPresenter::ChartsPresenter(ChartView& view, albor::TextEngine& text) :
+    m_text(text), m_view(&view) {
+    // the view clears the borrowed pointer before the window tree frees it
+    m_view->set_on_destroyed([this] { m_view = nullptr; });
+    // a changed arranged extent refreshes the chart geometry
+    m_view->set_on_resize_settled([this](const float width, const float height) { set_viewport(width, height); });
+    // the strip reports the selected and closed tabs
+    m_view->set_on_tab_selected([this](const int index) { activate_dataset(static_cast<std::size_t>(index)); });
+    // the strip reports the close affordance
+    m_view->set_on_tab_closed([this](const int index) { close_dataset(static_cast<std::size_t>(index)); });
+    // install the zoom callbacks
     m_view->set_on_zoom_drag_started([this](const float x, const float y) {
         // the active dataset owns the drag
         DatasetState* state = active_state();
         // a press inside a plot starts the selection overlay
         if (state != nullptr && state->controller->zoom_drag_started(x, y))
-            publish_overlay();
+            publish_zoom_selection();
     });
     // install the moving corner callback
     m_view->set_on_zoom_drag_moved([this](const float x, const float y) {
@@ -123,7 +131,7 @@ studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& te
         DatasetState* state = active_state();
         // a move updates the selection overlay
         if (state != nullptr && state->controller->zoom_drag_moved(x, y))
-            publish_overlay();
+            publish_zoom_selection();
     });
     // install the release callback
     m_view->set_on_zoom_drag_ended([this] {
@@ -135,7 +143,7 @@ studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& te
         // apply the completed window before the overlay clears
         const bool changed = state->controller->zoom_drag_ended();
         // drop the transient selection
-        m_view->set_overlay(nullptr);
+        m_view->set_zoom_selection(std::nullopt);
         // republish the charts when the window changed
         if (changed)
             publish_scene();
@@ -148,7 +156,7 @@ studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& te
         if (state != nullptr)
             state->controller->zoom_drag_canceled();
         // remove the overlay from the view
-        m_view->set_overlay(nullptr);
+        m_view->set_zoom_selection(std::nullopt);
     });
     // install the hover callback
     m_view->set_on_hover_moved([this](const float x, const float y) {
@@ -169,16 +177,10 @@ studio::ChartsPresenter::ChartsPresenter(ChartsView& view, albor::TextEngine& te
         if (m_on_hover)
             m_on_hover({});
     });
-    // install the dataset tab callbacks
-    m_view->set_on_tab_selected([this](const int index) { activate_dataset(static_cast<std::size_t>(index)); });
-    // install the dataset close callback
-    m_view->set_on_tab_closed([this](const int index) { close_dataset(static_cast<std::size_t>(index)); });
-    // install the context menu command sink
+    // install the chart command sink
     m_view->set_on_chart_command([this](const ChartCommand command, const std::size_t index) { run_chart_command(command, index); });
-    // install the resize settle callback
-    m_view->set_on_resize_settled([this](const float width, const float height) { set_viewport(width, height); });
-    // the view clears the borrowed pointer before the window tree frees it
-    m_view->set_on_destroyed([this] { m_view = nullptr; });
+    // paint the palette the shell starts with
+    m_view->set_palette(chart_palette(m_dark_mode));
 }
 
 studio::ChartsPresenter::~ChartsPresenter() { detach(); }
@@ -187,28 +189,18 @@ void studio::ChartsPresenter::detach() {
     // the window teardown may already have dropped the view
     if (m_view == nullptr)
         return;
-    // clear every callback the presenter installed
-    m_view->set_on_zoom_drag_started({});
-    // clear the moving corner callback
-    m_view->set_on_zoom_drag_moved({});
-    // clear the release callback
-    m_view->set_on_zoom_drag_ended({});
-    // clear the cancel callback
-    m_view->set_on_zoom_drag_canceled({});
-    // clear the hover callback
-    m_view->set_on_hover_moved({});
-    // clear the hover leave callback
-    m_view->set_on_hover_ended({});
-    // clear the tab callbacks
-    m_view->set_on_tab_selected({});
-    // clear the tab close callback
-    m_view->set_on_tab_closed({});
-    // clear the context menu command sink
-    m_view->set_on_chart_command({});
-    // clear the resize callback
-    m_view->set_on_resize_settled({});
-    // clear the destructor callback
+    // clear the callbacks the presenter installed
     m_view->set_on_destroyed({});
+    m_view->set_on_resize_settled({});
+    m_view->set_on_tab_selected({});
+    m_view->set_on_tab_closed({});
+    m_view->set_on_zoom_drag_started({});
+    m_view->set_on_zoom_drag_moved({});
+    m_view->set_on_zoom_drag_ended({});
+    m_view->set_on_zoom_drag_canceled({});
+    m_view->set_on_hover_moved({});
+    m_view->set_on_hover_ended({});
+    m_view->set_on_chart_command({});
     // the view is no longer reachable from the presenter
     m_view = nullptr;
 }
@@ -281,12 +273,8 @@ void studio::ChartsPresenter::load_dataset(std::shared_ptr<XyceOutputFile> file,
         m_datasets.clear();
         // the active index returns to the first tab
         m_active_dataset = 0;
-        // a live view swaps to the empty panel
-        if (m_view != nullptr) {
-            m_view->set_overlay(nullptr);
-            m_view->set_scene(nullptr);
-            m_view->set_accessible_summary("0 charts");
-        }
+        // a live view drops the tabs, the frames and the retained pictures
+        publish_scene();
         // tell the shell the tabs are gone
         notify_tabs_changed();
         // the empty dataset is settled
@@ -672,7 +660,7 @@ void studio::ChartsPresenter::cancel_interaction() {
         // a drag capture ends with the tab switch
         m_view->cancel_drag();
         // the overlay belongs to the outgoing dataset
-        m_view->set_overlay(nullptr);
+        m_view->set_zoom_selection(std::nullopt);
     }
     // restore the status bar text
     if (m_on_hover)
@@ -804,8 +792,8 @@ void studio::ChartsPresenter::set_dark_mode(const bool dark) {
         return;
     // remember the scheme the next scene records
     m_dark_mode = dark;
-    // repaint the active dataset with the new palette
-    if (!m_datasets.empty() && m_view != nullptr)
+    // repaint the active dataset, or the empty panel, with the new palette
+    if (m_view != nullptr)
         publish_scene();
 }
 
@@ -867,14 +855,10 @@ void studio::ChartsPresenter::close_dataset(const std::size_t index) {
         m_active_dataset = 0;
     // tell the shell the tab set changed
     notify_tabs_changed();
-    // publish the remaining scene, or clear the view when the last tab closed
+    // an empty tab set clears the view, including its retained pictures
     if (m_datasets.empty()) {
-        // a live view drops the scene and the overlay
-        if (m_view != nullptr) {
-            m_view->set_overlay(nullptr);
-            m_view->set_scene(nullptr);
-            m_view->set_accessible_summary("0 charts");
-        }
+        // the empty panel drops the tabs, the frames and the overlay
+        publish_scene();
         // the close is settled
         return;
     }
@@ -1035,13 +1019,6 @@ const std::string& studio::ChartsPresenter::title() const {
     return state != nullptr ? state->title : empty;
 }
 
-const studio::ChartScene* studio::ChartsPresenter::scene() const {
-    // no dataset has no scene
-    const DatasetState* state = active_state();
-    // hand out the active retained scene
-    return state != nullptr ? state->scene.get() : nullptr;
-}
-
 std::size_t studio::ChartsPresenter::series_count(const std::size_t chart_index) const {
     // no dataset has no series
     const DatasetState* state = active_state();
@@ -1084,40 +1061,71 @@ float studio::ChartsPresenter::tab_bar_height() const {
     return m_datasets.size() > 1 || any_closable ? CHART_TAB_HEIGHT : 0.0f;
 }
 
-std::vector<studio::ChartTabSpec> studio::ChartsPresenter::tab_specs() const {
-    // the tab specs under construction
-    std::vector<ChartTabSpec> specs;
-    // reserve one spec per dataset
-    specs.reserve(m_datasets.size());
-    // record every dataset in tab order
-    for (std::size_t index = 0; index < m_datasets.size(); ++index) {
-        // the spec carries the title, selection and close affordance
-        specs.push_back(ChartTabSpec{.title = m_datasets[index]->title, .active = index == active_dataset(), .closable = m_datasets[index]->closable});
-    }
-    // hand the specs to the scene builder
-    return specs;
-}
-
 void studio::ChartsPresenter::notify_tabs_changed() {
     // a shell that listens updates its chart enablement and body
     if (m_on_tabs_changed)
         m_on_tabs_changed();
 }
 
+void studio::ChartsPresenter::publish_zoom_selection() {
+    // a detached presenter has no view to publish to
+    if (m_view == nullptr)
+        return;
+    // the active dataset owns the selection
+    DatasetState* state = active_state();
+    // no dataset has no selection
+    if (state == nullptr) {
+        // remove any previous overlay
+        m_view->set_zoom_selection(std::nullopt);
+        // nothing else to record
+        return;
+    }
+    // the selection the controller currently reports
+    const std::optional<std::tuple<float, float, float, float>> selection = state->controller->zoom_selection();
+    // a drag that has not moved has no overlay
+    if (!selection) {
+        // remove the previous overlay from the view
+        m_view->set_zoom_selection(std::nullopt);
+        // nothing else to record
+        return;
+    }
+    // read the normalized corners of the selection
+    const auto [left, top, right, bottom] = *selection;
+    // hand the content-relative rectangle to the view
+    m_view->set_zoom_selection(albor::Rect::from_origin_size(albor::Point{.x = left, .y = top}, albor::Size{.width = right - left, .height = bottom - top}));
+}
+
 void studio::ChartsPresenter::publish_scene() {
     // a detached presenter has no view to publish to
     if (m_view == nullptr)
         return;
+    // a new scene drops the selection recorded against the old one
+    m_view->set_zoom_selection(std::nullopt);
     // no dataset leaves the panel empty
     DatasetState* state = active_state();
     // no dataset leaves the panel empty
     if (state == nullptr) {
-        // a live view drops the scene
-        m_view->set_scene(nullptr);
         // the empty panel reports no chart
         m_view->set_accessible_summary("0 charts");
+        // the empty panel has no tabs or chart geometry
+        m_view->set_tabs({});
+        m_view->set_frames({});
+        m_view->set_content_y(0.0f);
+        // the palette still follows the active scheme
+        m_view->set_palette(chart_palette(m_dark_mode));
         // the empty scene is settled
         return;
+    }
+    // the arranged view is the authority on the panel extent once it has one
+    const float arranged_width = m_view->viewport_width();
+    // the arranged height includes the strip, which the chart content excludes
+    const float arranged_height = m_view->viewport_height();
+    // adopt the arranged extent before the frames are built
+    if (arranged_width > 0.0f && arranged_height > 0.0f) {
+        // record the width the frames are built for
+        m_view_width = arranged_width;
+        // record the height the frames are built for
+        m_view_height = arranged_height;
     }
     // the strip only appears when the tabs need it
     const float strip_height = tab_bar_height();
@@ -1126,8 +1134,6 @@ void studio::ChartsPresenter::publish_scene() {
     // resize the active controller when the content extent changed
     if (state->controller->width() != m_view_width || state->controller->height() != content_height)
         state->controller->set_viewport(m_view_width, content_height);
-    // record the retained scene with the tab strip
-    state->scene = m_builder.build(state->controller->frames(), m_view_width, m_view_height, chart_palette(m_dark_mode), tab_specs(), strip_height);
     // name the chart kinds and the tab count for automation and assistive technology
     const std::size_t count = state->controller->chart_count();
     // smith and cartesian scenes read out the kind of their first chart
@@ -1137,40 +1143,21 @@ void studio::ChartsPresenter::publish_scene() {
     // more than one tab names the dataset count first and the active tab so automation can follow a switch
     if (m_datasets.size() > 1)
         summary = std::to_string(m_datasets.size()) + " datasets, " + summary + ", active: " + state->title;
-    // hand the summary and the retained picture to the view
+    // hand the summary and the palette to the view
     m_view->set_accessible_summary(std::move(summary));
-    // hand the retained picture to the view
-    m_view->set_scene(state->scene);
-}
-
-void studio::ChartsPresenter::publish_overlay() {
-    // a detached presenter has no view to publish to
-    if (m_view == nullptr)
-        return;
-    // the active dataset owns the selection
-    DatasetState* state = active_state();
-    // no dataset has no selection
-    if (state == nullptr) {
-        // remove any previous overlay
-        m_view->set_overlay(nullptr);
-        // nothing else to record
-        return;
-    }
-    // the selection the controller currently reports
-    const std::optional<std::tuple<float, float, float, float>> selection = state->controller->zoom_selection();
-    // a drag that has not moved has no overlay
-    if (!selection) {
-        // remove the previous overlay from the view
-        m_view->set_overlay(nullptr);
-        // nothing else to record
-        return;
-    }
-    // read the normalized corners of the selection
-    const auto [left, top, right, bottom] = *selection;
-    // the chart content sits under the tab strip
-    const float content_y = tab_bar_height();
-    // build the rectangle the overlay fills in panel coordinates
-    const albor::Rect rect = albor::Rect::from_origin_size(albor::Point{.x = left, .y = top + content_y}, albor::Size{.width = right - left, .height = bottom - top});
-    // record the overlay and hand it to the view
-    m_view->set_overlay(m_builder.build_zoom_overlay(rect));
+    // build the tab strip the view paints
+    std::vector<ChartTabSpec> tabs;
+    // reserve one spec per dataset
+    tabs.reserve(m_datasets.size());
+    // record every dataset in tab order
+    for (std::size_t index = 0; index < m_datasets.size(); ++index)
+        tabs.push_back(ChartTabSpec{.title = m_datasets[index]->title, .active = index == active_dataset(), .closable = m_datasets[index]->closable});
+    // hand the strip its tabs
+    m_view->set_tabs(std::move(tabs));
+    // the chart content starts under the dataset strip
+    m_view->set_content_y(strip_height);
+    // hand the frames the plot rectangles come from
+    m_view->set_frames(state->controller->frames());
+    // the palette follows the active scheme
+    m_view->set_palette(chart_palette(m_dark_mode));
 }

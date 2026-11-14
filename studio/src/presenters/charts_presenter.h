@@ -8,12 +8,10 @@
 #include <string>
 #include <vector>
 
-#include "albor/render/resource_factory.h"
 #include "albor/text/text_engine.h"
 #include "charts/chart_commands.h"
-#include "charts/chart_scene.h"
-#include "charts/chart_scene_builder.h"
 #include "charts/chart_text_measurer.h"
+#include "charts/chart_ui_style.h"
 #include "charts/charts_controller.h"
 #include "charts/plot_selection.h"
 #include "presenters/run_output.h"
@@ -24,14 +22,14 @@ class PrintParameters;
 
 namespace studio
 {
-    class ChartsView;
+    class ChartView;
 
-    // loads output datasets and publishes their retained chart scenes to the native view
+    // loads output datasets and publishes their chart state to the native view
     class ChartsPresenter final
     {
     public:
         // build the presenter over the view it drives and the engine its labels shape with
-        ChartsPresenter(ChartsView& view, albor::TextEngine& text);
+        ChartsPresenter(ChartView& view, albor::TextEngine& text);
 
         ChartsPresenter(const ChartsPresenter&) = delete;
 
@@ -105,9 +103,6 @@ namespace studio
         // hand out the dataset title the shell may show
         [[nodiscard]] const std::string& title() const;
 
-        // hand out the last published scene of the active dataset
-        [[nodiscard]] const ChartScene* scene() const;
-
         // hand out how many series one chart frame of the active dataset carries
         [[nodiscard]] std::size_t series_count(std::size_t chart_index) const;
 
@@ -140,9 +135,6 @@ namespace studio
 
             // the chart engines and hit-test state of this dataset
             std::unique_ptr<ChartsController> controller;
-
-            // the retained scene last built for this dataset
-            std::shared_ptr<const ChartScene> scene;
 
             // the charts the dataset was built with
             std::vector<std::vector<std::string>> plot_groups;
@@ -183,11 +175,11 @@ namespace studio
         // cancel the outgoing drag and hover before the selection changes
         void cancel_interaction();
 
-        // record and publish the base scene at the current viewport
+        // publish the active dataset summary and palette to the view
         void publish_scene();
 
-        // record and publish the transient zoom selection
-        void publish_overlay();
+        // publish the transient zoom selection to the view
+        void publish_zoom_selection();
 
         // the strip height the open tabs need
         [[nodiscard]] float tab_bar_height() const;
@@ -195,23 +187,14 @@ namespace studio
         // build the charts the dataset suggests, or one chart over its first expressions
         void build_charts(ChartsController& controller, XyceOutputFile& file, ChartKind kind);
 
-        // build the tab specs the active scene records
-        [[nodiscard]] std::vector<ChartTabSpec> tab_specs() const;
-
         // tell the shell that the tab set or selection changed
         void notify_tabs_changed();
-
-        // the factory that stamps every retained path and line batch
-        albor::ResourceFactory m_resources;
 
         // the label measurer the chart layout and scene builder share
         AlborChartTextMeasurer m_text;
 
-        // the frame to retained picture translator
-        ChartSceneBuilder m_builder;
-
-        // the native view the scenes are published to
-        ChartsView* m_view;
+        // the native view the summary and future layers are published to
+        ChartView* m_view;
 
         // the datasets shown as tabs, in first-open order
         std::vector<std::unique_ptr<DatasetState>> m_datasets;

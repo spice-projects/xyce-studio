@@ -28,12 +28,26 @@ struct ChartColor
     float a = 0.0f;
 };
 
-// one plotted series: expression, assigned y axis index (0..2), rendered step
-// data views, value range and assigned palette color
+// one plotted series: expression, y axis, rendered views, value range and color
 using OrdinateSeries = std::tuple<AnyExpression*, int, std::unordered_map<size_t, std::pair<View<double>, View<double>>>, double, double, ChartColor>;
 
 // chart series keyed by expression name so entries stay in deterministic order
 using Series = std::map<std::string, OrdinateSeries>;
+
+// assigns one color per expression name, so a signal keeps its color across every chart in a dataset
+class ChartColorRegistry final
+{
+public:
+    // hand out the color for an expression, assigning the next palette color on a miss
+    [[nodiscard]] ChartColor color_for(const std::string& name);
+
+private:
+    // the color assigned to each expression name
+    std::unordered_map<std::string, ChartColor> m_colors;
+
+    // the next palette slot a new expression takes
+    std::size_t m_next_color = 0;
+};
 
 // default series color palette (Apple / Cupertino inspired)
 inline const std::vector<ChartColor> SERIES_COLOR_PALETTE = {
@@ -67,9 +81,7 @@ struct AxisInformation
     double max_value;
 };
 
-// chart kind of an engine; XY charts plot abscissa/ordinate pairs on
-// rectangular axes with zoom windows, smith charts plot reflection
-// coefficients on the fixed +-1 gamma plane without axes or zooming
+// chart kind: XY plots abscissa/ordinate pairs, smith plots reflection on the fixed +-1 plane
 enum class ChartKind
 {
     XY,
@@ -77,18 +89,13 @@ enum class ChartKind
     SMITH
 };
 
-// platform-neutral chart state machine; render paths consume this state and
-// translate it into their own drawing calls.
-// the state is organized so future chart types (e.g. smith charts) can reuse
-// the chart-type-agnostic parts (series data model, step selection, color
-// assignment, decimation, hover mapping) with their own axis and rendering
-// semantics instead of forking the data model
+// platform-neutral chart state; future chart kinds reuse the series, steps, colors, decimation and hover state
 class ChartEngine
 {
 public:
     ChartEngine() = delete;
 
-    ChartEngine(ExpressionManager* expression_manager, StepInformation const* step_information, AbscissaScale abscissa_scale, size_t decimate_target, ChartKind kind = ChartKind::XY);
+    ChartEngine(ExpressionManager* expression_manager, StepInformation const* step_information, AbscissaScale abscissa_scale, size_t decimate_target, ChartKind kind = ChartKind::XY, ChartColorRegistry* colors = nullptr);
 
     ChartEngine(const ChartEngine&) = delete;
 
@@ -122,9 +129,7 @@ public:
 
     [[nodiscard]] std::string hovered_series_text(double abscissa_value) const;
 
-    // smith hover readout at the given gamma-plane position; reports the
-    // frequency, reflection coefficient, normalized impedance, ohmic
-    // impedance, vswr and return loss of the trace point nearest the cursor
+    // smith readout at a gamma point: frequency, reflection, impedance, vswr and return loss
     [[nodiscard]] std::string hovered_smith_text(double gamma_r, double gamma_i) const;
 
     [[nodiscard]] const Series& series() const { return m_series; }
@@ -150,8 +155,7 @@ public:
 private:
     std::tuple<bool, View<double>, View<double>, double, double> plot_step(Expression<double>& ordinate_variant, size_t step, double min_value, double max_value, double x_right_ratio, double x_left_ratio) const;
 
-    // render one smith chart step of the given complex ordinate; the rendered
-    // views carry the gamma-plane coordinates (gamma_r, gamma_i) of every sample
+    // render one smith step; the views carry every sample's gamma-plane coordinates
     std::tuple<bool, View<double>, View<double>> plot_smith_step(Expression<std::complex<double>>& ordinate_variant, size_t step) const;
 
     int get_y_axis(const std::string& unit);
@@ -162,8 +166,7 @@ private:
 
     void redraw_all_series();
 
-    // chart-type-agnostic series state: the plotted data model shared by every
-    // render path
+    // chart-type-agnostic series state: the plotted data model shared by every render path
     ExpressionManager* m_expression_manager;
 
     const StepInformation* m_step_information;
@@ -174,13 +177,13 @@ private:
 
     size_t m_next_color_index = 0;
 
-    // kind of this chart; smith charts reuse the series state above with
-    // fixed +-1 gamma-plane semantics while xy charts use the cartesian state
+    // chart kind: smith reuses the series state with fixed +-1 gamma semantics
     ChartKind m_kind = ChartKind::XY;
 
-    // cartesian xy specific state: rectangular zoom windows and per-unit y
-    // axis assignment; future chart types replace these semantics (e.g. fixed
-    // +-1 smith plane) while reusing the series state above
+    // the dataset color registry, which keeps one color per expression across charts
+    ChartColorRegistry* m_colors = nullptr;
+
+    // cartesian state: zoom windows and per-unit y axis assignment
     AbscissaScale m_abscissa_scale;
 
     size_t m_decimate_target;

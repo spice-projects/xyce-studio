@@ -24,7 +24,7 @@ namespace albor
 
 namespace studio
 {
-    class ChartsView;
+    class ChartView;
 
     // the Albor shell window; it implements the surface the presenter drives and owns the run
     class MainWindowView final : public MainWindowViewDef
@@ -65,8 +65,8 @@ namespace studio
         // enable or disable the charts action, which needs a dataset
         void set_charts_enabled(bool enabled);
 
-        // hand out the native charts view the presenter drives, null before the window is created
-        [[nodiscard]] ChartsView* charts_view() const;
+        // hand out the native chart view the presenter drives, null before the window is created
+        [[nodiscard]] ChartView* chart_view() const;
 
         // clear the borrowed facade when the application reports the window is gone
         void on_window_closed(albor::WindowHandle handle);
@@ -162,8 +162,8 @@ namespace studio
         // the presenter that receives the shell interactions, null while none is wired
         MainWindowViewEvents* m_events = nullptr;
 
-        // the native charts view the tree owns after creation
-        ChartsView* m_charts_view = nullptr;
+        // the native chart view the tree owns after creation
+        ChartView* m_chart_view = nullptr;
 
         // the handler a scheme flip reaches
         std::function<void(bool)> m_on_scheme_changed;

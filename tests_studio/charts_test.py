@@ -108,6 +108,41 @@ class ChartsPanelChecks(unittest.TestCase):
                 expect(chart).to_have_name("2 line charts")
                 expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
 
+    def test_touchstone_dataset_opens_a_smith_chart(self) -> None:
+        # arrange: a repository touchstone file and a session scoped to this test
+        dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            # assert: the chart surface names the single smith chart
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 smith chart")
+
+    def test_switching_tabs_updates_the_active_dataset_name(self) -> None:
+        # arrange: two dataset tabs where the second is active
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
+            # act: select the first tab through the semantic action
+            chart.click("select-tab-0")
+            # assert: the active dataset follows the selection
+            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
+
+    def test_closing_the_last_user_dataset_returns_to_the_editor(self) -> None:
+        # arrange: one closable user dataset
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 line chart")
+            # act: close the only tab through the semantic action
+            chart.click("close-tab-0")
+            # assert: the charts action disables and the editor returns to the body
+            expect(app.get_by_id("main_charts")).to_have_state("disabled")
+            app.get_by_id("netlist_editor").wait_for_exists()
+            expect(app.get_by_id("charts_view")).not_().to_exist()
+
     def test_the_chart_context_menu_commands_change_the_panel(self) -> None:
         # arrange: one dataset whose chart offers the context menu commands
         dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
@@ -209,46 +244,11 @@ class ChartsPanelChecks(unittest.TestCase):
             app.get_by_id("add_plot_cancel").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
 
-    def test_touchstone_dataset_opens_a_smith_chart(self) -> None:
-        # arrange: a repository touchstone file and a session scoped to this test
-        dataset = Path(__file__).resolve().parent / "fixtures" / "lin-simple-01.s2p"
-        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
-            # assert: the chart surface names the single smith chart
-            chart = app.get_by_id("charts_view")
-            chart.wait_for_exists()
-            expect(chart).to_have_name("1 smith chart")
-
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test
         with TestSession(launch(args=["--dataset", __file__]), self.id()) as app:
             # assert: the shell stays on the editor and no chart panel is revealed
             expect(app.get_by_id("netlist_editor")).to_exist()
-            expect(app.get_by_id("charts_view")).not_().to_exist()
-
-    def test_switching_tabs_updates_the_active_dataset_name(self) -> None:
-        # arrange: two dataset tabs where the second is active
-        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
-        with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
-            chart = app.get_by_id("charts_view")
-            chart.wait_for_exists()
-            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
-            # act: select the first tab through the semantic action
-            chart.click("select-tab-0")
-            # assert: the active dataset follows the selection
-            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
-
-    def test_closing_the_last_user_dataset_returns_to_the_editor(self) -> None:
-        # arrange: one closable user dataset
-        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
-        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
-            chart = app.get_by_id("charts_view")
-            chart.wait_for_exists()
-            expect(chart).to_have_name("1 line chart")
-            # act: close the only tab through the semantic action
-            chart.click("close-tab-0")
-            # assert: the charts action disables and the editor returns to the body
-            expect(app.get_by_id("main_charts")).to_have_state("disabled")
-            app.get_by_id("netlist_editor").wait_for_exists()
             expect(app.get_by_id("charts_view")).not_().to_exist()
 
     def test_a_run_with_an_open_dataset_adds_a_primary_tab(self) -> None:

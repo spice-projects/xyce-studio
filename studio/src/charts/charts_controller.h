@@ -125,12 +125,18 @@ namespace studio
         // rebuild every frame from the chart engine state
         void rebuild_frames();
 
+        // share one axis column layout across the dataset so every plot lines up
+        void share_axis_columns();
+
         // hand out the last built frames
         [[nodiscard]] const std::vector<ChartFrame>& frames() const;
 
     private:
         // the label measurer the layout resolves through
         ChartLayout m_layout;
+
+        // the dataset-wide expression colors, shared by every chart engine
+        ChartColorRegistry m_colors;
 
         // the engines of the active dataset, one per chart
         std::vector<std::unique_ptr<ChartEngine>> m_charts;

@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include "charts/chart_style.h"
 #include "charts/charts_controller.h"
 #include "core/step_information.h"
 #include "expression/expression.h"
@@ -400,4 +401,87 @@ TEST(StudioChartsControllerChecks, a_chart_added_after_a_zoom_joins_the_shared_a
     EXPECT_EQ(std::get<2>(added->zoom_window()), std::get<2>(first->zoom_window()));
     EXPECT_LT(std::get<1>(added->zoom_window()), 0.0);
     EXPECT_LT(std::get<3>(added->zoom_window()), 0.0);
+}
+
+TEST(StudioChartsControllerChecks, one_expression_keeps_one_color_across_the_dataset) {
+    // arrange: two charts that both plot the same voltage, one with an extra current
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    expressions.emplace_back(Expression<double>("I(out)", std::vector<double>{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0}, slices, "A"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* volts = controller.add_chart();
+    ChartEngine* volts_and_amps = controller.add_chart();
+    ASSERT_NE(volts, nullptr);
+    ASSERT_NE(volts_and_amps, nullptr);
+    volts->plot_series({manager.evaluate("V(out)")});
+    volts_and_amps->plot_series({manager.evaluate("V(out)"), manager.evaluate("I(out)")});
+    // act: rebuild the stack
+    controller.rebuild_frames();
+    // assert: the voltage keeps one color in both charts and the current takes another
+    ASSERT_EQ(controller.frames().size(), 2U);
+    const ChartSeriesFrame* first_volts = nullptr;
+    const ChartSeriesFrame* second_volts = nullptr;
+    const ChartSeriesFrame* amps = nullptr;
+    for (const ChartSeriesFrame& series : controller.frames()[0].series)
+        if (series.name == "V(out)")
+            first_volts = &series;
+    for (const ChartSeriesFrame& series : controller.frames()[1].series) {
+        if (series.name == "V(out)")
+            second_volts = &series;
+        if (series.name == "I(out)")
+            amps = &series;
+    }
+    ASSERT_NE(first_volts, nullptr);
+    ASSERT_NE(second_volts, nullptr);
+    ASSERT_NE(amps, nullptr);
+    EXPECT_FLOAT_EQ(first_volts->color.r, second_volts->color.r);
+    EXPECT_FLOAT_EQ(first_volts->color.g, second_volts->color.g);
+    EXPECT_FLOAT_EQ(first_volts->color.b, second_volts->color.b);
+    EXPECT_NE(first_volts->color.r, amps->color.r);
+    EXPECT_NE(first_volts->color.g, amps->color.g);
+    EXPECT_NE(first_volts->color.b, amps->color.b);
+}
+
+TEST(StudioChartsControllerChecks, every_chart_shares_one_arranged_plot_rect) {
+    // arrange: two charts whose ordinate magnitudes differ, so their labels differ too
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0}, slices, "V"));
+    expressions.emplace_back(Expression<double>("V(big)", std::vector<double>{0.0, 5000.0, 10000.0, 15000.0, 20000.0, 25000.0, 20000.0, 15000.0, 10000.0, 5000.0, 0.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* small = controller.add_chart();
+    ChartEngine* large = controller.add_chart();
+    ASSERT_NE(small, nullptr);
+    ASSERT_NE(large, nullptr);
+    small->plot_series({manager.evaluate("V(out)")});
+    large->plot_series({manager.evaluate("V(big)")});
+    // act: rebuild the shared stack
+    controller.rebuild_frames();
+    ASSERT_EQ(controller.frames().size(), 2U);
+    const ChartFrame& first = controller.frames()[0];
+    const ChartFrame& second = controller.frames()[1];
+    // assert: both charts paint and hit test the same column layout
+    EXPECT_FLOAT_EQ(first.plot_x, second.plot_x);
+    EXPECT_FLOAT_EQ(first.plot_w, second.plot_w);
+    EXPECT_FLOAT_EQ(first.axis_column_width, second.axis_column_width);
+    EXPECT_GE(first.axis_column_width, 6.0f * 5.0f + CHART_LABEL_PADDING);
+    // assert: the hit test rect keeps the arranged abscissa
+    EXPECT_FLOAT_EQ(std::get<0>(controller.plot_rect(0)), first.plot_x);
+    EXPECT_FLOAT_EQ(std::get<2>(controller.plot_rect(0)), first.plot_x + first.plot_w);
+    // assert: every abscissa tick sits inside the shared range
+    for (const ChartFrame& frame : controller.frames()) {
+        for (const ChartTick& tick : frame.x_ticks) {
+            EXPECT_GE(tick.pixel_pos, frame.plot_x - 0.01f);
+            EXPECT_LE(tick.pixel_pos, frame.plot_x + frame.plot_w + 0.01f);
+        }
+    }
 }

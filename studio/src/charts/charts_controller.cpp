@@ -1,5 +1,7 @@
 #include "charts/charts_controller.h"
 
+#include "charts/chart_style.h"
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -57,7 +59,7 @@ ChartEngine* studio::ChartsController::add_chart(const ChartKind kind) {
     if (m_expression_manager == nullptr || m_step_information == nullptr)
         return nullptr;
     // build the engine over the active dataset
-    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind);
+    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind, &m_colors);
     // keep the engine and hand its address to the caller
     ChartEngine* chart = engine.get();
     // append the chart to the stack
@@ -186,7 +188,7 @@ ChartEngine* studio::ChartsController::insert_chart(const std::size_t after_inde
     // the new chart goes directly after the chart the command named
     const std::size_t position = std::min(after_index + 1, m_charts.size());
     // build the engine over the active dataset
-    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind);
+    auto engine = std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, kind, &m_colors);
     // keep the engine and hand its address to the caller
     ChartEngine* chart = engine.get();
     // insert the empty chart at its final position
@@ -218,7 +220,7 @@ void studio::ChartsController::delete_chart(const std::size_t index, const Chart
     m_charts.erase(m_charts.begin() + static_cast<std::ptrdiff_t>(index));
     // a panel always keeps one chart, like the reference frontend
     if (m_charts.empty() && m_expression_manager != nullptr && m_step_information != nullptr)
-        m_charts.push_back(std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, replacement_kind));
+        m_charts.push_back(std::make_unique<ChartEngine>(m_expression_manager, m_step_information, m_abscissa_scale, DECIMATE_TARGET, replacement_kind, &m_colors));
     // republish the remaining chart or its replacement
     rebuild_frames();
 }
@@ -451,6 +453,88 @@ void studio::ChartsController::rebuild_frames() {
     // build one frame per chart from its engine state
     for (const auto& engine : m_charts)
         m_frames.push_back(m_layout.build(*engine, m_width, chart_height));
+    // every plot lines up on the same abscissa once the columns are shared
+    share_axis_columns();
+}
+
+void studio::ChartsController::share_axis_columns() {
+    // the dataset-wide axis column counts and the widest shown label
+    int left_count = 0;
+    int right_count = 0;
+    // the widest label decides the column every chart shares
+    float label_width = 0.0f;
+    // measure every cartesian chart of the stack
+    for (const ChartFrame& frame : m_frames) {
+        // the smith plane draws no axis columns
+        if (frame.smith)
+            continue;
+        // an axis owns a column only when it shows a label
+        const bool west = std::any_of(frame.y_axes[0].ticks.begin(), frame.y_axes[0].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+        // the first east axis owns one column when it shows a label
+        const bool east = std::any_of(frame.y_axes[1].ticks.begin(), frame.y_axes[1].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+        // the second east axis stacks one more column outward
+        const bool east_second = std::any_of(frame.y_axes[2].ticks.begin(), frame.y_axes[2].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+        // the dataset needs a west column when any chart draws one
+        if (west)
+            left_count = 1;
+        // the first east axis needs one column
+        if (east)
+            right_count = std::max(right_count, 1);
+        // the second east axis stacks after the first
+        if (east_second)
+            right_count = std::max(right_count, east ? 2 : 1);
+        // every shown label decides the shared column width
+        for (const ChartAxisFrame& axis : frame.y_axes) {
+            // a disabled axis carries no label
+            if (!axis.enabled)
+                continue;
+            // widen the shared column to the widest shown label
+            for (const ChartTick& tick : axis.ticks) {
+                // a pruned tick carries no label
+                if (!tick.show_label)
+                    continue;
+                // the widest label wins
+                label_width = std::max(label_width, tick.label_width);
+            }
+        }
+    }
+    // one column carries the widest label and its padding
+    const float column_width = label_width > 0.0f ? label_width + CHART_LABEL_PADDING : 0.0f;
+    // the shared plot rect derived from the column counts
+    const float shared_x = CHART_PLOT_PADDING + static_cast<float>(left_count) * column_width;
+    // the shared plot width leaves room for both axis sides
+    const float shared_width = std::max(0.0f, m_width - 2.0f * CHART_PLOT_PADDING - static_cast<float>(left_count + right_count) * column_width);
+    // apply the shared rect and remap every abscissa position
+    for (ChartFrame& frame : m_frames) {
+        // the smith plane keeps its square
+        if (frame.smith)
+            continue;
+        // the column width every axis label aligns to
+        frame.axis_column_width = column_width;
+        // the recorded plot the abscissa positions were laid out against
+        const float recorded_x = frame.plot_x;
+        const float recorded_w = frame.plot_w;
+        // the shared rect replaces the per-chart one
+        frame.plot_x = shared_x;
+        frame.plot_w = shared_width;
+        frame.x_datum = shared_x;
+        // the west datum sits on the shared left edge
+        frame.y_axes[0].datum = shared_x;
+        // the east datums stack outward from the shared right edge
+        frame.y_axes[1].datum = shared_x + shared_width;
+        frame.y_axes[2].datum = shared_x + shared_width + (frame.y_axes[2].enabled ? column_width : 0.0f);
+        // a degenerate recorded plot leaves the positions alone
+        if (recorded_w <= 0.0f)
+            continue;
+        // the horizontal scale from the recorded plot to the shared one
+        const float scale = shared_width / recorded_w;
+        // every abscissa tick moves with the shared rect
+        for (ChartTick& tick : frame.x_ticks)
+            tick.pixel_pos = shared_x + (tick.pixel_pos - recorded_x) * scale;
+        // every abscissa grid line moves with the shared rect
+        for (ChartGridLine& line : frame.x_grid)
+            line.pixel_pos = shared_x + (line.pixel_pos - recorded_x) * scale;
+    }
 }
 
 const std::vector<ChartFrame>& studio::ChartsController::frames() const { return m_frames; }

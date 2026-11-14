@@ -8,8 +8,7 @@
 
 #include "chart_engine.h"
 
-// one axis tick: data value, pixel position inside the plot rect, grid/mark
-// classification and the formatted label text
+// one axis tick: data value, pixel position inside the plot rect, grid/mark classification and the formatted label text
 struct ChartTick
 {
     // abscissa or ordinate value in data space
@@ -76,8 +75,7 @@ struct ChartSeriesFrame
 
     size_t step = 0;
 
-    // smith grid runs flagged as the unit circle boundary render in the
-    // border color instead of the grid color
+    // smith grid runs flagged as the unit circle boundary render in the border color instead of the grid color
     bool boundary = false;
 
     std::vector<ChartPoint> points;
@@ -91,12 +89,10 @@ struct ChartLegendItem
     ChartColor color;
 };
 
-// pixel-space rendering data for one chart filling a canvas area, produced by
-// ChartLayout and consumed by the slint native chart view
+// pixel-space rendering data for one chart filling a canvas area, produced by ChartLayout
 struct ChartFrame
 {
-    // frame (full chart area) and plot rect in logical px, relative to the
-    // chart top-left
+    // frame (full chart area) and plot rect in logical px, relative to the chart top-left
     float frame_x = 0.0f;
 
     float frame_y = 0.0f;
@@ -112,6 +108,9 @@ struct ChartFrame
     float plot_w = 0.0f;
 
     float plot_h = 0.0f;
+
+    // the width of one shared axis label column, zero when no axis label is shown
+    float axis_column_width = 0.0f;
 
     // x axis datum line position (tick marks and labels start here)
     float x_datum = 0.0f;
@@ -133,19 +132,15 @@ struct ChartFrame
 
     float legend_h = 0.0f;
 
-    // smith charts draw the fixed +-1 gamma plane; the grid polylines (unit
-    // circle boundary, constant resistance circles and constant reactance
-    // arcs) are pixel-space runs like the series
+    // smith charts draw the fixed +-1 gamma plane; the grid polylines are pixel-space runs like the series
     bool smith = false;
 
-    // padding kept between the smith gamma-plane square and the white plot
-    // rect around it; the reactance tick labels live inside this padding
+    // padding between the smith gamma square and the white plot rect, where the labels live
     float smith_padding = 0.0f;
 
     std::vector<ChartSeriesFrame> smith_grid;
 
-    // smith tick labels: resistance values along the real axis, reactance
-    // values outside the unit circle at the arc ends; pixel-space centers
+    // smith tick labels at pixel-space centers: resistance along the real axis, reactance at the arc ends
     struct SmithLabel
     {
         std::string label;
@@ -163,9 +158,7 @@ struct ChartFrame
 // abscissa axis limits clamped above zero for logarithmic scales
 std::pair<double, double> clamped_abscissa_limits(const ChartEngine& engine);
 
-// builds chart frames from engine state: the locator, padding and transform
-// algorithms are ported from implot v1.0 so the layout keeps the established
-// geometry
+// builds chart frames from engine state with the implot v1.0 locator, padding and transform algorithms
 class ChartLayout
 {
 public:
@@ -177,9 +170,7 @@ public:
     // frame for one chart filling the given logical canvas size
     ChartFrame build(const ChartEngine& engine, float width, float height) const;
 
-    // frame for one smith chart filling the given logical canvas size; the
-    // plot rect is square (equal aspect) and the grid polylines map the fixed
-    // +-1 gamma plane
+    // frame for one smith chart: a square plot rect with the fixed +-1 gamma grid
     [[nodiscard]] ChartFrame build_smith(const ChartEngine& engine, float width, float height) const;
 
 private:

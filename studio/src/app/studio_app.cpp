@@ -16,7 +16,7 @@
 #include "presenters/plugin_config_presenter.h"
 #include "presenters/simulation_parameters_presenter.h"
 #include "views/charts/add_plot_dialog_view.h"
-#include "views/charts/charts_view.h"
+#include "views/charts/chart_view.h"
 #include "views/main_window/main_window_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
 #include "views/simulation_parameters/simulation_parameters_dialog_view.h"
@@ -58,9 +58,9 @@ int studio::StudioApp::run() {
     if (!m_startup_netlist.empty())
         m_main_presenter->on_open_file(m_startup_netlist);
     // the shell owns the native charts view the charts presenter drives
-    if (albor::WindowStage* stage = application.stage(m_main_view->handle()); stage != nullptr && m_main_view->charts_view() != nullptr) {
+    if (albor::WindowStage* stage = application.stage(m_main_view->handle()); stage != nullptr && m_main_view->chart_view() != nullptr) {
         // build the presenter over the view and the window text engine
-        m_charts_presenter = std::make_unique<ChartsPresenter>(*m_main_view->charts_view(), stage->text_engine());
+        m_charts_presenter = std::make_unique<ChartsPresenter>(*m_main_view->chart_view(), stage->text_engine());
         // match the chart palette to the scheme the window installed
         m_charts_presenter->set_dark_mode(m_main_view->is_dark());
         // a live scheme flip repaints the charts

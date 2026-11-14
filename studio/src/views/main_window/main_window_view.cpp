@@ -16,7 +16,7 @@
 #include "app/theme.h"
 #include "main_window.h"
 #include "netlist/netlist_lexer.h"
-#include "views/charts/charts_view.h"
+#include "views/charts/chart_view.h"
 
 namespace
 {
@@ -212,10 +212,9 @@ bool studio::MainWindowView::create() {
     // create the native charts view and insert it into the host the shell always carries
     if (albor::WindowStage* stage = m_app->stage(m_handle)) {
         if (albor::UiNode* host = find_node(*m_root, "charts_host")) {
-            auto charts = std::make_unique<ChartsView>(&stage->binding_engine(), &m_app->timers());
-            // the context menu measures its rows through the window text engine
-            charts->set_text_engine(&stage->text_engine());
-            m_charts_view = charts.get();
+            auto charts = std::make_unique<ChartView>(&stage->binding_engine(), &stage->text_engine(), &m_app->timers());
+            // remember the view so the presenter can feed it
+            m_chart_view = charts.get();
             host->add_child(std::move(charts));
             host->invalidate_layout();
         }
@@ -265,7 +264,7 @@ void studio::MainWindowView::set_charts_enabled(const bool enabled) {
     m_root->set_charts_enabled(enabled);
 }
 
-studio::ChartsView* studio::MainWindowView::charts_view() const { return m_charts_view; }
+studio::ChartView* studio::MainWindowView::chart_view() const { return m_chart_view; }
 
 void studio::MainWindowView::set_on_scheme_changed(std::function<void(bool)> handler) { m_on_scheme_changed = std::move(handler); }
 
@@ -278,7 +277,7 @@ void studio::MainWindowView::on_window_closed(albor::WindowHandle handle) {
     // the facade dies with the window, which the ui setters must not touch
     m_root = nullptr;
     // the charts view dies with the tree
-    m_charts_view = nullptr;
+    m_chart_view = nullptr;
     // the window handle no longer names a live window
     m_handle = {};
 }
