@@ -292,7 +292,9 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // vertical span with the x axis strip and the reserved legend block
         frame.plot_y = canvas_y;
         frame.plot_h = std::max(0.0f, canvas_h - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING) - (frame.legend_h + CHART_LEGEND_PADDING_Y));
-        // x axis datum line at the plot bottom edge legend centered horizontally with its bottom on the canvas south edge
+        // x axis datum line at the plot bottom edge
+        frame.x_datum = frame.plot_y + frame.plot_h;
+        // legend centered horizontally with its bottom on the canvas south edge
         frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
         frame.legend_y = canvas_y + canvas_h - frame.legend_h;
     }
@@ -300,6 +302,8 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // no legend: plain vertical span with the x axis strip
         frame.plot_y = canvas_y;
         frame.plot_h = std::max(0.0f, canvas_h - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING));
+        // x axis datum line at the plot bottom edge
+        frame.x_datum = frame.plot_y + frame.plot_h;
     }
     // abscissa limits clamped for logarithmic scales
     const auto [x_left_value, x_right_value] = clamped_abscissa_limits(engine);
@@ -355,6 +359,10 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     // plot rect horizontal span
     frame.plot_x = canvas_x + pad_left;
     frame.plot_w = std::max(0.0f, canvas_w - pad_left - pad_right);
+    // axis datums: y1 west datum, y2 and y3 east datums stacked outward
+    frame.y_axes[0].datum = canvas_x + pad_left;
+    frame.y_axes[1].datum = canvas_x + canvas_w - pad_right;
+    frame.y_axes[2].datum = canvas_x + canvas_w - (frame.y_axes[2].enabled && !frame.y_axes[2].ticks.empty() ? max_label_width[2] + CHART_LABEL_PADDING : 0.0f);
     // abscissa tick locator on the horizontal span
     if (frame.plot_w > 0.0f) {
         // abscissa scale drives the locator choice

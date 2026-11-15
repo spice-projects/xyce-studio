@@ -495,6 +495,12 @@ void studio::ChartsController::share_axis_columns() {
         // the shared rect replaces the per-chart one
         frame.plot_x = shared_x;
         frame.plot_w = shared_width;
+        frame.x_datum = frame.plot_y + frame.plot_h;
+        // the west datum sits on the shared left edge
+        frame.y_axes[0].datum = shared_x;
+        // the east datums stack outward from the shared right edge
+        frame.y_axes[1].datum = shared_x + shared_width;
+        frame.y_axes[2].datum = shared_x + shared_width + (frame.y_axes[2].enabled ? column_width : 0.0f);
         // a degenerate recorded plot leaves the positions alone
         if (recorded_w <= 0.0f)
             continue;
