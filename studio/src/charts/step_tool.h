@@ -25,6 +25,9 @@ namespace studio
         // the chart the dialog edits
         std::size_t chart_index = 0;
 
+        // the dataset that owns the chart, which the accept checks before applying
+        int dataset_id = 0;
+
         // the sweep parameter names, empty when the dataset carries none
         std::vector<std::string> keys;
 

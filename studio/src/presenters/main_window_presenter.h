@@ -34,8 +34,11 @@ namespace studio
         // the callback a run reaches before the process starts
         using RunStartedHandler = std::function<void()>;
 
-        // the shell surface and the plugin configuration must outlive the presenter
-        MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config);
+        // the callback a new netlist document reaches, which closes the previous output tabs
+        using NetlistOpenedHandler = std::function<void()>;
+
+        // the shell and configuration outlive the presenter; a plugin session may supply the source
+        MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source = nullptr);
 
         MainWindowPresenter(const MainWindowPresenter&) = delete;
 
@@ -49,6 +52,12 @@ namespace studio
 
         // install the callback a run reaches before the process starts
         void set_run_started_handler(RunStartedHandler handler);
+
+        // install the callback a new netlist document reaches
+        void set_on_netlist_opened(NetlistOpenedHandler handler);
+
+        // reload the current netlist source in place, which a schematic edit does
+        void reload_netlist_source();
 
         // the user picked a file in the open panel, which the view resolved
         void on_open_file(const std::filesystem::path& path) override;
@@ -129,6 +138,9 @@ namespace studio
 
         // the callback a run reaches before the process starts
         RunStartedHandler m_run_started_handler;
+
+        // the callback a new netlist document reaches
+        NetlistOpenedHandler m_on_netlist_opened;
 
         // the configuration the run netlist described
         SimulationConfig m_run_config = SimulationConfig::from_xyce_directives({});

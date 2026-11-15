@@ -373,9 +373,9 @@ with TestSession(launch(args=["--xyce", "/bin/echo"]), self.id()) as app:
 
 ### Open a waveform dataset in the native chart panel (from `charts_test.py`)
 
-`--dataset` opens an output file at startup and reveals the native chart panel.
-The panel replaces the editor until the charts toolbar action swaps the body
-back:
+`--dataset` opens an output file at startup and selects its document tab. The
+body follows the tab strip: the netlist is the first tab, and the datasets
+follow it:
 
 ```python
 dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
@@ -384,7 +384,7 @@ with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
     chart.wait_for_exists()
     expect(chart).to_have_name("1 line chart")
     expect(app.get_by_id("netlist_editor")).not_().to_exist()
-    app.get_by_id("main_charts").click()
+    app.get_by_id("document_tabs").click("select-tab-0")
     app.get_by_id("netlist_editor").wait_for_exists()
 ```
 
@@ -392,6 +392,8 @@ with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
   `.s1p`/`.s2p`/`.s3p`/`.s4p`/`.ts`. A touchstone file opens a Smith chart.
 - `charts_view` is the native canvas; its accessible name summarises the chart
   count and kind (`1 line chart`, `1 smith chart`, `2 line charts`).
+- `document_tabs` is the body strip. Tab 0 is always the non-closable netlist;
+  tabs 1.. are the open datasets in tab order.
 - The chart text and series are pixels inside the canvas; scenario assertions
   use the accessible summary, not the pixel content.
 - The zoom and hover math is covered by the controller unit tests; the native
@@ -399,10 +401,10 @@ with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
 
 ### Open several datasets as tabs (from `charts_test.py`)
 
-Repeat `--dataset` to open one tab per file. With more than one tab the
-accessible name names the tab count and the active dataset, and the canvas
-exposes `select-tab-<index>` (every tab) and `close-tab-<index>` (closable
-tabs) semantic actions:
+Repeat `--dataset` to open one dataset tab per file. With more than one
+dataset the canvas name carries the tab count and the active dataset, while the
+strip exposes `select-tab-<index>` (every tab) and `close-tab-<index>`
+(closable tabs) semantic actions:
 
 ```python
 dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
@@ -410,16 +412,16 @@ with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(datase
     chart = app.get_by_id("charts_view")
     chart.wait_for_exists()
     expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
-    chart.click("select-tab-0")
+    app.get_by_id("document_tabs").click("select-tab-1")
     expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
-    chart.click("close-tab-0")
+    app.get_by_id("document_tabs").click("close-tab-1")
     expect(chart).to_have_name("1 line chart")
 ```
 
-- A user tab carries a close cross; the run's primary and companion tabs do
-  not, because the next run replaces them.
-- Closing the last user tab disables the charts action and returns the body to
-  the netlist editor.
+- Tab 0 is the netlist and never carries a close cross.
+- A user dataset carries a close cross; the run's primary and companion tabs
+  do not, because the next run replaces them.
+- Closing the last dataset returns the body to the netlist tab.
 
 ### Open a run's charts automatically (from `charts_test.py`)
 

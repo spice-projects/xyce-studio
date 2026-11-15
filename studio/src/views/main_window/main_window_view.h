@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "albor/window/window_handle.h"
+#include "charts/chart_palette.h"
 #include "runner/simulation_runner.h"
 #include "views/main_window/main_window_view_def.h"
 
@@ -25,6 +26,7 @@ namespace albor
 namespace studio
 {
     class ChartView;
+    class DocumentTabs;
 
     // the Albor shell window; it implements the surface the presenter drives and owns the run
     class MainWindowView final : public MainWindowViewDef
@@ -50,9 +52,6 @@ namespace studio
         // install the handler the simulation parameters action reaches
         void set_on_configure_simulation(std::function<void()> handler);
 
-        // install the handler the charts action reaches
-        void set_on_show_charts(std::function<void()> handler);
-
         // install the handler a light or dark scheme flip reaches
         void set_on_scheme_changed(std::function<void(bool)> handler);
 
@@ -62,11 +61,14 @@ namespace studio
         // swap the body between the netlist editor and the waveform panel
         void set_charts_visible(bool visible);
 
-        // enable or disable the charts action, which needs a dataset
-        void set_charts_enabled(bool enabled);
-
         // hand out the native chart view the presenter drives, null before the window is created
         [[nodiscard]] ChartView* chart_view() const;
+
+        // hand out the document strip the shell presenter drives, null before the window is created
+        [[nodiscard]] DocumentTabs* document_tabs() const;
+
+        // replace the document strip palette, which follows the color scheme
+        void set_document_tabs_palette(const ChartPalette& palette);
 
         // clear the borrowed facade when the application reports the window is gone
         void on_window_closed(albor::WindowHandle handle);
@@ -164,6 +166,9 @@ namespace studio
 
         // the native chart view the tree owns after creation
         ChartView* m_chart_view = nullptr;
+
+        // the document strip the tree owns after creation
+        DocumentTabs* m_document_tabs = nullptr;
 
         // the handler a scheme flip reaches
         std::function<void(bool)> m_on_scheme_changed;

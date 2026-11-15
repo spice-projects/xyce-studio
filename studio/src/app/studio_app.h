@@ -40,6 +40,15 @@ namespace studio
         void set_startup_dataset(const std::filesystem::path& path);
 
     private:
+        // rebuild the document strip from the netlist and the open datasets
+        void refresh_documents();
+
+        // select the netlist or one dataset tab
+        void select_document(int index);
+
+        // close one dataset tab
+        void close_document(int index);
+
         // the configuration the shell starts from and keeps after a dialog accepts
         PluginConfig m_plugin_config;
 

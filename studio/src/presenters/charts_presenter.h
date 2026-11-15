@@ -11,7 +11,6 @@
 #include "albor/text/text_engine.h"
 #include "charts/chart_commands.h"
 #include "charts/chart_text_measurer.h"
-#include "charts/chart_ui_style.h"
 #include "charts/charts_controller.h"
 #include "charts/plot_selection.h"
 #include "charts/step_tool.h"
@@ -41,9 +40,6 @@ namespace studio
         // parse an output file and add it as a closable dataset tab, returning false when the format is unsupported
         bool show_file(const std::filesystem::path& path, std::shared_ptr<TempOutputDirectory> artifacts = nullptr);
 
-        // adopt an already parsed user dataset and build its charts
-        void load_dataset(std::shared_ptr<XyceOutputFile> file, ChartKind kind = ChartKind::XY, bool closable = true);
-
         // resolve the analysis and companion files a finished run produced and show them as tabs
         RunOutputResult show_run_output(const RunOutput& output, std::shared_ptr<TempOutputDirectory> artifacts);
 
@@ -65,6 +61,9 @@ namespace studio
         // drop the view the presenter drives, which the window teardown calls before the tree dies
         void detach();
 
+        // cancel the live drag and hover the active dataset owns
+        void cancel_interaction();
+
         // report whether a dataset is loaded
         [[nodiscard]] bool has_dataset() const;
 
@@ -74,14 +73,23 @@ namespace studio
         // hand out the active dataset index, clamped to the open tabs
         [[nodiscard]] std::size_t active_dataset() const;
 
+        // hand out the active dataset identity, or -1 when no dataset is open
+        [[nodiscard]] int active_dataset_id() const;
+
         // hand out one dataset title, or an empty string past the end
         [[nodiscard]] const std::string& dataset_title(std::size_t index) const;
+
+        // report whether one dataset tab carries a close affordance
+        [[nodiscard]] bool dataset_closable(std::size_t index) const;
 
         // select a dataset tab
         void activate_dataset(std::size_t index);
 
         // close a closable dataset tab
         void close_dataset(std::size_t index);
+
+        // close every dataset, which a new netlist document does
+        void close_all_datasets();
 
         // run one chart context menu command on the chart at an index
         void run_chart_command(ChartCommand command, std::size_t chart_index);
@@ -182,17 +190,11 @@ namespace studio
         // make a title unique among the open tabs
         [[nodiscard]] std::string unique_title(const std::string& base, const DatasetState* exclude = nullptr) const;
 
-        // cancel the outgoing drag and hover before the selection changes
-        void cancel_interaction();
-
         // publish the active dataset summary and palette to the view
         void publish_scene();
 
         // publish the transient zoom selection to the view
         void publish_zoom_selection();
-
-        // the strip height the open tabs need
-        [[nodiscard]] float tab_bar_height() const;
 
         // build the charts the dataset suggests, or one chart over its first expressions
         void build_charts(ChartsController& controller, XyceOutputFile& file, ChartKind kind);

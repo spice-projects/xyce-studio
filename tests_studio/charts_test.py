@@ -18,31 +18,33 @@ class ChartsPanelChecks(unittest.TestCase):
             chart = app.get_by_id("charts_view")
             chart.wait_for_exists()
             expect(chart).to_have_name("1 line chart")
-            expect(app.get_by_id("main_charts")).to_have_name("Charts")
+            # assert: the document strip lists the netlist and the dataset
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
             # assert: the chart panel replaced the netlist editor in the body
             expect(app.get_by_id("netlist_editor")).not_().to_exist()
 
-    def test_the_charts_action_swaps_the_body_back_to_the_netlist(self) -> None:
+    def test_the_document_tabs_switch_between_the_netlist_and_the_charts(self) -> None:
         # arrange: start on the chart panel through the dataset argument
         dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
         with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
-            # step 1: press the charts action to return to the netlist editor
-            app.get_by_id("main_charts").click()
-            # assert: the editor mounts and the chart panel keeps its host but leaves the body
+            # step 1: select the netlist tab
+            app.get_by_id("document_tabs").click("select-tab-0")
+            # assert: the editor mounts and the chart panel leaves the body
             app.get_by_id("netlist_editor").wait_for_exists()
             expect(app.get_by_id("charts_view")).not_().to_exist()
-            # step 2: press the charts action again to reveal the wave forms
-            app.get_by_id("main_charts").click()
+            # step 2: select the dataset tab
+            app.get_by_id("document_tabs").click("select-tab-1")
             # assert: the chart panel returns and the editor unmounts
             app.get_by_id("charts_view").wait_for_exists()
             expect(app.get_by_id("netlist_editor")).not_().to_exist()
 
-    def test_the_charts_action_is_disabled_without_a_dataset(self) -> None:
+    def test_the_document_strip_starts_on_the_netlist(self) -> None:
         # arrange: a plain launch with no output file
         with TestSession(launch(), self.id()) as app:
-            # assert: the charts action stays disabled and the editor keeps the body
-            expect(app.get_by_id("main_charts")).to_have_state("disabled")
+            # assert: the strip lists only the netlist and the editor keeps the body
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: Netlist")
             expect(app.get_by_id("netlist_editor")).to_exist()
+            expect(app.get_by_id("charts_view")).not_().to_exist()
 
     def test_two_dataset_arguments_open_two_tabs(self) -> None:
         # arrange: the same output file offered twice, which the presenter keeps as two tabs
@@ -124,8 +126,8 @@ class ChartsPanelChecks(unittest.TestCase):
             chart = app.get_by_id("charts_view")
             chart.wait_for_exists()
             expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
-            # act: select the first tab through the semantic action
-            chart.click("select-tab-0")
+            # act: select the first dataset tab through the semantic action
+            app.get_by_id("document_tabs").click("select-tab-1")
             # assert: the active dataset follows the selection
             expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
 
@@ -136,10 +138,9 @@ class ChartsPanelChecks(unittest.TestCase):
             chart = app.get_by_id("charts_view")
             chart.wait_for_exists()
             expect(chart).to_have_name("1 line chart")
-            # act: close the only tab through the semantic action
-            chart.click("close-tab-0")
-            # assert: the charts action disables and the editor returns to the body
-            expect(app.get_by_id("main_charts")).to_have_state("disabled")
+            # act: close the only dataset tab through the semantic action
+            app.get_by_id("document_tabs").click("close-tab-1")
+            # assert: the editor returns to the body and the chart panel leaves it
             app.get_by_id("netlist_editor").wait_for_exists()
             expect(app.get_by_id("charts_view")).not_().to_exist()
 
@@ -288,6 +289,84 @@ class ChartsPanelChecks(unittest.TestCase):
             app.get_by_id("step_tool_cancel").click()
             app.get_by_id("step_tool_check_0").wait_for_gone()
 
+    def test_closing_the_active_dataset_selects_its_neighbour(self) -> None:
+        # arrange: two dataset tabs where the second is active
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01 (2)")
+            # act: close the active dataset tab
+            app.get_by_id("document_tabs").click("close-tab-2")
+            # assert: the remaining dataset takes the body and the canvas names it
+            expect(chart).to_have_name("1 line chart")
+            expect(app.get_by_id("netlist_editor")).not_().to_exist()
+
+    def test_closing_an_inactive_dataset_keeps_the_active_one(self) -> None:
+        # arrange: three dataset tabs
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            # step: select the first dataset
+            app.get_by_id("document_tabs").click("select-tab-1")
+            expect(chart).to_have_name("3 datasets, 1 line chart, active: tran-simple-01")
+            # act: close the second dataset, which is not active
+            app.get_by_id("document_tabs").click("close-tab-2")
+            # assert: the first dataset stays active
+            expect(chart).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
+
+    def test_closing_a_dataset_while_the_netlist_is_active_keeps_the_netlist(self) -> None:
+        # arrange: two dataset tabs
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset), "--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            # step: return to the netlist tab
+            app.get_by_id("document_tabs").click("select-tab-0")
+            app.get_by_id("netlist_editor").wait_for_exists()
+            # act: close a dataset while the netlist holds the body
+            app.get_by_id("document_tabs").click("close-tab-1")
+            # assert: the netlist stays visible and the remaining dataset is hidden
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: Netlist")
+            app.get_by_id("netlist_editor").wait_for_exists()
+            expect(app.get_by_id("charts_view")).not_().to_exist()
+            # step: the remaining dataset still opens
+            app.get_by_id("document_tabs").click("select-tab-1")
+            app.get_by_id("charts_view").wait_for_exists()
+            expect(app.get_by_id("charts_view")).to_have_name("1 line chart")
+
+    def test_a_finished_run_selects_the_primary_tab(self) -> None:
+        # arrange: a fake Xyce that writes a csv analysis output beside its netlist
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "DIR=$(dirname \"$1\")\n"
+                "cat > \"$DIR/netlist.cir.csv\" <<'EOF'\n"
+                "TIME,V(1)\n"
+                "0,0\n"
+                "1,1\n"
+                "2,2\n"
+                "EOF\n"
+                "echo 'Simulation completed.'\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n")
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # act: run the simulation
+                app.get_by_id("main_run").click()
+                # assert: the produced csv opens as the active document tab
+                chart = app.get_by_id("charts_view")
+                chart.wait_for_exists()
+                expect(chart).to_have_name("1 line chart")
+                # step: the netlist tab and the run tab switch the body both ways
+                app.get_by_id("document_tabs").click("select-tab-0")
+                app.get_by_id("netlist_editor").wait_for_exists()
+                app.get_by_id("document_tabs").click("select-tab-1")
+                app.get_by_id("charts_view").wait_for_exists()
+
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test
         with TestSession(launch(args=["--dataset", __file__]), self.id()) as app:
@@ -401,8 +480,8 @@ class ChartsPanelChecks(unittest.TestCase):
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # act: run the failing simulation
                 app.get_by_id("main_run").click()
-                # assert: the charts stay disabled and the editor keeps the body
+                # assert: the strip still lists only the netlist and the editor keeps the body
                 expect(app.get_by_id("main_status")).to_have_name("Simulation failed with exit code 2")
-                expect(app.get_by_id("main_charts")).to_have_state("disabled")
+                expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: Netlist")
                 expect(app.get_by_id("netlist_editor")).to_exist()
                 expect(app.get_by_id("charts_view")).not_().to_exist()

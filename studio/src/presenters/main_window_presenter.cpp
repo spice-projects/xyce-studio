@@ -191,10 +191,10 @@ namespace
     }
 } // namespace
 
-studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config) :
+studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source) :
     m_view(&view),
-    // the shell starts from an untitled source, which reads live editor text until a save names a file
-    m_netlist_source(std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, std::filesystem::path{})),
+    // a plugin session supplies its own source; standalone starts from an untitled editor source
+    m_netlist_source(netlist_source != nullptr ? std::move(netlist_source) : std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, std::filesystem::path{})),
     m_plugin_config(plugin_config) {
     // initialize the toolbar action states before the window is shown
     refresh_action_states();
@@ -205,6 +205,26 @@ void studio::MainWindowPresenter::set_dataset_file_handler(DatasetFileHandler ha
 void studio::MainWindowPresenter::set_run_output_handler(RunOutputHandler handler) { m_run_output_handler = std::move(handler); }
 
 void studio::MainWindowPresenter::set_run_started_handler(RunStartedHandler handler) { m_run_started_handler = std::move(handler); }
+
+void studio::MainWindowPresenter::set_on_netlist_opened(NetlistOpenedHandler handler) { m_on_netlist_opened = std::move(handler); }
+
+void studio::MainWindowPresenter::reload_netlist_source() {
+    // a presenter without a source has nothing to reload
+    if (m_netlist_source == nullptr)
+        return;
+    // the plugin source re-exports only when the schematic changed
+    const auto [reloaded, content] = m_netlist_source->load_netlist();
+    // an unchanged schematic leaves the editor and the tabs untouched
+    if (!reloaded)
+        return;
+    // the new netlist replaces the editor content without dirtying it
+    update_netlist_editor_content(content, false);
+    // the title and the read only flag follow the source
+    set_base_title(m_netlist_source->title());
+    m_view->set_netlist_read_only(m_netlist_source->is_read_only());
+    // the toolbar follows the new content
+    refresh_action_states();
+}
 
 void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path) {
     // a file opened from inside a live run directory outlives the run lease
@@ -229,6 +249,9 @@ void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path
     update_netlist_editor_content(content, false);
     // refresh toolbar/menu states
     refresh_action_states();
+    // a new document closes the output tabs the previous netlist produced
+    if (m_on_netlist_opened)
+        m_on_netlist_opened();
 }
 
 void studio::MainWindowPresenter::on_save() {

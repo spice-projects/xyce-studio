@@ -513,27 +513,6 @@ TEST(StudioChartViewChecks, a_legend_change_rebuilds_only_the_legend_layer) {
     EXPECT_EQ(view.legend_record_count(), 2U);
 }
 
-TEST(StudioChartViewChecks, the_dataset_strip_is_a_retained_picture) {
-    // arrange: one active tab over a 32 pixel strip
-    albor::BindingEngine engine;
-    FakeTextEngine text;
-    studio::ChartView view(&engine, &text);
-    view.set_tabs({studio::ChartTabSpec{.title = " LIN Analysis ", .active = true, .closable = false}});
-    view.set_content_y(32.0f);
-    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
-    // act: paint the strip
-    albor::PictureRecorder first;
-    view.paint_content(first);
-    // assert: the strip records its plate, hairline, active tab and label
-    EXPECT_EQ(view.strip_record_count(), 1U);
-    ASSERT_EQ(first.commands().size(), 6U);
-    // act: paint the same strip again
-    albor::PictureRecorder second;
-    view.paint_content(second);
-    // assert: the strip picture is reused
-    EXPECT_EQ(view.strip_record_count(), 1U);
-}
-
 TEST(StudioChartViewChecks, a_smith_frame_paints_the_gamma_grid_and_trace) {
     // arrange: a smith frame with a boundary, a grid run, one trace and one label
     albor::BindingEngine engine;
@@ -579,8 +558,8 @@ TEST(StudioChartViewChecks, a_smith_frame_paints_the_gamma_grid_and_trace) {
     EXPECT_EQ(view.series_record_count(), 1U);
 }
 
-TEST(StudioChartViewChecks, a_zoom_selection_paints_above_the_strip) {
-    // arrange: a chart under a strip, with a transient selection in content coordinates
+TEST(StudioChartViewChecks, a_zoom_selection_paints_above_the_chart) {
+    // arrange: a chart with a transient selection in chart coordinates
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
@@ -592,22 +571,21 @@ TEST(StudioChartViewChecks, a_zoom_selection_paints_above_the_strip) {
     frame.plot_w = 300.0f;
     frame.plot_h = 240.0f;
     view.set_frames({frame});
-    view.set_content_y(32.0f);
     view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 10.0f, .y = 20.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
     view.set_zoom_selection(albor::Rect::from_origin_size(albor::Point{.x = 60.0f, .y = 30.0f}, albor::Size{.width = 100.0f, .height = 80.0f}));
     // act: paint the chart and the selection
     albor::PictureRecorder recorder;
     view.paint_content(recorder);
     const std::vector<albor::DrawCommand> commands = recorder.commands();
-    // assert: the wash sits under the strip, offset by the panel origin and the content start
+    // assert: the wash sits offset by the panel origin
     int washes = 0;
     for (const albor::DrawCommand& command : commands) {
         // only the selection rectangles carry the selection extent
         if (command.kind() != albor::DrawCommandKind::Rect || command.rect_geometry().rect.width != 100.0f || command.rect_geometry().rect.height != 80.0f)
             continue;
-        // the selection lands after the panel origin and the strip
+        // the selection lands after the panel origin
         EXPECT_FLOAT_EQ(command.rect_geometry().rect.x, 70.0f);
-        EXPECT_FLOAT_EQ(command.rect_geometry().rect.y, 82.0f);
+        EXPECT_FLOAT_EQ(command.rect_geometry().rect.y, 50.0f);
         // the wash and its border are both recorded
         washes++;
     }
@@ -723,28 +701,6 @@ TEST(StudioChartViewChecks, a_escape_aborts_a_live_drag) {
     EXPECT_EQ(canceled, 1);
 }
 
-TEST(StudioChartViewChecks, a_tab_press_follows_the_current_tab_layout) {
-    // arrange: two tabs whose strip has already been painted
-    albor::BindingEngine engine;
-    FakeTextEngine text;
-    studio::ChartView view(&engine, &text);
-    view.set_tabs({studio::ChartTabSpec{.title = "A", .active = true, .closable = false}, studio::ChartTabSpec{.title = "B", .active = false, .closable = false}});
-    view.set_content_y(32.0f);
-    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
-    albor::PictureRecorder recorder;
-    view.paint_content(recorder);
-    int selected = -1;
-    view.set_on_tab_selected([&](const int index) { selected = index; });
-    // act: the tab set shrinks before the next paint, then the old second tab is pressed
-    view.set_tabs({studio::ChartTabSpec{.title = "A", .active = true, .closable = false}});
-    albor::Event press;
-    press.kind = albor::EventKind::PointerDown;
-    press.position = albor::Point{.x = 60.0f, .y = 16.0f};
-    view.dispatch_event(press);
-    // assert: the retired tab no longer answers a press
-    EXPECT_EQ(selected, -1);
-}
-
 TEST(StudioChartViewChecks, the_semantic_node_exposes_the_chart_commands) {
     // arrange: one cartesian chart and a command sink
     albor::BindingEngine engine;
@@ -774,13 +730,12 @@ TEST(StudioChartViewChecks, the_semantic_node_exposes_the_chart_commands) {
     EXPECT_EQ(index, 0U);
 }
 
-TEST(StudioChartViewChecks, a_drag_reports_the_chart_content_coordinates) {
-    // arrange: a view with a 32 pixel strip and recording callbacks
+TEST(StudioChartViewChecks, a_drag_reports_the_chart_coordinates) {
+    // arrange: a view with recording callbacks
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
     view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
-    view.set_content_y(32.0f);
     float started_x = -1.0f;
     float started_y = -1.0f;
     float moved_x = -1.0f;
@@ -797,7 +752,7 @@ TEST(StudioChartViewChecks, a_drag_reports_the_chart_content_coordinates) {
     });
     view.set_on_zoom_drag_ended([&] { ended++; });
     view.set_on_zoom_drag_canceled([&] { canceled++; });
-    // act: press, move and release inside the chart content
+    // act: press, move and release inside the chart canvas
     albor::Event press;
     press.kind = albor::EventKind::PointerDown;
     press.position = albor::Point{.x = 100.0f, .y = 120.0f};
@@ -810,12 +765,12 @@ TEST(StudioChartViewChecks, a_drag_reports_the_chart_content_coordinates) {
     release.kind = albor::EventKind::PointerUp;
     release.position = albor::Point{.x = 150.0f, .y = 180.0f};
     view.dispatch_event(release);
-    // assert: the coordinates are relative to the chart content
+    // assert: the coordinates are relative to the chart canvas
     EXPECT_TRUE(press.handled);
     EXPECT_FLOAT_EQ(started_x, 100.0f);
-    EXPECT_FLOAT_EQ(started_y, 88.0f);
+    EXPECT_FLOAT_EQ(started_y, 120.0f);
     EXPECT_FLOAT_EQ(moved_x, 150.0f);
-    EXPECT_FLOAT_EQ(moved_y, 148.0f);
+    EXPECT_FLOAT_EQ(moved_y, 180.0f);
     EXPECT_EQ(ended, 1);
     EXPECT_EQ(canceled, 0);
 }

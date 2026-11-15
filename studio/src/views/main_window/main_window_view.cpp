@@ -17,6 +17,7 @@
 #include "main_window.h"
 #include "netlist/netlist_lexer.h"
 #include "views/charts/chart_view.h"
+#include "views/main_window/document_tabs.h"
 
 namespace
 {
@@ -206,11 +207,24 @@ bool studio::MainWindowView::create() {
     if (m_theme != nullptr)
         m_theme->set_scheme_changed_handler([this](const albor::ColorScheme scheme) {
             schedule_netlist_highlight();
+            // the document strip follows the same scheme
+            set_document_tabs_palette(chart_palette(scheme == albor::ColorScheme::Dark));
             if (m_on_scheme_changed)
                 m_on_scheme_changed(scheme == albor::ColorScheme::Dark);
         });
-    // create the native charts view and insert it into the host the shell always carries
+    // create the native views and insert them into the hosts the shell always carries
     if (albor::WindowStage* stage = m_app->stage(m_handle)) {
+        // the document strip sits between the toolbar and the body
+        if (albor::UiNode* host = find_node(*m_root, "document_tabs_host")) {
+            auto tabs = std::make_unique<DocumentTabs>(&stage->binding_engine(), &stage->text_engine());
+            // the strip follows the scheme the window installed
+            tabs->set_palette(chart_palette(m_theme != nullptr && m_theme->scheme() == albor::ColorScheme::Dark));
+            // remember the strip so the shell presenter can feed it
+            m_document_tabs = tabs.get();
+            host->add_child(std::move(tabs));
+            host->invalidate_layout();
+        }
+        // the chart canvas fills the body while a dataset tab is active
         if (albor::UiNode* host = find_node(*m_root, "charts_host")) {
             auto charts = std::make_unique<ChartView>(&stage->binding_engine(), &stage->text_engine(), &m_app->timers());
             // remember the view so the presenter can feed it
@@ -243,13 +257,6 @@ void studio::MainWindowView::set_on_configure_simulation(std::function<void()> h
     m_root->set_on_configure_simulation_clicked(std::move(handler));
 }
 
-void studio::MainWindowView::set_on_show_charts(std::function<void()> handler) {
-    // without a live facade there is no signal to bind
-    if (m_root == nullptr)
-        return;
-    m_root->set_on_show_charts_clicked(std::move(handler));
-}
-
 void studio::MainWindowView::set_charts_visible(const bool visible) {
     // without a live facade there is no body to swap
     if (m_root == nullptr)
@@ -257,14 +264,17 @@ void studio::MainWindowView::set_charts_visible(const bool visible) {
     m_root->set_charts_visible(visible);
 }
 
-void studio::MainWindowView::set_charts_enabled(const bool enabled) {
-    // without a live facade there is no action to enable
-    if (m_root == nullptr)
-        return;
-    m_root->set_charts_enabled(enabled);
-}
-
 studio::ChartView* studio::MainWindowView::chart_view() const { return m_chart_view; }
+
+studio::DocumentTabs* studio::MainWindowView::document_tabs() const { return m_document_tabs; }
+
+void studio::MainWindowView::set_document_tabs_palette(const ChartPalette& palette) {
+    // a window created without the strip has nothing to repaint
+    if (m_document_tabs == nullptr)
+        return;
+    // the strip follows the scheme
+    m_document_tabs->set_palette(palette);
+}
 
 void studio::MainWindowView::set_on_scheme_changed(std::function<void(bool)> handler) { m_on_scheme_changed = std::move(handler); }
 
@@ -278,6 +288,8 @@ void studio::MainWindowView::on_window_closed(albor::WindowHandle handle) {
     m_root = nullptr;
     // the charts view dies with the tree
     m_chart_view = nullptr;
+    // the document strip dies with the tree
+    m_document_tabs = nullptr;
     // the window handle no longer names a live window
     m_handle = {};
 }

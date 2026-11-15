@@ -154,6 +154,26 @@ namespace
         // the root every artifact of the test lives under
         std::filesystem::path m_root;
     };
+
+    // the netlist source double a plugin session supplies
+    class FakeNetlistSource final : public NetlistSource
+    {
+    public:
+        // the content the source reports as reloaded
+        std::string content = "* reloaded schematic\nV1 in 0 1\n.END\n";
+
+        [[nodiscard]] std::string title() const override { return "schematic.kicad_sch"; }
+
+        [[nodiscard]] bool is_read_only() const override { return true; }
+
+        [[nodiscard]] bool has_backing_file() const override { return true; }
+
+        [[nodiscard]] std::filesystem::path working_directory() const override { return {}; }
+
+        [[nodiscard]] std::tuple<bool, std::string> load_netlist() override { return {true, content}; }
+
+        void save_netlist(const std::string&) override {}
+    };
 } // namespace
 
 TEST(StudioMainWindowPresenterChecks, startup_is_untitled_clean_and_save_disabled) {
@@ -1013,4 +1033,60 @@ TEST(StudioMainWindowPresenterChecks, the_run_hands_the_plot_directives_to_the_c
     ASSERT_EQ(suggested.size(), 2U);
     EXPECT_EQ(suggested[0], std::vector<std::string>{"I(L1)"});
     EXPECT_EQ(suggested[1], std::vector<std::string>{"V(1)"});
+}
+
+TEST(StudioMainWindowPresenterChecks, opening_a_netlist_reports_a_new_document) {
+    // arrange: a netlist file with known content
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-new-document");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        std::ofstream file(netlist);
+        file << "* a simple tran netlist\nV1 in 0 1\n.END\n";
+    }
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    int opened = 0;
+    presenter.set_on_netlist_opened([&] { opened++; });
+    // act: open the netlist as a new document
+    presenter.on_open_file(netlist);
+    // assert: the shell is told once, so it can close the previous outputs
+    EXPECT_EQ(opened, 1);
+}
+
+TEST(StudioMainWindowPresenterChecks, opening_a_dataset_does_not_report_a_new_document) {
+    // arrange: a presenter that adopts output files
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-open-dataset");
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    int opened = 0;
+    int datasets = 0;
+    presenter.set_on_netlist_opened([&] { opened++; });
+    presenter.set_dataset_file_handler([&](const std::filesystem::path&, std::shared_ptr<TempOutputDirectory>) {
+        datasets++;
+        return true;
+    });
+    // act: open an output file, which is not a netlist document
+    presenter.on_open_file(scratch.path() / "run.raw");
+    // assert: the charts consume the file and the output tabs stay
+    EXPECT_EQ(datasets, 1);
+    EXPECT_EQ(opened, 0);
+}
+
+TEST(StudioMainWindowPresenterChecks, reloading_the_source_does_not_report_a_new_document) {
+    // arrange: a plugin source that always reports a reloaded netlist
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* raw = source.get();
+    studio::MainWindowPresenter presenter(view, config, std::move(source));
+    int opened = 0;
+    presenter.set_on_netlist_opened([&] { opened++; });
+    // act: reload the source in place, which a schematic edit does
+    presenter.reload_netlist_source();
+    // assert: the editor follows the source and the output tabs stay
+    EXPECT_EQ(view.editor_text, raw->content);
+    EXPECT_TRUE(view.read_only_last);
+    EXPECT_EQ(opened, 0);
 }

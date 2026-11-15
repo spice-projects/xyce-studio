@@ -25,6 +25,9 @@ namespace studio
         // the chart the dialog edits
         std::size_t chart_index = 0;
 
+        // the dataset that owns the chart, which the accept checks before applying
+        int dataset_id = 0;
+
         // whether the chart plots the fixed smith plane
         bool smith = false;
 

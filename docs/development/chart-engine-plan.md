@@ -298,7 +298,7 @@ The chart component is only useful with a dataset model. This is the `6.7a` shel
 - Opening an output file (`.raw`, `.prn`, `.csd`, `.csv`, `.dat`, Touchstone) routes to the dataset loader instead of the netlist editor.
 - A finished simulation auto-loads its analysis output and companion files (`.FFT`, `.FOUR`, `.MEASURE`, `.PCE`) using the existing core parsers.
 - The active dataset activates its chart engines and publishes a scene.
-- Plot tabs: a tab strip at the top of the charts panel; selecting a tab activates its dataset; closing releases the dataset and its retained scenes.
+- Document tabs: one strip in the window body lists the netlist first and every dataset after it; selecting a tab switches the body, and closing a dataset tab releases it and its retained scenes.
 - Suggested plots from `XyceOutputFile::suggested_plots()` create the initial charts; otherwise one empty chart is created.
 - Smith datasets create `ChartEngine` instances with `ChartKind::SMITH`; the diagonal entries are the default plots.
 - Fourier datasets have no plottable spectra; they show the Fourier results table instead of the chart canvas. This can be a follow-up if line/Smith is the first milestone.
@@ -309,9 +309,9 @@ The legacy `slint/src/ui/charts_renderer.cpp` contains the dataset/chart state m
 
 ## 8. Main window integration
 
-- Add a `Charts` toolbar action next to the netlist/output actions, enabled when a dataset is available.
-- Add a body switch: netlist editor vs charts panel. The legacy app toggles `charts-visible`; the studio can use the same model or a `TabView`.
-- The charts panel contains the plot-tab strip and the `ChartsView` host.
+- The body is a document strip: tab 0 is the always-open netlist, and the datasets follow it. Selecting a tab switches the body between the editor and the chart canvas.
+- There is no separate charts toolbar action; the strip replaces it. The simulation output log panel stays.
+- The chart canvas owns no tab strip of its own; the window body hosts the strip and the `ChartView` canvas.
 - Keep the simulation output panel and status bar unchanged.
 - `ChartsPresenter` is created by `StudioApp` and wired to `MainWindowPresenter` for dataset loading and run completion.
 
@@ -359,8 +359,8 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 ### 6.7a — Dataset and shell
 
 - `ChartsPresenter`, `PlotDataset`, output-file loading, run auto-load.
-- Charts toolbar action, body switch, empty charts panel.
-- Plot-tab strip and dataset activation.
+- Document tab strip: netlist first, datasets after it.
+- Tab selection switches the body; closing a dataset selects its neighbour.
 
 ### 6.7b — Static Line charts
 

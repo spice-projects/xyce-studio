@@ -114,10 +114,6 @@ studio::ChartsPresenter::ChartsPresenter(ChartView& view, albor::TextEngine& tex
     m_view->set_on_destroyed([this] { m_view = nullptr; });
     // a changed arranged extent refreshes the chart geometry
     m_view->set_on_resize_settled([this](const float width, const float height) { set_viewport(width, height); });
-    // the strip reports the selected and closed tabs
-    m_view->set_on_tab_selected([this](const int index) { activate_dataset(static_cast<std::size_t>(index)); });
-    // the strip reports the close affordance
-    m_view->set_on_tab_closed([this](const int index) { close_dataset(static_cast<std::size_t>(index)); });
     // install the zoom callbacks
     m_view->set_on_zoom_drag_started([this](const float x, const float y) {
         // the active dataset owns the drag
@@ -208,8 +204,6 @@ void studio::ChartsPresenter::detach() {
     // clear the callbacks the presenter installed
     m_view->set_on_destroyed({});
     m_view->set_on_resize_settled({});
-    m_view->set_on_tab_selected({});
-    m_view->set_on_tab_closed({});
     m_view->set_on_zoom_drag_started({});
     m_view->set_on_zoom_drag_moved({});
     m_view->set_on_zoom_drag_ended({});
@@ -279,26 +273,6 @@ bool studio::ChartsPresenter::show_file(const std::filesystem::path& path, std::
     append_dataset(std::move(parsed->first), parsed->second, DatasetRole::User, {});
     // report the dataset loaded
     return true;
-}
-
-void studio::ChartsPresenter::load_dataset(std::shared_ptr<XyceOutputFile> file, const ChartKind kind, const bool closable) {
-    // a null dataset clears every tab
-    if (file == nullptr) {
-        // cancel the interaction the outgoing dataset owns
-        cancel_interaction();
-        // release the scenes before the datasets that own their expressions
-        m_datasets.clear();
-        // the active index returns to the first tab
-        m_active_dataset = 0;
-        // a live view drops the tabs, the frames and the retained pictures
-        publish_scene();
-        // tell the shell the tabs are gone
-        notify_tabs_changed();
-        // the empty dataset is settled
-        return;
-    }
-    // a user dataset carries a close affordance when the caller asks for one
-    append_dataset(std::move(file), kind, closable ? DatasetRole::User : DatasetRole::Companion, {});
 }
 
 std::optional<std::filesystem::path> studio::ChartsPresenter::resolve_primary(const RunOutput& output) const {
@@ -557,7 +531,7 @@ studio::ChartsPresenter::DatasetState& studio::ChartsPresenter::append_dataset(s
     // the file owns the expressions and the step information
     state->file = std::move(file);
     // the controller shares the label cache and starts at the content size
-    state->controller = std::make_unique<ChartsController>(m_view_width, std::max(0.0f, m_view_height - tab_bar_height()), [this](const std::string& label) { return m_text.measure(label); });
+    state->controller = std::make_unique<ChartsController>(m_view_width, m_view_height, [this](const std::string& label) { return m_text.measure(label); });
     // point the controller at the file expressions
     state->controller->set_dataset(state->file->expression_manager(), state->file->step_information(), state->file->abscissa_scale());
     // the requested title wins over the parser title, which falls back to the file name
@@ -787,13 +761,9 @@ void studio::ChartsPresenter::set_viewport(const float width, const float height
     m_view_width = width;
     // remember the panel height the next scene records
     m_view_height = height;
-    // the strip only shows when the tabs need it
-    const float strip_height = tab_bar_height();
-    // the chart content is what the strip leaves
-    const float content_height = std::max(0.0f, height - strip_height);
     // repoint every dataset so switching tabs shows charts at the current size
     for (const std::unique_ptr<DatasetState>& dataset : m_datasets)
-        dataset->controller->set_viewport(width, content_height);
+        dataset->controller->set_viewport(width, height);
     // republish the active scene at the new size
     if (!m_datasets.empty())
         publish_scene();
@@ -818,12 +788,27 @@ bool studio::ChartsPresenter::has_dataset() const { return !m_datasets.empty(); 
 
 std::size_t studio::ChartsPresenter::dataset_count() const { return m_datasets.size(); }
 
+int studio::ChartsPresenter::active_dataset_id() const {
+    // no dataset has no identity
+    const DatasetState* state = active_state();
+    // hand out the identity the dialogs capture
+    return state != nullptr ? state->id : -1;
+}
+
 std::size_t studio::ChartsPresenter::active_dataset() const {
     // an empty tab set has no active dataset
     if (m_datasets.empty())
         return 0;
     // hand out an index inside the open tabs
     return std::min(m_active_dataset, m_datasets.size() - 1);
+}
+
+bool studio::ChartsPresenter::dataset_closable(const std::size_t index) const {
+    // a tab past the set carries no close affordance
+    if (index >= m_datasets.size())
+        return false;
+    // a user dataset closes, while a run output stays until the next run
+    return m_datasets[index]->closable;
 }
 
 const std::string& studio::ChartsPresenter::dataset_title(const std::size_t index) const {
@@ -880,6 +865,22 @@ void studio::ChartsPresenter::close_dataset(const std::size_t index) {
         return;
     }
     // publish the remaining active dataset
+    publish_scene();
+}
+
+void studio::ChartsPresenter::close_all_datasets() {
+    // an empty tab set has nothing to release
+    if (m_datasets.empty())
+        return;
+    // a live drag or readout names a chart that is about to leave
+    cancel_interaction();
+    // release every dataset and the files it owns
+    m_datasets.clear();
+    // the active index returns to the first tab
+    m_active_dataset = 0;
+    // tell the shell the tab set changed, which rebuilds the strip
+    notify_tabs_changed();
+    // the empty panel drops the retained frames
     publish_scene();
 }
 
@@ -966,7 +967,7 @@ std::optional<studio::StepToolState> studio::ChartsPresenter::step_tool_state(co
     if (steps.length() <= 1)
         return std::nullopt;
     // the state the dialog opens with
-    StepToolState result{.chart_index = chart_index};
+    StepToolState result{.chart_index = chart_index, .dataset_id = state->id};
     // the per-step parameter values, when the file carries one vector per step
     const std::vector<std::vector<double>>& values = steps.values();
     // a file without a value per key and step opens with the index column only
@@ -1025,7 +1026,7 @@ std::optional<studio::PlotSelectionState> studio::ChartsPresenter::plot_selectio
     // a smith chart offers the diagonal entries and no custom row
     const bool smith = state->kind == ChartKind::SMITH;
     // the state the dialog opens with
-    PlotSelectionState selection{.chart_index = chart_index, .smith = smith, .allow_custom = !smith};
+    PlotSelectionState selection{.chart_index = chart_index, .dataset_id = state->id, .smith = smith, .allow_custom = !smith};
     // the expressions the dataset resolved
     ExpressionManager& manager = state->file->expression_manager();
     // the abscissa is not a plotted series
@@ -1151,13 +1152,6 @@ const studio::ChartsPresenter::DatasetState* studio::ChartsPresenter::active_sta
     return m_datasets[index].get();
 }
 
-float studio::ChartsPresenter::tab_bar_height() const {
-    // a single closable tab still needs the strip so the user can close it
-    const bool any_closable = std::any_of(m_datasets.begin(), m_datasets.end(), [](const std::unique_ptr<DatasetState>& dataset) { return dataset->closable; });
-    // reserve the strip when it carries more than one tab or a close affordance
-    return m_datasets.size() > 1 || any_closable ? CHART_TAB_HEIGHT : 0.0f;
-}
-
 void studio::ChartsPresenter::notify_tabs_changed() {
     // a shell that listens updates its chart enablement and body
     if (m_on_tabs_changed)
@@ -1207,10 +1201,8 @@ void studio::ChartsPresenter::publish_scene() {
     if (state == nullptr) {
         // the empty panel reports no chart
         m_view->set_accessible_summary("0 charts");
-        // the empty panel has no tabs or chart geometry
-        m_view->set_tabs({});
+        // the empty panel has no chart geometry
         m_view->set_frames({});
-        m_view->set_content_y(0.0f);
         // the palette still follows the active scheme
         m_view->set_palette(chart_palette(m_dark_mode));
         // the empty scene is settled
@@ -1218,7 +1210,7 @@ void studio::ChartsPresenter::publish_scene() {
     }
     // the arranged view is the authority on the panel extent once it has one
     const float arranged_width = m_view->viewport_width();
-    // the arranged height includes the strip, which the chart content excludes
+    // the arranged height is the chart canvas
     const float arranged_height = m_view->viewport_height();
     // adopt the arranged extent before the frames are built
     if (arranged_width > 0.0f && arranged_height > 0.0f) {
@@ -1227,13 +1219,9 @@ void studio::ChartsPresenter::publish_scene() {
         // record the height the frames are built for
         m_view_height = arranged_height;
     }
-    // the strip only appears when the tabs need it
-    const float strip_height = tab_bar_height();
-    // the chart content is what the strip leaves
-    const float content_height = std::max(0.0f, m_view_height - strip_height);
-    // resize the active controller when the content extent changed
-    if (state->controller->width() != m_view_width || state->controller->height() != content_height)
-        state->controller->set_viewport(m_view_width, content_height);
+    // resize the active controller when the view extent changed
+    if (state->controller->width() != m_view_width || state->controller->height() != m_view_height)
+        state->controller->set_viewport(m_view_width, m_view_height);
     // name the chart kinds and the tab count for automation and assistive technology
     const std::size_t count = state->controller->chart_count();
     // smith and cartesian scenes read out the kind of their first chart
@@ -1245,17 +1233,6 @@ void studio::ChartsPresenter::publish_scene() {
         summary = std::to_string(m_datasets.size()) + " datasets, " + summary + ", active: " + state->title;
     // hand the summary and the palette to the view
     m_view->set_accessible_summary(std::move(summary));
-    // build the tab strip the view paints
-    std::vector<ChartTabSpec> tabs;
-    // reserve one spec per dataset
-    tabs.reserve(m_datasets.size());
-    // record every dataset in tab order
-    for (std::size_t index = 0; index < m_datasets.size(); ++index)
-        tabs.push_back(ChartTabSpec{.title = m_datasets[index]->title, .active = index == active_dataset(), .closable = m_datasets[index]->closable});
-    // hand the strip its tabs
-    m_view->set_tabs(std::move(tabs));
-    // the chart content starts under the dataset strip
-    m_view->set_content_y(strip_height);
     // hand the frames the plot rectangles come from
     m_view->set_frames(state->controller->frames());
     // the palette follows the active scheme

@@ -1,7 +1,6 @@
 #include "views/charts/chart_view.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -94,27 +93,6 @@ namespace
         for (const ChartGridLine& line : axis.grid_lines)
             mix_grid(key, line);
     }
-    // the strip inset at both edges
-    constexpr float STRIP_INSET = 8.0f;
-
-    // the gap between neighbouring tabs
-    constexpr float STRIP_TAB_GAP = 4.0f;
-
-    // the narrowest tab the strip draws
-    constexpr float STRIP_MIN_TAB_WIDTH = 24.0f;
-
-    // the horizontal padding inside one tab
-    constexpr float STRIP_TAB_PADDING = 12.0f;
-
-    // the room the close affordance keeps inside its tab
-    constexpr float STRIP_CLOSE_SLOT = 16.0f;
-
-    // the close cross box
-    constexpr float STRIP_CLOSE_SIZE = 12.0f;
-
-    // the narrowest tab that still shows the close affordance
-    constexpr float STRIP_CLOSE_MIN_WIDTH = 32.0f;
-
     // the drag handle width
     constexpr float DRAG_HANDLE_WIDTH = 28.0f;
 
@@ -227,28 +205,6 @@ void studio::ChartView::set_frames(std::vector<ChartFrame> frames) {
     invalidate();
 }
 
-void studio::ChartView::set_content_y(const float content_y) {
-    // keep the panel-relative start of the chart content
-    m_content_y = content_y;
-    // the strip height moved, so the hit rectangles follow at once
-    refresh_strip_bounds();
-    // the chart slots moved, so the panel redraws
-    invalidate();
-}
-
-void studio::ChartView::set_tabs(std::vector<ChartTabSpec> tabs) {
-    // keep the dataset tabs the strip paints
-    m_tabs = std::move(tabs);
-    // the tab count and widths moved, so the hit rectangles follow at once
-    refresh_strip_bounds();
-    // the strip changed, so the panel redraws
-    invalidate();
-}
-
-void studio::ChartView::set_on_tab_selected(std::function<void(int)> handler) { m_on_tab_selected = std::move(handler); }
-
-void studio::ChartView::set_on_tab_closed(std::function<void(int)> handler) { m_on_tab_closed = std::move(handler); }
-
 void studio::ChartView::set_on_zoom_drag_started(std::function<void(float, float)> handler) { m_on_zoom_drag_started = std::move(handler); }
 
 void studio::ChartView::set_on_zoom_drag_moved(std::function<void(float, float)> handler) { m_on_zoom_drag_moved = std::move(handler); }
@@ -333,8 +289,6 @@ std::size_t studio::ChartView::base_record_count() const { return m_base_record_
 std::size_t studio::ChartView::series_record_count() const { return m_series_record_count; }
 
 std::size_t studio::ChartView::legend_record_count() const { return m_legend_record_count; }
-
-std::size_t studio::ChartView::strip_record_count() const { return m_strip_record_count; }
 
 void studio::ChartView::measure(const albor::SizeConstraints& constraints, albor::Size& out_size) {
     // measure the children of the widget, which the panel has none of
@@ -645,149 +599,6 @@ std::shared_ptr<const albor::PictureResource> studio::ChartView::record_series(c
     return m_resources.create_picture(recorder);
 }
 
-std::uint64_t studio::ChartView::strip_key(const float width, const float height) const {
-    // the key under construction
-    std::uint64_t key = 0;
-    // the strip extent decides the tab layout
-    mix_float(key, width);
-    mix_float(key, height);
-    // every tab decides the content and active state
-    for (const ChartTabSpec& tab : m_tabs) {
-        mix_text(key, tab.title);
-        mix(key, tab.active);
-        mix(key, tab.closable);
-    }
-    // the palette changes the strip colors
-    mix_palette(key, m_palette);
-    // avoid the empty-cache sentinel
-    return key != 0 ? key : 1;
-}
-
-std::vector<float> studio::ChartView::strip_tab_widths(const float width) {
-    // the natural width under construction
-    std::vector<float> widths;
-    // reserve one width per tab
-    widths.reserve(m_tabs.size());
-    // the sum of the natural widths
-    float total_width = 0.0f;
-    // measure every title once through the shared cache
-    for (const ChartTabSpec& tab : m_tabs) {
-        // the label width
-        const float label_width = label_layout(tab.title).size.width;
-        // the natural tab width keeps the label and the close slot
-        const float natural = STRIP_TAB_PADDING + label_width + STRIP_TAB_PADDING + (tab.closable ? STRIP_CLOSE_SLOT : 0.0f);
-        // keep the natural width
-        widths.push_back(natural);
-        // accumulate the total
-        total_width += natural;
-    }
-    // the room the inset and the gaps leave for the tabs
-    const float available = std::max(0.0f, width - 2.0f * STRIP_INSET - STRIP_TAB_GAP * static_cast<float>(m_tabs.size() - 1));
-    // shrink the tabs proportionally when they do not fit
-    if (total_width > available && total_width > 0.0f) {
-        // the scale every natural width takes
-        const float scale = available / total_width;
-        // shrink every width while keeping a usable minimum
-        for (float& tab_width : widths)
-            tab_width = std::max(STRIP_MIN_TAB_WIDTH, tab_width * scale);
-    }
-    // hand the widths to the layout and the painter
-    return widths;
-}
-
-void studio::ChartView::refresh_strip_bounds() {
-    // the previous rectangles no longer describe the current tabs
-    m_strip_layer.tab_bounds.clear();
-    m_strip_layer.close_bounds.clear();
-    // a strip without tabs, width or height carries no hit rectangles
-    if (m_tabs.empty() || bounds().width <= 0.0f || m_content_y <= 0.0f)
-        return;
-    // the widths every tab takes
-    const std::vector<float> widths = strip_tab_widths(bounds().width);
-    // the first tab starts at the strip inset
-    float x = STRIP_INSET;
-    // one rectangle pair is recorded per visible tab
-    for (std::size_t index = 0; index < m_tabs.size(); ++index) {
-        // stop when the strip has no room left
-        if (x >= bounds().width - STRIP_INSET)
-            break;
-        // the tab width fits the remaining room
-        const float tab_width = std::min(widths[index], std::max(0.0f, bounds().width - STRIP_INSET - x));
-        // the tab rectangle
-        const albor::Rect tab = albor::Rect::from_origin_size(albor::Point{.x = x, .y = 0.0f}, albor::Size{.width = tab_width, .height = m_content_y});
-        // the close affordance sits at the tab east edge
-        const albor::Rect close = albor::Rect::from_origin_size(albor::Point{.x = x + tab_width - STRIP_CLOSE_SLOT, .y = (m_content_y - STRIP_CLOSE_SIZE) * 0.5f}, albor::Size{.width = STRIP_CLOSE_SIZE, .height = STRIP_CLOSE_SIZE});
-        // remember the tab for hit tests and automation
-        m_strip_layer.tab_bounds.push_back(tab);
-        // remember the close affordance when the tab draws it
-        m_strip_layer.close_bounds.push_back(m_tabs[index].closable && tab_width >= STRIP_CLOSE_MIN_WIDTH ? close : albor::Rect{});
-        // advance past the tab and the gap
-        x += tab_width + STRIP_TAB_GAP;
-    }
-}
-
-void studio::ChartView::paint_strip(albor::RenderContext& context, const float width, const float height) {
-    // no tabs or no strip height draw nothing
-    if (m_tabs.empty() || height <= 0.0f)
-        return;
-    // the strip plate separates the tabs from the chart content
-    context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = width, .height = height}), albor::Paint{.fill = albor::Color::rgba(m_palette.background.r, m_palette.background.g, m_palette.background.b, m_palette.background.a)});
-    // the hairline under the strip closes it against the chart pane
-    context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = height - 1.0f}, albor::Size{.width = width, .height = 1.0f}), albor::Paint{.fill = albor::Color::rgba(m_palette.border.r, m_palette.border.g, m_palette.border.b, m_palette.border.a)});
-    // a strip painted before its layout was refreshed lays the tabs out first
-    if (m_strip_layer.tab_bounds.size() != m_tabs.size())
-        refresh_strip_bounds();
-    // one plate, label and close affordance is painted per tab
-    for (std::size_t index = 0; index < m_tabs.size() && index < m_strip_layer.tab_bounds.size(); ++index) {
-        // the rectangle the input dispatch hit tests
-        const albor::Rect tab = m_strip_layer.tab_bounds[index];
-        // the close affordance the tab recorded, empty when none is drawn
-        const albor::Rect close = m_strip_layer.close_bounds[index];
-        // the active tab takes the panel face
-        if (m_tabs[index].active)
-            context.draw_rect(tab, albor::Paint{.fill = albor::Color::rgba(m_palette.panel.r, m_palette.panel.g, m_palette.panel.b, m_palette.panel.a)});
-        // the active tab carries a short underline
-        if (m_tabs[index].active)
-            context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = tab.x, .y = height - 2.0f}, albor::Size{.width = tab.width, .height = 2.0f}), albor::Paint{.fill = albor::Color::rgba(m_palette.text.r, m_palette.text.g, m_palette.text.b, m_palette.text.a)});
-        // a recorded close box draws the cross
-        if (close.width > 0.0f) {
-            // the close cross color
-            const albor::Color cross = albor::Color::rgba(m_palette.muted.r, m_palette.muted.g, m_palette.muted.b, m_palette.muted.a);
-            // the first diagonal
-            const std::array<albor::Point, 2> first_cross{{albor::Point{.x = close.x + 3.0f, .y = close.y + 3.0f}, albor::Point{.x = close.x + 9.0f, .y = close.y + 9.0f}}};
-            // the second diagonal
-            const std::array<albor::Point, 2> second_cross{{albor::Point{.x = close.x + 9.0f, .y = close.y + 3.0f}, albor::Point{.x = close.x + 3.0f, .y = close.y + 9.0f}}};
-            // draw the first diagonal
-            context.draw_polyline(first_cross, albor::StrokeStyle{.color = cross, .width = 1.0f});
-            // draw the second diagonal
-            context.draw_polyline(second_cross, albor::StrokeStyle{.color = cross, .width = 1.0f});
-        }
-        // the label stays inside the tab
-        context.save();
-        // clip the label to the tab plate
-        context.clip_rect(tab);
-        // measure the title once
-        const albor::TextLayout& label = label_layout(m_tabs[index].title);
-        // centre the label vertically in the strip
-        const albor::Point origin{.x = tab.x + STRIP_TAB_PADDING, .y = (height - label.size.height) * 0.5f};
-        // the active label is emphasized
-        draw_text(context, label, origin, albor::Paint{.fill = albor::Color::rgba(m_tabs[index].active ? m_palette.text.r : m_palette.muted.r, m_tabs[index].active ? m_palette.text.g : m_palette.muted.g, m_tabs[index].active ? m_palette.text.b : m_palette.muted.b, m_tabs[index].active ? m_palette.text.a : m_palette.muted.a)});
-        // the tab clip ends
-        context.restore();
-    }
-}
-
-std::shared_ptr<const albor::PictureResource> studio::ChartView::record_strip(const float width, const float height) {
-    // the recorder collects the panel-local strip commands
-    albor::PictureRecorder recorder;
-    // record the strip background, tabs, labels and close affordances
-    paint_strip(recorder, width, height);
-    // count the recorded picture so the cache tests can inspect reuse
-    m_strip_record_count++;
-    // freeze the strip picture
-    return m_resources.create_picture(recorder);
-}
-
 std::uint64_t studio::ChartView::legend_key(const ChartFrame& frame) const {
     // the key under construction
     std::uint64_t key = 0;
@@ -917,26 +728,11 @@ void studio::ChartView::paint_content(albor::RenderContext& context) {
         return;
     // paint the chart background across the whole panel
     context.draw_rect(bounds(), albor::Paint{.fill = albor::Color::rgba(m_palette.background.r, m_palette.background.g, m_palette.background.b, m_palette.background.a)});
-    // the dataset strip is a separate retained picture
-    if (!m_tabs.empty() && m_content_y > 0.0f) {
-        // compute the strip key from the tabs and the strip extent
-        const std::uint64_t key = strip_key(bounds().width, m_content_y);
-        // record only when the strip state changed
-        if (m_strip_layer.key != key || m_strip_layer.picture == nullptr) {
-            // record the panel-local strip
-            m_strip_layer.picture = record_strip(bounds().width, m_content_y);
-            // remember the state the picture was recorded for
-            m_strip_layer.key = key;
-        }
-        // replay the strip at the view origin
-        if (m_strip_layer.picture != nullptr)
-            context.draw_picture(m_strip_layer.picture, albor::Transform::translation(bounds().x, bounds().y));
-    }
     // a panel with no chart has no base layer
     if (m_frames.empty())
         return;
     // the charts share the content height equally
-    const float content_height = std::max(0.0f, bounds().height - m_content_y);
+    const float content_height = bounds().height;
     // the height one chart slot fills
     const float slot_height = content_height / static_cast<float>(m_frames.size());
     // the base, series and legend caches have one entry per chart
@@ -948,7 +744,7 @@ void studio::ChartView::paint_content(albor::RenderContext& context) {
         // the chart frame this slot paints
         const ChartFrame& frame = m_frames[index];
         // the slot starts at its share of the content height
-        const float slot_y = bounds().y + m_content_y + slot_height * static_cast<float>(index);
+        const float slot_y = bounds().y + slot_height * static_cast<float>(index);
         // the vertical scale from the frame canvas to the arranged slot
         const float scale_y = frame.frame_h > 0.0f ? slot_height / frame.frame_h : 1.0f;
         // the horizontal scale from the frame canvas to the arranged panel
@@ -1005,7 +801,7 @@ void studio::ChartView::paint_content(albor::RenderContext& context) {
     // the transient zoom selection draws above the chart content
     if (m_zoom_selection) {
         // the selection in view coordinates under the strip
-        const albor::Rect selection = albor::Rect::from_origin_size(albor::Point{.x = bounds().x + m_zoom_selection->x, .y = bounds().y + m_content_y + m_zoom_selection->y}, albor::Size{.width = m_zoom_selection->width, .height = m_zoom_selection->height});
+        const albor::Rect selection = albor::Rect::from_origin_size(albor::Point{.x = bounds().x + m_zoom_selection->x, .y = bounds().y + m_zoom_selection->y}, albor::Size{.width = m_zoom_selection->width, .height = m_zoom_selection->height});
         // the translucent selection wash
         context.draw_rect(selection, albor::Paint{.fill = albor::Color::rgba(0.0f, 0.48f, 1.0f, 0.22f)});
         // the selection border
@@ -1040,45 +836,6 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
     }
     // the pointer in view-local coordinates
     const albor::Point local{.x = event.position.x - bounds().x, .y = event.position.y - bounds().y};
-    // the chart point is relative to the content, not the strip
-    const albor::Point chart_point{.x = local.x, .y = local.y - m_content_y};
-    // a press in the dataset strip selects or closes a tab
-    if (event.kind == albor::EventKind::PointerDown && local.y >= 0.0f && local.y < m_content_y && local.x >= 0.0f && local.x < bounds().width) {
-        // a press on a close affordance closes the tab
-        for (std::size_t index = 0; index < m_strip_layer.close_bounds.size(); ++index) {
-            // the close rect of this tab
-            const albor::Rect& close = m_strip_layer.close_bounds[index];
-            // an empty rect or a miss keeps looking
-            if (close.width <= 0.0f || local.x < close.x || local.x > close.x + close.width || local.y < close.y || local.y > close.y + close.height)
-                continue;
-            // the view consumed the close press
-            event.handled = true;
-            // report the close to the presenter
-            if (m_on_tab_closed)
-                m_on_tab_closed(static_cast<int>(index));
-            // the press is settled
-            return;
-        }
-        // a press on a tab body selects it
-        for (std::size_t index = 0; index < m_strip_layer.tab_bounds.size(); ++index) {
-            // the tab rect of this index
-            const albor::Rect& tab = m_strip_layer.tab_bounds[index];
-            // a miss keeps looking
-            if (local.x < tab.x || local.x > tab.x + tab.width)
-                continue;
-            // the view consumed the selection press
-            event.handled = true;
-            // report the selection to the presenter
-            if (m_on_tab_selected)
-                m_on_tab_selected(static_cast<int>(index));
-            // the press is settled
-            return;
-        }
-        // the strip consumes any other press so it cannot reach the chart
-        event.handled = true;
-        // the press is settled
-        return;
-    }
     // a press on a drag handle starts a reorder instead of a zoom
     if (event.kind == albor::EventKind::PointerDown && m_frames.size() > 1) {
         // the handle under the press, if any
@@ -1086,16 +843,16 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
             // the handle rect of this chart
             const albor::Rect handle = chart_drag_handle(index);
             // a miss keeps looking
-            if (handle.empty() || chart_point.x < handle.x || chart_point.x > handle.x + handle.width || chart_point.y < handle.y || chart_point.y > handle.y + handle.height)
+            if (handle.empty() || local.x < handle.x || local.x > handle.x + handle.width || local.y < handle.y || local.y > handle.y + handle.height)
                 continue;
             // the drag owns the pointer until it ends or is canceled
             m_reordering = true;
             // remember the chart the drag grabbed
             m_reorder_from = index;
             // keep the ghost under the grab point
-            m_reorder_grab = chart_point.y - handle.y;
+            m_reorder_grab = local.y - handle.y;
             // the pointer starts at the press
-            m_reorder_pointer = chart_point;
+            m_reorder_pointer = local;
             // the drop starts in the grabbed chart's gap
             m_reorder_gap = index;
             // the view consumed the press
@@ -1117,7 +874,7 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         event.handled = true;
         // report the drag anchor to the presenter
         if (m_on_zoom_drag_started)
-            m_on_zoom_drag_started(chart_point.x, chart_point.y);
+            m_on_zoom_drag_started(local.x, local.y);
         // the press is settled
         return;
     }
@@ -1126,9 +883,9 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // a reorder consumes the move
         if (m_reordering) {
             // the ghost follows the pointer
-            m_reorder_pointer = chart_point;
+            m_reorder_pointer = local;
             // the insertion line follows the rounded slot boundary
-            m_reorder_gap = reorder_gap_at(chart_point.y);
+            m_reorder_gap = reorder_gap_at(local.y);
             // the view consumed the move
             event.handled = true;
             // the handles and the feedback repaint
@@ -1142,7 +899,7 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
             // the handle rect of this chart
             const albor::Rect handle = chart_drag_handle(index);
             // a hover needs a handle the press would find
-            if (!handle.empty() && chart_point.x >= handle.x && chart_point.x <= handle.x + handle.width && chart_point.y >= handle.y && chart_point.y <= handle.y + handle.height)
+            if (!handle.empty() && local.x >= handle.x && local.x <= handle.x + handle.width && local.y >= handle.y && local.y <= handle.y + handle.height)
                 hovered = index;
         }
         // a changed hover repaints the handles
@@ -1158,21 +915,13 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
             event.handled = true;
             // report the moving corner to the presenter
             if (m_on_zoom_drag_moved)
-                m_on_zoom_drag_moved(chart_point.x, chart_point.y);
-            // the move is settled
-            return;
-        }
-        // a move over the strip clears the chart readout
-        if (local.y < m_content_y) {
-            // clear the readout the strip has no chart to explain
-            if (m_on_hover_ended)
-                m_on_hover_ended();
+                m_on_zoom_drag_moved(local.x, local.y);
             // the move is settled
             return;
         }
         // report the hover position to the presenter
         if (m_on_hover_moved)
-            m_on_hover_moved(chart_point.x, chart_point.y);
+            m_on_hover_moved(local.x, local.y);
         // the move is settled
         return;
     }
@@ -1181,7 +930,7 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // a reorder consumes the release
         if (m_reordering) {
             // the gap the pointer names
-            const std::size_t gap = reorder_gap_at(chart_point.y);
+            const std::size_t gap = reorder_gap_at(local.y);
             // the chart the drag grabbed
             const std::size_t from = m_reorder_from;
             // the final index the gap names
@@ -1212,7 +961,7 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         }
         // report the final hover position to the presenter
         if (m_on_hover_moved)
-            m_on_hover_moved(chart_point.x, chart_point.y);
+            m_on_hover_moved(local.x, local.y);
         // the release is settled
         return;
     }
@@ -1237,17 +986,17 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
     // an enter refreshes the hover readout
     if (event.kind == albor::EventKind::PointerEnter) {
         // a pointer on the chart content explains the sample under it
-        if (local.y >= m_content_y && m_on_hover_moved)
-            m_on_hover_moved(chart_point.x, chart_point.y);
+        if (m_on_hover_moved)
+            m_on_hover_moved(local.x, local.y);
     }
 }
 
 albor::Rect studio::ChartView::chart_drag_handle(const std::size_t index) const {
     // a single chart has nothing to reorder, and a chart past the stack has no handle
-    if (m_frames.size() < 2 || index >= m_frames.size() || bounds().width <= 0.0f || m_content_y >= bounds().height)
+    if (m_frames.size() < 2 || index >= m_frames.size() || bounds().width <= 0.0f || bounds().height <= 0.0f)
         return {};
     // the height one chart slot fills
-    const float slot_height = (bounds().height - m_content_y) / static_cast<float>(m_frames.size());
+    const float slot_height = bounds().height / static_cast<float>(m_frames.size());
     // the frame this slot paints
     const ChartFrame& frame = m_frames[index];
     // the vertical scale from the frame canvas to the arranged slot
@@ -1267,7 +1016,7 @@ std::size_t studio::ChartView::reorder_gap_at(const float y) const {
     if (m_frames.empty())
         return 0;
     // the content height the slots share
-    const float content_height = std::max(0.0f, bounds().height - m_content_y);
+    const float content_height = bounds().height;
     // a degenerate content height names the leading gap
     if (content_height <= 0.0f)
         return 0;
@@ -1286,7 +1035,7 @@ void studio::ChartView::paint_chart_handles(albor::RenderContext& context) {
     // draw one handle at a content-relative rect and opacity
     const auto draw_handle = [&](const albor::Rect& handle, const float alpha) {
         // the handle in view coordinates
-        const albor::Rect plate = albor::Rect::from_origin_size(albor::Point{.x = handle.x + bounds().x, .y = handle.y + bounds().y + m_content_y}, albor::Size{.width = handle.width, .height = handle.height});
+        const albor::Rect plate = albor::Rect::from_origin_size(albor::Point{.x = handle.x + bounds().x, .y = handle.y + bounds().y}, albor::Size{.width = handle.width, .height = handle.height});
         // the plate behind the bars
         context.draw_rect(plate, albor::Paint{.fill = albor::Color::rgba(muted.red, muted.green, muted.blue, muted.alpha * 0.18f * alpha)});
         // three bars centred in the plate
@@ -1316,9 +1065,9 @@ void studio::ChartView::paint_chart_handles(albor::RenderContext& context) {
     if (!m_reordering)
         return;
     // the height one chart slot fills
-    const float slot_height = (bounds().height - m_content_y) / static_cast<float>(m_frames.size());
+    const float slot_height = bounds().height / static_cast<float>(m_frames.size());
     // the insertion line marks the gap the drop lands in
-    const float line_y = bounds().y + m_content_y + slot_height * static_cast<float>(m_reorder_gap);
+    const float line_y = bounds().y + slot_height * static_cast<float>(m_reorder_gap);
     // the line spans the panel
     context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = bounds().x, .y = line_y - 1.0f}, albor::Size{.width = bounds().width, .height = 2.0f}), albor::Paint{.fill = albor::Color::rgba(0.0f, 0.48f, 1.0f, 0.9f)});
     // the grabbed handle names the column the ghost stays in
@@ -1423,13 +1172,10 @@ void studio::ChartView::open_context_menu(const albor::Point local_point) {
     // a panel with no engine, chart or text engine has no menu to offer
     if (engine() == nullptr || m_frames.empty() || m_menu_text == nullptr)
         return;
-    // the dataset strip keeps its own interactions, so a press there opens no menu
-    if (local_point.y < m_content_y)
-        return;
     // the content the chart slots share
-    const float content_height = std::max(0.0f, bounds().height - m_content_y);
+    const float content_height = bounds().height;
     // the chart the press lands on, by the vertical slice it fills
-    const std::size_t index = content_height <= 0.0f ? 0 : std::min(static_cast<std::size_t>((local_point.y - m_content_y) / content_height * static_cast<float>(m_frames.size())), m_frames.size() - 1);
+    const std::size_t index = content_height <= 0.0f ? 0 : std::min(static_cast<std::size_t>(local_point.y / content_height * static_cast<float>(m_frames.size())), m_frames.size() - 1);
     // the measuring pass measures the rows the popup will build
     auto measuring = build_context_menu(*engine(), *m_menu_text, index);
     // the popup takes the extent the rows measured
@@ -1481,9 +1227,6 @@ void studio::ChartView::arrange(const albor::Rect& bounds) {
     m_last_width = bounds.width;
     // remember the height the next arrange compares against
     m_last_height = bounds.height;
-    // the strip hit rectangles follow the new width before any paint
-    if (width_changed)
-        refresh_strip_bounds();
     // a changed extent needs fresh geometry, but only after the resize settles
     if (changed)
         schedule_resize_settle();
@@ -1498,24 +1241,6 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
     node.set_name(!m_summary.empty() ? m_summary : (identity().explicit_id.empty() ? "charts" : identity().explicit_id));
     // place the announcement where the panel was arranged
     node.set_bounds(bounds());
-    // expose one select and close action per tab
-    for (std::size_t index = 0; index < m_tabs.size(); ++index) {
-        // the actions address the tab by its recorded position
-        const int tab_index = static_cast<int>(index);
-        // select the tab the action names
-        (void)node.add_action("select-tab-" + std::to_string(index), [this, tab_index] {
-            // report the selection to the presenter
-            if (m_on_tab_selected)
-                m_on_tab_selected(tab_index);
-        });
-        // a closable tab also exposes its close affordance
-        if (m_tabs[index].closable)
-            (void)node.add_action("close-tab-" + std::to_string(index), [this, tab_index] {
-                // report the close to the presenter
-                if (m_on_tab_closed)
-                    m_on_tab_closed(tab_index);
-            });
-    }
     // register the context menu commands for every recorded chart
     for (std::size_t index = 0; index < m_frames.size(); ++index) {
         // the command prefix keeps every chart's actions apart

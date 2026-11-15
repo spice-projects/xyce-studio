@@ -18,6 +18,7 @@
 #include "views/charts/add_plot_dialog_view.h"
 #include "views/charts/chart_view.h"
 #include "views/charts/step_tool_dialog_view.h"
+#include "views/main_window/document_tabs.h"
 #include "views/main_window/main_window_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
 #include "views/simulation_parameters/simulation_parameters_dialog_view.h"
@@ -55,6 +56,17 @@ int studio::StudioApp::run() {
     // the shell reports the netlist lifecycle to the presenter, which reads the Xyce path
     m_main_presenter = std::make_unique<MainWindowPresenter>(*m_main_view, m_plugin_config);
     m_main_view->set_event_handler(m_main_presenter.get());
+    // a new netlist document closes the output tabs of the previous one and selects the netlist tab
+    m_main_presenter->set_on_netlist_opened([this] {
+        // the previous netlist's outputs no longer belong to the document
+        if (m_charts_presenter != nullptr)
+            m_charts_presenter->close_all_datasets();
+        // the netlist tab is the first document and the body shows it
+        m_charts_visible = false;
+        m_main_view->set_charts_visible(false);
+        // the strip lists only the netlist
+        refresh_documents();
+    });
     // the requested netlist reaches the shell through the same dispatch the open action uses
     if (!m_startup_netlist.empty())
         m_main_presenter->on_open_file(m_startup_netlist);
@@ -69,40 +81,43 @@ int studio::StudioApp::run() {
             if (m_charts_presenter != nullptr)
                 m_charts_presenter->set_dark_mode(dark);
         });
-        // the tab set controls the charts action and the body
+        // the tab set rebuilds the document strip
         m_charts_presenter->set_on_tabs_changed([this] {
-            // a presenter without a dataset disables the action
+            // a detached presenter has no strip to rebuild
             if (m_charts_presenter == nullptr)
                 return;
-            // the charts action only reaches a live dataset
-            const bool has_dataset = m_charts_presenter->has_dataset();
-            // reflect the dataset state on the toolbar
-            m_main_view->set_charts_enabled(has_dataset);
-            // the last closed tab returns the body to the editor
-            if (!has_dataset && m_charts_visible) {
-                // the waveform panel has no content to show
+            // the last closed tab returns the body to the netlist
+            if (!m_charts_presenter->has_dataset())
                 m_charts_visible = false;
-                // reveal the editor again
-                m_main_view->set_charts_visible(false);
-            }
+            // the strip follows the dataset set
+            refresh_documents();
         });
         // render the hover readout in the status bar
         m_charts_presenter->set_on_hover([this](const std::string& text) { m_main_view->set_status_text(text.empty() ? "Ready" : text); });
-        // the toolbar action toggles the body between the editor and the charts
-        m_main_view->set_on_show_charts([this] {
-            m_charts_visible = !m_charts_visible;
-            m_main_view->set_charts_visible(m_charts_visible);
-        });
+        // the strip selects the netlist or one dataset tab
+        if (DocumentTabs* tabs = m_main_view->document_tabs()) {
+            // a press selects the document it names
+            tabs->set_on_selected([this](const int index) { select_document(index); });
+            // a close press closes the dataset it names
+            tabs->set_on_closed([this](const int index) { close_document(index); });
+        }
         // an output file the open action resolves loads into the charts
         m_main_presenter->set_dataset_file_handler([this](const std::filesystem::path& path, std::shared_ptr<TempOutputDirectory> artifacts) {
             // a dataset the charts cannot read belongs to no other action
-            if (m_charts_presenter == nullptr || !m_charts_presenter->show_file(path, std::move(artifacts)))
+            if (m_charts_presenter == nullptr)
                 return false;
-            // reveal the waveform panel the new dataset fills
+            // the new dataset activates while the charts are shown, so the strip resolves it once
+            const bool was_visible = m_charts_visible;
             m_charts_visible = true;
             m_main_view->set_charts_visible(true);
-            // the charts action now has a dataset to show
-            m_main_view->set_charts_enabled(true);
+            // a refused file restores the body it found
+            if (!m_charts_presenter->show_file(path, std::move(artifacts))) {
+                m_charts_visible = was_visible;
+                refresh_documents();
+                return false;
+            }
+            // the strip follows the dataset set
+            refresh_documents();
             // report the file was consumed
             return true;
         });
@@ -111,16 +126,17 @@ int studio::StudioApp::run() {
             // a detached charts presenter cannot show the run results
             if (m_charts_presenter == nullptr)
                 return studio::RunOutputResult{};
+            // the run activates its dataset while the charts are shown, so the strip resolves it once
+            const bool was_visible = m_charts_visible;
+            m_charts_visible = true;
+            m_main_view->set_charts_visible(true);
             // the charts resolve every produced dataset from the run configuration
             const studio::RunOutputResult result = m_charts_presenter->show_run_output(output, std::move(artifacts));
-            // a shown run reveals the waveform panel and enables its action
-            if (result.outcome != studio::RunOutputOutcome::None) {
-                // reveal the waveform panel the run dataset fills
-                m_charts_visible = true;
-                m_main_view->set_charts_visible(true);
-                // the charts action now has a dataset to show
-                m_main_view->set_charts_enabled(true);
-            }
+            // a run that produced nothing restores the body it found
+            if (result.outcome == studio::RunOutputOutcome::None)
+                m_charts_visible = was_visible;
+            // the strip follows the dataset set
+            refresh_documents();
             // report the datasets the run produced
             return result;
         });
@@ -132,20 +148,21 @@ int studio::StudioApp::run() {
         });
         // a startup dataset opens every requested file as a tab
         bool startup_loaded = false;
+        // the charts show while the requested datasets load, so the last one activates
+        const bool was_visible = m_charts_visible;
+        m_charts_visible = true;
+        m_main_view->set_charts_visible(true);
         // walk the files the command line named
         for (const std::filesystem::path& dataset : m_startup_datasets) {
             // a readable dataset joins the tab set
             if (m_charts_presenter->show_file(dataset))
                 startup_loaded = true;
         }
-        // reveal the waveform panel when at least one startup dataset loaded
-        if (startup_loaded) {
-            // reveal the waveform panel the startup dataset fills
-            m_charts_visible = true;
-            m_main_view->set_charts_visible(true);
-            // the charts action now has a dataset to show
-            m_main_view->set_charts_enabled(true);
-        }
+        // no readable startup dataset restores the netlist body
+        if (!startup_loaded)
+            m_charts_visible = was_visible;
+        // the strip lists the netlist and every open dataset
+        refresh_documents();
     }
     // the add/remove plots dialog is parented to the shell and outlives individual shows
     if (m_charts_presenter != nullptr) {
@@ -160,13 +177,16 @@ int studio::StudioApp::run() {
             // a chart that vanished opens nothing
             if (!state)
                 return;
+            // the dataset the dialog edits may change while it is open
+            const int dataset_id = state->dataset_id;
             // the dialog edits the selection and hands the accepted names back to the charts
             m_add_plot_view->show(
                 *state,
-                [this, index](std::vector<std::string> names) {
-                    // a shell that closed while the dialog ran drops the selection
-                    if (m_charts_presenter != nullptr)
-                        m_charts_presenter->apply_plot_selection(index, names);
+                [this, index, dataset_id](std::vector<std::string> names) {
+                    // a shell that closed or switched datasets drops the selection
+                    if (m_charts_presenter == nullptr || m_charts_presenter->active_dataset_id() != dataset_id)
+                        return;
+                    m_charts_presenter->apply_plot_selection(index, names);
                 },
                 [this, index](const std::string& expression) -> std::optional<studio::PlotExpression> {
                     // a shell that closed while the dialog ran resolves nothing
@@ -189,10 +209,12 @@ int studio::StudioApp::run() {
             // a chart that vanished or has a single step opens nothing
             if (!state)
                 return;
+            // the dataset the dialog edits may change while it is open
+            const int dataset_id = state->dataset_id;
             // the dialog edits the selection and hands the accepted steps back to the charts
-            m_step_tool_view->show(*state, [this, index](std::vector<std::size_t> steps) {
-                // a shell that closed while the dialog ran drops the selection
-                if (m_charts_presenter == nullptr)
+            m_step_tool_view->show(*state, [this, index, dataset_id](std::vector<std::size_t> steps) {
+                // a shell that closed or switched datasets drops the selection
+                if (m_charts_presenter == nullptr || m_charts_presenter->active_dataset_id() != dataset_id)
                     return;
                 // the chart keeps only the accepted steps
                 m_charts_presenter->apply_step_selection(index, std::set<std::size_t>(steps.begin(), steps.end()));
@@ -244,4 +266,79 @@ int studio::StudioApp::run() {
     });
     // block until the last window closes
     return application.run();
+}
+
+void studio::StudioApp::refresh_documents() {
+    // a shell without the strip has nothing to list
+    if (m_main_view == nullptr || m_main_view->document_tabs() == nullptr)
+        return;
+    // the netlist is always the first document and reserves its label
+    std::vector<DocumentTabSpec> documents;
+    std::set<std::string> used_titles{"Netlist"};
+    documents.push_back(DocumentTabSpec{.title = "Netlist", .closable = false});
+    // every open dataset follows in tab order
+    if (m_charts_presenter != nullptr) {
+        for (std::size_t index = 0; index < m_charts_presenter->dataset_count(); ++index) {
+            // the title the dataset reports
+            std::string title = m_charts_presenter->dataset_title(index);
+            // an unnamed dataset still needs a label
+            if (title.empty())
+                title = "Dataset " + std::to_string(index + 1);
+            // a title the strip already carries takes the next free suffix
+            if (!used_titles.insert(title).second) {
+                for (int suffix = 2;; ++suffix) {
+                    std::string candidate = title + " (" + std::to_string(suffix) + ")";
+                    if (used_titles.insert(candidate).second) {
+                        title = candidate;
+                        break;
+                    }
+                }
+            }
+            documents.push_back(DocumentTabSpec{.title = std::move(title), .closable = m_charts_presenter->dataset_closable(index)});
+        }
+    }
+    // the active tab names the visible body
+    int active = 0;
+    if (m_charts_visible && m_charts_presenter != nullptr && m_charts_presenter->has_dataset())
+        active = 1 + static_cast<int>(m_charts_presenter->active_dataset());
+    // hand the strip the documents and the selection
+    m_main_view->document_tabs()->set_documents(std::move(documents));
+    m_main_view->document_tabs()->set_active(active);
+    // the body follows the active document
+    m_main_view->set_charts_visible(active > 0);
+}
+
+void studio::StudioApp::select_document(const int index) {
+    // a shell without the chart presenter shows only the netlist
+    if (m_main_view == nullptr)
+        return;
+    // the first tab is the netlist
+    if (index <= 0 || m_charts_presenter == nullptr) {
+        // a gesture the charts owned dies with the hidden canvas
+        if (m_charts_presenter != nullptr)
+            m_charts_presenter->cancel_interaction();
+        m_charts_visible = false;
+        m_main_view->set_charts_visible(false);
+        refresh_documents();
+        return;
+    }
+    // a dataset tab activates the dataset it names
+    const std::size_t dataset = static_cast<std::size_t>(index - 1);
+    if (dataset >= m_charts_presenter->dataset_count())
+        return;
+    // the body shows the charts before the activation refreshes the strip
+    m_charts_visible = true;
+    m_main_view->set_charts_visible(true);
+    // the dataset follows the selection
+    m_charts_presenter->activate_dataset(dataset);
+    // the active tab follows the dataset
+    refresh_documents();
+}
+
+void studio::StudioApp::close_document(const int index) {
+    // the netlist tab never closes
+    if (index <= 0 || m_charts_presenter == nullptr)
+        return;
+    // the presenter owns the dataset and republishes the remaining set
+    m_charts_presenter->close_dataset(static_cast<std::size_t>(index - 1));
 }
