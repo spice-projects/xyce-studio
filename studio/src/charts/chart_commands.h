@@ -20,6 +20,9 @@ namespace studio
         // remove every plotted series from the targeted chart
         DeleteAllPlots,
 
+        // choose the parameter combinations the targeted chart keeps active
+        StepTool,
+
         // insert an empty chart after the targeted one
         AddChart,
 

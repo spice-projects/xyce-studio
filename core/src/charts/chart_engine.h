@@ -101,7 +101,7 @@ public:
 
     ChartEngine& operator=(const ChartEngine&) = delete;
 
-    const std::set<size_t>& selected_steps();
+    [[nodiscard]] const std::set<size_t>& selected_steps() const;
 
     void set_selected_steps(const std::set<size_t>& steps);
 

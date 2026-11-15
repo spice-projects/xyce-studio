@@ -105,6 +105,9 @@ namespace studio
         // install the callback a completed chart reorder reaches
         void set_on_chart_reordered(std::function<void(int, int)> handler);
 
+        // tell the commands whether the active dataset carries more than one step
+        void set_step_tool_available(bool available);
+
         // hand out the drag handle rect of one chart, in chart-content coordinates
         [[nodiscard]] albor::Rect chart_drag_handle(std::size_t index) const;
 
@@ -396,6 +399,9 @@ namespace studio
 
         // the callback a completed chart reorder reaches
         std::function<void(int, int)> m_on_chart_reordered;
+
+        // whether the step tool applies to the active dataset
+        bool m_step_tool_available = false;
 
         // whether the pointer owns a reorder drag
         bool m_reordering = false;

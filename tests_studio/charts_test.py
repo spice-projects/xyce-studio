@@ -260,6 +260,34 @@ class ChartsPanelChecks(unittest.TestCase):
             # assert: both charts survive the reorder round trip
             expect(chart).to_have_name("2 line charts")
 
+    def test_the_step_tool_edits_the_chart_steps(self) -> None:
+        # arrange: a dataset whose sweep restarts, so it carries two steps
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-stepped-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 line chart")
+            # act: open the step tool through the chart action
+            chart.click("chart-0-step-tool")
+            app.get_by_id("step_tool_check_0").wait_for_exists()
+            app.get_by_id("step_tool_check_1").wait_for_exists()
+            expect(app.get_by_id("step_tool_count")).to_have_name("Selected 2 / 2")
+            # act: keep only the second step
+            app.get_by_id("step_tool_clear_all").click()
+            app.get_by_id("step_tool_check_1").click("toggle")
+            expect(app.get_by_id("step_tool_count")).to_have_name("Selected 1 / 2")
+            app.get_by_id("step_tool_ok").click()
+            app.get_by_id("step_tool_check_0").wait_for_gone()
+            # assert: the chart survives the accepted selection
+            expect(chart).to_have_name("1 line chart")
+            # act: reopen the dialog over the edited chart
+            chart.click("chart-0-step-tool")
+            app.get_by_id("step_tool_check_0").wait_for_exists()
+            # assert: the chart kept the accepted step
+            expect(app.get_by_id("step_tool_count")).to_have_name("Selected 1 / 2")
+            app.get_by_id("step_tool_cancel").click()
+            app.get_by_id("step_tool_check_0").wait_for_gone()
+
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test
         with TestSession(launch(args=["--dataset", __file__]), self.id()) as app:

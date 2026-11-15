@@ -17,6 +17,7 @@
 #include "presenters/simulation_parameters_presenter.h"
 #include "views/charts/add_plot_dialog_view.h"
 #include "views/charts/chart_view.h"
+#include "views/charts/step_tool_dialog_view.h"
 #include "views/main_window/main_window_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
 #include "views/simulation_parameters/simulation_parameters_dialog_view.h"
@@ -175,6 +176,29 @@ int studio::StudioApp::run() {
                 });
         });
     }
+    // the step tool dialog is parented to the shell and outlives individual shows
+    if (m_charts_presenter != nullptr) {
+        m_step_tool_view = std::make_unique<AlborStepToolDialogView>(application, m_main_view->handle());
+        // the step tool command opens the dialog over the chart it targets
+        m_charts_presenter->set_on_step_tool([this](const std::size_t index) {
+            // a dialog that is already open owns the interaction
+            if (m_step_tool_view == nullptr || m_step_tool_view->is_open() || m_charts_presenter == nullptr)
+                return;
+            // the chart may have been removed while the menu was open
+            const std::optional<studio::StepToolState> state = m_charts_presenter->step_tool_state(index);
+            // a chart that vanished or has a single step opens nothing
+            if (!state)
+                return;
+            // the dialog edits the selection and hands the accepted steps back to the charts
+            m_step_tool_view->show(*state, [this, index](std::vector<std::size_t> steps) {
+                // a shell that closed while the dialog ran drops the selection
+                if (m_charts_presenter == nullptr)
+                    return;
+                // the chart keeps only the accepted steps
+                m_charts_presenter->apply_step_selection(index, std::set<std::size_t>(steps.begin(), steps.end()));
+            });
+        });
+    }
     // the dialog is parented to the shell and outlives individual shows
     m_plugin_config_view = std::make_unique<AlborPluginConfigDialogView>(application, m_main_view->handle());
     m_plugin_config_presenter = std::make_unique<PluginConfigPresenter>();
@@ -203,12 +227,16 @@ int studio::StudioApp::run() {
         // the charts view dies with the shell, so the presenter must stop borrowing it first
         if (m_charts_presenter != nullptr && handle == m_main_view->handle()) {
             m_charts_presenter->set_on_add_remove_plots({});
+            m_charts_presenter->set_on_step_tool({});
             m_charts_presenter->detach();
             m_charts_presenter.reset();
         }
         // the add/remove dialog clears its state before the shell clears its facade
         if (m_add_plot_view != nullptr)
             m_add_plot_view->on_window_closed(handle);
+        // the step tool clears its state the same way
+        if (m_step_tool_view != nullptr)
+            m_step_tool_view->on_window_closed(handle);
         // the dialog clears its presenter before the shell clears its facade
         m_plugin_config_view->on_window_closed(handle);
         m_simulation_parameters_view->on_window_closed(handle);

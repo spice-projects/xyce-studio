@@ -14,6 +14,7 @@
 #include "charts/chart_ui_style.h"
 #include "charts/charts_controller.h"
 #include "charts/plot_selection.h"
+#include "charts/step_tool.h"
 #include "presenters/run_output.h"
 
 class XyceOutputFile;
@@ -88,6 +89,9 @@ namespace studio
         // install the callback the add/remove plots command reaches
         void set_on_add_remove_plots(std::function<void(std::size_t)> handler);
 
+        // install the callback the step tool command reaches
+        void set_on_step_tool(std::function<void(std::size_t)> handler);
+
         // hand out the expressions and rules the add/remove plots dialog opens with
         [[nodiscard]] std::optional<PlotSelectionState> plot_selection(std::size_t chart_index) const;
 
@@ -96,6 +100,12 @@ namespace studio
 
         // apply the accepted expression names to one chart, returning false when a name does not resolve
         bool apply_plot_selection(std::size_t chart_index, const std::vector<std::string>& names);
+
+        // hand out the steps and keys the step tool opens with
+        [[nodiscard]] std::optional<StepToolState> step_tool_state(std::size_t chart_index) const;
+
+        // apply the accepted step indexes to one chart
+        void apply_step_selection(std::size_t chart_index, std::set<std::size_t> steps);
 
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
@@ -218,6 +228,9 @@ namespace studio
 
         // the shell sink for the add/remove plots command
         std::function<void(std::size_t)> m_on_add_remove_plots;
+
+        // the shell sink for the step tool command
+        std::function<void(std::size_t)> m_on_step_tool;
 
         // whether the dark chart palette is active
         bool m_dark_mode = false;

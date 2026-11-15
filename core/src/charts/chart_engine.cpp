@@ -201,7 +201,7 @@ ChartEngine::ChartEngine(ExpressionManager* expression_manager, const StepInform
         m_selected_steps.insert(step);
 }
 
-const std::set<size_t>& ChartEngine::selected_steps() {
+const std::set<size_t>& ChartEngine::selected_steps() const {
     // return selected steps
     return m_selected_steps;
 }

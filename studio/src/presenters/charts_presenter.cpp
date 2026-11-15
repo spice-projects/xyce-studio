@@ -4,6 +4,7 @@
 #include <cctype>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -915,6 +916,12 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
         // drop every plotted series of the targeted chart
         state->controller->clear_chart(chart_index);
         break;
+    case ChartCommand::StepTool:
+        // the dialog owns the selection, so the shell shows it
+        if (m_on_step_tool)
+            m_on_step_tool(chart_index);
+        // a dialog opens no scene change of its own
+        return;
     case ChartCommand::AddChart:
         // insert an empty chart after the targeted one
         state->controller->insert_chart(chart_index, state->kind);
@@ -939,6 +946,70 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
 }
 
 void studio::ChartsPresenter::set_on_add_remove_plots(std::function<void(std::size_t)> handler) { m_on_add_remove_plots = std::move(handler); }
+
+void studio::ChartsPresenter::set_on_step_tool(std::function<void(std::size_t)> handler) { m_on_step_tool = std::move(handler); }
+
+std::optional<studio::StepToolState> studio::ChartsPresenter::step_tool_state(const std::size_t chart_index) const {
+    // the active dataset owns the chart the dialog edits
+    const DatasetState* state = active_state();
+    // no dataset, file or chart has no step tool
+    if (state == nullptr || state->file == nullptr || chart_index >= state->controller->chart_count())
+        return std::nullopt;
+    // the chart whose selection the dialog marks
+    const ChartEngine* chart = state->controller->chart(chart_index);
+    // a chart that vanished under the dialog has no selection
+    if (chart == nullptr)
+        return std::nullopt;
+    // the steps the dataset carries
+    const StepInformation& steps = state->file->step_information();
+    // a single step has nothing to choose
+    if (steps.length() <= 1)
+        return std::nullopt;
+    // the state the dialog opens with
+    StepToolState result{.chart_index = chart_index};
+    // the per-step parameter values, when the file carries one vector per step
+    const std::vector<std::vector<double>>& values = steps.values();
+    // a file without a value per key and step opens with the index column only
+    const bool values_per_step = values.size() == steps.length() && !steps.keys().empty() && std::all_of(values.begin(), values.end(), [&](const std::vector<double>& row) { return row.size() == steps.keys().size(); });
+    // the dialog names the columns only when it can fill them
+    if (values_per_step)
+        result.keys = steps.keys();
+    // the chart's current selection
+    const std::set<std::size_t>& selected = chart->selected_steps();
+    // one row per parameter combination
+    for (std::size_t index = 0; index < steps.length(); ++index) {
+        // the row starts with its index and selection
+        StepToolRow row{.index = index, .selected = selected.contains(index)};
+        // the formatted parameter values follow when the file carries them
+        if (values_per_step) {
+            // one formatted cell per key
+            for (const double value : values[index]) {
+                // format the value the way the readouts do
+                std::ostringstream text;
+                // the default precision keeps the parameter readable
+                text << value;
+                // keep the formatted value
+                row.values.push_back(text.str());
+            }
+        }
+        // keep the row
+        result.rows.push_back(std::move(row));
+    }
+    // hand the state to the dialog
+    return result;
+}
+
+void studio::ChartsPresenter::apply_step_selection(const std::size_t chart_index, std::set<std::size_t> steps) {
+    // the active dataset owns the chart the dialog edits
+    DatasetState* state = active_state();
+    // no dataset and no chart have nothing to change
+    if (state == nullptr || chart_index >= state->controller->chart_count())
+        return;
+    // the chart keeps only the accepted steps
+    state->controller->set_selected_steps(chart_index, steps);
+    // the retained frames follow the rebuilt engines
+    publish_scene();
+}
 
 std::optional<studio::PlotSelectionState> studio::ChartsPresenter::plot_selection(const std::size_t chart_index) const {
     // the active dataset owns the chart the dialog edits
@@ -1127,6 +1198,9 @@ void studio::ChartsPresenter::publish_scene() {
         return;
     // a new scene drops the selection recorded against the old one
     m_view->set_zoom_selection(std::nullopt);
+    // the step tool applies only while the active dataset carries several steps
+    const DatasetState* stepped = active_state();
+    m_view->set_step_tool_available(stepped != nullptr && stepped->file != nullptr && stepped->file->step_information().length() > 1);
     // no dataset leaves the panel empty
     DatasetState* state = active_state();
     // no dataset leaves the panel empty

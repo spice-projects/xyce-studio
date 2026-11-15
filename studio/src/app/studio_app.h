@@ -9,6 +9,7 @@
 namespace studio
 {
     class AlborAddPlotDialogView;
+    class AlborStepToolDialogView;
     class AlborPluginConfigDialogView;
     class AlborSimulationParametersDialogView;
     class ChartsPresenter;
@@ -62,6 +63,9 @@ namespace studio
 
         // the add/remove plots dialog surface
         std::unique_ptr<AlborAddPlotDialogView> m_add_plot_view;
+
+        // the step tool dialog, parented to the shell
+        std::unique_ptr<AlborStepToolDialogView> m_step_tool_view;
 
         // the plugin configuration dialog surface
         std::unique_ptr<AlborPluginConfigDialogView> m_plugin_config_view;

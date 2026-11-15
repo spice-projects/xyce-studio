@@ -265,6 +265,16 @@ void studio::ChartView::set_on_chart_command(std::function<void(ChartCommand, st
 
 void studio::ChartView::set_on_chart_reordered(std::function<void(int, int)> handler) { m_on_chart_reordered = std::move(handler); }
 
+void studio::ChartView::set_step_tool_available(const bool available) {
+    // an unchanged availability keeps the menu as it is
+    if (m_step_tool_available == available)
+        return;
+    // remember whether the tool applies
+    m_step_tool_available = available;
+    // the context menu and the semantic actions follow
+    invalidate();
+}
+
 void studio::ChartView::run_chart_command(const ChartCommand command, const std::size_t chart_index) const {
     // a command reaches the presenter only while the view is wired to it
     if (m_on_chart_command)
@@ -1352,6 +1362,9 @@ std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entri
     entries.push_back(ChartContextMenuEntry{.label = "Add/Remove Plots...", .command = ChartCommand::AddRemovePlots});
     // the plot command applies to both chart kinds
     entries.push_back(ChartContextMenuEntry{.label = "Delete All Plots", .command = ChartCommand::DeleteAllPlots});
+    // the step tool only applies to a cartesian chart of a stepped dataset
+    if (cartesian && m_step_tool_available)
+        entries.push_back(ChartContextMenuEntry{.label = "Step Tool...", .command = ChartCommand::StepTool});
     // the chart stack commands apply to a cartesian chart only
     if (cartesian) {
         // separate the plot command from the chart stack commands
@@ -1528,6 +1541,9 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
         }
         // edit the expressions the chart plots
         (void)node.add_action(prefix + "add-remove-plots", [this, index] { run_chart_command(ChartCommand::AddRemovePlots, index); });
+        // choose the steps the chart keeps active
+        if (!m_frames[index].smith && m_step_tool_available)
+            (void)node.add_action(prefix + "step-tool", [this, index] { run_chart_command(ChartCommand::StepTool, index); });
         // drop every plotted series of the chart
         (void)node.add_action(prefix + "delete-all-plots", [this, index] { run_chart_command(ChartCommand::DeleteAllPlots, index); });
     }

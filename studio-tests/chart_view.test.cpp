@@ -1077,3 +1077,25 @@ TEST(StudioChartViewChecks, the_semantic_node_offers_move_actions_inside_the_sta
     EXPECT_TRUE(node.has_action("chart-1-move-chart-up"));
     EXPECT_FALSE(node.has_action("chart-1-move-chart-down"));
 }
+
+TEST(StudioChartViewChecks, the_step_tool_action_follows_the_dataset_steps) {
+    // arrange: one cartesian chart of a single step dataset
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 300.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 20.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 240.0f;
+    view.set_frames({frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    // assert: a single step dataset offers no step tool
+    EXPECT_FALSE(view.semantic_node().has_action("chart-0-step-tool"));
+    // act: the presenter reports a stepped dataset
+    view.set_step_tool_available(true);
+    // assert: the command joins the chart actions
+    EXPECT_TRUE(view.semantic_node().has_action("chart-0-step-tool"));
+}

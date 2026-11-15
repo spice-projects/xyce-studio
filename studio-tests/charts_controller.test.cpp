@@ -485,3 +485,43 @@ TEST(StudioChartsControllerChecks, every_chart_shares_one_arranged_plot_rect) {
         }
     }
 }
+
+TEST(StudioChartsControllerChecks, the_step_selection_keeps_only_the_chosen_step) {
+    // arrange: two steps of the same sweep
+    std::vector<std::pair<size_t, size_t>> slices{{0, 11}, {11, 22}};
+    std::vector<double> time;
+    std::vector<double> volts;
+    for (int step = 0; step < 2; ++step) {
+        for (int index = 0; index < 11; ++index) {
+            time.push_back(static_cast<double>(index));
+            volts.push_back(static_cast<double>(index) + (step == 0 ? 0.0 : 100.0));
+        }
+    }
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::move(time), slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::move(volts), slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 10.0}, {0.0, 10.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* chart = controller.add_chart();
+    ASSERT_NE(chart, nullptr);
+    chart->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    // assert: every step is the default selection
+    ASSERT_EQ(controller.frames().size(), 1U);
+    EXPECT_EQ(chart->selected_steps(), std::set<size_t>({0, 1}));
+    ASSERT_FALSE(controller.frames()[0].series.empty());
+    // act: keep only the second step
+    controller.set_selected_steps(0, {1});
+    // assert: the frame carries the second step's samples, which sit a hundred volts higher
+    ASSERT_EQ(controller.frames().size(), 1U);
+    ASSERT_FALSE(controller.frames()[0].series.empty());
+    ASSERT_FALSE(controller.frames()[0].y_axes[0].ticks.empty());
+    EXPECT_GT(controller.frames()[0].y_axes[0].ticks.back().value, 50.0);
+    // act: clear the selection
+    controller.set_selected_steps(0, {});
+    // assert: an empty selection plots nothing
+    ASSERT_EQ(controller.frames().size(), 1U);
+    EXPECT_TRUE(controller.frames()[0].series.empty());
+}
