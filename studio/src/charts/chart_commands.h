@@ -20,6 +20,9 @@ namespace studio
         // remove every plotted series from the targeted chart
         DeleteAllPlots,
 
+        // compute an FFT over the selected plots of the targeted chart
+        CalculateFft,
+
         // choose the parameter combinations the targeted chart keeps active
         StepTool,
 

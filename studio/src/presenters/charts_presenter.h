@@ -12,6 +12,7 @@
 #include "charts/chart_commands.h"
 #include "charts/chart_text_measurer.h"
 #include "charts/charts_controller.h"
+#include "charts/fft_selection.h"
 #include "charts/plot_selection.h"
 #include "charts/step_tool.h"
 #include "presenters/run_output.h"
@@ -100,6 +101,9 @@ namespace studio
         // install the callback the step tool command reaches
         void set_on_step_tool(std::function<void(std::size_t)> handler);
 
+        // install the callback the calculate FFT command reaches
+        void set_on_calculate_fft(std::function<void(std::size_t)> handler);
+
         // hand out the expressions and rules the add/remove plots dialog opens with
         [[nodiscard]] std::optional<PlotSelectionState> plot_selection(std::size_t chart_index) const;
 
@@ -114,6 +118,12 @@ namespace studio
 
         // apply the accepted step indexes to one chart
         void apply_step_selection(std::size_t chart_index, std::set<std::size_t> steps);
+
+        // hand out the expressions and range the FFT dialog opens with
+        [[nodiscard]] std::optional<FftSelectionState> fft_selection(std::size_t chart_index) const;
+
+        // compute the accepted transform and append it as a new dataset
+        void apply_fft(const FftRequest& request);
 
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
@@ -160,6 +170,9 @@ namespace studio
             // whether the tab carries a close affordance
             bool closable = true;
         };
+
+        // report whether the active dataset is a time-domain run, which the FFT needs
+        [[nodiscard]] bool fft_available() const;
 
         // hand out the active dataset record, or null when no dataset is open
         [[nodiscard]] DatasetState* active_state();
@@ -230,6 +243,9 @@ namespace studio
 
         // the shell sink for the step tool command
         std::function<void(std::size_t)> m_on_step_tool;
+
+        // the shell sink for the calculate FFT command
+        std::function<void(std::size_t)> m_on_calculate_fft;
 
         // whether the dark chart palette is active
         bool m_dark_mode = false;

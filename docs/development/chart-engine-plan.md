@@ -393,8 +393,11 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 
 ### Follow-ups
 
-- 6.4 FFT setup dialog, using the chart expressions.
-- 6.6 Add Plot dialog.
+- 6.4 FFT setup dialog, using the chart expressions. **Delivered**: the chart
+  context menu offers Calculate FFT on a time-domain dataset, the dialog edits
+  the expressions, range, points, window, output and format, and the accepted
+  transform joins the document strip as its own dataset.
+- 6.6 Add Plot dialog. **Delivered**.
 - 6.8 native chart windows (`new_window`).
 - Fourier results table parity.
 

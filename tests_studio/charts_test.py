@@ -393,6 +393,24 @@ class ChartsPanelChecks(unittest.TestCase):
             expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
             expect(chart).to_have_name("1 line chart")
 
+    def test_the_fft_dialog_appends_a_frequency_dataset(self) -> None:
+        # arrange: a transient dataset whose chart plots two real signals
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            # act: open the FFT dialog through the chart action
+            chart.click("chart-0-calculate-fft")
+            app.get_by_id("fft_ok").wait_for_exists()
+            expect(app.get_by_id("fft_card_0")).to_have_name("V(1)")
+            expect(app.get_by_id("fft_card_1")).to_have_name("V(2)")
+            # act: accept the default transform
+            app.get_by_id("fft_ok").click()
+            app.get_by_id("fft_ok").wait_for_gone()
+            # assert: the transform opens as the active dataset tab
+            expect(chart).to_have_name("2 datasets, 2 line charts, active: FFT: Hanning, 0–56833 Hz")
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: FFT: Hanning, 0–56833 Hz")
+
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test
         with TestSession(launch(args=["--dataset", __file__]), self.id()) as app:

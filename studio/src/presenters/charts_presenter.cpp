@@ -4,6 +4,7 @@
 #include <cctype>
 #include <optional>
 #include <set>
+#include <span>
 #include <sstream>
 #include <utility>
 #include <variant>
@@ -105,6 +106,22 @@ namespace
             return true;
         // a complex line chart plots the magnitude and phase under derived names
         return std::holds_alternative<Expression<std::complex<double>>>(expression) && (series.contains("db(" + name + ")") || series.contains("phase(" + name + ")"));
+    }
+    // the window name the FFT dataset title carries
+    std::string fft_window_label(const fft::WindowFunction window) {
+        // every window names itself in the title
+        switch (window) {
+        case fft::WindowFunction::RECTANGULAR:
+            return "Rectangular";
+        case fft::WindowFunction::HAMMING:
+            return "Hamming";
+        case fft::WindowFunction::HANNING:
+            return "Hanning";
+        case fft::WindowFunction::BLACKMAN:
+            return "Blackman";
+        }
+        // an unknown window reads as the default
+        return "Hanning";
     }
 } // namespace
 
@@ -923,6 +940,12 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
             m_on_step_tool(chart_index);
         // a dialog opens no scene change of its own
         return;
+    case ChartCommand::CalculateFft:
+        // the dialog owns the transform, so the shell shows it
+        if (m_on_calculate_fft)
+            m_on_calculate_fft(chart_index);
+        // a dialog opens no scene change of its own
+        return;
     case ChartCommand::AddChart:
         // insert an empty chart after the targeted one
         state->controller->insert_chart(chart_index, state->kind);
@@ -949,6 +972,194 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
 void studio::ChartsPresenter::set_on_add_remove_plots(std::function<void(std::size_t)> handler) { m_on_add_remove_plots = std::move(handler); }
 
 void studio::ChartsPresenter::set_on_step_tool(std::function<void(std::size_t)> handler) { m_on_step_tool = std::move(handler); }
+
+void studio::ChartsPresenter::set_on_calculate_fft(std::function<void(std::size_t)> handler) { m_on_calculate_fft = std::move(handler); }
+
+bool studio::ChartsPresenter::fft_available() const {
+    // the active dataset owns the abscissa the transform reads
+    const DatasetState* state = active_state();
+    // no dataset has no time axis
+    if (state == nullptr || state->file == nullptr)
+        return false;
+    // only a transient run carries a time abscissa
+    return state->file->plot_type() == PlotType::TRANSIENT;
+}
+
+std::optional<studio::FftSelectionState> studio::ChartsPresenter::fft_selection(const std::size_t chart_index) const {
+    // the active dataset owns the chart the dialog opens from
+    const DatasetState* state = active_state();
+    // no dataset or file has no transform
+    if (state == nullptr || state->file == nullptr || state->file->plot_type() != PlotType::TRANSIENT)
+        return std::nullopt;
+    // a chart index past the stack has no expressions
+    if (chart_index >= state->controller->chart_count())
+        return std::nullopt;
+    // the chart whose series the dialog offers
+    const ChartEngine* chart = state->controller->chart(chart_index);
+    // a chart that vanished under the menu has nothing to transform
+    if (chart == nullptr)
+        return std::nullopt;
+    // the dataset expressions the dialog lists
+    ExpressionManager& manager = state->file->expression_manager();
+    // the state the dialog opens with
+    FftSelectionState result{.chart_index = chart_index, .dataset_id = state->id};
+    // the dataset abscissa range
+    const StepInformation& steps = state->file->step_information();
+    result.all_from = steps.abscissa_left_value();
+    result.all_to = steps.abscissa_right_value();
+    // the chart's visible abscissa range, which the current zoom preset names
+    result.zoom_from = chart->abscissa_left_value();
+    result.zoom_to = chart->abscissa_right_value();
+    // the zoom is a narrower range than the dataset
+    result.has_zoom = result.zoom_from != result.all_from || result.zoom_to != result.all_to;
+    // the abscissa is not a signal
+    const std::string abscissa = manager.abscissa().name();
+    // every real dataset expression is offered
+    for (const std::string& name : manager.expression_names()) {
+        // the abscissa never joins the transform
+        if (name == abscissa)
+            continue;
+        // resolve the name to the expression the chart plots
+        AnyExpression* expression = manager.evaluate(name);
+        // an unresolved name is not offered
+        if (expression == nullptr)
+            continue;
+        // a complex signal has no real transform
+        if (!std::holds_alternative<Expression<double>>(*expression))
+            continue;
+        // the row starts selected when the chart already plots it
+        result.expressions.push_back(PlotExpression{.name = name, .unit = expression_unit(*expression), .selected = is_expression_plotted(chart->series(), *expression)});
+    }
+    // a chart without a real series has no transform
+    if (result.expressions.empty())
+        return std::nullopt;
+    // hand the state to the dialog
+    return result;
+}
+
+void studio::ChartsPresenter::apply_fft(const FftRequest& request) {
+    // the active dataset owns the chart the dialog named
+    DatasetState* state = active_state();
+    // no dataset has nothing to transform
+    if (state == nullptr || state->file == nullptr)
+        return;
+    // the dataset expressions and steps
+    ExpressionManager& manager = state->file->expression_manager();
+    const StepInformation& steps = state->file->step_information();
+    // the real expressions the dialog selected
+    std::vector<AnyExpression*> selected;
+    for (const std::string& name : request.expressions) {
+        // resolve the name to the expression
+        AnyExpression* expression = manager.evaluate(name);
+        // an unresolved or complex expression is not transformed
+        if (expression == nullptr || !std::holds_alternative<Expression<double>>(*expression))
+            continue;
+        // keep the expression
+        selected.push_back(expression);
+    }
+    // a transform without a signal has nothing to show
+    if (selected.empty())
+        return;
+    // the frequency bins and samples of every processed step
+    std::vector<std::vector<double>> frequency_chunks;
+    std::vector<std::vector<std::vector<double>>> chunks(selected.size());
+    std::vector<std::pair<std::size_t, std::size_t>> abscissa_slices;
+    std::vector<std::pair<double, double>> abscissa_ranges;
+    std::size_t offset = 0;
+    // one transform runs over every step's interval
+    for (std::size_t step = 0; step < steps.length(); ++step) {
+        // the step abscissa, which the range selects
+        std::span<const double> abscissa = manager.abscissa().step_data(step);
+        // the samples the requested interval covers
+        const auto left = std::lower_bound(abscissa.begin(), abscissa.end(), request.from);
+        const auto right = std::upper_bound(abscissa.begin(), abscissa.end(), request.to);
+        // the interval bounds inside the step
+        const std::size_t from_index = static_cast<std::size_t>(std::distance(abscissa.begin(), left));
+        const std::size_t to_index = static_cast<std::size_t>(std::distance(abscissa.begin(), right));
+        // a range with fewer than two samples has no spectrum
+        if (to_index - from_index < 2)
+            continue;
+        // the signal matrix for this step
+        std::vector<std::span<const double>> signals;
+        for (AnyExpression* expression : selected) {
+            // the real view of the expression
+            Expression<double>& real = std::get<Expression<double>>(*expression);
+            // the samples inside the interval
+            signals.push_back(real.step_data(step).subspan(from_index, to_index - from_index));
+        }
+        // a step without signals is skipped
+        if (signals.empty())
+            continue;
+        // the interval the transform reads
+        const std::span<const double> interval = abscissa.subspan(from_index, to_index - from_index);
+        // the transform for this step
+        fft::FftResult result;
+        try {
+            result = fft::compute_fft_many(interval, signals, request.points, request.window, request.format, 0, interval.size() - 1, request.output, request.keep_dc);
+        }
+        catch (...) {
+            // a failed transform leaves the dataset untouched
+            return;
+        }
+        // an empty frequency axis has nothing to plot
+        if (result.frequencies.empty())
+            return;
+        // remember the step slice and value range
+        abscissa_slices.emplace_back(offset, offset + result.frequencies.size());
+        // accumulate the offset
+        offset += result.frequencies.size();
+        // keep the bins and every signal
+        abscissa_ranges.emplace_back(result.frequencies.front(), result.frequencies.back());
+        frequency_chunks.push_back(std::move(result.frequencies));
+        for (std::size_t index = 0; index < result.values.size(); ++index)
+            chunks[index].push_back(std::move(result.values[index]));
+    }
+    // a transform without a processed step has nothing to show
+    if (abscissa_slices.empty())
+        return;
+    // the flattened frequency abscissa
+    std::vector<double> frequency;
+    for (const std::vector<double>& chunk : frequency_chunks)
+        frequency.insert(frequency.end(), chunk.begin(), chunk.end());
+    // the FFT expressions, starting with the frequency axis
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("Frequency", std::move(frequency), abscissa_slices, "Hz"));
+    // the charts the new dataset opens with
+    std::vector<std::vector<std::string>> suggested;
+    for (std::size_t index = 0; index < selected.size(); ++index) {
+        // the real expression the transform read
+        Expression<double>& real = std::get<Expression<double>>(*selected[index]);
+        // the flattened spectrum
+        std::vector<double> data;
+        for (const std::vector<double>& chunk : chunks[index])
+            data.insert(data.end(), chunk.begin(), chunk.end());
+        // the output decides the unit the readout shows
+        std::string unit;
+        if (request.output == fft::FftOutput::PHASE)
+            unit = "°";
+        else if (request.output == fft::FftOutput::MAGNITUDE_DB)
+            unit = "dB";
+        else
+            unit = real.unit();
+        // the transformed expression name
+        const std::string name = "FFT(" + real.name() + ")";
+        // the first three spectra open as charts
+        if (suggested.size() < 3)
+            suggested.push_back({name});
+        // append the transformed expression
+        expressions.emplace_back(Expression<double>(name, std::move(data), abscissa_slices, unit));
+    }
+    // the step information the transform produced
+    StepInformation fft_steps(steps.keys(), steps.values(), abscissa_ranges);
+    // the expression manager the dataset reads
+    ExpressionManager fft_manager(expressions, abscissa_slices);
+    // the title names the window and the frequency span
+    const std::string title = "FFT: " + fft_window_label(request.window) + ", " + std::to_string(static_cast<long long>(abscissa_ranges.front().first + 0.5)) + "–" + std::to_string(static_cast<long long>(abscissa_ranges.front().second + 0.5)) + " Hz";
+    // the synthesized dataset carries the transform
+    auto file = std::make_shared<XyceOutputFile>(std::filesystem::path{}, title, false, std::move(fft_steps), PlotType::FFT, AbscissaScale::LINEAR, std::move(fft_manager), nullptr, std::move(suggested));
+    // the new dataset joins the tab strip as a closable user tab
+    append_dataset(std::move(file), ChartKind::XY, DatasetRole::User, title);
+}
 
 std::optional<studio::StepToolState> studio::ChartsPresenter::step_tool_state(const std::size_t chart_index) const {
     // the active dataset owns the chart the dialog edits
@@ -1180,6 +1391,8 @@ void studio::ChartsPresenter::publish_scene() {
     // the step tool applies only while the active dataset carries several steps
     const DatasetState* stepped = active_state();
     m_view->set_step_tool_available(stepped != nullptr && stepped->file != nullptr && stepped->file->step_information().length() > 1);
+    // the FFT applies only to a time-domain dataset
+    m_view->set_fft_available(fft_available());
     // no dataset leaves the panel empty
     DatasetState* state = active_state();
     // no dataset leaves the panel empty

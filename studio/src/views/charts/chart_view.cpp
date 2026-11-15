@@ -222,6 +222,16 @@ void studio::ChartView::set_on_chart_command(std::function<void(ChartCommand, st
 
 void studio::ChartView::set_on_chart_reordered(std::function<void(int, int)> handler) { m_on_chart_reordered = std::move(handler); }
 
+void studio::ChartView::set_fft_available(const bool available) {
+    // an unchanged availability keeps the menu as it is
+    if (m_fft_available == available)
+        return;
+    // remember whether the tool applies
+    m_fft_available = available;
+    // the context menu and the semantic actions follow
+    invalidate();
+}
+
 void studio::ChartView::set_step_tool_available(const bool available) {
     // an unchanged availability keeps the menu as it is
     if (m_step_tool_available == available)
@@ -1112,6 +1122,9 @@ std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entri
     entries.push_back(ChartContextMenuEntry{.label = "Add/Remove Plots...", .command = ChartCommand::AddRemovePlots});
     // the plot command applies to both chart kinds
     entries.push_back(ChartContextMenuEntry{.label = "Delete All Plots", .command = ChartCommand::DeleteAllPlots});
+    // the FFT only applies to a cartesian chart of a time-domain dataset
+    if (cartesian && m_fft_available)
+        entries.push_back(ChartContextMenuEntry{.label = "Calculate FFT...", .command = ChartCommand::CalculateFft});
     // the step tool only applies to a cartesian chart of a stepped dataset
     if (cartesian && m_step_tool_available)
         entries.push_back(ChartContextMenuEntry{.label = "Step Tool...", .command = ChartCommand::StepTool});
@@ -1292,6 +1305,9 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
         }
         // edit the expressions the chart plots
         (void)node.add_action(prefix + "add-remove-plots", [this, index] { run_chart_command(ChartCommand::AddRemovePlots, index); });
+        // compute an FFT over the chart's plots
+        if (!m_frames[index].smith && m_fft_available)
+            (void)node.add_action(prefix + "calculate-fft", [this, index] { run_chart_command(ChartCommand::CalculateFft, index); });
         // choose the steps the chart keeps active
         if (!m_frames[index].smith && m_step_tool_available)
             (void)node.add_action(prefix + "step-tool", [this, index] { run_chart_command(ChartCommand::StepTool, index); });

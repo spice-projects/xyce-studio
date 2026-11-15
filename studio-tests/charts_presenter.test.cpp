@@ -11,6 +11,7 @@
 #include "albor/render/shaped_run.h"
 #include "albor/runtime/binding_engine.h"
 #include "albor/text/text_engine.h"
+#include "charts/fft_selection.h"
 #include "presenters/charts_presenter.h"
 #include "views/charts/chart_view.h"
 
@@ -128,6 +129,48 @@ TEST(StudioChartsPresenterChecks, closing_every_dataset_releases_the_tabs) {
     EXPECT_EQ(presenter.active_dataset_id(), -1);
     EXPECT_EQ(presenter.chart_count(), 0U);
     EXPECT_GE(changed, 1);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, the_fft_selection_offers_the_chart_series_and_apply_appends_a_dataset) {
+    // arrange: a transient csv with one real signal
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-fft";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "tran-fft.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n";
+        for (int index = 0; index < 16; ++index)
+            file << index * 0.001 << "," << (index % 2 == 0 ? 1.0 : 0.0) << "\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::ChartsPresenter presenter(view, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // act: read the transform the dialog would open with
+    const std::optional<studio::FftSelectionState> selection = presenter.fft_selection(0);
+    // assert: the chart's real series is offered over the dataset range
+    ASSERT_TRUE(selection.has_value());
+    ASSERT_EQ(selection->expressions.size(), 1U);
+    EXPECT_EQ(selection->expressions[0].name, "V(1)");
+    EXPECT_DOUBLE_EQ(selection->all_from, 0.0);
+    EXPECT_DOUBLE_EQ(selection->all_to, 0.015);
+    // act: apply a small rectangular transform
+    studio::FftRequest request;
+    request.expressions = {"V(1)"};
+    request.from = 0.0;
+    request.to = 0.015;
+    request.points = 8;
+    request.window = fft::WindowFunction::RECTANGULAR;
+    presenter.apply_fft(request);
+    // assert: the transform joins the tab set as its own dataset
+    ASSERT_EQ(presenter.dataset_count(), 2U);
+    EXPECT_NE(presenter.dataset_title(1).rfind("FFT: Rectangular", 0), std::string::npos);
+    EXPECT_EQ(presenter.active_dataset(), 1U);
     // release the scratch file
     std::filesystem::remove_all(root, error);
 }

@@ -1,0 +1,103 @@
+// the FFT setup dialog, which selects the expressions and the transform parameters
+component FftDialog {
+    signal filter_changed(string text);
+    signal accepted();
+    signal dismissed();
+
+    Column {
+        spacing: 0px;
+
+        Column {
+            vertical_align: Align.stretch;
+            padding: 14px;
+            spacing: 10px;
+
+            Label {
+                text: "Select the expressions and the transform parameters:";
+                font_size: 13px;
+                font_weight: Weight.semibold;
+            }
+
+            TextField {
+                id: fft_filter;
+                placeholder: "Filter expressions...";
+                on_changed: {
+                    filter_changed(value);
+                }
+            }
+
+            SizedBox {
+                id: fft_breadcrumb_host;
+                height: 18px;
+                horizontal_align: Align.stretch;
+            }
+
+            Panel {
+                vertical_align: Align.stretch;
+                padding: 0px;
+                spacing: 0px;
+                background: #00000000;
+                border_width: 0px;
+
+                ScrollView {
+                    vertical_align: Align.stretch;
+                    scrollbar: Scrollbar.as_needed;
+
+                    Grid {
+                        id: fft_grid;
+                        columns: 3;
+                        spacing: 8px;
+                        horizontal_align: Align.stretch;
+                    }
+                }
+            }
+
+            SizedBox {
+                id: fft_legend_host;
+                height: 20px;
+                horizontal_align: Align.stretch;
+            }
+
+            Column {
+                id: fft_params;
+                spacing: 8px;
+                horizontal_align: Align.stretch;
+            }
+        }
+
+        Column {
+            padding: 14px;
+            spacing: 10px;
+
+            Label {
+                id: fft_error;
+                text: "";
+                font_size: 12px;
+                foreground: #CC0000;
+            }
+
+            Row {
+                spacing: 8px;
+                horizontal_align: Align.end;
+
+                Button {
+                    id: fft_cancel;
+                    text: "Cancel";
+                    cancel: true;
+                    on_clicked: {
+                        dismissed();
+                    }
+                }
+
+                Button {
+                    id: fft_ok;
+                    text: "OK";
+                    default: true;
+                    on_clicked: {
+                        accepted();
+                    }
+                }
+            }
+        }
+    }
+}

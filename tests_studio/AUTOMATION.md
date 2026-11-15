@@ -396,8 +396,10 @@ with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
   tabs 1.. are the open datasets in tab order.
 - The chart text and series are pixels inside the canvas; scenario assertions
   use the accessible summary, not the pixel content.
-- The zoom and hover math is covered by the controller unit tests; the native
-  context menu and pointer drag gestures are still open slices.
+- The zoom and hover math is covered by the controller unit tests. The native
+  context menu commands and the document strip are driven through semantic
+  actions; the dev build also exposes `press-center` on the canvas, which
+  dispatches the pointer press a click scenario needs.
 
 ### Open several datasets as tabs (from `charts_test.py`)
 
