@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "albor/application/lifetime_token.h"
 #include "albor/application/timer.h"
 #include "albor/render/glyph_outline.h"
 #include "albor/render/resource_factory.h"
@@ -245,6 +246,9 @@ namespace studio
         // destroy the menu surface a previous open left behind
         void destroy_context_menu();
 
+        // release the menu surface after the event that dismissed it returns
+        void schedule_menu_destroy();
+
         // draw one shaped run, expanding an embedded face into glyph outlines
         void draw_text(albor::RenderContext& context, const albor::TextLayout& layout, albor::Point origin, const albor::Paint& paint);
 
@@ -318,6 +322,9 @@ namespace studio
 
         // the menu surface the last context menu opened
         albor::WindowHandle m_menu_popup;
+
+        // the token a posted menu teardown observes, so it never outlives the view
+        albor::LifetimeTokenSource m_lifetime;
 
         // the command sink the context menu rows report to
         std::function<void(ChartCommand, std::size_t)> m_on_chart_command;

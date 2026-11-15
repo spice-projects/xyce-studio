@@ -32,6 +32,11 @@ else()
     target_compile_options(xyce-studio-next PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# the automation host has no pointer command, so the dev build exposes a press trigger for click scenarios
+if(ALBOR_AUTOMATION)
+    target_compile_definitions(xyce-studio-next PRIVATE XYCE_STUDIO_AUTOMATION=1)
+endif()
+
 if(WIN32)
     target_compile_definitions(xyce-studio-next PRIVATE NOMINMAX)
 endif()

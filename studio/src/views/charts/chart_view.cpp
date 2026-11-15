@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "albor/application/application.h"
 #include "albor/core/constraints.h"
 #include "albor/core/paint.h"
 #include "albor/widgets/menu.h"
@@ -1193,16 +1194,41 @@ void studio::ChartView::open_context_menu(const albor::Point local_point) {
     // the popup clears with the panel role so its first frame never flashes
     const albor::Color background = theme() != nullptr ? theme()->palette().panel_background[0] : albor::Color::rgba(0.13f, 0.15f, 0.19f, 1.0f);
     // the builder runs over the popup stage engines, which is where the menu tree lives
-    m_menu_popup = host->open_popup(*this, anchor, size, [this, index](albor::BindingEngine& popup_engine, albor::TextEngine& popup_text) { return build_context_menu(popup_engine, popup_text, index); }, background, {});
+    m_menu_popup = host->open_popup(
+        *this, anchor, size, [this, index](albor::BindingEngine& popup_engine, albor::TextEngine& popup_text) { return build_context_menu(popup_engine, popup_text, index); }, background,
+        [this] {
+            // a native dismissal releases the surface once the notification returns
+            schedule_menu_destroy();
+        });
 }
 
 void studio::ChartView::close_context_menu() {
     // a view without a surface has nothing to hide
     if (!m_menu_popup.valid())
         return;
-    // a live host hides the surface while keeping its tree
+    // the host hides the surface before the invoking row returns
     if (albor::PopupHost* host = albor::window_popup_host())
         host->close_popup(m_menu_popup);
+    // the tree is released after the row callback that asked for the hide
+    schedule_menu_destroy();
+}
+
+void studio::ChartView::schedule_menu_destroy() {
+    // a view without a surface has nothing to release
+    if (!m_menu_popup.valid())
+        return;
+    // the surface this task may release
+    const albor::WindowHandle popup = m_menu_popup;
+    // the teardown runs after the current event, so a row callback never destroys itself
+    albor::Application::instance().post(
+        [this, popup] {
+            // a later open replaced the surface, which this task must not release
+            if (!(m_menu_popup == popup))
+                return;
+            // the surface and its tree are done
+            destroy_context_menu();
+        },
+        m_lifetime.token());
 }
 
 void studio::ChartView::destroy_context_menu() {
@@ -1272,6 +1298,32 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
         // drop every plotted series of the chart
         (void)node.add_action(prefix + "delete-all-plots", [this, index] { run_chart_command(ChartCommand::DeleteAllPlots, index); });
     }
+#ifdef XYCE_STUDIO_AUTOMATION
+    // the automation host has no pointer command, so the canvas exposes the press a click scenario drives
+    if (!m_frames.empty() && bounds().width > 0.0f && bounds().height > 0.0f) {
+        (void)node.add_action("press-center", [this] {
+            // a view without a plot has no center to press
+            if (m_frames.empty())
+                return;
+            // the first chart frame, whose plot the press targets
+            const ChartFrame& frame = m_frames.front();
+            // the slot height the frames share
+            const float slot_height = bounds().height / static_cast<float>(m_frames.size());
+            // the scales from the frame canvas to the arranged panel
+            const float scale_x = frame.frame_w > 0.0f ? bounds().width / frame.frame_w : 1.0f;
+            const float scale_y = frame.frame_h > 0.0f ? slot_height / frame.frame_h : 1.0f;
+            // the plot center in view coordinates
+            const albor::Point center{.x = bounds().x + (frame.plot_x + frame.plot_w * 0.5f) * scale_x, .y = bounds().y + (frame.plot_y + frame.plot_h * 0.5f) * scale_y};
+            // the press the user would make
+            albor::Event press{.kind = albor::EventKind::PointerDown, .position = center};
+            const_cast<ChartView*>(this)->dispatch_event(press);
+            // the release that ends the press
+            albor::Event release = press;
+            release.kind = albor::EventKind::PointerUp;
+            const_cast<ChartView*>(this)->dispatch_event(release);
+        });
+    }
+#endif
     // hand the node to the adapter
     return node;
 }

@@ -12,15 +12,11 @@
 
 namespace
 {
-    // sample count of each smith grid path; high enough to render smooth
-    // circles and arcs at any chart size
+    // sample count of each smith grid path; high enough to render smooth circles and arcs at any chart size
     constexpr int k_smith_grid_samples = 256;
-    // padding kept between the smith gamma-plane square and the white plot
-    // rect around it; the reactance tick labels sit inside this padding
+    // padding between the smith square and the white plot rect, where the labels sit
     constexpr float k_smith_plot_padding = 26.0f;
-    // offset of the smith tick labels from their anchor: resistance labels
-    // sit just below the real axis, reactance labels just outside the unit
-    // circle boundary
+    // smith label offsets: resistance below the real axis, reactance outside the unit circle
     constexpr float k_resistance_label_offset = 10.0f;
     constexpr float k_reactance_label_offset = 12.0f;
     // implot NiceNum: round x to a nice 1/2/5 x 10^n number
@@ -80,8 +76,7 @@ namespace
         int first_major_idx = 0;
         // ticks added before this locator (tickers are always empty here)
         const int idx0 = static_cast<int>(ticks.size());
-        // total label extent accumulated for the prune decision; horizontal
-        // axes compare widths, vertical axes compare text heights
+        // total label extent for the prune decision: widths on x axes, text heights on y axes
         float total_size = 0.0f;
         // loop majors and their minor subdivisions
         for (double major = graphmin; major < graphmax + 0.5 * interval; major += interval) {
@@ -228,9 +223,7 @@ namespace
         return CHART_MINOR_ALPHA * density_alpha;
     }
 
-    // implot ApplyFit degenerate range expansion: an almost zero-width range
-    // is grown by half a unit so flat data and single point sweeps still get
-    // a usable axis scale
+    // implot fit: an almost zero range grows by half a unit so flat data still scales
     void expand_degenerate_range(double& range_min, double& range_max) {
         // distance between the bounds
         const double diff = std::fabs(range_max - range_min);
@@ -245,8 +238,7 @@ std::pair<double, double> clamped_abscissa_limits(const ChartEngine& engine) {
     // visible abscissa range from the engine
     const double left_value = engine.abscissa_left_value();
     const double right_value = engine.abscissa_right_value();
-    // clamp on the normalized bounds so a descending sweep keeps its order;
-    // clamping the raw bounds would silently turn a reversed range ascending
+    // clamp the normalized bounds so a descending sweep keeps its order
     const bool descending = left_value > right_value;
     double lo = std::min(left_value, right_value);
     double hi = std::max(left_value, right_value);
@@ -287,9 +279,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // legend entry with the assigned series color
         frame.legend.push_back({name, std::get<5>(ordinate_series)});
     }
-    // outside legend: the settled implot render reserves canvas space for it
-    // (CanvasRect.Max.y -= legend size + LegendPadding.y); the legend box is
-    // anchored to the canvas south edge and never overlaps the tick labels
+    // an outside legend reserves canvas space and anchors to the canvas south edge
     if (!frame.legend.empty()) {
         // horizontal legend: icons plus labels and spacing between entries
         float sum_label_width = 0.0f;
@@ -302,9 +292,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // vertical span with the x axis strip and the reserved legend block
         frame.plot_y = canvas_y;
         frame.plot_h = std::max(0.0f, canvas_h - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING) - (frame.legend_h + CHART_LEGEND_PADDING_Y));
-        // x axis datum line at the plot bottom edge
-        frame.x_datum = frame.plot_y + frame.plot_h;
-        // legend centered horizontally with its bottom on the canvas south edge
+        // x axis datum line at the plot bottom edge legend centered horizontally with its bottom on the canvas south edge
         frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
         frame.legend_y = canvas_y + canvas_h - frame.legend_h;
     }
@@ -312,18 +300,14 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // no legend: plain vertical span with the x axis strip
         frame.plot_y = canvas_y;
         frame.plot_h = std::max(0.0f, canvas_h - (CHART_TEXT_HEIGHT + CHART_LABEL_PADDING));
-        frame.x_datum = frame.plot_y + frame.plot_h;
     }
     // abscissa limits clamped for logarithmic scales
     const auto [x_left_value, x_right_value] = clamped_abscissa_limits(engine);
-    // normalize the limits for the locator and layout math; a descending
-    // sweep keeps the engine order (left is the larger bound) and maps
-    // larger values toward the panel west edge
+    // normalize the limits for the locator; a descending sweep keeps its engine order
     const bool abscissa_descending = x_left_value > x_right_value;
     double x_lo = std::min(x_left_value, x_right_value);
     double x_hi = std::max(x_left_value, x_right_value);
-    // expand a degenerate abscissa range like the implot fit so a flat sweep
-    // still gets a usable axis scale
+    // expand a degenerate abscissa range like the implot fit so a flat sweep still gets a usable axis scale
     expand_degenerate_range(x_lo, x_hi);
     // y axis locator budget
     const float plot_height = frame.plot_h;
@@ -333,8 +317,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     frame.y_axes[1].opposite = frame.y_axes[1].enabled;
     frame.y_axes[2].enabled = engine.axes()[2].plots > 0;
     frame.y_axes[2].opposite = frame.y_axes[2].enabled;
-    // expanded y ranges of the enabled axes, shared by the locator, the tick
-    // mapping and the series mapping
+    // expanded y ranges of the enabled axes, shared by the locator, the tick mapping and the series mapping
     double y_lo[3] = {};
     double y_hi[3] = {};
     // y tick ranges and locators (linear axes, vertical orientation)
@@ -345,8 +328,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
         // expanded range of this axis
         y_lo[i] = engine.axes()[i].plot_min_value;
         y_hi[i] = engine.axes()[i].plot_max_value;
-        // expand a degenerate ordinate range like the implot fit so flat
-        // data still gets a usable axis scale
+        // expand a degenerate ordinate range like the implot fit so flat data still gets a usable axis scale
         expand_degenerate_range(y_lo[i], y_hi[i]);
         // locator ticks for the visible range
         locator_default(frame.y_axes[i].ticks, y_lo[i], y_hi[i], plot_height, true, engine.axes()[i].unit, m_measure);
@@ -373,10 +355,6 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
     // plot rect horizontal span
     frame.plot_x = canvas_x + pad_left;
     frame.plot_w = std::max(0.0f, canvas_w - pad_left - pad_right);
-    // axis datums: y1 west datum, y2 and y3 east datums stacked outward
-    frame.y_axes[0].datum = canvas_x + pad_left;
-    frame.y_axes[1].datum = canvas_x + canvas_w - pad_right;
-    frame.y_axes[2].datum = canvas_x + canvas_w - (frame.y_axes[2].enabled && !frame.y_axes[2].ticks.empty() ? max_label_width[2] + CHART_LABEL_PADDING : 0.0f);
     // abscissa tick locator on the horizontal span
     if (frame.plot_w > 0.0f) {
         // abscissa scale drives the locator choice
@@ -422,8 +400,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
             // linear fraction over the visible range
             t = x_hi > x_lo ? (tick.value - x_lo) / (x_hi - x_lo) : 0.0;
         }
-        // pixel position inside the plot rect; a descending sweep places
-        // larger values toward the west edge
+        // pixel position inside the plot rect; a descending sweep places larger values toward the west edge
         if (abscissa_descending)
             t = 1.0 - t;
         tick.pixel_pos = static_cast<float>(frame.plot_x + t * frame.plot_w);
@@ -487,9 +464,7 @@ ChartFrame ChartLayout::build(const ChartEngine& engine, const float width, cons
                 // sample x fraction through the abscissa scale
                 const double x_value = x_view[p];
                 const double y_value = y_view[p];
-                // non-finite samples and non-positive logarithmic abscissas
-                // break the polyline: flush the contiguous finite segment and
-                // start a new one instead of bridging across the gap
+                // non-finite samples and non-positive log abscissas break the polyline at the gap
                 if (!std::isfinite(x_value) || !std::isfinite(y_value) || (log_scale && x_value <= 0.0)) {
                     if (!run.points.empty()) {
                         frame.series.push_back(std::move(run));
@@ -543,8 +518,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         // legend entry with the assigned series color
         frame.legend.push_back({name, std::get<5>(ordinate_series)});
     }
-    // vertical span reserved for the legend block; smith charts draw no axis
-    // tick strip below the plot
+    // vertical span reserved for the legend block; smith charts draw no axis tick strip below the plot
     float available_h = canvas_h;
     if (!frame.legend.empty()) {
         // horizontal legend: icons plus labels and spacing between entries
@@ -561,8 +535,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         frame.legend_x = std::max(0.0f, (width - frame.legend_w) * 0.5f);
         frame.legend_y = canvas_y + canvas_h - frame.legend_h;
     }
-    // white plot rect sized from the available span (equal aspect), then the
-    // gamma-plane square inside it with the label padding on every side
+    // white plot rect sized from the available span, then the square with the label padding
     const float side = std::min(canvas_w, available_h);
     frame.smith_padding = k_smith_plot_padding;
     frame.plot_x = std::max(0.0f, (width - side) * 0.5f) + frame.smith_padding;
@@ -572,15 +545,13 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
     // plot rect center for the axis mapping
     const float center_x = frame.plot_x + frame.plot_w * 0.5f;
     const float center_y = frame.plot_y + frame.plot_h * 0.5f;
-    // smith grid polylines mapped into the plot rect; the unit circle boundary
-    // (the first path) renders in the border color, the rest in the grid color
+    // gamma grid polylines: the unit circle boundary uses the border color, the rest the grid
     const auto grid_paths = smith::grid_paths(k_smith_grid_samples);
     // loop grid paths
     for (size_t g = 0; g < grid_paths.size(); ++g) {
         // grid path of this run
         const auto& path = grid_paths[g];
-        // grid run; the layout carries no theme palette, the slint sink
-        // substitutes the theme colors for the transparent placeholder
+        // grid run; the layout carries no palette, the sink substitutes the theme colors
         ChartSeriesFrame run;
         run.boundary = g == 0;
         run.points.reserve(path.size());
@@ -589,8 +560,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
             // skip non-finite samples
             if (!std::isfinite(gamma.real()) || !std::isfinite(gamma.imag()))
                 continue;
-            // gamma fractions over the fixed +-1 plane; the vertical fraction
-            // places +gamma_i at the top edge
+            // gamma fractions over the fixed +-1 plane; the vertical fraction places +gamma_i at the top edge
             const float tx = static_cast<float>((gamma.real() + 1.0) * 0.5);
             const float ty = static_cast<float>((1.0 - gamma.imag()) * 0.5);
             // pixel position inside the plot rect
@@ -600,8 +570,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         if (!run.points.empty())
             frame.smith_grid.push_back(std::move(run));
     }
-    // real and imaginary axis diameters through the plane, drawn in the
-    // border color like the unit circle boundary
+    // real and imaginary axis diameters through the plane, drawn in the border color like the unit circle boundary
     {
         // horizontal real axis
         ChartSeriesFrame real_axis;
@@ -614,9 +583,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
         imaginary_axis.points = {{center_x, frame.plot_y}, {center_x, frame.plot_y + frame.plot_h}};
         frame.smith_grid.push_back(std::move(imaginary_axis));
     }
-    // tick labels: resistance values where the constant resistance circles
-    // cross the real axis, reactance values outside the unit circle at the
-    // arc ends
+    // tick labels: resistance on the real axis, reactance outside the unit circle
     const std::vector<double> levels = {0.2, 0.5, 1.0, 2.0, 5.0};
     // resistance labels along the horizontal axis
     for (const double r : levels) {
@@ -650,8 +617,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
             run.color = color;
             run.step = step;
             run.points.reserve(gamma_r_view.size());
-            // map each sample to pixel coordinates; non-finite samples break
-            // the polyline the same way the xy layout breaks across gaps
+            // map each sample to pixels; non-finite samples break the polyline like the xy layout
             for (size_t p = 0; p < gamma_r_view.size(); ++p) {
                 // gamma-plane coordinates of the sample
                 const double gamma_r = gamma_r_view[p];
@@ -667,8 +633,7 @@ ChartFrame ChartLayout::build_smith(const ChartEngine& engine, const float width
                     }
                     continue;
                 }
-                // gamma fractions over the fixed +-1 plane; the vertical
-                // fraction places +gamma_i at the top edge
+                // gamma fractions over the fixed +-1 plane; the vertical fraction places +gamma_i at the top edge
                 const float tx = static_cast<float>((gamma_r + 1.0) * 0.5);
                 const float ty = static_cast<float>((1.0 - gamma_i) * 0.5);
                 // pixel position inside the plot rect

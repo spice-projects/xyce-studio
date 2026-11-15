@@ -121,9 +121,6 @@ namespace studio
         // hand out the dataset title the shell may show
         [[nodiscard]] const std::string& title() const;
 
-        // hand out how many series one chart frame of the active dataset carries
-        [[nodiscard]] std::size_t series_count(std::size_t chart_index) const;
-
     private:
         // the role a dataset plays in the tab set
         enum class DatasetRole

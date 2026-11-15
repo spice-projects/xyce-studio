@@ -1,14 +1,18 @@
+import io
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
+
+from PIL import Image
 
 from albor_automation import TestSession, expect, launch
 
 
 class ChartsPanelChecks(unittest.TestCase):
-    # the output dataset argument opens the native chart panel, and the toolbar
-    # action swaps the body between the waveform panel and the netlist editor
+    # the output dataset argument opens the native chart panel, and the document
+    # strip swaps the body between the waveform panel and the netlist editor
 
     def test_dataset_argument_opens_the_charts_panel(self) -> None:
         # arrange: a repository output file and a session scoped to this test
@@ -366,6 +370,28 @@ class ChartsPanelChecks(unittest.TestCase):
                 app.get_by_id("netlist_editor").wait_for_exists()
                 app.get_by_id("document_tabs").click("select-tab-1")
                 app.get_by_id("charts_view").wait_for_exists()
+
+    def test_a_click_in_the_chart_keeps_the_document_strip(self) -> None:
+        # arrange: one dataset whose chart fills the body
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            # the first frame settles before the comparison
+            time.sleep(0.3)
+            # the top band carries the toolbar and the document strip
+            before_image = Image.open(io.BytesIO(app.client().screenshot())).convert("RGB")
+            before_top = before_image.crop((0, 0, before_image.width, min(200, before_image.height))).tobytes()
+            # act: press the center of the first plot, which invalidates the canvas
+            chart.click("press-center")
+            time.sleep(0.3)
+            # assert: the toolbar and the document strip are pixel identical after the press
+            after_image = Image.open(io.BytesIO(app.client().screenshot())).convert("RGB")
+            after_top = after_image.crop((0, 0, after_image.width, min(200, after_image.height))).tobytes()
+            self.assertEqual(before_top, after_top)
+            # assert: both the strip and the canvas are still live
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
+            expect(chart).to_have_name("1 line chart")
 
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test

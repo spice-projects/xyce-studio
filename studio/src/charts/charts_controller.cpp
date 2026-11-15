@@ -123,18 +123,6 @@ void studio::ChartsController::set_selected_steps(const std::size_t index, const
     rebuild_frames();
 }
 
-void studio::ChartsController::reset_zoom(const std::size_t index, const bool horizontal, const bool vertical) {
-    // a chart index past the stack has no zoom to reset
-    ChartEngine* engine = chart(index);
-    // nothing to reset without an engine
-    if (engine == nullptr)
-        return;
-    // reset the requested zoom axes and replot
-    engine->reset_zoom_window(horizontal, vertical);
-    // republish the frame the zoom changed
-    rebuild_frames();
-}
-
 void studio::ChartsController::zoom_to_fit(const std::size_t index) {
     // a chart index past the stack has no window to fit
     if (index >= m_charts.size())
@@ -241,16 +229,6 @@ void studio::ChartsController::move_chart(const std::size_t from, const std::siz
     m_charts.insert(m_charts.begin() + static_cast<std::ptrdiff_t>(to), std::move(moved));
     // republish the frames in their new order
     rebuild_frames();
-}
-
-std::size_t studio::ChartsController::position_to_index(const float y) const {
-    // no chart means there is no index to name
-    if (m_charts.empty() || m_height <= 0.0f)
-        return 0;
-    // clamp the position into the panel before slicing it
-    const float ratio = std::clamp(y / m_height, 0.0f, 0.999999f);
-    // the slice is the chart the position lands in
-    return std::min(static_cast<std::size_t>(ratio * static_cast<float>(m_charts.size())), m_charts.size() - 1);
 }
 
 std::optional<std::size_t> studio::ChartsController::chart_at(const float x, const float y) const {
@@ -517,12 +495,6 @@ void studio::ChartsController::share_axis_columns() {
         // the shared rect replaces the per-chart one
         frame.plot_x = shared_x;
         frame.plot_w = shared_width;
-        frame.x_datum = shared_x;
-        // the west datum sits on the shared left edge
-        frame.y_axes[0].datum = shared_x;
-        // the east datums stack outward from the shared right edge
-        frame.y_axes[1].datum = shared_x + shared_width;
-        frame.y_axes[2].datum = shared_x + shared_width + (frame.y_axes[2].enabled ? column_width : 0.0f);
         // a degenerate recorded plot leaves the positions alone
         if (recorded_w <= 0.0f)
             continue;

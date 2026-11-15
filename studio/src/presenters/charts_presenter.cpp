@@ -1117,21 +1117,6 @@ const std::string& studio::ChartsPresenter::title() const {
     return state != nullptr ? state->title : empty;
 }
 
-std::size_t studio::ChartsPresenter::series_count(const std::size_t chart_index) const {
-    // no dataset has no series
-    const DatasetState* state = active_state();
-    // no dataset has no series
-    if (state == nullptr)
-        return 0;
-    // a chart index past the frames has no series
-    const std::vector<ChartFrame>& frames = state->controller->frames();
-    // a chart index past the built frames has no series
-    if (chart_index >= frames.size())
-        return 0;
-    // hand out the runs the chart frame carries
-    return frames[chart_index].series.size();
-}
-
 studio::ChartsPresenter::DatasetState* studio::ChartsPresenter::active_state() {
     // no dataset has no active record
     if (m_datasets.empty())

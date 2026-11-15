@@ -48,9 +48,6 @@ struct ChartAxisFrame
     // opposite axes render on the right side of the plot
     bool opposite = false;
 
-    // axis datum line position; tick marks and labels are placed from here
-    float datum = 0.0f;
-
     std::vector<ChartTick> ticks;
 
     std::vector<ChartGridLine> grid_lines;
@@ -111,9 +108,6 @@ struct ChartFrame
 
     // the width of one shared axis label column, zero when no axis label is shown
     float axis_column_width = 0.0f;
-
-    // x axis datum line position (tick marks and labels start here)
-    float x_datum = 0.0f;
 
     std::vector<ChartTick> x_ticks;
 

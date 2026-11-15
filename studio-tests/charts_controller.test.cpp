@@ -37,8 +37,6 @@ TEST(StudioChartsControllerChecks, a_chart_fills_its_share_of_the_panel) {
     EXPECT_GE(left, 0.0f);
     EXPECT_GE(top, 0.0f);
     EXPECT_LE(bottom, 300.0f);
-    EXPECT_EQ(controller.position_to_index(10.0f), 0U);
-    EXPECT_EQ(controller.position_to_index(295.0f), 0U);
 }
 
 TEST(StudioChartsControllerChecks, a_zoom_drag_updates_the_dragged_chart_in_two_axes_and_the_others_in_one) {

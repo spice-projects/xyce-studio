@@ -62,9 +62,6 @@ namespace studio
         // apply a step selection to one chart and rebuild its frame
         void set_selected_steps(std::size_t index, const std::set<std::size_t>& steps);
 
-        // reset the zoom window of one chart
-        void reset_zoom(std::size_t index, bool horizontal, bool vertical);
-
         // reset both axes of one chart and the abscissa of its siblings
         void zoom_to_fit(std::size_t index);
 
@@ -85,9 +82,6 @@ namespace studio
 
         // move a chart to another position in the stack
         void move_chart(std::size_t from, std::size_t to);
-
-        // map a panel relative Y position onto a chart index
-        [[nodiscard]] std::size_t position_to_index(float y) const;
 
         // find the chart whose plot rect contains a panel relative point
         [[nodiscard]] std::optional<std::size_t> chart_at(float x, float y) const;
