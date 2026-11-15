@@ -244,6 +244,22 @@ class ChartsPanelChecks(unittest.TestCase):
             app.get_by_id("add_plot_cancel").click()
             app.get_by_id("add_plot_filter").wait_for_gone()
 
+    def test_moving_a_chart_through_the_semantic_action_keeps_the_stack(self) -> None:
+        # arrange: one dataset that opens its chart
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            expect(chart).to_have_name("1 line chart")
+            # act: add a second chart
+            chart.click("chart-0-add-chart")
+            expect(chart).to_have_name("2 line charts")
+            # act: move the first chart down, then the one below it back up
+            chart.click("chart-0-move-chart-down")
+            chart.click("chart-1-move-chart-up")
+            # assert: both charts survive the reorder round trip
+            expect(chart).to_have_name("2 line charts")
+
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test
         with TestSession(launch(args=["--dataset", __file__]), self.id()) as app:

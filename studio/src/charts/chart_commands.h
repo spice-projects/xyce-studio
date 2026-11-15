@@ -23,6 +23,12 @@ namespace studio
         // insert an empty chart after the targeted one
         AddChart,
 
+        // move the targeted chart one slot up
+        MoveChartUp,
+
+        // move the targeted chart one slot down
+        MoveChartDown,
+
         // remove the targeted chart, keeping at least one chart
         DeleteChart
     };

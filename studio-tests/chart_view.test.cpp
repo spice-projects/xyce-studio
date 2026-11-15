@@ -133,7 +133,7 @@ TEST(StudioChartViewChecks, charts_share_the_content_height_equally) {
     view.paint_content(recorder);
     const std::vector<albor::DrawCommand> commands = recorder.commands();
     // assert: the second base layer is placed one slot below the first
-    ASSERT_EQ(commands.size(), 5U);
+    ASSERT_GE(commands.size(), 5U);
     EXPECT_FLOAT_EQ(commands[1].rect_geometry().rect.y, 10.0f);
     EXPECT_FLOAT_EQ(commands[1].transform().translate_y, 0.0f);
     EXPECT_FLOAT_EQ(commands[3].rect_geometry().rect.y, 10.0f);
@@ -887,4 +887,193 @@ TEST(StudioChartViewChecks, the_destructor_cancels_a_pending_settle) {
     // assert: the destroyed view is never called and the timer is gone
     EXPECT_EQ(reports, 0);
     EXPECT_EQ(timers.size(), 0U);
+}
+
+TEST(StudioChartViewChecks, a_chart_handle_is_only_shown_when_the_stack_has_two_charts) {
+    // arrange: one frame over a slot
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    // assert: a single chart has nothing to reorder
+    EXPECT_TRUE(view.chart_drag_handle(0).empty());
+    // act: add the second chart
+    view.set_frames({frame, frame});
+    // assert: both handles sit inside the top right corner of their slot
+    const albor::Rect first = view.chart_drag_handle(0);
+    const albor::Rect second = view.chart_drag_handle(1);
+    EXPECT_FLOAT_EQ(first.x, 314.0f);
+    EXPECT_FLOAT_EQ(first.y, 16.0f);
+    EXPECT_FLOAT_EQ(first.width, 28.0f);
+    EXPECT_FLOAT_EQ(first.height, 18.0f);
+    EXPECT_FLOAT_EQ(second.y, 166.0f);
+}
+
+TEST(StudioChartViewChecks, the_chart_handles_are_painted_above_the_layers) {
+    // arrange: two charts with no series
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame, frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    // act: paint the panel
+    albor::PictureRecorder recorder;
+    view.paint_content(recorder);
+    const std::vector<albor::DrawCommand> commands = recorder.commands();
+    // assert: one 28x18 handle plate is painted at each slot corner
+    int plates = 0;
+    for (const albor::DrawCommand& command : commands) {
+        // only the handle plates carry the handle extent
+        if (command.kind() != albor::DrawCommandKind::Rect || command.rect_geometry().rect.width != 28.0f || command.rect_geometry().rect.height != 18.0f)
+            continue;
+        // the first plate sits on the first slot, the second one below it
+        EXPECT_FLOAT_EQ(command.rect_geometry().rect.x, 314.0f);
+        EXPECT_TRUE(command.rect_geometry().rect.y == 16.0f || command.rect_geometry().rect.y == 166.0f);
+        // count the plates
+        plates++;
+    }
+    EXPECT_EQ(plates, 2);
+}
+
+TEST(StudioChartViewChecks, dragging_a_chart_handle_reorders_the_stack) {
+    // arrange: two charts and a recording reorder callback
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame, frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int from = -1;
+    int to = -1;
+    int zoom_started = 0;
+    view.set_on_chart_reordered([&](const int start, const int target) {
+        from = start;
+        to = target;
+    });
+    view.set_on_zoom_drag_started([&](float, float) { zoom_started++; });
+    // act: grab the first handle and drop it at the bottom slot
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.position = albor::Point{.x = 322.0f, .y = 25.0f};
+    view.dispatch_event(press);
+    albor::Event move;
+    move.kind = albor::EventKind::PointerMove;
+    move.position = albor::Point{.x = 322.0f, .y = 250.0f};
+    view.dispatch_event(move);
+    albor::Event release;
+    release.kind = albor::EventKind::PointerUp;
+    release.position = albor::Point{.x = 322.0f, .y = 250.0f};
+    view.dispatch_event(release);
+    // assert: the grab reorders instead of zooming
+    EXPECT_TRUE(press.handled);
+    EXPECT_EQ(zoom_started, 0);
+    EXPECT_EQ(from, 0);
+    EXPECT_EQ(to, 1);
+}
+
+TEST(StudioChartViewChecks, a_handle_release_in_place_keeps_the_order) {
+    // arrange: two charts and a recording reorder callback
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame, frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int reordered = 0;
+    view.set_on_chart_reordered([&](int, int) { reordered++; });
+    // act: press and release on the same handle
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.position = albor::Point{.x = 322.0f, .y = 25.0f};
+    view.dispatch_event(press);
+    albor::Event release;
+    release.kind = albor::EventKind::PointerUp;
+    release.position = albor::Point{.x = 322.0f, .y = 25.0f};
+    view.dispatch_event(release);
+    // assert: a plain grab moves nothing
+    EXPECT_EQ(reordered, 0);
+}
+
+TEST(StudioChartViewChecks, a_pointer_cancel_aborts_a_reorder) {
+    // arrange: a reorder drag in flight
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame, frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int reordered = 0;
+    view.set_on_chart_reordered([&](int, int) { reordered++; });
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.position = albor::Point{.x = 322.0f, .y = 25.0f};
+    view.dispatch_event(press);
+    // act: the input layer aborts the capture
+    albor::Event cancel;
+    cancel.kind = albor::EventKind::PointerCancel;
+    cancel.position = albor::Point{.x = 322.0f, .y = 250.0f};
+    view.dispatch_event(cancel);
+    // act: the release that never arrives must not reorder
+    albor::Event release;
+    release.kind = albor::EventKind::PointerUp;
+    release.position = albor::Point{.x = 322.0f, .y = 250.0f};
+    view.dispatch_event(release);
+    // assert: the canceled gesture moved nothing
+    EXPECT_EQ(reordered, 0);
+}
+
+TEST(StudioChartViewChecks, the_semantic_node_offers_move_actions_inside_the_stack) {
+    // arrange: two charts
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 150.0f;
+    frame.plot_x = 50.0f;
+    frame.plot_y = 10.0f;
+    frame.plot_w = 300.0f;
+    frame.plot_h = 120.0f;
+    view.set_frames({frame, frame});
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    // act: read the semantic node
+    const albor::SemanticNode node = view.semantic_node();
+    // assert: only the moves with room in that direction are offered
+    EXPECT_FALSE(node.has_action("chart-0-move-chart-up"));
+    EXPECT_TRUE(node.has_action("chart-0-move-chart-down"));
+    EXPECT_TRUE(node.has_action("chart-1-move-chart-up"));
+    EXPECT_FALSE(node.has_action("chart-1-move-chart-down"));
 }

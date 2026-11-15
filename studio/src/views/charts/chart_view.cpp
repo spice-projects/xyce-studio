@@ -114,6 +114,33 @@ namespace
 
     // the narrowest tab that still shows the close affordance
     constexpr float STRIP_CLOSE_MIN_WIDTH = 32.0f;
+
+    // the drag handle width
+    constexpr float DRAG_HANDLE_WIDTH = 28.0f;
+
+    // the drag handle height
+    constexpr float DRAG_HANDLE_HEIGHT = 18.0f;
+
+    // the distance from the plot right edge to the handle
+    constexpr float DRAG_HANDLE_INSET = 8.0f;
+
+    // the distance from the plot top to the handle
+    constexpr float DRAG_HANDLE_TOP_INSET = 6.0f;
+
+    // the width of one grip bar
+    constexpr float DRAG_HANDLE_BAR_WIDTH = 8.0f;
+
+    // the height of one grip bar
+    constexpr float DRAG_HANDLE_BAR_HEIGHT = 2.0f;
+
+    // the gap between two grip bars
+    constexpr float DRAG_HANDLE_BAR_GAP = 2.0f;
+
+    // the opacity of a resting handle
+    constexpr float DRAG_HANDLE_REST_ALPHA = 0.4f;
+
+    // the opacity of a hovered or dragged handle
+    constexpr float DRAG_HANDLE_LIT_ALPHA = 1.0f;
 } // namespace
 
 studio::ChartView::ChartView(albor::BindingEngine* engine, albor::TextEngine* text, albor::TimerScheduler* timers) :
@@ -192,6 +219,8 @@ void studio::ChartView::set_accessible_summary(std::string summary) { m_summary 
 void studio::ChartView::set_frames(std::vector<ChartFrame> frames) {
     // a frame republish ends a drag recorded against the old geometry
     cancel_drag();
+    // the reorder gesture ends with the frames it named
+    cancel_reorder();
     // keep the frames the base layers are recorded from
     m_frames = std::move(frames);
     // the chart content changed, so the panel redraws
@@ -234,6 +263,8 @@ void studio::ChartView::set_on_hover_ended(std::function<void()> handler) { m_on
 
 void studio::ChartView::set_on_chart_command(std::function<void(ChartCommand, std::size_t)> handler) { m_on_chart_command = std::move(handler); }
 
+void studio::ChartView::set_on_chart_reordered(std::function<void(int, int)> handler) { m_on_chart_reordered = std::move(handler); }
+
 void studio::ChartView::run_chart_command(const ChartCommand command, const std::size_t chart_index) const {
     // a command reaches the presenter only while the view is wired to it
     if (m_on_chart_command)
@@ -248,6 +279,8 @@ void studio::ChartView::set_zoom_selection(std::optional<albor::Rect> selection)
 }
 
 void studio::ChartView::cancel_drag() {
+    // a reorder shares the pointer with the zoom drag, so it ends with it
+    cancel_reorder();
     // a view without a live drag has nothing to cancel
     if (!m_dragging)
         return;
@@ -957,6 +990,8 @@ void studio::ChartView::paint_content(albor::RenderContext& context) {
             context.draw_picture(legend_layer.picture, albor::Transform::translation(bounds().x + frame.legend_x * scale_x, slot_y + frame.legend_y * scale_y));
         }
     }
+    // the drag handles and the reorder feedback draw above the chart layers
+    paint_chart_handles(context);
     // the transient zoom selection draws above the chart content
     if (m_zoom_selection) {
         // the selection in view coordinates under the strip
@@ -972,20 +1007,20 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
     // a hidden view takes no input
     if (!visible())
         return;
-    // an escape aborts a drag the input layer left to the view
-    if (event.kind == albor::EventKind::KeyDown && event.key == albor::Key::Escape && m_dragging) {
-        // a live drag is canceled
+    // an escape aborts a gesture the input layer left to the view
+    if (event.kind == albor::EventKind::KeyDown && event.key == albor::Key::Escape && (m_dragging || m_reordering)) {
+        // a live gesture is canceled
         cancel_drag();
         // the key is consumed
         event.handled = true;
         // the key is settled
         return;
     }
-    // an aborted capture drops the drag without changing the charts
+    // an aborted capture drops the gesture without changing the charts
     if (event.kind == albor::EventKind::PointerCancel) {
-        // the input layer already owns the cancel, so it is consumed when a drag was live
-        if (m_dragging) {
-            // a live drag is canceled
+        // the input layer already owns the cancel, so it is consumed when a gesture was live
+        if (m_dragging || m_reordering) {
+            // a live gesture is canceled
             cancel_drag();
             // the view consumed the cancel
             event.handled = true;
@@ -1034,6 +1069,33 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // the press is settled
         return;
     }
+    // a press on a drag handle starts a reorder instead of a zoom
+    if (event.kind == albor::EventKind::PointerDown && m_frames.size() > 1) {
+        // the handle under the press, if any
+        for (std::size_t index = 0; index < m_frames.size(); ++index) {
+            // the handle rect of this chart
+            const albor::Rect handle = chart_drag_handle(index);
+            // a miss keeps looking
+            if (handle.empty() || chart_point.x < handle.x || chart_point.x > handle.x + handle.width || chart_point.y < handle.y || chart_point.y > handle.y + handle.height)
+                continue;
+            // the drag owns the pointer until it ends or is canceled
+            m_reordering = true;
+            // remember the chart the drag grabbed
+            m_reorder_from = index;
+            // keep the ghost under the grab point
+            m_reorder_grab = chart_point.y - handle.y;
+            // the pointer starts at the press
+            m_reorder_pointer = chart_point;
+            // the drop starts in the grabbed chart's gap
+            m_reorder_gap = index;
+            // the view consumed the press
+            event.handled = true;
+            // the handles and the feedback repaint
+            invalidate();
+            // the press is settled
+            return;
+        }
+    }
     // a press inside the chart content starts a zoom drag
     if (event.kind == albor::EventKind::PointerDown) {
         // a press outside the view belongs to whatever is behind it
@@ -1049,8 +1111,37 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // the press is settled
         return;
     }
-    // a move either extends the drag or updates the hover readout
+    // a move either extends a gesture or updates the hover readout
     if (event.kind == albor::EventKind::PointerMove) {
+        // a reorder consumes the move
+        if (m_reordering) {
+            // the ghost follows the pointer
+            m_reorder_pointer = chart_point;
+            // the insertion line follows the rounded slot boundary
+            m_reorder_gap = reorder_gap_at(chart_point.y);
+            // the view consumed the move
+            event.handled = true;
+            // the handles and the feedback repaint
+            invalidate();
+            // the move is settled
+            return;
+        }
+        // the handle under the pointer brightens while no gesture runs
+        std::optional<std::size_t> hovered;
+        for (std::size_t index = 0; index < m_frames.size(); ++index) {
+            // the handle rect of this chart
+            const albor::Rect handle = chart_drag_handle(index);
+            // a hover needs a handle the press would find
+            if (!handle.empty() && chart_point.x >= handle.x && chart_point.x <= handle.x + handle.width && chart_point.y >= handle.y && chart_point.y <= handle.y + handle.height)
+                hovered = index;
+        }
+        // a changed hover repaints the handles
+        if (hovered != m_hovered_handle) {
+            // remember the handle the pointer rests on
+            m_hovered_handle = hovered;
+            // the handles repaint
+            invalidate();
+        }
         // a drag consumes the move
         if (m_dragging) {
             // the view consumed the move
@@ -1075,8 +1166,28 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // the move is settled
         return;
     }
-    // a release ends the drag, or refreshes the hover readout when no drag is active
+    // a release ends a gesture, or refreshes the hover readout when no gesture is active
     if (event.kind == albor::EventKind::PointerUp) {
+        // a reorder consumes the release
+        if (m_reordering) {
+            // the gap the pointer names
+            const std::size_t gap = reorder_gap_at(chart_point.y);
+            // the chart the drag grabbed
+            const std::size_t from = m_reorder_from;
+            // the final index the gap names
+            const std::size_t to = std::min(gap > from ? gap - 1 : gap, m_frames.size() - 1);
+            // the drag no longer owns the pointer
+            m_reordering = false;
+            // the view consumed the release
+            event.handled = true;
+            // the handles and the feedback repaint
+            invalidate();
+            // a landing on another chart reorders the stack
+            if (to != from && m_on_chart_reordered)
+                m_on_chart_reordered(static_cast<int>(from), static_cast<int>(to));
+            // the release is settled
+            return;
+        }
         // a drag consumes the release
         if (m_dragging) {
             // the drag no longer owns the pointer
@@ -1095,11 +1206,18 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // the release is settled
         return;
     }
-    // a leave clears the readout, while a captured drag keeps its gesture
+    // a leave clears the readout, while a captured gesture keeps running
     if (event.kind == albor::EventKind::PointerLeave) {
         // the capture keeps delivering moves until the release or the cancel
-        if (m_dragging)
+        if (m_dragging || m_reordering)
             return;
+        // a handle the pointer left is no longer lit
+        if (m_hovered_handle) {
+            // the handles repaint
+            m_hovered_handle.reset();
+            // the handles repaint
+            invalidate();
+        }
         // clear the readout the pointer left
         if (m_on_hover_ended)
             m_on_hover_ended();
@@ -1112,6 +1230,103 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         if (local.y >= m_content_y && m_on_hover_moved)
             m_on_hover_moved(chart_point.x, chart_point.y);
     }
+}
+
+albor::Rect studio::ChartView::chart_drag_handle(const std::size_t index) const {
+    // a single chart has nothing to reorder, and a chart past the stack has no handle
+    if (m_frames.size() < 2 || index >= m_frames.size() || bounds().width <= 0.0f || m_content_y >= bounds().height)
+        return {};
+    // the height one chart slot fills
+    const float slot_height = (bounds().height - m_content_y) / static_cast<float>(m_frames.size());
+    // the frame this slot paints
+    const ChartFrame& frame = m_frames[index];
+    // the vertical scale from the frame canvas to the arranged slot
+    const float scale_y = frame.frame_h > 0.0f ? slot_height / frame.frame_h : 1.0f;
+    // the horizontal scale from the frame canvas to the arranged panel
+    const float scale_x = frame.frame_w > 0.0f ? bounds().width / frame.frame_w : 1.0f;
+    // the handle sits just inside the plot top right corner, clear of the axis labels
+    const float x = (frame.plot_x + frame.plot_w) * scale_x - DRAG_HANDLE_WIDTH - DRAG_HANDLE_INSET;
+    // the slot origin plus the plot top and the handle inset
+    const float y = slot_height * static_cast<float>(index) + frame.plot_y * scale_y + DRAG_HANDLE_TOP_INSET;
+    // the content-relative handle rect
+    return albor::Rect::from_origin_size(albor::Point{.x = x, .y = y}, albor::Size{.width = DRAG_HANDLE_WIDTH, .height = DRAG_HANDLE_HEIGHT});
+}
+
+std::size_t studio::ChartView::reorder_gap_at(const float y) const {
+    // a panel without charts has only the leading gap
+    if (m_frames.empty())
+        return 0;
+    // the content height the slots share
+    const float content_height = std::max(0.0f, bounds().height - m_content_y);
+    // a degenerate content height names the leading gap
+    if (content_height <= 0.0f)
+        return 0;
+    // the gap under construction, from the rounded slot boundary under the pointer
+    const std::size_t gap = static_cast<std::size_t>(std::lround(std::clamp(y / content_height, 0.0f, 1.0f) * static_cast<float>(m_frames.size())));
+    // the trailing gap closes the range
+    return std::min(gap, m_frames.size());
+}
+
+void studio::ChartView::paint_chart_handles(albor::RenderContext& context) {
+    // a single chart has nothing to reorder
+    if (m_frames.size() < 2 || bounds().empty())
+        return;
+    // one handle plate and three grip bars share the muted role
+    const albor::Color muted = albor::Color::rgba(m_palette.muted.r, m_palette.muted.g, m_palette.muted.b, m_palette.muted.a);
+    // draw one handle at a content-relative rect and opacity
+    const auto draw_handle = [&](const albor::Rect& handle, const float alpha) {
+        // the handle in view coordinates
+        const albor::Rect plate = albor::Rect::from_origin_size(albor::Point{.x = handle.x + bounds().x, .y = handle.y + bounds().y + m_content_y}, albor::Size{.width = handle.width, .height = handle.height});
+        // the plate behind the bars
+        context.draw_rect(plate, albor::Paint{.fill = albor::Color::rgba(muted.red, muted.green, muted.blue, muted.alpha * 0.18f * alpha)});
+        // three bars centred in the plate
+        const float bars_height = 3.0f * DRAG_HANDLE_BAR_HEIGHT + 2.0f * DRAG_HANDLE_BAR_GAP;
+        const float bar_x = plate.x + (plate.width - DRAG_HANDLE_BAR_WIDTH) * 0.5f;
+        const float bars_y = plate.y + (plate.height - bars_height) * 0.5f;
+        // every bar is one rect
+        for (int bar = 0; bar < 3; ++bar)
+            context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = bar_x, .y = bars_y + static_cast<float>(bar) * (DRAG_HANDLE_BAR_HEIGHT + DRAG_HANDLE_BAR_GAP)}, albor::Size{.width = DRAG_HANDLE_BAR_WIDTH, .height = DRAG_HANDLE_BAR_HEIGHT}), albor::Paint{.fill = albor::Color::rgba(muted.red, muted.green, muted.blue, muted.alpha * alpha)});
+    };
+    // one handle is painted per chart, except the one the ghost replaces
+    for (std::size_t index = 0; index < m_frames.size(); ++index) {
+        // the dragged handle follows the pointer instead
+        if (m_reordering && index == m_reorder_from)
+            continue;
+        // the handle rect of this chart
+        const albor::Rect handle = chart_drag_handle(index);
+        // a handle that does not fit draws nothing
+        if (handle.empty())
+            continue;
+        // a hovered or dragged handle is lit
+        const bool lit = m_reordering || (m_hovered_handle && *m_hovered_handle == index);
+        // paint the handle
+        draw_handle(handle, lit ? DRAG_HANDLE_LIT_ALPHA : DRAG_HANDLE_REST_ALPHA);
+    }
+    // the insertion line and the ghost draw only while a reorder runs
+    if (!m_reordering)
+        return;
+    // the height one chart slot fills
+    const float slot_height = (bounds().height - m_content_y) / static_cast<float>(m_frames.size());
+    // the insertion line marks the gap the drop lands in
+    const float line_y = bounds().y + m_content_y + slot_height * static_cast<float>(m_reorder_gap);
+    // the line spans the panel
+    context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = bounds().x, .y = line_y - 1.0f}, albor::Size{.width = bounds().width, .height = 2.0f}), albor::Paint{.fill = albor::Color::rgba(0.0f, 0.48f, 1.0f, 0.9f)});
+    // the grabbed handle names the column the ghost stays in
+    const albor::Rect source = chart_drag_handle(m_reorder_from);
+    // the ghost keeps the grab offset under the pointer
+    const albor::Rect ghost = albor::Rect::from_origin_size(albor::Point{.x = source.empty() ? bounds().width - DRAG_HANDLE_WIDTH - DRAG_HANDLE_INSET : source.x, .y = m_reorder_pointer.y - m_reorder_grab}, albor::Size{.width = DRAG_HANDLE_WIDTH, .height = DRAG_HANDLE_HEIGHT});
+    // the ghost draws at full opacity
+    draw_handle(ghost, DRAG_HANDLE_LIT_ALPHA);
+}
+
+void studio::ChartView::cancel_reorder() {
+    // a view without a live reorder has nothing to cancel
+    if (!m_reordering)
+        return;
+    // the gesture no longer owns the pointer
+    m_reordering = false;
+    // the ghost and the insertion line leave
+    invalidate();
 }
 
 std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entries(const std::size_t chart_index) const {
@@ -1143,6 +1358,12 @@ std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entri
         entries.push_back(ChartContextMenuEntry{.label = {}, .command = ChartCommand::ZoomToFit, .separator = true});
         // insert an empty chart after the targeted one
         entries.push_back(ChartContextMenuEntry{.label = "Add Chart", .command = ChartCommand::AddChart});
+        // only a chart with something above it can move up
+        if (chart_index > 0)
+            entries.push_back(ChartContextMenuEntry{.label = "Move Chart Up", .command = ChartCommand::MoveChartUp});
+        // only a chart with something below it can move down
+        if (chart_index + 1 < m_frames.size())
+            entries.push_back(ChartContextMenuEntry{.label = "Move Chart Down", .command = ChartCommand::MoveChartDown});
         // remove the targeted chart
         entries.push_back(ChartContextMenuEntry{.label = "Delete Chart", .command = ChartCommand::DeleteChart});
     }
@@ -1296,6 +1517,12 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
             (void)node.add_action(prefix + "zoom-abscissa-extent", [this, index] { run_chart_command(ChartCommand::ZoomAbscissaExtent, index); });
             // insert an empty chart after the chart
             (void)node.add_action(prefix + "add-chart", [this, index] { run_chart_command(ChartCommand::AddChart, index); });
+            // a chart with something above it can move up
+            if (index > 0)
+                (void)node.add_action(prefix + "move-chart-up", [this, index] { run_chart_command(ChartCommand::MoveChartUp, index); });
+            // a chart with something below it can move down
+            if (index + 1 < m_frames.size())
+                (void)node.add_action(prefix + "move-chart-down", [this, index] { run_chart_command(ChartCommand::MoveChartDown, index); });
             // remove the chart, keeping at least one chart
             (void)node.add_action(prefix + "delete-chart", [this, index] { run_chart_command(ChartCommand::DeleteChart, index); });
         }

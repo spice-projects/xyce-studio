@@ -102,6 +102,12 @@ namespace studio
         // install the callback the chart context menu commands reach
         void set_on_chart_command(std::function<void(ChartCommand, std::size_t)> handler);
 
+        // install the callback a completed chart reorder reaches
+        void set_on_chart_reordered(std::function<void(int, int)> handler);
+
+        // hand out the drag handle rect of one chart, in chart-content coordinates
+        [[nodiscard]] albor::Rect chart_drag_handle(std::size_t index) const;
+
         // run one chart command on the chart at an index
         void run_chart_command(ChartCommand command, std::size_t chart_index) const;
 
@@ -261,6 +267,15 @@ namespace studio
         // paint the strip into the recorder
         void paint_strip(albor::RenderContext& context, float width, float height);
 
+        // paint the chart drag handles and the reorder feedback
+        void paint_chart_handles(albor::RenderContext& context);
+
+        // the insertion gap the pointer names
+        [[nodiscard]] std::size_t reorder_gap_at(float y) const;
+
+        // cancel an active reorder drag without moving a chart
+        void cancel_reorder();
+
         // compute the tab widths the strip lays out at a given width
         [[nodiscard]] std::vector<float> strip_tab_widths(float width);
 
@@ -378,6 +393,27 @@ namespace studio
 
         // the command sink the context menu rows report to
         std::function<void(ChartCommand, std::size_t)> m_on_chart_command;
+
+        // the callback a completed chart reorder reaches
+        std::function<void(int, int)> m_on_chart_reordered;
+
+        // whether the pointer owns a reorder drag
+        bool m_reordering = false;
+
+        // the chart the reorder drag grabbed
+        std::size_t m_reorder_from = 0;
+
+        // the grab offset inside the handle, which keeps the ghost under the pointer
+        float m_reorder_grab = 0.0f;
+
+        // the pointer inside the chart content while reordering
+        albor::Point m_reorder_pointer;
+
+        // the insertion gap the drop lands in
+        std::size_t m_reorder_gap = 0;
+
+        // the drag handle the pointer rests on, which brightens it
+        std::optional<std::size_t> m_hovered_handle;
 
         // the transient zoom selection in chart-content coordinates
         std::optional<albor::Rect> m_zoom_selection;

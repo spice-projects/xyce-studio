@@ -179,6 +179,21 @@ studio::ChartsPresenter::ChartsPresenter(ChartView& view, albor::TextEngine& tex
     });
     // install the chart command sink
     m_view->set_on_chart_command([this](const ChartCommand command, const std::size_t index) { run_chart_command(command, index); });
+    // the drag handle reports the completed reorder
+    m_view->set_on_chart_reordered([this](const int from, const int to) {
+        // the active dataset owns the stack
+        DatasetState* state = active_state();
+        // nothing to move without a dataset
+        if (state == nullptr)
+            return;
+        // a negative index names no chart
+        if (from < 0 || to < 0)
+            return;
+        // move the chart and republish the stack in its new order
+        state->controller->move_chart(static_cast<std::size_t>(from), static_cast<std::size_t>(to));
+        // the frames follow the reordered engines
+        publish_scene();
+    });
     // paint the palette the shell starts with
     m_view->set_palette(chart_palette(m_dark_mode));
 }
@@ -201,6 +216,7 @@ void studio::ChartsPresenter::detach() {
     m_view->set_on_hover_moved({});
     m_view->set_on_hover_ended({});
     m_view->set_on_chart_command({});
+    m_view->set_on_chart_reordered({});
     // the view is no longer reachable from the presenter
     m_view = nullptr;
 }
@@ -902,6 +918,16 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
     case ChartCommand::AddChart:
         // insert an empty chart after the targeted one
         state->controller->insert_chart(chart_index, state->kind);
+        break;
+    case ChartCommand::MoveChartUp:
+        // the first chart has nothing above it
+        if (chart_index > 0)
+            state->controller->move_chart(chart_index, chart_index - 1);
+        break;
+    case ChartCommand::MoveChartDown:
+        // the last chart has nothing below it
+        if (chart_index + 1 < state->controller->chart_count())
+            state->controller->move_chart(chart_index, chart_index + 1);
         break;
     case ChartCommand::DeleteChart:
         // remove the targeted chart, keeping one replacement when it was the last
