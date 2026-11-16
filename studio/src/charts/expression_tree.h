@@ -8,9 +8,14 @@
 // hierarchy classification of an expression name
 enum class GroupKind
 {
-    Flat, // no hierarchy encoded in the name
-    Subcircuit, // SPICE subcircuit path separated by colons
-    Sheet, // KiCad sheet hierarchy prefixed with slashes
+    // no hierarchy encoded in the name
+    Flat,
+
+    // SPICE subcircuit path separated by colons
+    Subcircuit,
+
+    // KiCad sheet hierarchy prefixed with slashes
+    Sheet,
 };
 
 // one card of the expression grid, an expression tile or a drill-in scope tile

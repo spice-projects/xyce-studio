@@ -13,6 +13,7 @@
 #include "albor/text/text_engine.h"
 #include "charts/fft_selection.h"
 #include "presenters/charts_presenter.h"
+#include "presenters/run_output.h"
 #include "views/charts/chart_view.h"
 #include "views/charts/fourier_results_view.h"
 
@@ -297,6 +298,66 @@ TEST(StudioChartsPresenterChecks, switching_tabs_swaps_the_table_and_the_charts)
     // assert: the charts describe the chart dataset
     EXPECT_FALSE(presenter.fourier_active());
     EXPECT_EQ(presenter.chart_count(), 1U);
+    // release the scratch files
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, discarding_run_companions_keeps_the_active_user_tab) {
+    // arrange: a run that produced a primary and a Fourier companion, plus two user datasets
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-run-roles";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    {
+        std::ofstream primary(root / "run.cir.csv");
+        primary << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    {
+        std::ofstream four(root / "run.cir.four0");
+        four << "Fourier analysis for V(1):\n";
+        four << "  No. Harmonics: 2, THD: 1.000000e+00, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        four << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        four << "           0    0.000000e+00    3.125000e-01    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        four << "           1    1.000000e+03    5.000000e+00    0.000000e+00    1.000000e+00    0.000000e+00\n";
+        four << "\n";
+    }
+    // the two user files the shell opened by hand
+    const std::filesystem::path user_a = root / "user-a.csv";
+    const std::filesystem::path user_b = root / "user-b.csv";
+    {
+        std::ofstream file(user_a);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    {
+        std::ofstream file(user_b);
+        file << "TIME,V(1)\n0,0\n1,2\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    // the run configuration that produced both files
+    studio::RunOutput output;
+    output.config = SimulationConfig::from_xyce_directives({".TRAN 0 10m 1m", ".PRINT TRAN FORMAT=CSV V(1)", ".FOUR 1k V(1)"});
+    output.netlist_path = root / "run.cir";
+    output.working_directory = root;
+    output.title = "run";
+    const studio::RunOutputResult shown = presenter.show_run_output(output, nullptr);
+    ASSERT_EQ(shown.outcome, studio::RunOutputOutcome::Primary);
+    ASSERT_EQ(presenter.dataset_count(), 2U);
+    ASSERT_TRUE(presenter.show_file(user_a));
+    ASSERT_TRUE(presenter.show_file(user_b));
+    ASSERT_EQ(presenter.dataset_count(), 4U);
+    // the first user file is the tab the reader is looking at
+    presenter.activate_dataset(2);
+    const std::string active_title = presenter.dataset_title(presenter.active_dataset());
+    // act: the next run discards the previous run's companion
+    presenter.discard_run_companions();
+    // assert: the erase sat before the active tab, which keeps the selection it had
+    ASSERT_EQ(presenter.dataset_count(), 3U);
+    EXPECT_EQ(presenter.active_dataset(), 1U);
+    EXPECT_EQ(presenter.dataset_title(presenter.active_dataset()), active_title);
     // release the scratch files
     std::filesystem::remove_all(root, error);
 }

@@ -16,6 +16,8 @@ studio::ChartsController::ChartsController(const float width, const float height
     m_layout(std::move(measure)), m_width(width), m_height(height) {}
 
 void studio::ChartsController::set_dataset(ExpressionManager& expression_manager, const StepInformation& step_information, const AbscissaScale abscissa_scale) {
+    // a new dataset leaves every open dialog describing the old charts
+    m_revision++;
     // remember the dataset every new chart reads
     m_expression_manager = &expression_manager;
     m_step_information = &step_information;
@@ -25,6 +27,8 @@ void studio::ChartsController::set_dataset(ExpressionManager& expression_manager
 }
 
 void studio::ChartsController::update_dataset(ExpressionManager& expression_manager, const StepInformation& step_information, const AbscissaScale abscissa_scale) {
+    // a repointed dataset leaves every open dialog describing the old charts
+    m_revision++;
     // the pointer state belongs to the previous dataset
     zoom_drag_canceled();
     hover_ended();
@@ -71,6 +75,8 @@ ChartEngine* studio::ChartsController::add_chart(const ChartKind kind) {
 }
 
 void studio::ChartsController::clear_charts() {
+    // the charts an open dialog described are gone
+    m_revision++;
     // release every engine and its frame
     m_charts.clear();
     m_frames.clear();
@@ -82,6 +88,8 @@ void studio::ChartsController::clear_charts() {
 }
 
 std::size_t studio::ChartsController::chart_count() const { return m_charts.size(); }
+
+std::uint64_t studio::ChartsController::revision() const { return m_revision; }
 
 ChartEngine* studio::ChartsController::chart(const std::size_t index) {
     // a chart index past the stack has no engine
@@ -498,9 +506,12 @@ void studio::ChartsController::share_axis_columns() {
         frame.x_datum = frame.plot_y + frame.plot_h;
         // the west datum sits on the shared left edge
         frame.y_axes[0].datum = shared_x;
-        // the east datums stack outward from the shared right edge
+        // the first east axis sits on the shared right edge
         frame.y_axes[1].datum = shared_x + shared_width;
-        frame.y_axes[2].datum = shared_x + shared_width + (frame.y_axes[2].enabled ? column_width : 0.0f);
+        // the second east axis stacks outward only when the first one labels its ticks
+        const bool first_east = std::any_of(frame.y_axes[1].ticks.begin(), frame.y_axes[1].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+        // the second east axis keeps the shared edge when the first one is unused
+        frame.y_axes[2].datum = shared_x + shared_width + (first_east ? column_width : 0.0f);
         // a degenerate recorded plot leaves the positions alone
         if (recorded_w <= 0.0f)
             continue;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <set>
@@ -50,6 +51,9 @@ namespace studio
 
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
+
+        // hand out the revision of the chart content, which a dialog compares before it applies a result
+        [[nodiscard]] std::uint64_t revision() const;
 
         // hand out the chart at an index, or null when the index is past the end
         [[nodiscard]] ChartEngine* chart(std::size_t index);
@@ -154,6 +158,9 @@ namespace studio
 
         // the chart the active zoom drag started in
         std::size_t m_zoom_chart = 0;
+
+        // the revision of the chart content, which changes when the dataset behind the charts does
+        std::uint64_t m_revision = 0;
 
         // the zoom drag anchor in panel coordinates
         std::optional<std::pair<float, float>> m_zoom_start;

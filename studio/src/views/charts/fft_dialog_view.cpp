@@ -128,36 +128,39 @@ void studio::AlborFftDialogView::show(FftSelectionState state, AcceptedHandler a
     albor::UiNode* legend_host = find_node(*m_root, "fft_legend_host");
     // the breadcrumb navigates the expression scopes
     auto breadcrumb = std::make_unique<PlotBreadcrumb>(m_engine, m_text);
-    // keep the bar so the view can seed it
-    m_breadcrumb = breadcrumb.get();
+    // the bar is seeded only once its host owns it, so a missing host leaves no dangling pointer
+    m_breadcrumb = breadcrumb_host != nullptr ? breadcrumb.get() : nullptr;
     // the breadcrumb only exists once its host does
     if (breadcrumb_host != nullptr)
         breadcrumb_host->add_child(std::move(breadcrumb));
     // the legend names the units the grid shows
     auto legend = std::make_unique<PlotLegend>(m_engine, m_text);
-    // keep the bar so the view can seed it
-    m_legend = legend.get();
+    // the bar is seeded only once its host owns it, so a missing host leaves no dangling pointer
+    m_legend = legend_host != nullptr ? legend.get() : nullptr;
     // the legend only exists once its host does
     if (legend_host != nullptr)
         legend_host->add_child(std::move(legend));
-    // a segment press restores its scope
-    m_breadcrumb->set_on_segment_clicked([this](const std::size_t level) {
-        // restore the scope the segment names
-        m_tree.open_breadcrumb(level);
-        // the chips and the chrome follow the scope
-        refresh_chrome();
-        // rebuild the chips the new scope publishes
-        rebuild_cards();
-    });
-    // the selected-only link flattens the grid to the selected expressions
-    m_breadcrumb->set_on_selected_clicked([this] {
-        // flip the selected-only view
-        m_tree.set_show_selected(!m_tree.show_selected());
-        // the chips and the chrome follow the view
-        refresh_chrome();
-        // rebuild the chips the view publishes
-        rebuild_cards();
-    });
+    // a segment press restores its scope, which needs the bar its host carries
+    if (m_breadcrumb != nullptr) {
+        // a segment press restores its scope
+        m_breadcrumb->set_on_segment_clicked([this](const std::size_t level) {
+            // restore the scope the segment names
+            m_tree.open_breadcrumb(level);
+            // the chips and the chrome follow the scope
+            refresh_chrome();
+            // rebuild the chips the new scope publishes
+            rebuild_cards();
+        });
+        // the selected-only link flattens the grid to the selected expressions
+        m_breadcrumb->set_on_selected_clicked([this] {
+            // flip the selected-only view
+            m_tree.set_show_selected(!m_tree.show_selected());
+            // the chips and the chrome follow the view
+            refresh_chrome();
+            // rebuild the chips the view publishes
+            rebuild_cards();
+        });
+    }
     // build the tree, the parameter rows and the first chip set
     populate();
     // theme the dialog from the same system appearance as the shell
@@ -197,6 +200,8 @@ void studio::AlborFftDialogView::populate() {
     // a dialog without its tree has nothing to fill
     if (m_root == nullptr)
         return;
+    // the readout the validation writes into
+    m_error = dynamic_cast<albor::Label*>(find_node(*m_root, "fft_error"));
     // the items the expression tree groups
     std::vector<std::pair<std::string, std::string>> items;
     // every offered expression becomes a tree leaf
@@ -368,11 +373,26 @@ void studio::AlborFftDialogView::rebuild_cards() {
         // the expression chip carries the unit ink and the selection
         auto chip = std::make_unique<ExpressionChip>(m_engine, m_text, card.label, card.full_name, expression_colors::expression_unit_color(card.type), card.selected, "fft_card_" + std::to_string(index));
         // a press toggles the expression in place, so the chip survives its own dispatch
-        chip->set_on_clicked([this, index] {
+        chip->set_on_clicked([this, index, generation = m_generation, alive = m_alive] {
             // toggle the leaf the card names
             m_tree.activate(index);
-            // the chip follows the state the tree reports
-            if (index < m_chips.size() && m_chips[index] != nullptr)
+            // the selected-only view drops the deselected card, so the grid is rebuilt after this chip leaves the dispatch
+            if (m_tree.show_selected()) {
+                // the posted rebuild drops when the view or dialog is gone
+                albor::Application::instance().post([this, alive, generation] {
+                    // a destroyed view, a closed dialog or a newer show drops the rebuild
+                    if (!*alive || generation != m_generation || !m_handle.valid())
+                        return;
+                    // the chrome and the chips follow the filtered view
+                    refresh_chrome();
+                    // rebuild the chips the view publishes
+                    rebuild_cards();
+                });
+                // the chip that dispatched is replaced by the rebuild
+                return;
+            }
+            // the card still sits at the pressed index in the full list
+            if (index < m_chips.size() && m_chips[index] != nullptr && index < m_tree.cards().size())
                 m_chips[index]->set_selected(m_tree.cards()[index].selected);
         });
         // the raw pointer lets the view update the chip in place
@@ -612,6 +632,11 @@ void studio::AlborFftDialogView::accept() {
     const bool power_of_two = points >= 4 && (points & (points - 1)) == 0;
     if (!power_of_two) {
         set_error("Points must be a power of two of at least 4");
+        return;
+    }
+    // a transform larger than the cap would exhaust memory before it finishes
+    if (static_cast<std::size_t>(points) > MAX_FFT_POINTS) {
+        set_error("Points must be at most 1048576");
         return;
     }
     // the request the presenter computes

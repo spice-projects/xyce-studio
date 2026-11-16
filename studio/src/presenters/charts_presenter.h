@@ -133,6 +133,9 @@ namespace studio
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
 
+        // hand out the revision of the active charts, which a dialog compares before it applies a result
+        [[nodiscard]] std::uint64_t chart_revision() const;
+
         // hand out the dataset title the shell may show
         [[nodiscard]] const std::string& title() const;
 

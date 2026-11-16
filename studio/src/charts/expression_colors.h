@@ -13,7 +13,8 @@ namespace studio
 {
     namespace expression_colors
     {
-        namespace
+        // the tables and helpers the public functions read, which stay one entity across translation units
+        namespace detail
         {
             // curated palette entries; the first five mirror the classic voltage/current/frequency/time/power colors
             struct UnitColor
@@ -23,7 +24,7 @@ namespace studio
             };
 
             // units with a curated color, so the common signals keep their identity ink
-            const std::array<UnitColor, 12> CURATED{{
+            inline constexpr std::array<UnitColor, 12> CURATED{{
                 {"V", 0x5b9bd5},
                 {"A", 0x7cb342},
                 {"s", 0xba68c8},
@@ -38,14 +39,11 @@ namespace studio
                 {"dBA", 0xffd54f},
             }};
 
-            // base units accepted after a metric prefix
-            const std::array<std::string_view, 7> BASE_UNITS{{"V", "A", "s", "Hz", "W", "\u03A9", "S"}};
-
             // metric prefixes accepted in front of a base unit
-            const std::array<std::string_view, 10> METRIC_PREFIXES{{"m", "k", "M", "G", "T", "n", "p", "f", "u", "\u00B5"}};
+            inline constexpr std::array<std::string_view, 10> METRIC_PREFIXES{{"m", "k", "M", "G", "T", "n", "p", "f", "u", "\u00B5"}};
 
             // the fnv-1a hash of an unknown unit picks a stable fallback color
-            const std::array<std::uint32_t, 10> FALLBACK{{
+            inline constexpr std::array<std::uint32_t, 10> FALLBACK{{
                 0xef9a9a,
                 0xa5d6a7,
                 0x90caf9,
@@ -60,7 +58,22 @@ namespace studio
 
             // build an albor color from a packed 0xRRGGBB value
             inline albor::Color packed_color(const std::uint32_t rgb) { return albor::Color::rgba(static_cast<float>((rgb >> 16) & 0xff) / 255.0f, static_cast<float>((rgb >> 8) & 0xff) / 255.0f, static_cast<float>(rgb & 0xff) / 255.0f, 1.0f); }
-        } // namespace
+        } // namespace detail
+
+        // the curated colors the unit mapping reads
+        using detail::CURATED;
+
+        // the metric prefixes the unit mapping strips
+        using detail::METRIC_PREFIXES;
+
+        // the fallback palette an unknown unit hashes into
+        using detail::FALLBACK;
+
+        // the color builder the legend rows share
+        using detail::packed_color;
+
+        // the curated entry type the unit lookup inspects
+        using detail::UnitColor;
 
         // map a measurement unit to a stable color, with unknown units hashed into the fallback palette
         inline albor::Color expression_unit_color(std::string_view unit) {

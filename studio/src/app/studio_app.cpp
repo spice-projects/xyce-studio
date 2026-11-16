@@ -182,12 +182,17 @@ int studio::StudioApp::run() {
                 return;
             // the dataset the dialog edits may change while it is open
             const int dataset_id = state->dataset_id;
+            // the charts the dialog edits may be rebuilt while it is open
+            const std::uint64_t chart_revision = m_charts_presenter->chart_revision();
             // the dialog edits the selection and hands the accepted names back to the charts
             m_add_plot_view->show(
                 *state,
-                [this, index, dataset_id](std::vector<std::string> names) {
+                [this, index, dataset_id, chart_revision](std::vector<std::string> names) {
                     // a shell that closed or switched datasets drops the selection
                     if (m_charts_presenter == nullptr || m_charts_presenter->active_dataset_id() != dataset_id)
+                        return;
+                    // a chart rebuilt behind the dialog is no longer the chart it edited
+                    if (m_charts_presenter->chart_revision() != chart_revision)
                         return;
                     m_charts_presenter->apply_plot_selection(index, names);
                 },
@@ -214,10 +219,15 @@ int studio::StudioApp::run() {
                 return;
             // the dataset the dialog edits may change while it is open
             const int dataset_id = state->dataset_id;
+            // the charts the dialog edits may be rebuilt while it is open
+            const std::uint64_t chart_revision = m_charts_presenter->chart_revision();
             // the dialog edits the selection and hands the accepted steps back to the charts
-            m_step_tool_view->show(*state, [this, index, dataset_id](std::vector<std::size_t> steps) {
+            m_step_tool_view->show(*state, [this, index, dataset_id, chart_revision](std::vector<std::size_t> steps) {
                 // a shell that closed or switched datasets drops the selection
                 if (m_charts_presenter == nullptr || m_charts_presenter->active_dataset_id() != dataset_id)
+                    return;
+                // a chart rebuilt behind the dialog is no longer the chart it edited
+                if (m_charts_presenter->chart_revision() != chart_revision)
                     return;
                 // the chart keeps only the accepted steps
                 m_charts_presenter->apply_step_selection(index, std::set<std::size_t>(steps.begin(), steps.end()));
@@ -239,10 +249,15 @@ int studio::StudioApp::run() {
                 return;
             // the dataset the dialog edits may change while it is open
             const int dataset_id = state->dataset_id;
+            // the charts the dialog read may be rebuilt while it is open
+            const std::uint64_t chart_revision = m_charts_presenter->chart_revision();
             // the dialog hands the accepted transform back to the charts
-            m_fft_view->show(*state, [this, dataset_id](studio::FftRequest request) {
+            m_fft_view->show(*state, [this, dataset_id, chart_revision](studio::FftRequest request) {
                 // a shell that closed or switched datasets drops the transform
                 if (m_charts_presenter == nullptr || m_charts_presenter->active_dataset_id() != dataset_id)
+                    return;
+                // a chart rebuilt behind the dialog no longer describes the transform it chose
+                if (m_charts_presenter->chart_revision() != chart_revision)
                     return;
                 // the transform appends its own dataset tab
                 m_charts_presenter->apply_fft(request);

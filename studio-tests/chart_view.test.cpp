@@ -1054,3 +1054,98 @@ TEST(StudioChartViewChecks, the_step_tool_action_follows_the_dataset_steps) {
     // assert: the command joins the chart actions
     EXPECT_TRUE(view.semantic_node().has_action("chart-0-step-tool"));
 }
+
+TEST(StudioChartViewChecks, a_middle_press_opens_no_gesture) {
+    // arrange: a view arranged over a known panel with recording callbacks
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int started = 0;
+    view.set_on_zoom_drag_started([&](float, float) { started++; });
+    // act: press the middle button inside the chart
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.button = albor::PointerButton::Middle;
+    press.position = albor::Point{.x = 100.0f, .y = 120.0f};
+    view.dispatch_event(press);
+    // assert: only the primary button starts the zoom drag
+    EXPECT_EQ(started, 0);
+    EXPECT_FALSE(press.handled);
+}
+
+TEST(StudioChartViewChecks, a_second_press_while_a_drag_is_live_is_ignored) {
+    // arrange: a live zoom drag over the chart
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int started = 0;
+    view.set_on_zoom_drag_started([&](float, float) { started++; });
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.position = albor::Point{.x = 100.0f, .y = 120.0f};
+    view.dispatch_event(press);
+    ASSERT_EQ(started, 1);
+    // act: press again while the first press still owns the pointer
+    albor::Event second;
+    second.kind = albor::EventKind::PointerDown;
+    second.position = albor::Point{.x = 200.0f, .y = 220.0f};
+    view.dispatch_event(second);
+    // assert: the live drag keeps the pointer, so no second drag starts
+    EXPECT_EQ(started, 1);
+    EXPECT_FALSE(second.handled);
+}
+
+TEST(StudioChartViewChecks, a_hidden_view_still_cancels_a_captured_drag) {
+    // arrange: a live drag the shell then hides
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    int canceled = 0;
+    view.set_on_zoom_drag_canceled([&] { canceled++; });
+    albor::Event press;
+    press.kind = albor::EventKind::PointerDown;
+    press.position = albor::Point{.x = 100.0f, .y = 120.0f};
+    view.dispatch_event(press);
+    view.set_visible(false);
+    // act: the input layer aborts the capture of the hidden view
+    albor::Event cancel;
+    cancel.kind = albor::EventKind::PointerCancel;
+    cancel.position = albor::Point{.x = 150.0f, .y = 150.0f};
+    view.dispatch_event(cancel);
+    // assert: the gesture is dropped even though the view is hidden
+    EXPECT_EQ(canceled, 1);
+    EXPECT_TRUE(cancel.handled);
+}
+
+TEST(StudioChartViewChecks, the_hover_callbacks_follow_the_pointer) {
+    // arrange: a view with recording hover callbacks
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 10.0f, .y = 20.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    float hovered_x = -1.0f;
+    float hovered_y = -1.0f;
+    int ended = 0;
+    view.set_on_hover_moved([&](const float x, const float y) {
+        hovered_x = x;
+        hovered_y = y;
+    });
+    view.set_on_hover_ended([&] { ended++; });
+    // act: move over the chart and then leave it
+    albor::Event move;
+    move.kind = albor::EventKind::PointerMove;
+    move.position = albor::Point{.x = 110.0f, .y = 120.0f};
+    view.dispatch_event(move);
+    // assert: the readout reports chart-local coordinates
+    EXPECT_FLOAT_EQ(hovered_x, 100.0f);
+    EXPECT_FLOAT_EQ(hovered_y, 100.0f);
+    albor::Event leave;
+    leave.kind = albor::EventKind::PointerLeave;
+    leave.position = albor::Point{.x = 500.0f, .y = 400.0f};
+    view.dispatch_event(leave);
+    // assert: leaving clears the readout once
+    EXPECT_EQ(ended, 1);
+}

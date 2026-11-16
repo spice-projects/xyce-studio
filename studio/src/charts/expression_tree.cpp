@@ -5,7 +5,6 @@
 
 #include "core/util.h"
 
-// extract the probe argument of a simple "(...)" name, empty for compound expressions
 static std::string_view probe_argument(std::string_view name) {
     // empty names have no argument
     if (name.empty())

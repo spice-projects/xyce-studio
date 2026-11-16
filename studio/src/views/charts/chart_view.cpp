@@ -200,6 +200,8 @@ void studio::ChartView::set_frames(std::vector<ChartFrame> frames) {
     cancel_drag();
     // the reorder gesture ends with the frames it named
     cancel_reorder();
+    // the handle under the old pointer no longer exists
+    m_hovered_handle.reset();
     // keep the frames the base layers are recorded from
     m_frames = std::move(frames);
     // the chart content changed, so the panel redraws
@@ -446,6 +448,16 @@ void studio::ChartView::paint_base(albor::RenderContext& context, const ChartFra
         // the mark extends downward from the datum
         context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = x, .y = plot.y + plot.height}, albor::Size{.width = 1.0f, .height = length}), albor::Paint{.fill = border});
     }
+    // the first east axis claims a column only when it labels its ticks
+    const bool first_east_labelled = std::any_of(frame.y_axes[1].ticks.begin(), frame.y_axes[1].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+    // the axis edge an ordinate axis draws from
+    const auto axis_datum = [&](const std::size_t axis_index) {
+        // the second east axis sits one column outward only when the first one labels
+        if (axis_index == 2 && first_east_labelled)
+            return plot.x + plot.width + layout.column_width;
+        // every other axis sits on its own plot edge
+        return axis_index == 0 ? plot.x : plot.x + plot.width;
+    };
     // every enabled ordinate axis contributes horizontal tick marks
     for (std::size_t axis_index = 0; axis_index < frame.y_axes.size(); ++axis_index) {
         // the axis this tick set belongs to
@@ -453,8 +465,8 @@ void studio::ChartView::paint_base(albor::RenderContext& context, const ChartFra
         // a disabled axis has no tick marks
         if (!axis.enabled)
             continue;
-        // the datum of the second east axis sits one column outside the plot
-        const float datum = axis_index == 2 ? plot.x + plot.width + layout.column_width : plot.x + plot.width;
+        // the datum of this axis, which the second east axis may place one column outward
+        const float datum = axis_datum(axis_index);
         // append each visible tick mark of this axis
         for (const ChartTick& tick : axis.ticks) {
             // a pruned tick has no mark to draw
@@ -478,7 +490,7 @@ void studio::ChartView::paint_base(albor::RenderContext& context, const ChartFra
     // the second east axis needs its own datum line when it stacks outward
     if (frame.y_axes[2].enabled && !frame.y_axes[2].ticks.empty()) {
         // the datum line shares the axis color
-        const float datum = plot.x + plot.width + layout.column_width;
+        const float datum = axis_datum(2);
         // the line spans the plot height
         context.draw_rect(albor::Rect::from_origin_size(albor::Point{.x = datum, .y = plot.y}, albor::Size{.width = 1.0f, .height = plot.height}), albor::Paint{.fill = border});
     }
@@ -522,8 +534,8 @@ void studio::ChartView::paint_base(albor::RenderContext& context, const ChartFra
             const float ratio = frame.plot_h > 0.0f ? (tick.pixel_pos - frame.plot_y) / frame.plot_h : 0.0f;
             // the mapped tick position in the plot
             const float y = plot.y + ratio * plot.height;
-            // the west labels end before the plot, the east labels start after their own column
-            const float x = axis_index == 0 ? plot.x - CHART_LABEL_PADDING - label.size.width : plot.x + plot.width + static_cast<float>(axis_index - 1) * layout.column_width + CHART_LABEL_PADDING;
+            // the west labels end before the plot, the east labels start after their own datum
+            const float x = axis_index == 0 ? plot.x - CHART_LABEL_PADDING - label.size.width : axis_datum(axis_index) + CHART_LABEL_PADDING;
             // centre the label vertically on the tick
             draw_text(context, label, albor::Point{.x = x, .y = y - label.size.height * 0.5f}, text);
         }
@@ -821,6 +833,18 @@ void studio::ChartView::paint_content(albor::RenderContext& context) {
 }
 
 void studio::ChartView::dispatch_event(albor::Event& event) {
+    // an aborted capture drops the gesture without changing the charts, even while the view is hidden
+    if (event.kind == albor::EventKind::PointerCancel) {
+        // the input layer already owns the cancel, so it is consumed when a gesture was live
+        if (m_dragging || m_reordering) {
+            // a live gesture is canceled
+            cancel_drag();
+            // the view consumed the cancel
+            event.handled = true;
+        }
+        // the cancel is settled
+        return;
+    }
     // a hidden view takes no input
     if (!visible())
         return;
@@ -833,22 +857,10 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
         // the key is settled
         return;
     }
-    // an aborted capture drops the gesture without changing the charts
-    if (event.kind == albor::EventKind::PointerCancel) {
-        // the input layer already owns the cancel, so it is consumed when a gesture was live
-        if (m_dragging || m_reordering) {
-            // a live gesture is canceled
-            cancel_drag();
-            // the view consumed the cancel
-            event.handled = true;
-        }
-        // the cancel is settled
-        return;
-    }
     // the pointer in view-local coordinates
     const albor::Point local{.x = event.position.x - bounds().x, .y = event.position.y - bounds().y};
-    // a press on a drag handle starts a reorder instead of a zoom
-    if (event.kind == albor::EventKind::PointerDown && m_frames.size() > 1) {
+    // a left press starts a gesture, and only while no gesture owns the pointer
+    if (event.kind == albor::EventKind::PointerDown && event.button == albor::PointerButton::Left && !m_dragging && !m_reordering && m_frames.size() > 1) {
         // the handle under the press, if any
         for (std::size_t index = 0; index < m_frames.size(); ++index) {
             // the handle rect of this chart
@@ -874,8 +886,8 @@ void studio::ChartView::dispatch_event(albor::Event& event) {
             return;
         }
     }
-    // a press inside the chart content starts a zoom drag
-    if (event.kind == albor::EventKind::PointerDown) {
+    // a press inside the chart content starts a zoom drag, and only while no gesture owns the pointer
+    if (event.kind == albor::EventKind::PointerDown && event.button == albor::PointerButton::Left && !m_dragging && !m_reordering) {
         // a press outside the view belongs to whatever is behind it
         if (!hit_test(event.position))
             return;

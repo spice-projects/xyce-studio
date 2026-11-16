@@ -230,7 +230,7 @@ void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path
     // a file opened from inside a live run directory outlives the run lease
     TempOutputDirectory::pin_path(path);
     // a non netlist file is offered to the charts before it is ignored
-    if (path.extension().string() != ".cir") {
+    if (to_lower(path.extension().string()) != ".cir") {
         // a chart dataset consumes the file and the editor keeps its content
         if (m_dataset_file_handler && m_dataset_file_handler(path, nullptr))
             return;

@@ -107,36 +107,39 @@ void studio::AlborAddPlotDialogView::show(PlotSelectionState state, AcceptedHand
     albor::UiNode* legend_host = find_node(*m_root, "add_plot_legend_host");
     // the breadcrumb navigates the expression scopes
     auto breadcrumb = std::make_unique<PlotBreadcrumb>(m_engine, m_text);
-    // keep the bar so the view can seed it
-    m_breadcrumb = breadcrumb.get();
+    // the bar is seeded only once its host owns it, so a missing host leaves no dangling pointer
+    m_breadcrumb = breadcrumb_host != nullptr ? breadcrumb.get() : nullptr;
     // the breadcrumb only exists once its host does
     if (breadcrumb_host != nullptr)
         breadcrumb_host->add_child(std::move(breadcrumb));
     // the legend names the units the grid shows
     auto legend = std::make_unique<PlotLegend>(m_engine, m_text);
-    // keep the bar so the view can seed it
-    m_legend = legend.get();
+    // the bar is seeded only once its host owns it, so a missing host leaves no dangling pointer
+    m_legend = legend_host != nullptr ? legend.get() : nullptr;
     // the legend only exists once its host does
     if (legend_host != nullptr)
         legend_host->add_child(std::move(legend));
-    // a segment press restores its scope
-    m_breadcrumb->set_on_segment_clicked([this](const std::size_t level) {
-        // restore the scope the segment names
-        m_tree.open_breadcrumb(level);
-        // the cards and the chrome follow the scope
-        refresh_chrome();
-        // rebuild the cards the new scope publishes
-        rebuild_cards();
-    });
-    // the selected-only link flattens the grid to the selected expressions
-    m_breadcrumb->set_on_selected_clicked([this] {
-        // flip the selected-only view
-        m_tree.set_show_selected(!m_tree.show_selected());
-        // the cards and the chrome follow the view
-        refresh_chrome();
-        // rebuild the cards the view publishes
-        rebuild_cards();
-    });
+    // a segment press restores its scope, which needs the bar its host carries
+    if (m_breadcrumb != nullptr) {
+        // a segment press restores its scope
+        m_breadcrumb->set_on_segment_clicked([this](const std::size_t level) {
+            // restore the scope the segment names
+            m_tree.open_breadcrumb(level);
+            // the cards and the chrome follow the scope
+            refresh_chrome();
+            // rebuild the cards the new scope publishes
+            rebuild_cards();
+        });
+        // the selected-only link flattens the grid to the selected expressions
+        m_breadcrumb->set_on_selected_clicked([this] {
+            // flip the selected-only view
+            m_tree.set_show_selected(!m_tree.show_selected());
+            // the cards and the chrome follow the view
+            refresh_chrome();
+            // rebuild the cards the view publishes
+            rebuild_cards();
+        });
+    }
     // build the tree and the first card set from the offered expressions
     populate();
     // theme the dialog from the same system appearance as the shell
@@ -287,11 +290,26 @@ void studio::AlborAddPlotDialogView::rebuild_cards() {
         // the expression chip carries the unit ink and the selection
         auto chip = std::make_unique<ExpressionChip>(m_engine, m_text, card.label, card.full_name, expression_colors::expression_unit_color(card.type), card.selected, "add_plot_card_" + std::to_string(index));
         // a press toggles the expression in place, so the chip survives its own dispatch
-        chip->set_on_clicked([this, index] {
+        chip->set_on_clicked([this, index, generation = m_generation, alive = m_alive] {
             // toggle the leaf the card names
             m_tree.activate(index);
-            // the chip follows the state the tree reports
-            if (index < m_chips.size() && m_chips[index] != nullptr)
+            // the selected-only view drops the deselected card, so the grid is rebuilt after this chip leaves the dispatch
+            if (m_tree.show_selected()) {
+                // the posted rebuild drops when the view or dialog is gone
+                albor::Application::instance().post([this, alive, generation] {
+                    // a destroyed view, a closed dialog or a newer show drops the rebuild
+                    if (!*alive || generation != m_generation || !m_handle.valid())
+                        return;
+                    // the chrome and the cards follow the filtered view
+                    refresh_chrome();
+                    // rebuild the cards the view publishes
+                    rebuild_cards();
+                });
+                // the chip that dispatched is replaced by the rebuild
+                return;
+            }
+            // the card still sits at the pressed index in the full list
+            if (index < m_chips.size() && m_chips[index] != nullptr && index < m_tree.cards().size())
                 m_chips[index]->set_selected(m_tree.cards()[index].selected);
         });
         // a secondary press appends the full name to the custom builder

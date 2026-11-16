@@ -61,8 +61,6 @@ namespace
     // the AC sweep modes in combo order, where DATA has no range fields
     constexpr std::array<const char*, 4> AC_MODES = {"LIN", "DEC", "OCT", "DATA"};
 
-    // the print types each analysis offers in its combo
-
     // the noise sweep types in combo order
     constexpr std::array<const char*, 4> NOISE_SWEEP_TYPES = {"LIN", "DEC", "OCT", "DATA"};
 
@@ -80,8 +78,6 @@ namespace
 
     // the print formats in combo order, where the head is the default spelling
     constexpr std::array<const char*, 9> PRINT_FORMATS = {"", "STD", "NOINDEX", "PROBE", "TECPLOT", "RAW", "CSV", "GNUPLOT", "SPLOT"};
-
-    // the transient print types in combo order
 
     // the tokens a print section treats as wildcards rather than variables
     constexpr std::array<const char*, 10> WILDCARD_TOKENS = {"V(*)", "I(*)", "P(*)", "W(*)", "IB(*)", "IC(*)", "IE(*)", "IS(*)", "ID(*)", "IG(*)"};

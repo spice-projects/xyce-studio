@@ -11,8 +11,7 @@ from albor_automation import TestSession, expect, launch
 
 
 class ChartsPanelChecks(unittest.TestCase):
-    # the output dataset argument opens the native chart panel, and the document
-    # strip swaps the body between the waveform panel and the netlist editor
+    # the dataset argument opens the chart panel and the strip swaps the body between the waveform and the netlist
 
     def test_dataset_argument_opens_the_charts_panel(self) -> None:
         # arrange: a repository output file and a session scoped to this test
@@ -590,3 +589,45 @@ class ChartsPanelChecks(unittest.TestCase):
             app.get_by_id("charts_view").wait_for_exists()
             expect(app.get_by_id("charts_view")).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
             expect(app.get_by_id("fourier_results_view")).not_().to_exist()
+
+    def test_deselecting_a_chip_in_the_selected_view_keeps_the_dialog_alive(self) -> None:
+        # arrange: a dataset whose chart plots two expressions
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            chart.click("chart-0-add-remove-plots")
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            # step: show only the selected expressions
+            app.get_by_id("add_plot_breadcrumb").click("selected-only")
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(1)")
+            # act: deselect the first chip while the view is filtered
+            app.get_by_id("add_plot_card_0").click("toggle")
+            # assert: the deselected chip leaves the filtered grid and the dialog survives
+            app.get_by_id("add_plot_filter").wait_for_exists()
+            expect(app.get_by_id("add_plot_card_0")).to_have_name("V(2)")
+            expect(app.get_by_id("add_plot_card_1")).not_().to_exist()
+            # step: cancel the dialog to leave the chart untouched
+            app.get_by_id("add_plot_cancel").click()
+            app.get_by_id("add_plot_filter").wait_for_gone()
+
+    def test_a_refused_fft_selection_shows_the_message(self) -> None:
+        # arrange: a transient dataset with the FFT dialog open
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            chart.click("chart-0-calculate-fft")
+            app.get_by_id("fft_ok").wait_for_exists()
+            # step: deselect both offered expressions
+            app.get_by_id("fft_card_0").click("toggle")
+            app.get_by_id("fft_card_1").click("toggle")
+            # step: ask for a transform without a signal
+            app.get_by_id("fft_ok").click()
+            # assert: the dialog stays open and explains the refusal
+            app.get_by_id("fft_ok").wait_for_exists()
+            expect(app.get_by_id("fft_error")).to_have_name("Select at least one expression")
+            # step: dismiss the dialog
+            app.get_by_id("fft_cancel").click()
+            app.get_by_id("fft_ok").wait_for_gone()
+

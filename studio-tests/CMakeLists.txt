@@ -22,6 +22,7 @@ add_executable(studio-tests
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/main_window_presenter.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/plugin_config_presenter.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/simulation_parameters_presenter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/views/charts/add_plot_widgets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/views/charts/chart_view.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/views/charts/fourier_results_view.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/views/main_window/document_tabs.cpp")

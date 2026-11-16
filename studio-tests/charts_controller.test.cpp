@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <complex>
 #include <cstddef>
 #include <set>
@@ -522,4 +523,69 @@ TEST(StudioChartsControllerChecks, the_step_selection_keeps_only_the_chosen_step
     // assert: an empty selection plots nothing
     ASSERT_EQ(controller.frames().size(), 1U);
     EXPECT_TRUE(controller.frames()[0].series.empty());
+}
+
+TEST(StudioChartsControllerChecks, the_second_east_axis_keeps_its_column_when_the_first_is_free) {
+    // arrange: one chart plotting a voltage, a current and a power, so every axis is taken
+    std::vector<std::pair<size_t, size_t>> slices{{0, 4}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0, 3.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0}, slices, "V"));
+    expressions.emplace_back(Expression<double>("I(out)", std::vector<double>{0.0, 0.5, 1.0, 1.5}, slices, "A"));
+    expressions.emplace_back(Expression<double>("P(out)", std::vector<double>{0.0, 2.0, 4.0, 6.0}, slices, "W"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 3.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* chart = controller.add_chart();
+    ASSERT_NE(chart, nullptr);
+    chart->plot_series({manager.evaluate("V(out)"), manager.evaluate("I(out)"), manager.evaluate("P(out)")});
+    controller.rebuild_frames();
+    ASSERT_EQ(controller.frames().size(), 1U);
+    ASSERT_TRUE(controller.frames()[0].y_axes[2].enabled);
+    // act: drop the current, which frees the first east axis while the power keeps the second
+    chart->plot_series({manager.evaluate("V(out)"), manager.evaluate("P(out)")});
+    controller.rebuild_frames();
+    const ChartFrame& frame = controller.frames()[0];
+    const auto [left, top, right, bottom] = controller.plot_rect(0);
+    // assert: the second east axis sits on the shared plot edge, not one column outside it
+    EXPECT_FALSE(frame.y_axes[1].enabled);
+    ASSERT_TRUE(frame.y_axes[2].enabled);
+    EXPECT_FLOAT_EQ(frame.y_axes[2].datum, right);
+    // assert: its labels still fit inside the panel
+    const auto labelled = std::find_if(frame.y_axes[2].ticks.begin(), frame.y_axes[2].ticks.end(), [](const ChartTick& tick) { return tick.show_label; });
+    ASSERT_NE(labelled, frame.y_axes[2].ticks.end());
+    EXPECT_LE(frame.y_axes[2].datum + CHART_LABEL_PADDING + labelled->label_width, 400.0f);
+}
+
+TEST(StudioChartsControllerChecks, repointing_the_dataset_changes_the_chart_revision) {
+    // arrange: a controller over a one step dataset
+    std::vector<std::pair<size_t, size_t>> slices{{0, 3}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{0.0, 2.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    ChartEngine* chart = controller.add_chart();
+    ASSERT_NE(chart, nullptr);
+    chart->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    const std::uint64_t opened = controller.revision();
+    // the step slices of the replacement dataset
+    std::vector<std::pair<size_t, size_t>> replacement_slices{{0, 3}};
+    // the replacement dataset a rerun delivers
+    std::vector<AnyExpression> replacement;
+    replacement.emplace_back(Expression<double>("time", std::vector<double>{0.0, 1.0, 2.0}, replacement_slices, "s"));
+    replacement.emplace_back(Expression<double>("V(out)", std::vector<double>{2.0, 1.0, 0.0}, replacement_slices, "V"));
+    ExpressionManager replacement_manager(replacement, replacement_slices);
+    // act: repoint the charts at the replacement dataset
+    controller.update_dataset(replacement_manager, steps, AbscissaScale::LINEAR);
+    // assert: an open dialog compares a new revision and refuses its stale result
+    EXPECT_NE(controller.revision(), opened);
+    const std::uint64_t repointed = controller.revision();
+    controller.clear_charts();
+    // assert: dropping the charts moves the revision again
+    EXPECT_NE(controller.revision(), repointed);
 }

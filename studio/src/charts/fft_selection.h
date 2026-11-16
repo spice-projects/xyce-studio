@@ -9,6 +9,9 @@
 
 namespace studio
 {
+    // the largest transform the presenter runs, because a larger one exhausts memory before it finishes
+    inline constexpr std::size_t MAX_FFT_POINTS = 1U << 20U;
+
     // the expressions and range the FFT dialog opens with
     struct FftSelectionState
     {

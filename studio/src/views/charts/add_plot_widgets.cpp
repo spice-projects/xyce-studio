@@ -78,6 +78,9 @@ namespace
             // a continuation byte cannot end a UTF-8 prefix
             while (length < label.size() && (static_cast<unsigned char>(label[length]) & 0xc0) == 0x80)
                 --length;
+            // a prefix that lost every byte leaves only the ellipsis
+            if (length == 0)
+                break;
             // the candidate run with the ellipsis appended
             const std::string candidate = label.substr(0, length) + ellipsis;
             // the candidate layout the width check reads

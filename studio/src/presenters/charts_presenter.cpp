@@ -665,6 +665,8 @@ void studio::ChartsPresenter::adopt_primary(std::shared_ptr<XyceOutputFile> file
 }
 
 void studio::ChartsPresenter::remove_role(const DatasetRole role) {
+    // the dataset the user is looking at, which an erase before it would shift
+    const int active_id = active_dataset_id();
     // drop every dataset the role names
     std::erase_if(m_datasets, [role](const std::unique_ptr<DatasetState>& dataset) { return dataset->role == role; });
     // an empty tab set returns to the first index
@@ -674,15 +676,23 @@ void studio::ChartsPresenter::remove_role(const DatasetRole role) {
         // the tab set is settled
         return;
     }
-    // clamp the selection to the remaining tabs
-    m_active_dataset = std::min(m_active_dataset, m_datasets.size() - 1);
+    // the tab the user was looking at when it survived the erase
+    const auto surviving = std::find_if(m_datasets.begin(), m_datasets.end(), [active_id](const std::unique_ptr<DatasetState>& dataset) { return dataset->id == active_id; });
+    // a surviving tab keeps the selection on the dataset the user was reading
+    if (surviving != m_datasets.end())
+        m_active_dataset = static_cast<std::size_t>(std::distance(m_datasets.begin(), surviving));
+    // a removed active tab hands the selection to its neighbour
+    else
+        m_active_dataset = std::min(m_active_dataset, m_datasets.size() - 1);
 }
 
 std::string studio::ChartsPresenter::unique_title(const std::string& base, const DatasetState* exclude) const {
     // the first tab keeps the plain title
     std::string candidate = base;
-    // count the suffix until no other open tab carries it
-    for (int suffix = 2; std::any_of(m_datasets.begin(), m_datasets.end(), [&candidate, exclude](const std::unique_ptr<DatasetState>& dataset) { return dataset.get() != exclude && dataset->title == candidate; }); ++suffix)
+    // another open tab carrying the candidate claims it
+    const auto taken = [&candidate, exclude](const std::unique_ptr<DatasetState>& dataset) { return dataset.get() != exclude && dataset->title == candidate; };
+    // the strip reserves its first label for the netlist, so a dataset cannot take it either
+    for (int suffix = 2; candidate == "Netlist" || std::any_of(m_datasets.begin(), m_datasets.end(), taken); ++suffix)
         candidate = base + " (" + std::to_string(suffix) + ")";
     // hand out the unique title
     return candidate;
@@ -1102,11 +1112,15 @@ void studio::ChartsPresenter::apply_fft(const FftRequest& request) {
     // a transform without a signal has nothing to show
     if (selected.empty())
         return;
+    // a transform larger than the cap would exhaust memory before it finishes
+    if (request.points == 0 || request.points > MAX_FFT_POINTS)
+        return;
     // the frequency bins and samples of every processed step
     std::vector<std::vector<double>> frequency_chunks;
     std::vector<std::vector<std::vector<double>>> chunks(selected.size());
     std::vector<std::pair<std::size_t, std::size_t>> abscissa_slices;
     std::vector<std::pair<double, double>> abscissa_ranges;
+    std::vector<std::size_t> processed_steps;
     std::size_t offset = 0;
     // one transform runs over every step's interval
     for (std::size_t step = 0; step < steps.length(); ++step) {
@@ -1150,6 +1164,8 @@ void studio::ChartsPresenter::apply_fft(const FftRequest& request) {
         abscissa_slices.emplace_back(offset, offset + result.frequencies.size());
         // accumulate the offset
         offset += result.frequencies.size();
+        // the step the transform produced
+        processed_steps.push_back(step);
         // keep the bins and every signal
         abscissa_ranges.emplace_back(result.frequencies.front(), result.frequencies.back());
         frequency_chunks.push_back(std::move(result.frequencies));
@@ -1191,12 +1207,27 @@ void studio::ChartsPresenter::apply_fft(const FftRequest& request) {
         // append the transformed expression
         expressions.emplace_back(Expression<double>(name, std::move(data), abscissa_slices, unit));
     }
+    // the keys and values of the steps the transform produced, which a skipped step must not shift
+    std::vector<std::string> fft_keys;
+    std::vector<std::vector<double>> fft_values;
+    for (const std::size_t step : processed_steps) {
+        // a carried key describes the step
+        if (step < steps.keys().size())
+            fft_keys.push_back(steps.keys()[step]);
+        // a carried value set describes the step
+        if (step < steps.values().size())
+            fft_values.push_back(steps.values()[step]);
+    }
     // the step information the transform produced
-    StepInformation fft_steps(steps.keys(), steps.values(), abscissa_ranges);
+    StepInformation fft_steps(std::move(fft_keys), std::move(fft_values), abscissa_ranges);
     // the expression manager the dataset reads
     ExpressionManager fft_manager(expressions, abscissa_slices);
+    // the frequency span the whole transform covers, which a multi-step run widens
+    const auto lowest = std::min_element(abscissa_ranges.begin(), abscissa_ranges.end(), [](const std::pair<double, double>& lhs, const std::pair<double, double>& rhs) { return lhs.first < rhs.first; });
+    // the highest bin the transform produced
+    const auto highest = std::max_element(abscissa_ranges.begin(), abscissa_ranges.end(), [](const std::pair<double, double>& lhs, const std::pair<double, double>& rhs) { return lhs.second < rhs.second; });
     // the title names the window and the frequency span
-    const std::string title = "FFT: " + fft_window_label(request.window) + ", " + std::to_string(static_cast<long long>(abscissa_ranges.front().first + 0.5)) + "–" + std::to_string(static_cast<long long>(abscissa_ranges.front().second + 0.5)) + " Hz";
+    const std::string title = "FFT: " + fft_window_label(request.window) + ", " + std::to_string(static_cast<long long>(lowest->first + 0.5)) + "–" + std::to_string(static_cast<long long>(highest->second + 0.5)) + " Hz";
     // the synthesized dataset carries the transform
     auto file = std::make_shared<XyceOutputFile>(std::filesystem::path{}, title, false, std::move(fft_steps), PlotType::FFT, AbscissaScale::LINEAR, std::move(fft_manager), nullptr, std::move(suggested));
     // the new dataset joins the tab strip as a closable user tab
@@ -1352,6 +1383,13 @@ bool studio::ChartsPresenter::apply_plot_selection(const std::size_t chart_index
     // the retained scene follows the rebuilt frame
     publish_scene();
     return true;
+}
+
+std::uint64_t studio::ChartsPresenter::chart_revision() const {
+    // no dataset describes no chart
+    const DatasetState* state = active_state();
+    // hand out the revision the active charts were built at
+    return state != nullptr && state->controller != nullptr ? state->controller->revision() : 0;
 }
 
 std::size_t studio::ChartsPresenter::chart_count() const {
