@@ -39,6 +39,8 @@ component MainWindow {
     in property<string> status: "Ready";
     // whether the waveform panel replaces the netlist editor in the body
     in property<bool> charts_visible: false;
+    // whether the active dataset presents its Fourier results table instead of the charts
+    in property<bool> fourier_visible: false;
 
     // the simulation output panel holds the live console log of the running or
     // finished simulation; the panel remounts on every show and the host owns
@@ -202,7 +204,17 @@ component MainWindow {
             // the host the native charts view is inserted into at window creation
             Panel {
                 id: charts_host;
-                visible: charts_visible;
+                visible: charts_visible && !fourier_visible;
+                padding: 0px;
+                spacing: 0px;
+                corner_radius: 0px;
+                vertical_align: Align.stretch;
+            }
+
+            // the host the native Fourier results table is inserted into at window creation
+            Panel {
+                id: fourier_results_host;
+                visible: charts_visible && fourier_visible;
                 padding: 0px;
                 spacing: 0px;
                 corner_radius: 0px;

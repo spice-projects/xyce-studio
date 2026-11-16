@@ -514,6 +514,39 @@ app.get_by_id("add_plot_filter").wait_for_gone()
 - The footer buttons are `add_plot_cancel` and `add_plot_ok`; the window close
   button dismisses the dialog without applying.
 
+### Read a Fourier results table (from `charts_test.py`)
+
+A `.FOUR` companion of a run, or a `.four*` file opened through `--dataset`,
+has no plottable spectra and is presented as a read-only table instead of the
+chart canvas:
+
+```python
+dataset = Path(__file__).resolve().parent / "fixtures" / "four-simple-01.four0"
+with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+    table = app.get_by_id("fourier_results_view")
+    table.wait_for_exists()
+    expect(table).to_have_name("Fourier results: FOUR: 1000 Hz")
+    expect(app.get_by_id("charts_view")).not_().to_exist()
+    expect(app.get_by_id("fourier_block_0")).to_have_name("V(1)  -  THD: 28.64 %")
+    expect(app.get_by_id("fourier_block_0_settings")).to_have_name("No. Harmonics: 5  -  Gridsize: 200  -  Cubic Spline")
+    expect(app.get_by_id("fourier_block_0_row_2")).to_have_name("Harmonic 2, 2.000000e+03 Hz, 1.250000e+00, 9.000000e+01 deg, normalized 2.500000e-01, 9.000000e+01 deg")
+```
+
+- `fourier_results_view` is the table panel; its accessible name carries the
+  dataset title, and the chart canvas leaves the body while it is shown.
+- `fourier_block_<n>` is one signal and step block; its name carries the
+  signal, the step label of a multi-step file and the block THD.
+- `fourier_block_<n>_settings` is the analysis strip of the block, naming the
+  harmonic count, the interpolation grid size and the interpolation type.
+- `fourier_block_<n>_row_<harmonic>` is one harmonic row, with the index, the
+  frequency, the magnitude, the phase and the two cells normalized to the
+  fundamental in its name.
+- The table exposes `scroll-page-down`, `scroll-page-up`, `scroll-to-start` and
+  `scroll-to-end`; the wheel, the paging keys and the bar clamp the same offset.
+  The wheel, the paging keys, the modified-key guard and the thumb drag are
+  covered by the view unit tests (`StudioFourierResultsViewChecks`), not by the
+  scenarios; a scenario only needs `chart`/`table` presence and names.
+
 ## Conventions
 
 - Every scenario starts with `# arrange`, uses `# step` for each interaction

@@ -26,6 +26,7 @@
 #include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
 #include "views/charts/chart_view.h"
+#include "views/charts/fourier_results_view.h"
 
 namespace
 {
@@ -125,10 +126,12 @@ namespace
     }
 } // namespace
 
-studio::ChartsPresenter::ChartsPresenter(ChartView& view, albor::TextEngine& text) :
-    m_text(text), m_view(&view) {
+studio::ChartsPresenter::ChartsPresenter(ChartView& view, FourierResultsView& results, albor::TextEngine& text) :
+    m_text(text), m_view(&view), m_results(&results) {
     // the view clears the borrowed pointer before the window tree frees it
     m_view->set_on_destroyed([this] { m_view = nullptr; });
+    // the table clears the borrowed pointer before the window tree frees it
+    m_results->set_on_destroyed([this] { m_results = nullptr; });
     // a changed arranged extent refreshes the chart geometry
     m_view->set_on_resize_settled([this](const float width, const float height) { set_viewport(width, height); });
     // install the zoom callbacks
@@ -215,6 +218,11 @@ studio::ChartsPresenter::ChartsPresenter(ChartView& view, albor::TextEngine& tex
 studio::ChartsPresenter::~ChartsPresenter() { detach(); }
 
 void studio::ChartsPresenter::detach() {
+    // the table keeps no borrowed callback once the presenter leaves
+    if (m_results != nullptr)
+        m_results->set_on_destroyed({});
+    // the table is no longer reachable from the presenter
+    m_results = nullptr;
     // the window teardown may already have dropped the view
     if (m_view == nullptr)
         return;
@@ -256,6 +264,12 @@ std::optional<std::pair<std::shared_ptr<XyceOutputFile>, ChartKind>> studio::Cha
     // a touchstone file carries s parameter data, which plots on the smith plane
     else if (is_touchstone_extension(extension))
         parsed = touchstone_file_parser(path);
+    // a Fourier analysis file carries the harmonic spectra the results table presents
+    else if (extension.rfind(".four", 0) == 0) {
+        // the path names one file, which the pattern matches literally
+        if (const auto files = xyce_four_file_parser(path); files && !files->empty())
+            parsed = files->front();
+    }
     // a failed or unsupported parse leaves the shell untouched
     if (!parsed || !*parsed) {
         // report the file the charts refused
@@ -566,8 +580,18 @@ studio::ChartsPresenter::DatasetState& studio::ChartsPresenter::append_dataset(s
     state->title = unique_title(title);
     // only a user file carries a close affordance
     state->closable = role == DatasetRole::User;
-    // build the suggested or default charts
-    build_charts(*state->controller, *state->file, kind);
+    // a Fourier analysis output is presented as its results table, which needs no chart
+    state->fourier = state->file->plot_type() == PlotType::FOURIER;
+    // the table lists the blocks the file carries
+    if (state->fourier) {
+        // the blocks replace the ones a previous dataset carried
+        state->fourier_tables = fourier::build_tables(*state->file);
+        // the revision tells the table the content changed
+        state->fourier_revision++;
+    }
+    // build the suggested or default charts when the dataset plots
+    else
+        build_charts(*state->controller, *state->file, kind);
     // the new tab becomes active
     m_active_dataset = m_datasets.size();
     // keep the state alive in the tab list
@@ -611,8 +635,19 @@ void studio::ChartsPresenter::adopt_primary(std::shared_ptr<XyceOutputFile> file
     state.file = std::move(file);
     // remember the chart groups the new file carries
     state.plot_groups = state.file->suggested_plots();
+    // a Fourier analysis output is presented as its results table
+    state.fourier = state.file->plot_type() == PlotType::FOURIER;
+    // the table lists the blocks the file carries
+    state.fourier_tables = state.fourier ? fourier::build_tables(*state.file) : std::vector<fourier::SignalTable>{};
+    // the revision tells the table the content changed
+    state.fourier_revision++;
+    // a Fourier analysis output keeps no chart the previous primary carried
+    if (state.fourier) {
+        // drop the previous engines
+        state.controller->clear_charts();
+    }
     // rebuild only when the preserved charts cannot describe the new file
-    if (kind_changed || plots_changed || !all_resolved) {
+    else if (kind_changed || plots_changed || !all_resolved) {
         // drop the previous engines
         state.controller->clear_charts();
         // build the charts the new file suggests
@@ -799,6 +834,13 @@ void studio::ChartsPresenter::set_dark_mode(const bool dark) {
     // repaint the active dataset, or the empty panel, with the new palette
     if (m_view != nullptr)
         publish_scene();
+}
+
+bool studio::ChartsPresenter::fourier_active() const {
+    // the active dataset decides which surface shows
+    const DatasetState* state = active_state();
+    // a Fourier analysis output is presented as its results table
+    return state != nullptr && state->fourier;
 }
 
 bool studio::ChartsPresenter::has_dataset() const { return !m_datasets.empty(); }
@@ -1397,6 +1439,13 @@ void studio::ChartsPresenter::publish_scene() {
     DatasetState* state = active_state();
     // no dataset leaves the panel empty
     if (state == nullptr) {
+        // the table drops the blocks of the dataset that closed
+        if (m_results != nullptr)
+            m_results->set_tables({});
+        // no dataset is published any more
+        m_published_fourier_id = 0;
+        // no revision is published any more
+        m_published_fourier_revision = 0;
         // the empty panel reports no chart
         m_view->set_accessible_summary("0 charts");
         // the empty panel has no chart geometry
@@ -1404,6 +1453,19 @@ void studio::ChartsPresenter::publish_scene() {
         // the palette still follows the active scheme
         m_view->set_palette(chart_palette(m_dark_mode));
         // the empty scene is settled
+        return;
+    }
+    // a Fourier analysis output keeps its spectra in the results table, which needs no frames
+    if (state->fourier) {
+        // the hidden canvas reports the surface the body shows
+        m_view->set_accessible_summary("Fourier results");
+        // the hidden canvas keeps no chart geometry
+        m_view->set_frames({});
+        // the hidden canvas follows the active scheme like the table does
+        m_view->set_palette(chart_palette(m_dark_mode));
+        // publish the blocks the table lists
+        publish_fourier(*state);
+        // the table scene is settled
         return;
     }
     // the arranged view is the authority on the panel extent once it has one
@@ -1435,4 +1497,23 @@ void studio::ChartsPresenter::publish_scene() {
     m_view->set_frames(state->controller->frames());
     // the palette follows the active scheme
     m_view->set_palette(chart_palette(m_dark_mode));
+}
+
+void studio::ChartsPresenter::publish_fourier(DatasetState& state) {
+    // a detached presenter has no table to fill
+    if (m_results == nullptr)
+        return;
+    // the table follows the active scheme
+    m_results->set_palette(chart_palette(m_dark_mode));
+    // the table already shows these blocks, so the reader keeps the scroll where it was
+    if (m_published_fourier_id == state.id && m_published_fourier_revision == state.fourier_revision)
+        return;
+    // the header names the dataset the file carries, falling back to the tab label
+    m_results->set_title(state.file != nullptr && !state.file->title().empty() ? state.file->title() : state.title);
+    // the table lists the blocks the file carries
+    m_results->set_tables(state.fourier_tables);
+    // remember the blocks the table now shows
+    m_published_fourier_id = state.id;
+    // remember the revision the table now shows
+    m_published_fourier_revision = state.fourier_revision;
 }

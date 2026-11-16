@@ -13,6 +13,7 @@
 #include "charts/chart_text_measurer.h"
 #include "charts/charts_controller.h"
 #include "charts/fft_selection.h"
+#include "charts/fourier_results.h"
 #include "charts/plot_selection.h"
 #include "charts/step_tool.h"
 #include "presenters/run_output.h"
@@ -24,13 +25,14 @@ class PrintParameters;
 namespace studio
 {
     class ChartView;
+    class FourierResultsView;
 
     // loads output datasets and publishes their chart state to the native view
     class ChartsPresenter final
     {
     public:
-        // build the presenter over the view it drives and the engine its labels shape with
-        ChartsPresenter(ChartView& view, albor::TextEngine& text);
+        // build the presenter over the charts canvas, the Fourier results table and the engine its labels shape with
+        ChartsPresenter(ChartView& view, FourierResultsView& results, albor::TextEngine& text);
 
         ChartsPresenter(const ChartsPresenter&) = delete;
 
@@ -125,6 +127,9 @@ namespace studio
         // compute the accepted transform and append it as a new dataset
         void apply_fft(const FftRequest& request);
 
+        // report whether the active dataset presents its Fourier results table instead of charts
+        [[nodiscard]] bool fourier_active() const;
+
         // hand out how many charts the active dataset holds
         [[nodiscard]] std::size_t chart_count() const;
 
@@ -163,6 +168,15 @@ namespace studio
 
             // the charts the dataset was built with
             std::vector<std::vector<std::string>> plot_groups;
+
+            // whether the dataset presents its Fourier results table instead of charts
+            bool fourier = false;
+
+            // the per-signal and per-step Fourier blocks the table lists
+            std::vector<fourier::SignalTable> fourier_tables;
+
+            // the revision of the blocks, which the table follows so a republish keeps its scroll
+            std::uint64_t fourier_revision = 0;
 
             // the title the tab shows
             std::string title;
@@ -209,6 +223,9 @@ namespace studio
         // build the charts the dataset suggests, or one chart over its first expressions
         void build_charts(ChartsController& controller, XyceOutputFile& file, ChartKind kind);
 
+        // publish the Fourier blocks the dataset carries to the results table
+        void publish_fourier(DatasetState& state);
+
         // tell the shell that the tab set or selection changed
         void notify_tabs_changed();
 
@@ -217,6 +234,9 @@ namespace studio
 
         // the native view the summary and future layers are published to
         ChartView* m_view;
+
+        // the native table a Fourier analysis output is presented in
+        FourierResultsView* m_results;
 
         // the datasets shown as tabs, in first-open order
         std::vector<std::unique_ptr<DatasetState>> m_datasets;
@@ -246,6 +266,12 @@ namespace studio
 
         // the shell sink for the calculate FFT command
         std::function<void(std::size_t)> m_on_calculate_fft;
+
+        // the dataset whose Fourier blocks the table currently shows, zero while none
+        int m_published_fourier_id = 0;
+
+        // the revision of the blocks the table currently shows
+        std::uint64_t m_published_fourier_revision = 0;
 
         // whether the dark chart palette is active
         bool m_dark_mode = false;

@@ -27,6 +27,7 @@ namespace studio
 {
     class ChartView;
     class DocumentTabs;
+    class FourierResultsView;
 
     // the Albor shell window; it implements the surface the presenter drives and owns the run
     class MainWindowView final : public MainWindowViewDef
@@ -61,8 +62,14 @@ namespace studio
         // swap the body between the netlist editor and the waveform panel
         void set_charts_visible(bool visible);
 
+        // swap the waveform body between the chart canvas and the Fourier results table
+        void set_fourier_results_visible(bool visible);
+
         // hand out the native chart view the presenter drives, null before the window is created
         [[nodiscard]] ChartView* chart_view() const;
+
+        // hand out the native Fourier results view the presenter drives, null before the window is created
+        [[nodiscard]] FourierResultsView* fourier_results_view() const;
 
         // hand out the document strip the shell presenter drives, null before the window is created
         [[nodiscard]] DocumentTabs* document_tabs() const;
@@ -166,6 +173,9 @@ namespace studio
 
         // the native chart view the tree owns after creation
         ChartView* m_chart_view = nullptr;
+
+        // the native Fourier results view the tree owns after creation
+        FourierResultsView* m_fourier_results = nullptr;
 
         // the document strip the tree owns after creation
         DocumentTabs* m_document_tabs = nullptr;

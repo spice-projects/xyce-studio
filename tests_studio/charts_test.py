@@ -529,3 +529,64 @@ class ChartsPanelChecks(unittest.TestCase):
                 expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: Netlist")
                 expect(app.get_by_id("netlist_editor")).to_exist()
                 expect(app.get_by_id("charts_view")).not_().to_exist()
+
+    def test_a_fourier_output_opens_as_its_results_table(self) -> None:
+        # arrange: a Fourier analysis output and a session scoped to this test
+        dataset = Path(__file__).resolve().parent / "fixtures" / "four-simple-01.four0"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            # assert: the results table replaces the chart canvas
+            table = app.get_by_id("fourier_results_view")
+            table.wait_for_exists()
+            expect(table).to_have_name("Fourier results: FOUR: 1000 Hz")
+            expect(app.get_by_id("charts_view")).not_().to_exist()
+            # assert: the strip lists the netlist and the Fourier dataset
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: FOUR: 1000 Hz")
+            # assert: every signal block announces its own THD and its analysis settings
+            expect(app.get_by_id("fourier_block_0")).to_have_name("V(1)  -  THD: 28.64 %")
+            expect(app.get_by_id("fourier_block_1")).to_have_name("V(2)  -  THD: 2.291 %")
+            expect(app.get_by_id("fourier_block_0_settings")).to_have_name("No. Harmonics: 5  -  Gridsize: 200  -  Cubic Spline")
+            # assert: the second block carries its own settings strip
+            expect(app.get_by_id("fourier_block_1_settings")).to_have_name("No. Harmonics: 5  -  Gridsize: 200  -  Cubic Spline")
+            # assert: the harmonic rows carry the spectrum cells and the normalized ones
+            expect(app.get_by_id("fourier_block_0_row_2")).to_have_name("Harmonic 2, 2.000000e+03 Hz, 1.250000e+00, 9.000000e+01 deg, normalized 2.500000e-01, 9.000000e+01 deg")
+            # assert: the last harmonic is listed and the block stops there
+            expect(app.get_by_id("fourier_block_0_row_4")).to_exist()
+            expect(app.get_by_id("fourier_block_0_row_5")).not_().to_exist()
+
+    def test_the_fourier_table_yields_the_body_to_the_netlist_tab(self) -> None:
+        # arrange: start on the Fourier results table through the dataset argument
+        dataset = Path(__file__).resolve().parent / "fixtures" / "four-simple-01.four0"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            app.get_by_id("fourier_results_view").wait_for_exists()
+            # step: select the netlist tab
+            app.get_by_id("document_tabs").click("select-tab-0")
+            # assert: the editor takes the body and the table leaves it
+            app.get_by_id("netlist_editor").wait_for_exists()
+            expect(app.get_by_id("fourier_results_view")).not_().to_exist()
+            # step: select the Fourier dataset tab again
+            app.get_by_id("document_tabs").click("select-tab-1")
+            # assert: the table returns and the chart canvas stays hidden
+            app.get_by_id("fourier_results_view").wait_for_exists()
+            expect(app.get_by_id("fourier_results_view")).to_have_name("Fourier results: FOUR: 1000 Hz")
+            expect(app.get_by_id("charts_view")).not_().to_exist()
+
+    def test_the_fourier_table_yields_the_body_to_a_chart_tab(self) -> None:
+        # arrange: a Fourier output and a transient dataset opened as two tabs
+        four_dataset = Path(__file__).resolve().parent / "fixtures" / "four-simple-01.four0"
+        chart_dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(four_dataset), "--dataset", str(chart_dataset)]), self.id()) as app:
+            # assert: the last opened dataset owns the body
+            app.get_by_id("charts_view").wait_for_exists()
+            expect(app.get_by_id("fourier_results_view")).not_().to_exist()
+            # step: select the Fourier dataset tab
+            app.get_by_id("document_tabs").click("select-tab-1")
+            # assert: the table takes the body in place of the canvas
+            app.get_by_id("fourier_results_view").wait_for_exists()
+            expect(app.get_by_id("fourier_results_view")).to_have_name("Fourier results: FOUR: 1000 Hz")
+            expect(app.get_by_id("charts_view")).not_().to_exist()
+            # step: select the transient dataset tab again
+            app.get_by_id("document_tabs").click("select-tab-2")
+            # assert: the charts return and the table leaves the body
+            app.get_by_id("charts_view").wait_for_exists()
+            expect(app.get_by_id("charts_view")).to_have_name("2 datasets, 1 line chart, active: tran-simple-01")
+            expect(app.get_by_id("fourier_results_view")).not_().to_exist()

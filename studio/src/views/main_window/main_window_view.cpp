@@ -17,6 +17,7 @@
 #include "main_window.h"
 #include "netlist/netlist_lexer.h"
 #include "views/charts/chart_view.h"
+#include "views/charts/fourier_results_view.h"
 #include "views/main_window/document_tabs.h"
 
 namespace
@@ -174,7 +175,14 @@ namespace
     }
 
     // build the filter the open panel offers, which is the netlist format and its outputs
-    std::vector<albor::FileFilter> open_filters() { return {albor::FileFilter{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat", "s1p", "s2p", "s3p", "s4p", "ts"}}}; }
+    std::vector<albor::FileFilter> open_filters() {
+        // the analysis outputs and the netlists share one filter
+        albor::FileFilter outputs{"Xyce Files", {"cir", "raw", "prn", "csd", "csv", "dat", "s1p", "s2p", "s3p", "s4p", "ts"}};
+        // a stepped run writes one Fourier file per step, so every suffix is offered
+        albor::FileFilter fourier{"Fourier Files", {"four", "four0", "four1", "four2", "four3", "four4", "four5", "four6", "four7", "four8", "four9"}};
+        // hand out both filters in the order the panel lists them
+        return {std::move(outputs), std::move(fourier)};
+    }
 } // namespace
 
 studio::MainWindowView::MainWindowView(albor::Application& application) :
@@ -232,6 +240,14 @@ bool studio::MainWindowView::create() {
             host->add_child(std::move(charts));
             host->invalidate_layout();
         }
+        // the Fourier results table replaces the canvas while such a dataset is active
+        if (albor::UiNode* host = find_node(*m_root, "fourier_results_host")) {
+            auto results = std::make_unique<FourierResultsView>(&stage->binding_engine(), &stage->text_engine());
+            // remember the view so the presenter can feed it
+            m_fourier_results = results.get();
+            host->add_child(std::move(results));
+            host->invalidate_layout();
+        }
     }
     // seed the editor highlight from the empty netlist
     rebuild_netlist_highlight();
@@ -264,7 +280,16 @@ void studio::MainWindowView::set_charts_visible(const bool visible) {
     m_root->set_charts_visible(visible);
 }
 
+void studio::MainWindowView::set_fourier_results_visible(const bool visible) {
+    // without a live facade there is no body to swap
+    if (m_root == nullptr)
+        return;
+    m_root->set_fourier_visible(visible);
+}
+
 studio::ChartView* studio::MainWindowView::chart_view() const { return m_chart_view; }
+
+studio::FourierResultsView* studio::MainWindowView::fourier_results_view() const { return m_fourier_results; }
 
 studio::DocumentTabs* studio::MainWindowView::document_tabs() const { return m_document_tabs; }
 
@@ -288,6 +313,8 @@ void studio::MainWindowView::on_window_closed(albor::WindowHandle handle) {
     m_root = nullptr;
     // the charts view dies with the tree
     m_chart_view = nullptr;
+    // the Fourier results view dies with the tree
+    m_fourier_results = nullptr;
     // the document strip dies with the tree
     m_document_tabs = nullptr;
     // the window handle no longer names a live window

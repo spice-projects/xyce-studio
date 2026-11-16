@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <spdlog/spdlog.h>
+
 #include "albor/application/application.h"
 #include "albor/application/window_stage.h"
 #include "albor/text/text_engine.h"
@@ -72,9 +74,9 @@ int studio::StudioApp::run() {
     if (!m_startup_netlist.empty())
         m_main_presenter->on_open_file(m_startup_netlist);
     // the shell owns the native charts view the charts presenter drives
-    if (albor::WindowStage* stage = application.stage(m_main_view->handle()); stage != nullptr && m_main_view->chart_view() != nullptr) {
-        // build the presenter over the view and the window text engine
-        m_charts_presenter = std::make_unique<ChartsPresenter>(*m_main_view->chart_view(), stage->text_engine());
+    if (albor::WindowStage* stage = application.stage(m_main_view->handle()); stage != nullptr && m_main_view->chart_view() != nullptr && m_main_view->fourier_results_view() != nullptr) {
+        // build the presenter over the canvas, the results table and the window text engine
+        m_charts_presenter = std::make_unique<ChartsPresenter>(*m_main_view->chart_view(), *m_main_view->fourier_results_view(), stage->text_engine());
         // match the chart palette to the scheme the window installed
         m_charts_presenter->set_dark_mode(m_main_view->is_dark());
         // a live scheme flip repaints the charts
@@ -247,6 +249,11 @@ int studio::StudioApp::run() {
             });
         });
     }
+    // a shell that built no surface leaves the datasets to the log
+    else {
+        // the missing surface is a shell defect rather than a refused file
+        spdlog::error("Charts: the shell built no chart and Fourier result surfaces");
+    }
     // the dialog is parented to the shell and outlives individual shows
     m_plugin_config_view = std::make_unique<AlborPluginConfigDialogView>(application, m_main_view->handle());
     m_plugin_config_presenter = std::make_unique<PluginConfigPresenter>();
@@ -336,6 +343,8 @@ void studio::StudioApp::refresh_documents() {
     m_main_view->document_tabs()->set_active(active);
     // the body follows the active document
     m_main_view->set_charts_visible(active > 0);
+    // the waveform body shows the Fourier results table while such a dataset is active
+    m_main_view->set_fourier_results_visible(active > 0 && m_charts_presenter != nullptr && m_charts_presenter->fourier_active());
 }
 
 void studio::StudioApp::select_document(const int index) {

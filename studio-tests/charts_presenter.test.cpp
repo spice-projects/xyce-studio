@@ -14,6 +14,7 @@
 #include "charts/fft_selection.h"
 #include "presenters/charts_presenter.h"
 #include "views/charts/chart_view.h"
+#include "views/charts/fourier_results_view.h"
 
 namespace
 {
@@ -51,7 +52,8 @@ TEST(StudioChartsPresenterChecks, an_empty_presenter_reports_no_dataset) {
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     // assert: the empty presenter reports nothing to select or close
     EXPECT_FALSE(presenter.has_dataset());
     EXPECT_EQ(presenter.dataset_count(), 0U);
@@ -65,7 +67,8 @@ TEST(StudioChartsPresenterChecks, dataset_accessors_are_empty_past_the_last_tab)
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     // assert: a tab past the set has no title and no close affordance
     EXPECT_TRUE(presenter.dataset_title(0).empty());
     EXPECT_TRUE(presenter.dataset_title(7).empty());
@@ -79,7 +82,8 @@ TEST(StudioChartsPresenterChecks, closing_a_missing_dataset_does_nothing) {
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     // act: close a tab that does not exist
     presenter.close_dataset(0);
     // assert: the empty state is untouched
@@ -93,7 +97,8 @@ TEST(StudioChartsPresenterChecks, activating_a_missing_dataset_does_nothing) {
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     // act: select a tab that does not exist
     presenter.activate_dataset(3);
     // assert: the empty state is untouched
@@ -116,7 +121,8 @@ TEST(StudioChartsPresenterChecks, closing_every_dataset_releases_the_tabs) {
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     ASSERT_TRUE(presenter.show_file(dataset));
     ASSERT_EQ(presenter.dataset_count(), 1U);
     int changed = 0;
@@ -149,7 +155,8 @@ TEST(StudioChartsPresenterChecks, the_fft_selection_offers_the_chart_series_and_
     albor::BindingEngine engine;
     FakeTextEngine text;
     studio::ChartView view(&engine, &text);
-    studio::ChartsPresenter presenter(view, text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
     ASSERT_TRUE(presenter.show_file(dataset));
     // act: read the transform the dialog would open with
     const std::optional<studio::FftSelectionState> selection = presenter.fft_selection(0);
@@ -172,5 +179,124 @@ TEST(StudioChartsPresenterChecks, the_fft_selection_offers_the_chart_series_and_
     EXPECT_NE(presenter.dataset_title(1).rfind("FFT: Rectangular", 0), std::string::npos);
     EXPECT_EQ(presenter.active_dataset(), 1U);
     // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, a_fourier_output_opens_as_its_results_table) {
+    // arrange: a Fourier analysis file carrying one signal and two harmonics
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-fourier";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.four0";
+    {
+        std::ofstream file(dataset);
+        file << "Fourier analysis for V(1):\n";
+        file << "  No. Harmonics: 2, THD: 4.356800e+01, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        file << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        file << "           0    0.000000e+00    3.125000e-01    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        file << "           1    1.000000e+03    5.000000e+00    0.000000e+00    1.000000e+00    0.000000e+00\n";
+        file << "\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    // act: open the Fourier analysis output
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // assert: the dataset is active and presented as a table, which builds no chart
+    ASSERT_EQ(presenter.dataset_count(), 1U);
+    EXPECT_EQ(presenter.active_dataset(), 0U);
+    EXPECT_TRUE(presenter.fourier_active());
+    EXPECT_EQ(presenter.chart_count(), 0U);
+    EXPECT_EQ(presenter.dataset_title(0), "FOUR: 1000 Hz");
+    // assert: the table lists the blocks the file carries
+    EXPECT_EQ(results.block_count(), 1U);
+    // act: close the dataset
+    presenter.close_dataset(0);
+    // assert: the table surface is no longer active and holds no block
+    EXPECT_FALSE(presenter.fourier_active());
+    EXPECT_EQ(results.block_count(), 0U);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, a_scheme_flip_keeps_the_table_scrolled) {
+    // arrange: a Fourier analysis output whose table is scrolled down
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-fourier-scheme";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.four0";
+    {
+        std::ofstream file(dataset);
+        file << "Fourier analysis for V(1):\n";
+        file << "  No. Harmonics: 6, THD: 4.356800e+01, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        file << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        for (int harmonic = 0; harmonic < 6; ++harmonic)
+            file << "           " << harmonic << "    " << harmonic << ".000000e+03    5.000000e+00    0.000000e+00    1.000000e+00    0.000000e+00\n";
+        file << "\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // the table fills a short page the test arranges
+    results.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 600.0f, .height = 160.0f}));
+    ASSERT_GT(results.maximum_offset(), 0.0f);
+    ASSERT_TRUE(results.scroll_to(30.0f));
+    // act: the scheme flips to dark while the table is shown
+    presenter.set_dark_mode(true);
+    // assert: the repaint keeps the reader where they were
+    EXPECT_FLOAT_EQ(results.offset(), 30.0f);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, switching_tabs_swaps_the_table_and_the_charts) {
+    // arrange: a Fourier analysis output and a transient csv in one tab set
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-fourier-switch";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path four_dataset = root / "run.four0";
+    {
+        std::ofstream file(four_dataset);
+        file << "Fourier analysis for V(1):\n";
+        file << "  No. Harmonics: 2, THD: 1.000000e+00, Gridsize: 200, Interpolation Type: Cubic Spline\n";
+        file << "    Harmonic       Frequency       Magnitude           Phase       Norm. Mag     Norm. Phase\n";
+        file << "           0    0.000000e+00    3.125000e-01    0.000000e+00    0.000000e+00    0.000000e+00\n";
+        file << "           1    1.000000e+03    5.000000e+00    0.000000e+00    1.000000e+00    0.000000e+00\n";
+        file << "\n";
+    }
+    const std::filesystem::path chart_dataset = root / "tran.csv";
+    {
+        std::ofstream file(chart_dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(four_dataset));
+    ASSERT_TRUE(presenter.show_file(chart_dataset));
+    // assert: the chart dataset of the second tab owns the canvas
+    EXPECT_FALSE(presenter.fourier_active());
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    // act: select the Fourier tab again
+    presenter.activate_dataset(0);
+    // assert: the table shows the blocks of the Fourier dataset again
+    EXPECT_TRUE(presenter.fourier_active());
+    EXPECT_EQ(results.block_count(), 1U);
+    // act: select the chart tab again
+    presenter.activate_dataset(1);
+    // assert: the charts describe the chart dataset
+    EXPECT_FALSE(presenter.fourier_active());
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    // release the scratch files
     std::filesystem::remove_all(root, error);
 }

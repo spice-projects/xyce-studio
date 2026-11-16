@@ -301,7 +301,7 @@ The chart component is only useful with a dataset model. This is the `6.7a` shel
 - Document tabs: one strip in the window body lists the netlist first and every dataset after it; selecting a tab switches the body, and closing a dataset tab releases it and its retained scenes.
 - Suggested plots from `XyceOutputFile::suggested_plots()` create the initial charts; otherwise one empty chart is created.
 - Smith datasets create `ChartEngine` instances with `ChartKind::SMITH`; the diagonal entries are the default plots.
-- Fourier datasets have no plottable spectra; they show the Fourier results table instead of the chart canvas. This can be a follow-up if line/Smith is the first milestone.
+- Fourier datasets have no plottable spectra; `FourierResultsView` shows one block per signal and step with its THD and one row per harmonic, in place of the chart canvas. The blocks come from `fourier::build_tables()` in `core/src/charts/fourier_results.h`; the legacy Slint frontend still carries its own copy of the same formatting.
 
 The legacy `slint/src/ui/charts_renderer.cpp` contains the dataset/chart state machine and is the reference; port the logic, not the Slint types.
 
@@ -399,7 +399,7 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
   transform joins the document strip as its own dataset.
 - 6.6 Add Plot dialog. **Delivered**.
 - 6.8 native chart windows (`new_window`).
-- Fourier results table parity.
+- Fourier results table parity. **Delivered**: a `.FOUR` companion or a `.four*` file opened by the user is presented as a read-only table: one block per signal and step with its THD and the recorded analysis settings (`No. Harmonics`, `Gridsize`, `Interpolation Type`), and one row per harmonic with frequency, magnitude, phase and the two cells normalized to the fundamental (`Norm. Mag`, `Norm. Phase`). The body scrolls by the wheel, the paging keys and the bar. The table builder lives in `core` (`charts/fourier_results.h`, namespace `fourier`) so a future Slint pass can drop its own copy of the formatting.
 
 ---
 

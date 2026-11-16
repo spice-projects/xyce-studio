@@ -507,6 +507,21 @@ step (`.STEP`) label when the run sweeps a parameter, and the block's
 steps. A block whose fundamental vanishes prints `THD: nan`, shown as
 `n/a`.
 
+The header's second line carries the analysis settings the file records
+(`No. Harmonics`, `Gridsize`, `Interpolation Type`), and every row shows
+the six columns of the file: **Harmonic**, **Frequency**, **Magnitude**,
+**Phase**, **Norm. Mag** and **Norm. Phase**. The normalized pair is
+relative to the fundamental: `Norm. Mag` divides the magnitude by the
+first harmonic's magnitude and `Norm. Phase` subtracts the first
+harmonic's phase, which is why the dc row prints zeros, as the file
+does. A ratio the division cannot express — a vanished fundamental —
+reads as `n/a` rather than an infinity, and the dc magnitude keeps the
+sign the file prints for a negative bias.
+
+One file is opened per tab: a stepped run writes `.four0`, `.four1`, …
+and each of them opens on its own, so open the file whose step you want
+to inspect.
+
 ### .MEASURE directives
 
 ```
