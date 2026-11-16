@@ -11,7 +11,9 @@
 #include "albor/render/shaped_run.h"
 #include "albor/runtime/binding_engine.h"
 #include "albor/text/text_engine.h"
+#include "charts/chart_engine.h"
 #include "charts/fft_selection.h"
+#include "io/xyce_output_file.h"
 #include "presenters/charts_presenter.h"
 #include "presenters/run_output.h"
 #include "views/charts/chart_view.h"
@@ -359,5 +361,287 @@ TEST(StudioChartsPresenterChecks, discarding_run_companions_keeps_the_active_use
     EXPECT_EQ(presenter.active_dataset(), 1U);
     EXPECT_EQ(presenter.dataset_title(presenter.active_dataset()), active_title);
     // release the scratch files
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, a_new_window_request_hands_the_dataset_to_the_shell) {
+    // arrange: a parsed csv dataset
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-new-window";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n2,2\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // the shell records the dataset it is asked to open in a window
+    std::shared_ptr<XyceOutputFile> handed;
+    ChartKind handed_kind = ChartKind::SMITH;
+    std::string handed_title;
+    int requests = 0;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, const ChartKind kind, std::string title) {
+        handed = std::move(file);
+        handed_kind = kind;
+        handed_title = std::move(title);
+        requests++;
+    });
+    // act: run the command on the chart the menu targets
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    // assert: the shell receives the dataset that was already parsed, with the kind and title of the tab
+    ASSERT_NE(handed, nullptr);
+    EXPECT_EQ(handed->filename(), dataset);
+    EXPECT_EQ(handed_kind, ChartKind::XY);
+    EXPECT_EQ(handed_title, presenter.dataset_title(0));
+    EXPECT_EQ(requests, 1);
+    // assert: the window that asked keeps its own tab
+    EXPECT_EQ(presenter.dataset_count(), 1U);
+    // act: run the command on a chart that does not exist
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 7);
+    // assert: a missing chart opens nothing
+    EXPECT_EQ(requests, 1);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, an_adopted_dataset_opens_in_a_second_window) {
+    // arrange: a csv dataset the first shell parsed
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-adopt";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n2,2\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    std::shared_ptr<XyceOutputFile> handed;
+    ChartKind handed_kind = ChartKind::SMITH;
+    std::string handed_title;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, const ChartKind kind, std::string title) {
+        handed = std::move(file);
+        handed_kind = kind;
+        handed_title = std::move(title);
+    });
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    ASSERT_NE(handed, nullptr);
+    // the second shell over its own surfaces
+    albor::BindingEngine second_engine;
+    FakeTextEngine second_text;
+    studio::ChartView second_view(&second_engine, &second_text);
+    studio::FourierResultsView second_results(&second_engine, &second_text);
+    studio::ChartsPresenter second(second_view, second_results, second_text);
+    // act: the second shell adopts the dataset the first handed over
+    ASSERT_TRUE(second.adopt_file(handed, handed_kind, handed_title));
+    // assert: the adopted dataset is the tab the second window shows
+    EXPECT_EQ(second.dataset_count(), 1U);
+    EXPECT_TRUE(second.has_dataset());
+    EXPECT_EQ(second.active_dataset(), 0U);
+    EXPECT_TRUE(second.dataset_closable(0));
+    EXPECT_EQ(second.dataset_title(0), presenter.dataset_title(0));
+    // assert: both windows share the parsed file instead of reading it twice
+    EXPECT_GE(handed.use_count(), 2L);
+    // act: adopt a missing dataset
+    EXPECT_FALSE(second.adopt_file(nullptr, ChartKind::XY, {}));
+    // assert: a missing dataset adds no tab
+    EXPECT_EQ(second.dataset_count(), 1U);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, an_adopted_touchstone_dataset_plots_on_the_smith_plane) {
+    // arrange: a one frequency touchstone dataset
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-adopt-smith";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "lin.s2p";
+    {
+        std::ofstream file(dataset);
+        file << "[Version] 2.0\n";
+        file << "# Hz S RI R 50\n";
+        file << "[Number of Ports] 2\n";
+        file << "[Two-Port Data Order] 12_21\n";
+        file << "[Number of Frequencies] 1\n";
+        file << "[Reference] 50\n";
+        file << "[Network Data]\n";
+        file << "1.0e8 0.1 0.0 0.2 0.0 0.2 0.0 -0.1 0.0\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    std::shared_ptr<XyceOutputFile> handed;
+    ChartKind handed_kind = ChartKind::XY;
+    std::string handed_title;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, const ChartKind kind, std::string title) {
+        handed = std::move(file);
+        handed_kind = kind;
+        handed_title = std::move(title);
+    });
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    ASSERT_NE(handed, nullptr);
+    // the second shell over its own surfaces
+    albor::BindingEngine second_engine;
+    FakeTextEngine second_text;
+    studio::ChartView second_view(&second_engine, &second_text);
+    studio::FourierResultsView second_results(&second_engine, &second_text);
+    studio::ChartsPresenter second(second_view, second_results, second_text);
+    // act: the second shell adopts the touchstone dataset
+    ASSERT_TRUE(second.adopt_file(handed, handed_kind, handed_title));
+    // assert: the adopted dataset keeps the fixed smith plane of its format
+    const std::optional<studio::PlotSelectionState> selection = second.plot_selection(0);
+    ASSERT_TRUE(selection.has_value());
+    EXPECT_TRUE(selection->smith);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, a_new_window_request_without_a_sink_is_ignored) {
+    // arrange: a parsed csv dataset and a shell that installed no window sink
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-new-window-sink";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // act: run the command without a shell to hand the dataset to
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    // assert: the tab set and the scene are untouched
+    EXPECT_EQ(presenter.dataset_count(), 1U);
+    EXPECT_EQ(presenter.chart_count(), 1U);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, an_adopted_run_tab_keeps_the_title_it_was_handed) {
+    // arrange: a parsed csv dataset and the title its source tab carries
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-adopt-title";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    std::shared_ptr<XyceOutputFile> handed;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, ChartKind, std::string) { handed = std::move(file); });
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    ASSERT_NE(handed, nullptr);
+    // the second shell over its own surfaces
+    albor::BindingEngine second_engine;
+    FakeTextEngine second_text;
+    studio::ChartView second_view(&second_engine, &second_text);
+    studio::FourierResultsView second_results(&second_engine, &second_text);
+    studio::ChartsPresenter second(second_view, second_results, second_text);
+    // act: the second shell adopts the dataset under the title the run gave its tab
+    ASSERT_TRUE(second.adopt_file(handed, ChartKind::XY, "mysim.cir"));
+    // assert: the spawned tab reads the run title, not the analysis title the parser carries
+    EXPECT_EQ(second.dataset_title(0), "mysim.cir");
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, an_adopted_touchstone_dataset_on_the_line_plane_keeps_the_xy_kind) {
+    // arrange: a touchstone dataset the shell offers on the line plane
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-adopt-line";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "lin.s2p";
+    {
+        std::ofstream file(dataset);
+        file << "[Version] 2.0\n";
+        file << "# Hz S RI R 50\n";
+        file << "[Number of Ports] 2\n";
+        file << "[Two-Port Data Order] 12_21\n";
+        file << "[Number of Frequencies] 1\n";
+        file << "[Reference] 50\n";
+        file << "[Network Data]\n";
+        file << "1.0e8 0.1 0.0 0.2 0.0 0.2 0.0 -0.1 0.0\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    std::shared_ptr<XyceOutputFile> handed;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, ChartKind, std::string) { handed = std::move(file); });
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    ASSERT_NE(handed, nullptr);
+    // the second shell over its own surfaces
+    albor::BindingEngine second_engine;
+    FakeTextEngine second_text;
+    studio::ChartView second_view(&second_engine, &second_text);
+    studio::FourierResultsView second_results(&second_engine, &second_text);
+    studio::ChartsPresenter second(second_view, second_results, second_text);
+    // act: the second shell adopts the file with the line kind its tab was showing
+    ASSERT_TRUE(second.adopt_file(handed, ChartKind::XY, {}));
+    // assert: the kind the caller hands over wins over the extension the file carries
+    const std::optional<studio::PlotSelectionState> selection = second.plot_selection(0);
+    ASSERT_TRUE(selection.has_value());
+    EXPECT_FALSE(selection->smith);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, adopting_a_dataset_after_a_detach_reports_failure) {
+    // arrange: a parsed csv dataset and a presenter that already lost its surfaces
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-adopt-detached";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    std::shared_ptr<XyceOutputFile> handed;
+    presenter.set_on_new_window([&](std::shared_ptr<XyceOutputFile> file, ChartKind, std::string) { handed = std::move(file); });
+    presenter.run_chart_command(studio::ChartCommand::NewWindow, 0);
+    ASSERT_NE(handed, nullptr);
+    // act: the shell detaches the presenter before its views die
+    presenter.detach();
+    // assert: a detached shell adopts nothing
+    EXPECT_FALSE(presenter.adopt_file(handed, ChartKind::XY, {}));
+    EXPECT_EQ(presenter.dataset_count(), 1U);
+    // release the scratch file
     std::filesystem::remove_all(root, error);
 }

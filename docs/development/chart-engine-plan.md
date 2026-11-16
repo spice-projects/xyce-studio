@@ -421,7 +421,21 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
   the expressions, range, points, window, output and format, and the accepted
   transform joins the document strip as its own dataset.
 - 6.6 Add Plot dialog. **Delivered**.
-- 6.8 native chart windows (`new_window`).
+- 6.8 native chart windows (`new_window`). **Delivered**: the chart context
+  menu (and its automation action) offers New Window on a cartesian chart, and
+  the shell opens a window of its own over the dataset that chart reads. The
+  window is a full `WindowInstance` — its own editor, strip, charts, Fourier
+  table and dialogs — and adopts the parsed `XyceOutputFile` instead of reading
+  the file twice. The adopted dataset is a closable user tab built from the
+  file's suggested plots, which mirrors the legacy window seeded with the raw
+  file. The application keeps every window alive, routes each close to its
+  owner and releases a closed shell after the close dispatch returns. The
+  spawned window shares the parsed file (and its run directory lease) with the
+  window that handed it over, including its expression manager, so a custom
+  expression entered in either window is visible in both. The window
+  bookkeeping lives in `WindowSet` behind a `ShellWindow` interface, so the
+  application injects its loop and its shell factory and the multi-window
+  lifetime is unit-tested in `studio-tests/window_set.test.cpp`.
 - Fourier results table parity. **Delivered**: a `.FOUR` companion or a `.four*` file opened by the user is presented as a read-only table: one block per signal and step with its THD and the recorded analysis settings (`No. Harmonics`, `Gridsize`, `Interpolation Type`), and one row per harmonic with frequency, magnitude, phase and the two cells normalized to the fundamental (`Norm. Mag`, `Norm. Phase`). The body scrolls by the wheel, the paging keys and the bar. The table builder lives in `core` (`charts/fourier_results.h`, namespace `fourier`) so a future Slint pass can drop its own copy of the formatting.
 
 ---

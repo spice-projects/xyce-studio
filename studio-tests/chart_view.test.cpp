@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -1148,4 +1149,62 @@ TEST(StudioChartViewChecks, the_hover_callbacks_follow_the_pointer) {
     view.dispatch_event(leave);
     // assert: leaving clears the readout once
     EXPECT_EQ(ended, 1);
+}
+
+TEST(StudioChartViewChecks, a_cartesian_chart_offers_a_new_window_command) {
+    // arrange: a view over one cartesian chart
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 300.0f;
+    view.set_frames({frame});
+    // act: read the rows the context menu presents
+    const std::vector<studio::ChartContextMenuEntry> entries = view.context_menu_entries(0);
+    // assert: the last row opens the dataset in a window of its own
+    ASSERT_FALSE(entries.empty());
+    EXPECT_EQ(entries.back().label, "New Window");
+    EXPECT_EQ(entries.back().command, studio::ChartCommand::NewWindow);
+    // assert: a separator groups the window command away from the chart stack
+    ASSERT_GE(entries.size(), 2U);
+    EXPECT_TRUE(entries[entries.size() - 2].separator);
+    // the command the automation runs for the same chart
+    studio::ChartCommand invoked = studio::ChartCommand::ZoomToFit;
+    std::size_t invoked_index = 99;
+    view.set_on_chart_command([&](const studio::ChartCommand command, const std::size_t index) {
+        invoked = command;
+        invoked_index = index;
+    });
+    // act: the automation invokes the action the menu row offers
+    const albor::SemanticNode node = view.semantic_node();
+    ASSERT_TRUE(node.has_action("chart-0-new-window"));
+    EXPECT_TRUE(node.invoke("chart-0-new-window"));
+    // assert: the action routes the window command to the presenter with the chart it named
+    EXPECT_EQ(invoked, studio::ChartCommand::NewWindow);
+    EXPECT_EQ(invoked_index, 0U);
+}
+
+TEST(StudioChartViewChecks, a_smith_chart_offers_no_new_window_command) {
+    // arrange: a view over one fixed smith chart
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    view.arrange(albor::Rect::from_origin_size(albor::Point{.x = 0.0f, .y = 0.0f}, albor::Size{.width = 400.0f, .height = 300.0f}));
+    ChartFrame frame;
+    frame.frame_w = 400.0f;
+    frame.frame_h = 300.0f;
+    frame.smith = true;
+    view.set_frames({frame});
+    // act: read the rows the context menu presents
+    const std::vector<studio::ChartContextMenuEntry> entries = view.context_menu_entries(0);
+    // assert: the smith plane keeps the plot commands only
+    const auto new_window = std::find_if(entries.begin(), entries.end(), [](const studio::ChartContextMenuEntry& entry) { return entry.command == studio::ChartCommand::NewWindow; });
+    EXPECT_EQ(new_window, entries.end());
+    // assert: the plot dialog still applies to the fixed plane
+    const auto add_remove = std::find_if(entries.begin(), entries.end(), [](const studio::ChartContextMenuEntry& entry) { return entry.command == studio::ChartCommand::AddRemovePlots; });
+    EXPECT_NE(add_remove, entries.end());
+    // assert: the automation exposes no window action for the fixed plane
+    EXPECT_FALSE(view.semantic_node().has_action("chart-0-new-window"));
 }

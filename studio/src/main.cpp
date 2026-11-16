@@ -1,8 +1,13 @@
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
 
+#include "albor/application/application.h"
+#include "albor/text/text_engine.h"
+#include "albor_embedded_fonts.h"
 #include "app/studio_app.h"
+#include "app/window_instance.h"
 #include "config/plugin_config.h"
 
 namespace
@@ -69,12 +74,22 @@ namespace
 } // namespace
 
 int main(int argc, char** argv) {
+    // name the embedded family before the first window shapes any text
+    albor::set_installed_font_family(std::string(albor::generated::DEFAULT_FAMILY));
     // load the persisted configuration before the overrides apply
     PluginConfig config = PluginConfig::load();
     // an explicit executable wins for this run without rewriting the file
     apply_xyce_override(config, argc, argv);
     // the shell owns the windows and the event loop
-    studio::StudioApp app(std::move(config));
+    studio::StudioApp app(std::move(config), albor::Application::instance(), [](PluginConfig& plugin_config, albor::Application& application) -> std::unique_ptr<studio::ShellWindow> {
+        // the shell the application builds reads the configuration the app keeps
+        auto window = std::make_unique<studio::WindowInstance>(application, plugin_config);
+        // a refused shell leaves no window to own
+        if (!window->create())
+            return nullptr;
+        // hand the caller the created shell
+        return window;
+    });
     // a --netlist argument opens a netlist through the file dispatch at startup
     apply_netlist_override(app, argc, argv);
     // a --dataset argument opens an output file in the charts at startup

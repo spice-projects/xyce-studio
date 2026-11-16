@@ -167,9 +167,9 @@ void studio::AlborAddPlotDialogView::show(PlotSelectionState state, AcceptedHand
     if (albor::Window* window = m_app->window(m_handle))
         window->show();
     // the filter takes the caret once the first frame has arranged the page
-    m_app->post([this] {
-        // a dialog that closed before the task ran has nothing to focus
-        if (!m_handle.valid() || m_root == nullptr)
+    m_app->post([this, alive = m_alive] {
+        // a dialog that closed or died before the task ran has nothing to focus
+        if (!*alive || !m_handle.valid() || m_root == nullptr)
             return;
         // the filter is the first field the user types into
         if (albor::WindowStage* posted_stage = m_app->stage(m_handle)) {

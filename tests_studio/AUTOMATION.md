@@ -476,11 +476,14 @@ expect(chart).to_have_name("1 line chart")
 
 - The actions are `chart-<index>-zoom-to-fit`, `chart-<index>-autorange`,
   `chart-<index>-zoom-abscissa-extent`, `chart-<index>-add-remove-plots`,
-  `chart-<index>-delete-all-plots`, `chart-<index>-add-chart` and
-  `chart-<index>-delete-chart`.
+  `chart-<index>-delete-all-plots`, `chart-<index>-add-chart`,
+  `chart-<index>-delete-chart` and `chart-<index>-new-window`.
 - A Smith chart exposes only `chart-<index>-add-remove-plots` and
   `chart-<index>-delete-all-plots`, because its plane is fixed at the unit
   circle.
+- New Window spawns a second shell over the dataset the chart reads, and that
+  window becomes the tree the automation drives until it closes; see the
+  two-window recipe in `charts_test.py`.
 - Add Chart inserts an empty chart after the named chart; Delete Chart removes
   it and keeps one replacement when the last chart goes.
 

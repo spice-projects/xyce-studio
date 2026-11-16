@@ -1,29 +1,34 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <vector>
 
+#include "albor/application/lifetime_token.h"
+#include "albor/window/window_handle.h"
+#include "app/shell_window.h"
+#include "app/window_set.h"
+#include "charts/chart_engine.h"
 #include "config/plugin_config.h"
+
+class XyceOutputFile;
+
+namespace albor
+{
+    class Application;
+}
 
 namespace studio
 {
-    class AlborAddPlotDialogView;
-    class AlborStepToolDialogView;
-    class AlborFftDialogView;
-    class AlborPluginConfigDialogView;
-    class AlborSimulationParametersDialogView;
-    class ChartsPresenter;
-    class MainWindowView;
-    class MainWindowPresenter;
-    class PluginConfigPresenter;
-    class SimulationParametersPresenter;
-
-    // owns the shell, the dialog surfaces and the presenters, and runs the Albor event loop
+    // owns the shell windows and their presenters, and runs the Albor event loop
     class StudioApp
     {
     public:
-        explicit StudioApp(PluginConfig config);
+        // the factory the application builds a shell with, which a test substitutes
+        using ShellFactory = std::function<std::unique_ptr<ShellWindow>(PluginConfig&, albor::Application&)>;
+
+        StudioApp(PluginConfig config, albor::Application& application, ShellFactory factory);
 
         StudioApp(const StudioApp&) = delete;
 
@@ -41,16 +46,25 @@ namespace studio
         void set_startup_dataset(const std::filesystem::path& path);
 
     private:
-        // rebuild the document strip from the netlist and the open datasets
-        void refresh_documents();
+        // build and show one shell through the factory, returning null when it could not be created
+        ShellWindow* build_window();
 
-        // select the netlist or one dataset tab
-        void select_document(int index);
+        // open a dataset in a window of its own
+        void open_window(std::shared_ptr<XyceOutputFile> file, ChartKind kind, std::string title);
 
-        // close one dataset tab
-        void close_document(int index);
+        // route one closed window to the shell that owns it
+        void on_window_closed(albor::WindowHandle closed);
 
-        // the configuration the shell starts from and keeps after a dialog accepts
+        // the guard a deferred task checks before it touches the app
+        albor::LifetimeTokenSource m_lifetime;
+
+        // the application that owns the native loop and the window registry
+        albor::Application& m_application;
+
+        // the factory every shell is built with
+        ShellFactory m_factory;
+
+        // the configuration every window reads and the plugin dialog updates
         PluginConfig m_plugin_config;
 
         // the netlist the shell opens once it is up, empty when none was requested
@@ -59,37 +73,7 @@ namespace studio
         // the output files the charts open once the shell is up, empty when none was requested
         std::vector<std::filesystem::path> m_startup_datasets;
 
-        // the main shell window
-        std::unique_ptr<MainWindowView> m_main_view;
-
-        // the netlist lifecycle of the shell
-        std::unique_ptr<MainWindowPresenter> m_main_presenter;
-
-        // the waveform datasets and the native charts view they drive
-        std::unique_ptr<ChartsPresenter> m_charts_presenter;
-
-        // whether the waveform panel currently replaces the editor
-        bool m_charts_visible = false;
-
-        // the add/remove plots dialog surface
-        std::unique_ptr<AlborAddPlotDialogView> m_add_plot_view;
-
-        // the step tool dialog, parented to the shell
-        std::unique_ptr<AlborStepToolDialogView> m_step_tool_view;
-
-        // the FFT dialog, parented to the shell
-        std::unique_ptr<AlborFftDialogView> m_fft_view;
-
-        // the plugin configuration dialog surface
-        std::unique_ptr<AlborPluginConfigDialogView> m_plugin_config_view;
-
-        // the plugin configuration validation and persistence
-        std::unique_ptr<PluginConfigPresenter> m_plugin_config_presenter;
-
-        // the simulation parameters dialog surface
-        std::unique_ptr<AlborSimulationParametersDialogView> m_simulation_parameters_view;
-
-        // the simulation parameters validation and acceptance
-        std::unique_ptr<SimulationParametersPresenter> m_simulation_parameters_presenter;
+        // the shell windows the application keeps alive
+        WindowSet m_windows;
     };
 } // namespace studio

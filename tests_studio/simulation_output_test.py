@@ -7,12 +7,10 @@ from albor_automation import TestSession, expect, launch
 
 
 class SimulationOutputChecks(unittest.TestCase):
-    # the run action drives the simulation over the loaded netlist, the output
-    # panel shows the live log, and the close action hides the panel again
+    # the run action drives the simulation over the loaded netlist, the output panel shows the live log, and the close action hides the panel again
 
     def test_run_shows_the_output_log_and_close_hides_the_panel(self) -> None:
-        # arrange: a fake Xyce executable the configuration points at, which
-        # prints the banner, a reported warning and the completion lines
+        # arrange: a fake Xyce executable the configuration points at, which prints the banner, a reported warning and the completion lines
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Xyce"
             exe.write_text(
@@ -31,8 +29,7 @@ class SimulationOutputChecks(unittest.TestCase):
                 expect(app.get_by_id("output_log")).not_().to_exist()
                 # step 1: start the run from the toolbar
                 app.get_by_id("main_run").click()
-                # assert: the panel mounts and streams the whole log, which the
-                # flush coalescing delivers as one value
+                # assert: the panel mounts and streams the whole log, which the flush coalescing delivers as one value
                 log = app.get_by_id("output_log")
                 log.wait_for_exists()
                 expect(log).to_have_value(
@@ -41,8 +38,7 @@ class SimulationOutputChecks(unittest.TestCase):
                     "***** Percent complete: 100\n"
                     "Simulation completed.\n"
                 )
-                # assert: the run finished, so the action reads Run again and the
-                # status reports the outcome
+                # assert: the run finished, so the action reads Run again and the status reports the outcome
                 expect(app.get_by_id("main_run")).to_have_name("Run")
                 expect(app.get_by_id("main_status")).to_have_name("Simulation finished")
                 # step 2: close the panel
@@ -66,14 +62,12 @@ class SimulationOutputChecks(unittest.TestCase):
                 expect(app.get_by_id("main_run")).to_have_name("Stop")
                 # step 2: stop the run through the same action
                 app.get_by_id("main_run").click()
-                # assert: the run canceled, the action reads Run again and the
-                # status reports the cancel
+                # assert: the run canceled, the action reads Run again and the status reports the cancel
                 expect(app.get_by_id("main_run")).to_have_name("Run")
                 expect(app.get_by_id("main_status")).to_have_name("Simulation canceled")
 
     def test_status_reports_the_run_progress_while_it_is_live(self) -> None:
-        # arrange: a fake Xyce executable that reports progress and then keeps
-        # running, so the live state can be observed before the run ends
+        # arrange: a fake Xyce executable that reports progress and then keeps running, so the live state can be observed before the run ends
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Xyce"
             exe.write_text(
@@ -107,8 +101,7 @@ class SimulationOutputChecks(unittest.TestCase):
                 progress.wait_for_gone()
 
     def test_status_reports_an_indeterminate_bar_without_a_percentage(self) -> None:
-        # arrange: a fake Xyce executable whose analysis reports no completion
-        # percentage, which AC, DC sweep, HB and operating-point runs do
+        # arrange: a fake Xyce executable whose analysis reports no completion percentage, which AC, DC sweep, HB and operating-point runs do
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Xyce"
             exe.write_text(
@@ -166,13 +159,38 @@ class SimulationOutputChecks(unittest.TestCase):
                     "*** Running Xyce simulation ***\n"
                     "Simulation completed.\n"
                 )
-                # step 4: copy the whole log, which must leave the panel and its
-                # content untouched
+                # step 4: copy the whole log, which must leave the panel and its content untouched
                 app.get_by_id("output_copy").click()
                 expect(log).to_have_value(
                     "*** Running Xyce simulation ***\n"
                     "Simulation completed.\n"
                 )
+
+
+    def test_closing_a_window_mid_run_keeps_the_application_alive(self) -> None:
+        # arrange: a fake Xyce that sleeps, a netlist and a dataset to spawn a window from
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text("#!/bin/sh\nexec sleep 30\n")
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text(".tran 1m 10m\n.END\n")
+            dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist), "--dataset", str(dataset)]), self.id()) as app:
+                # step: start the run in the shell that owns the netlist
+                app.get_by_id("charts_view").wait_for_exists()
+                app.get_by_id("main_run").click()
+                expect(app.get_by_id("main_run")).to_have_name("Stop")
+                # step: spawn a window of its own over the dataset
+                app.get_by_id("charts_view").click("chart-0-new-window")
+                expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
+                # step: close the spawned window, which returns the run to the shell that started it
+                app.get_by_id("main_exit").click()
+                expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
+                # act: close the window that owns the live run
+                app.get_by_id("main_exit").click()
+                # assert: the run stops and the application exits cleanly instead of aborting
+                app.wait_for_condition(lambda: app.is_running() is False, timeout=20.0, message="expected closing the running window to end the application")
 
 
 if __name__ == "__main__":

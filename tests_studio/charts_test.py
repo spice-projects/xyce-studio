@@ -631,3 +631,29 @@ class ChartsPanelChecks(unittest.TestCase):
             app.get_by_id("fft_cancel").click()
             app.get_by_id("fft_ok").wait_for_gone()
 
+    def test_a_chart_opens_in_a_window_of_its_own(self) -> None:
+        # arrange: a dataset whose chart plots two expressions
+        dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
+        with TestSession(launch(args=["--dataset", str(dataset)]), self.id()) as app:
+            chart = app.get_by_id("charts_view")
+            chart.wait_for_exists()
+            # step: ask for the dataset in a window of its own
+            chart.click("chart-0-new-window")
+            # assert: the spawned shell is the window automation drives, over the same dataset
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
+            expect(app.get_by_id("charts_view")).to_have_name("1 line chart")
+            # step: select the netlist tab of the spawned shell and mark its editor
+            app.get_by_id("document_tabs").click("select-tab-0")
+            editor = app.get_by_id("netlist_editor")
+            editor.wait_for_exists()
+            expect(editor).to_have_value("")
+            editor.fill("R9 1 0 9k\n")
+            # step: close the spawned shell, which leaves the window that asked for it
+            app.get_by_id("main_exit").click()
+            # assert: the shell that asked survives with its own charts and its own netlist
+            expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: tran-simple-01")
+            app.get_by_id("document_tabs").click("select-tab-0")
+            expect(app.get_by_id("netlist_editor")).to_have_value("")
+            # step: return to the charts tab the surviving shell still owns
+            app.get_by_id("document_tabs").click("select-tab-1")
+            expect(app.get_by_id("charts_view")).to_have_name("1 line chart")

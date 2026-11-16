@@ -94,6 +94,9 @@ namespace studio
         // run one chart command on the chart at an index
         void run_chart_command(ChartCommand command, std::size_t chart_index) const;
 
+        // hand out the rows the context menu offers for one chart
+        [[nodiscard]] std::vector<ChartContextMenuEntry> context_menu_entries(std::size_t chart_index) const;
+
         // replace the transient zoom selection in chart-content coordinates
         void set_zoom_selection(std::optional<albor::Rect> selection);
 
@@ -233,9 +236,6 @@ namespace studio
 
         // arm one settle callback for the extent the panel stands at
         void schedule_resize_settle();
-
-        // the rows the context menu offers for one chart
-        [[nodiscard]] std::vector<ChartContextMenuEntry> context_menu_entries(std::size_t chart_index) const;
 
         // build the menu the popup surface shows over the given engines
         [[nodiscard]] std::unique_ptr<albor::Menu> build_context_menu(albor::BindingEngine& engine, albor::TextEngine& text, std::size_t chart_index);

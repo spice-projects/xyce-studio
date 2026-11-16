@@ -36,6 +36,9 @@ namespace studio
         MoveChartDown,
 
         // remove the targeted chart, keeping at least one chart
-        DeleteChart
+        DeleteChart,
+
+        // show the dataset the targeted chart reads in a window of its own
+        NewWindow
     };
 } // namespace studio

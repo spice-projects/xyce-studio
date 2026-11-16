@@ -16,6 +16,8 @@ file(GLOB_RECURSE STUDIO_TEST_SOURCES CONFIGURE_DEPENDS "./*.cpp")
 
 add_executable(studio-tests
     ${STUDIO_TEST_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/app/studio_app.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/app/window_set.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/charts/chart_text_measurer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/charts/charts_controller.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src/presenters/charts_presenter.cpp"

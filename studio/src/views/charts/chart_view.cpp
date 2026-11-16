@@ -178,8 +178,8 @@ void studio::ChartView::draw_text(albor::RenderContext& context, const albor::Te
 studio::ChartView::~ChartView() {
     // the menu surface dies with the panel that anchors it
     destroy_context_menu();
-    // drop the pending settle so it cannot reach a destroyed view
-    if (m_timers != nullptr && m_timers->scheduled(m_resize_timer))
+    // drop the pending settle, which a due timer may already have copied
+    if (m_timers != nullptr)
         (void)m_timers->cancel(m_resize_timer);
     // tell the presenter that borrowed this view that it is gone
     if (m_on_destroyed)
@@ -279,9 +279,14 @@ void studio::ChartView::schedule_resize_settle() {
     // cancel the settle a previous arrange armed
     if (m_timers->scheduled(m_resize_timer))
         (void)m_timers->cancel(m_resize_timer);
+    // the token the settle observes, so one that outlives the view drops
+    const albor::LifetimeToken alive = m_lifetime.token();
     // arm one settle after the resize has been quiet for a moment
     m_resize_timer = m_timers->schedule_once(
-        [this] {
+        [this, alive] {
+            // a due timer may already be copied by the scheduler, so a released view drops it
+            if (alive.expired())
+                return;
             // the settle consumed the timer
             m_resize_timer = 0;
             // hand the settled extent to the presenter
@@ -1154,6 +1159,10 @@ std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entri
             entries.push_back(ChartContextMenuEntry{.label = "Move Chart Down", .command = ChartCommand::MoveChartDown});
         // remove the targeted chart
         entries.push_back(ChartContextMenuEntry{.label = "Delete Chart", .command = ChartCommand::DeleteChart});
+        // separate the chart stack commands from the window command
+        entries.push_back(ChartContextMenuEntry{.label = {}, .command = ChartCommand::ZoomToFit, .separator = true});
+        // show the dataset in a window of its own
+        entries.push_back(ChartContextMenuEntry{.label = "New Window", .command = ChartCommand::NewWindow});
     }
     // hand the rows to the popup builder
     return entries;
@@ -1314,6 +1323,8 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
                 (void)node.add_action(prefix + "move-chart-down", [this, index] { run_chart_command(ChartCommand::MoveChartDown, index); });
             // remove the chart, keeping at least one chart
             (void)node.add_action(prefix + "delete-chart", [this, index] { run_chart_command(ChartCommand::DeleteChart, index); });
+            // show the dataset the chart reads in a window of its own
+            (void)node.add_action(prefix + "new-window", [this, index] { run_chart_command(ChartCommand::NewWindow, index); });
         }
         // edit the expressions the chart plots
         (void)node.add_action(prefix + "add-remove-plots", [this, index] { run_chart_command(ChartCommand::AddRemovePlots, index); });

@@ -188,7 +188,9 @@ namespace
 studio::MainWindowView::MainWindowView(albor::Application& application) :
     m_app(&application) {}
 
-studio::MainWindowView::~MainWindowView() {
+studio::MainWindowView::~MainWindowView() { detach(); }
+
+void studio::MainWindowView::detach() {
     // the presenter no longer exists, so the runner's teardown callbacks report nowhere
     m_events = nullptr;
     // a running simulation stops so its reader threads join before the ui dies
@@ -488,7 +490,7 @@ void studio::MainWindowView::append_output_line(std::string_view line, LogSeveri
     if (m_output_flush_scheduled)
         return;
     m_output_flush_scheduled = true;
-    m_app->post([this] { flush_output(); });
+    m_app->post([this] { flush_output(); }, m_lifetime.token());
 }
 
 std::size_t studio::MainWindowView::output_line_count() const { return m_output_line_count; }
@@ -558,7 +560,7 @@ void studio::MainWindowView::schedule_netlist_highlight() {
     if (m_netlist_highlight_scheduled)
         return;
     m_netlist_highlight_scheduled = true;
-    m_app->post([this] { rebuild_netlist_highlight(); });
+    m_app->post([this] { rebuild_netlist_highlight(); }, m_lifetime.token());
 }
 
 void studio::MainWindowView::copy_output() {
@@ -580,7 +582,7 @@ void studio::MainWindowView::start_simulation_process(const std::string& program
     // recreate the runner so a finished process never blocks the next run
     m_simulation_runner = std::make_unique<SimulationRunner>([this](std::function<void()> task) {
         // the runner dispatches its callbacks onto the ui thread, which the event loop owns
-        m_app->post(std::move(task));
+        m_app->post(std::move(task), m_lifetime.token());
     });
     // the console lines reach the presenter through the same seam as the ui events
     m_simulation_runner->set_stdout_callback([this](const std::string& line) {

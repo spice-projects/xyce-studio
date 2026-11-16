@@ -1016,6 +1016,12 @@ void studio::ChartsPresenter::run_chart_command(const ChartCommand command, cons
         // remove the targeted chart, keeping one replacement when it was the last
         state->controller->delete_chart(chart_index, state->kind);
         break;
+    case ChartCommand::NewWindow:
+        // the shell opens a window of its own over the dataset, kind and title the chart reads
+        if (m_on_new_window && state->file != nullptr)
+            m_on_new_window(state->file, state->kind, state->title);
+        // a spawned window changes no scene of this one
+        return;
     }
     // the retained scene follows the rebuilt frames
     publish_scene();
@@ -1026,6 +1032,21 @@ void studio::ChartsPresenter::set_on_add_remove_plots(std::function<void(std::si
 void studio::ChartsPresenter::set_on_step_tool(std::function<void(std::size_t)> handler) { m_on_step_tool = std::move(handler); }
 
 void studio::ChartsPresenter::set_on_calculate_fft(std::function<void(std::size_t)> handler) { m_on_calculate_fft = std::move(handler); }
+
+void studio::ChartsPresenter::set_on_new_window(std::function<void(std::shared_ptr<XyceOutputFile>, ChartKind, std::string)> handler) { m_on_new_window = std::move(handler); }
+
+bool studio::ChartsPresenter::adopt_file(std::shared_ptr<XyceOutputFile> file, const ChartKind kind, std::string title) {
+    // a detached presenter has no surface to show the dataset on
+    if (m_view == nullptr)
+        return false;
+    // a missing file has no dataset to show
+    if (file == nullptr)
+        return false;
+    // the adopted dataset is a user tab the shell may close
+    append_dataset(std::move(file), kind, DatasetRole::User, std::move(title));
+    // report the dataset shown
+    return true;
+}
 
 bool studio::ChartsPresenter::fft_available() const {
     // the active dataset owns the abscissa the transform reads

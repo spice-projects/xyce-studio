@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "albor/application/lifetime_token.h"
 #include "albor/window/window_handle.h"
 #include "charts/chart_palette.h"
 #include "runner/simulation_runner.h"
@@ -46,6 +47,9 @@ namespace studio
 
         // hand out the window handle the dialog parent is resolved from
         [[nodiscard]] albor::WindowHandle handle() const;
+
+        // drop the presenter and stop the simulation runner before the borrowed facade dies
+        void detach();
 
         // install the handler the plugin settings action reaches
         void set_on_plugin_settings(std::function<void()> handler);
@@ -218,5 +222,8 @@ namespace studio
 
         // the simulation process, recreated for every run
         std::unique_ptr<SimulationRunner> m_simulation_runner;
+
+        // the guard a posted view task observes, so none outlives the view
+        albor::LifetimeTokenSource m_lifetime;
     };
 } // namespace studio

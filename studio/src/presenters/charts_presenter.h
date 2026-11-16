@@ -106,6 +106,12 @@ namespace studio
         // install the callback the calculate FFT command reaches
         void set_on_calculate_fft(std::function<void(std::size_t)> handler);
 
+        // install the callback the new window command reaches, which opens over the dataset, kind and title it hands over
+        void set_on_new_window(std::function<void(std::shared_ptr<XyceOutputFile>, ChartKind, std::string)> handler);
+
+        // show a dataset another window already parsed as a closable tab, which shares its expressions with the caller
+        bool adopt_file(std::shared_ptr<XyceOutputFile> file, ChartKind kind, std::string title);
+
         // hand out the expressions and rules the add/remove plots dialog opens with
         [[nodiscard]] std::optional<PlotSelectionState> plot_selection(std::size_t chart_index) const;
 
@@ -269,6 +275,9 @@ namespace studio
 
         // the shell sink for the calculate FFT command
         std::function<void(std::size_t)> m_on_calculate_fft;
+
+        // the shell sink for the new window command, which receives the dataset, kind and title to show
+        std::function<void(std::shared_ptr<XyceOutputFile>, ChartKind, std::string)> m_on_new_window;
 
         // the dataset whose Fourier blocks the table currently shows, zero while none
         int m_published_fourier_id = 0;
