@@ -231,7 +231,7 @@ The target is a chart panel that stays interactive with several charts and thous
 
 ### 5.6 Benchmarks
 
-Add a `studio` benchmark or a unit test that times:
+Delivered as `studio-tests/charts_performance.test.cpp` (§6.7e). The benchmark times:
 
 - `ChartLayout::build` + scene build for 1/4/10 charts, 1/4 series each, 4000 points per series;
 - base picture replay (static);
@@ -358,11 +358,15 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 
 ### 6.7a — Dataset and shell
 
+**Delivered.**
+
 - `ChartsPresenter`, `PlotDataset`, output-file loading, run auto-load.
 - Document tab strip: netlist first, datasets after it.
 - Tab selection switches the body; closing a dataset selects its neighbour.
 
 ### 6.7b — Static Line charts
+
+**Delivered.**
 
 - `AlborTextMeasurer`.
 - `ChartSceneBuilder` for XY frames.
@@ -372,6 +376,8 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 
 ### 6.7c — Interactions
 
+**Delivered.**
+
 - Zoom drag + overlay picture.
 - Hover readout.
 - Context menu actions.
@@ -380,6 +386,8 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 
 ### 6.7d — Smith charts
 
+**Delivered.**
+
 - Smith `ChartFrame` painting (grid, boundary, labels, series).
 - Smith hover readout.
 - Hide cartesian-only actions.
@@ -387,9 +395,24 @@ The benchmark from §5.6 is a test or a separate executable; assert the allocati
 
 ### 6.7e — Performance hardening
 
-- Benchmarks, allocation checks, damage tuning.
-- Per-chart picture split only if the single base picture is too coarse.
-- Optional background scene build if profiling justifies it.
+**Delivered** in `studio-tests/charts_performance.test.cpp`:
+
+- The chart build is timed for 1, 4 and 10 charts with 4 series of 4000
+  samples each; the test asserts a debug-safe ceiling of 8 ms per chart and
+  records the measurement.
+- The static frame is timed twice: the first paint records the retained
+  layers, the second replays them. The test asserts the replay records
+  nothing new (base, series and legend record counts unchanged) and costs
+  less than the recording.
+- The overlay republish (a drag move) and the hover read are timed loops with
+  debug-safe ceilings of 5 ms and 2 ms.
+- Measured on the development machine in a Debug build (budgets in §5.6 are
+  Release): build 1.1–1.2 ms per chart, first paint 2.0 ms, replay 0.55 ms,
+  overlay update 0.64 ms, hover update 0.017 ms. The Release budgets are met
+  even in Debug for the build, the replay and the hover.
+- The per-chart retained split (base, series, legend) was already in place, so
+  the "split only if profiling needs it" item needed no work. No background
+  scene build was added: nothing in the measurements justified one.
 
 ### Follow-ups
 
