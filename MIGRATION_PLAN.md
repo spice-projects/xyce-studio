@@ -18,7 +18,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 - Phases 1–5 are complete, except the CI packaging re-verification in 4.4.
 - Phase 6 is complete: the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot, the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) and the KiCad plugin session are delivered.
 - Phase 7 is in progress: 7.1 is complete (see [`parity.md`](docs/development/parity.md)); 7.2–7.4 remain. The legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
-- Current coverage: 207 studio unit tests (`studio-tests/`), 92 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
+- Current coverage: 209 studio unit tests (`studio-tests/`), 93 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
 
 ---
 

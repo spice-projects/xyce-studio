@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import tempfile
 import time
 import unittest
@@ -409,6 +410,40 @@ class ChartsPanelChecks(unittest.TestCase):
             # assert: the transform opens as the active dataset tab
             expect(chart).to_have_name("2 datasets, 2 line charts, active: FFT: Hanning, 0–56833 Hz")
             expect(app.get_by_id("document_tabs")).to_have_name("Documents, active: FFT: Hanning, 0–56833 Hz")
+
+    def test_a_run_dataset_from_a_plain_file_name_offers_the_fft(self) -> None:
+        # arrange: the schematic-style netlist a KiCad export writes, whose print keeps the default format
+        xyce = shutil.which("Xyce")
+        if xyce is None:
+            self.skipTest("Xyce executable not found")
+        with tempfile.TemporaryDirectory() as tmp:
+            netlist = Path(tmp) / "kicad.cir"
+            netlist.write_text(
+                ".TITLE KiCad schematic\n"
+                "R1 /output GND 1k\n"
+                "V1 /output GND DC 0 SIN( 0 1 1k 0 0 0 ) AC 1\n"
+                "\n"
+                ".PREPROCESS REPLACEGROUND TRUE\n"
+                ".TRAN 10u 20m\n"
+                ".PRINT TRAN V(*) I(*)\n"
+                ".PLOT I(R1)\n"
+                "\n"
+                ".END\n"
+            )
+            with TestSession(launch(args=["--netlist", str(netlist), "--xyce", xyce]), self.id()) as app:
+                # step: run the netlist
+                app.get_by_id("main_run").click()
+                expect(app.get_by_id("main_status")).to_have_name("Simulation finished", timeout=60.0)
+                chart = app.get_by_id("charts_view")
+                chart.wait_for_exists()
+                # act: open the FFT dialog from the run dataset
+                chart.click("chart-0-calculate-fft")
+                app.get_by_id("fft_ok").wait_for_exists()
+                # assert: the dialog offers the chart series the run produced
+                expect(app.get_by_id("fft_card_1")).to_have_name("V(/OUTPUT)")
+                # step: close the dialog
+                app.get_by_id("fft_cancel").click()
+                app.get_by_id("fft_ok").wait_for_gone()
 
     def test_an_unsupported_dataset_argument_keeps_the_editor(self) -> None:
         # arrange: a text file the charts cannot parse and a session scoped to this test

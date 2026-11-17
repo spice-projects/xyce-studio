@@ -267,6 +267,7 @@ capability.
 | 11 | The plot selection marked a complex AC source selected because one of its derived series was plotted, so a chart plotting only `db(I(L1))` showed both `db(I(L1))` and `I(L1)` as displayed (reported after the audit) | A series counts only under its own name, so a complex source is selected through the derived `db`/`phase` rows the chart actually plots | `charts_presenter.test.cpp` (2), `complex_plots_test.py` (2) |
 | 12 | A run always opened the output panel, so a quiet run replaced the charts with an empty-looking log (reported after the audit) | The panel starts hidden and opens on the first warning or error of the run, respects a manual close for the rest of that run, hides after a run that produced results, and stays visible on cancel/failure/no-result; the toolbar action is enabled only while a hidden log holds content | `main_window_presenter.test.cpp` (6), `simulation_output_test.py` (3) |
 | 13 | A standalone launch logged `KIPRJMOD environment variable is not set` as an error, although starting outside KiCad is the normal case (reported after the audit) | `KiCadSession::from_environment()` asks `KiCadConnection::is_kicad_mode()` first, so the project variable is only validated for a plugin launch; a plugin launch that omits it still reports the error | `kicad_session.test.cpp` standalone scenarios; both startup logs checked by hand |
+| 14 | A run-produced dataset whose file name carried no analysis marker was typed by its name alone, so the chart context menu omitted FFT even when the abscissa was time; every KiCad schematic run hit this (reported after the audit) | The run stamps the analysis its configured print names onto the parsed dataset, the way the legacy metadata stamp did, and FFT availability follows the abscissa unit instead of the file-name guess | `charts_presenter.test.cpp` (2), `charts_test.py` (1) |
 
 ## 4. Accepted differences
 
@@ -327,8 +328,8 @@ legacy behaviour, so no legacy scenario regresses.
 
 | Check | Result |
 | --- | --- |
-| `tests_studio` (native UI) | 92 scenarios pass (was 69) |
-| `studio-tests` (native unit) | 207 tests pass |
+| `tests_studio` (native UI) | 93 scenarios pass (was 69) |
+| `studio-tests` (native unit) | 209 tests pass |
 | `tests` (shared unit) | 2999 tests pass |
 | `tests_ui` (legacy baseline) | 75 scenarios attempted; 53 pass, the other launches exceed the harness's 30 s startup budget on this machine (the Slint application does reach its MCP server when launched by hand). Phase 4 recorded 75/75 on CI; the application itself is unchanged |
 | Formatter | `build/check-format.sh` clean |

@@ -42,6 +42,32 @@ namespace
     // the extensions a primary analysis output can carry, touchstone data is loaded by its companion loader
     bool is_primary_extension(const std::string& extension) { return extension == ".raw" || extension == ".prn" || extension == ".csd" || extension == ".csv" || extension == ".dat"; }
 
+    // the dataset plot type the configured analysis print names, which a produced file name cannot carry
+    PlotType plot_type_for_print(const std::string& print_type) {
+        // the normalized analysis type
+        const std::string type = to_upper(print_type);
+        // a transient print writes a time abscissa
+        if (type == "TRAN")
+            return PlotType::TRANSIENT;
+        // ac prints and their variants write a frequency abscissa
+        if (type.rfind("AC", 0) == 0)
+            return PlotType::AC;
+        // a dc sweep keeps its swept abscissa
+        if (type == "DC")
+            return PlotType::DC;
+        // a noise analysis writes a frequency abscissa
+        if (type == "NOISE")
+            return PlotType::NOISE;
+        // an operating point carries no abscissa
+        if (type == "OP")
+            return PlotType::DC_OPERATING_POINT;
+        // an unnamed analysis keeps the type the parser derived
+        return PlotType::UNKNOWN;
+    }
+
+    // whether the dataset abscissa is time, which is the axis the FFT reads
+    bool is_time_domain(XyceOutputFile& file) { return file.expression_manager().abscissa().unit() == "s"; }
+
     // parse a print output file with the parser its configured format selects
     std::shared_ptr<XyceOutputFile> parse_print_file(const std::filesystem::path& path, const PrintParameters& print) {
         // the normalized format
@@ -382,6 +408,11 @@ studio::RunOutputResult studio::ChartsPresenter::show_run_output(const RunOutput
             // keep the parsed file and its chart kind
             primary = std::move(parsed->first);
             primary_kind = parsed->second;
+            // the configured print names the analysis, which the produced file name cannot carry
+            const PlotType printed_type = analysis_print ? plot_type_for_print(analysis_print->print_type) : PlotType::UNKNOWN;
+            // a print type the mapping does not know keeps the type the parser derived
+            if (printed_type != PlotType::UNKNOWN)
+                primary->set_plot_type(printed_type);
             // the netlist's .PLOT groups declare the charts the primary tab builds
             if (!output.suggested_plots.empty())
                 primary->set_suggested_plots(output.suggested_plots);
@@ -1049,15 +1080,15 @@ bool studio::ChartsPresenter::fft_available() const {
     // no dataset has no time axis
     if (state == nullptr || state->file == nullptr)
         return false;
-    // only a transient run carries a time abscissa
-    return state->file->plot_type() == PlotType::TRANSIENT;
+    // only a time abscissa can be transformed
+    return is_time_domain(*state->file);
 }
 
 std::optional<studio::FftSelectionState> studio::ChartsPresenter::fft_selection(const std::size_t chart_index) const {
     // the active dataset owns the chart the dialog opens from
     const DatasetState* state = active_state();
-    // no dataset or file has no transform
-    if (state == nullptr || state->file == nullptr || state->file->plot_type() != PlotType::TRANSIENT)
+    // no dataset, no file, or no time axis has no transform
+    if (state == nullptr || state->file == nullptr || !is_time_domain(*state->file))
         return std::nullopt;
     // a chart index past the stack has no expressions
     if (chart_index >= state->controller->chart_count())

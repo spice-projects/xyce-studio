@@ -725,3 +725,66 @@ TEST(StudioChartsPresenterChecks, selecting_a_complex_source_shows_its_derived_s
     // release the scratch file
     std::filesystem::remove_all(root, error);
 }
+
+TEST(StudioChartsPresenterChecks, a_run_dataset_with_a_plain_file_name_offers_the_fft) {
+    // arrange: a transient run whose produced file carries no analysis marker in its name
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-run-fft";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    {
+        std::ofstream file(root / "netlist.cir.csv");
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    // the run configuration whose print names the analysis
+    studio::RunOutput output;
+    output.config = SimulationConfig::from_xyce_directives({".TRAN 0 10m 1m", ".PRINT TRAN FORMAT=CSV V(1)"});
+    output.netlist_path = root / "netlist.cir";
+    output.working_directory = root;
+    output.title = "netlist";
+    // act: adopt the produced dataset
+    const studio::RunOutputResult shown = presenter.show_run_output(output, nullptr);
+    // assert: the configured analysis names the time domain the file name cannot
+    ASSERT_EQ(shown.outcome, studio::RunOutputOutcome::Primary);
+    EXPECT_TRUE(presenter.fft_selection(0).has_value());
+    // release the scratch files
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, a_time_domain_file_offers_the_fft_without_an_analysis_marker) {
+    // arrange: a plain-named dataset whose abscissa is time, and one whose abscissa is frequency
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-fft-abscissa";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path timed = root / "data.prn";
+    {
+        std::ofstream file(timed);
+        file << "Index TIME V(1)\n0 0 0\n1 1 1\n";
+    }
+    const std::filesystem::path frequency = root / "sweep.prn";
+    {
+        std::ofstream file(frequency);
+        file << "Index FREQ V(1)\n0 1 0\n1 2 1\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    // act: open the time domain dataset
+    ASSERT_TRUE(presenter.show_file(timed));
+    // assert: the time abscissa makes the transform available
+    EXPECT_TRUE(presenter.fft_selection(0).has_value());
+    // act: open the frequency domain dataset
+    ASSERT_TRUE(presenter.show_file(frequency));
+    // assert: a frequency abscissa has no transform
+    EXPECT_FALSE(presenter.fft_selection(0).has_value());
+    // release the scratch files
+    std::filesystem::remove_all(root, error);
+}
