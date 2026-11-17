@@ -57,6 +57,9 @@ namespace studio
         // install the handler the simulation parameters action reaches
         void set_on_configure_simulation(std::function<void()> handler);
 
+        // install the handler the options action reaches
+        void set_on_edit_options(std::function<void()> handler);
+
         // install the handler a light or dark scheme flip reaches
         void set_on_scheme_changed(std::function<void(bool)> handler);
 

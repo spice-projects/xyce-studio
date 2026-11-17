@@ -374,6 +374,17 @@ TEST(NetlistAssemblyChecks, inserts_directives_before_end) {
     ASSERT_NE(result.find(".PRINT DC V(1)\n\n.END"), std::string::npos);
 }
 
+TEST(NetlistAssemblyChecks, appends_the_directives_when_the_end_marker_is_missing) {
+    // arrange: a netlist whose .END line the user deleted
+    const std::string netlist = "Title line\nR1 1 0 100\n";
+    const std::vector<std::string> directives = {".TRAN 1m 10m"};
+    // act
+    const auto result = build_final_netlist(netlist, directives, {});
+    // assert: the directives close the netlist instead of being dropped
+    ASSERT_NE(result.find(".TRAN 1m 10m"), std::string::npos);
+    ASSERT_TRUE(result.ends_with(".END\n"));
+}
+
 TEST(NetlistAssemblyChecks, returns_unchanged_when_no_directives) {
     // arrange
     const std::string netlist = "Title\nR1 1 0 100\n.END\n";

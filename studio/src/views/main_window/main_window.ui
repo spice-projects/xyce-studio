@@ -6,6 +6,8 @@ component MainWindow {
     signal plugin_settings_clicked();
     // the configure action opens the simulation parameters dialog
     signal configure_simulation_clicked();
+    // the options action opens the .OPTIONS editor
+    signal options_clicked();
     // the run action starts the simulation and becomes the stop action while it runs
     signal run_clicked();
     // the exit action closes the shell window
@@ -146,6 +148,17 @@ component MainWindow {
                 disabled: !configure_enabled;
                 on_clicked: {
                     configure_simulation_clicked();
+                }
+            }
+
+            Button {
+                id: main_options;
+                tooltip: "Options";
+                icon: @image("icons/options_generic_48.png");
+                icon_size: 20px;
+                disabled: !configure_enabled;
+                on_clicked: {
+                    options_clicked();
                 }
             }
 

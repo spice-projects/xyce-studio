@@ -16,8 +16,7 @@ namespace
     // Y-prefix device types that have multi-letter type codes
     const std::vector<std::string_view> Y_PREFIXES = {"YMEMRISTOR", "YPDE", "YACC", "YLIN"};
 
-    // standard node counts for single-letter device types
-    // K (coupling) and Y (handled separately) have count 0
+    // standard node counts for single-letter device types, where K and Y carry none
     const std::map<char, int, std::less<>> NODE_COUNTS = {
         {'B', 2}, {'C', 2}, {'D', 2}, {'E', 4}, {'F', 2}, {'G', 4}, {'H', 2}, {'I', 2}, {'J', 3}, {'K', 0}, {'L', 2}, {'M', 4}, {'O', 4}, {'P', 2}, {'Q', 3}, {'R', 2}, {'S', 4}, {'T', 4}, {'U', 2}, {'V', 2}, {'W', 2}, {'Z', 3},
     };
@@ -35,7 +34,7 @@ namespace
         ".OP", ".PRINT", ".SAVE", ".NODESET", ".DC", ".TRAN", ".FFT", ".FOUR", ".AC", ".LIN", ".HB", ".NOISE", ".MEASURE", ".MEAS", ".SENS", ".PCE", ".IC", ".DCVOLT", ".STEP", ".DATA", ".ENDDATA",
     };
 
-    // managed .OPTIONS packages stored as directives, one per RG 2.1.25 package plus FFT (RG 2.1.25.19); standalone unpackaged lines are not RG syntax (RG 6.1.3) and stay passthrough
+    // managed .OPTIONS packages stored as directives, one per RG 2.1.25 package; unpackaged lines stay passthrough
     const std::vector<std::string_view> MANAGED_OPTIONS_PACKAGES = {
         "HBINT", "NONLIN-HB", "LINSOL-HB", "DEVICE", "TIMEINT", "NONLIN", "NONLIN-TRAN", "LINSOL", "LINSOL-AC", "FFT", "MEASURE", "PCES", "SENSITIVITY", "SAMPLES", "EMBEDDEDSAMPLES", "DIAGNOSTIC", "PARSER", "LOCA", "DIST", "OUTPUT", "RESTART",
     };
@@ -76,7 +75,7 @@ namespace
         return joined;
     }
 
-    // remove inline comments starting with ';' from a line, keeping semicolons inside quotes and brace expressions (Xyce RG 2.1.39.2)
+    // remove ';' inline comments, keeping semicolons inside quotes and brace expressions (Xyce RG 2.1.39.2)
     std::string strip_inline_comment(const std::string& line) {
         // return the line unchanged when it contains no semicolon at all
         if (line.find(';') == std::string::npos)
@@ -327,7 +326,7 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
                 // next
                 continue;
             }
-            // check for managed .OPTIONS package directives at the top level (RG 2.1.25: statements inside subcircuits are ignored)
+            // managed .OPTIONS packages apply at the top level only (RG 2.1.25: subcircuit statements are ignored)
             if (first_upper == ".OPTIONS" && tokens.size() > 1 && current_subckt == nullptr) {
                 // extract the package name (second token) and check against managed list
                 auto pkg = to_upper(tokens[1]);
@@ -405,9 +404,9 @@ std::pair<std::string, NetlistTopology> parse_netlist(std::string_view text) {
                 // next
                 continue;
             }
-            // handle .PLOT directives (Xyce Studio extension declaring the default charts of a run, stripped from the netlist handed to the simulator)
+            // handle .PLOT directives, the extension declaring a run's default charts; they never reach the simulator
             if (first_upper == ".PLOT") {
-                // store as a managed directive so the plot parser can read the expressions and the editor shows it with the other directives
+                // keep it with the managed directives so the editor shows it and the plot parser reads its expressions
                 plot_directives.push_back(stripped);
                 // next
                 continue;
@@ -503,6 +502,14 @@ std::string build_final_netlist(std::string_view netlist, const std::vector<std:
     // insert the directive block before .END when the marker is found
     if (end_pos != std::string::npos) {
         netlist_str.replace(end_pos, 5, "\n" + directive_block + "\n\n.END\n");
+    }
+    // a netlist without the marker takes the block at its end, so an accept is never dropped
+    else {
+        // the block starts on its own line
+        if (!netlist_str.empty())
+            netlist_str.push_back('\n');
+        // the directives close the netlist
+        netlist_str += directive_block + "\n\n.END\n";
     }
     return netlist_str;
 }

@@ -21,12 +21,14 @@ namespace studio
 {
     class AlborAddPlotDialogView;
     class AlborFftDialogView;
+    class AlborOptionsDialogView;
     class AlborPluginConfigDialogView;
     class AlborSimulationParametersDialogView;
     class AlborStepToolDialogView;
     class ChartsPresenter;
     class MainWindowPresenter;
     class MainWindowView;
+    class OptionsPresenter;
     class PluginConfigPresenter;
     class SimulationParametersPresenter;
 
@@ -109,6 +111,12 @@ namespace studio
 
         // the FFT dialog parented to this shell
         std::unique_ptr<AlborFftDialogView> m_fft_view;
+
+        // the option rows the options dialog edits, which outlive the dialog that borrows them
+        std::unique_ptr<OptionsPresenter> m_options_presenter;
+
+        // the options dialog parented to this shell
+        std::unique_ptr<AlborOptionsDialogView> m_options_view;
 
         // the plugin configuration dialog parented to this shell
         std::unique_ptr<AlborPluginConfigDialogView> m_plugin_config_view;

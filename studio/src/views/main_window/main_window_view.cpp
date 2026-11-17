@@ -275,6 +275,13 @@ void studio::MainWindowView::set_on_configure_simulation(std::function<void()> h
     m_root->set_on_configure_simulation_clicked(std::move(handler));
 }
 
+void studio::MainWindowView::set_on_edit_options(std::function<void()> handler) {
+    // without a live facade there is no signal to bind
+    if (m_root == nullptr)
+        return;
+    m_root->set_on_options_clicked(std::move(handler));
+}
+
 void studio::MainWindowView::set_charts_visible(const bool visible) {
     // without a live facade there is no body to swap
     if (m_root == nullptr)

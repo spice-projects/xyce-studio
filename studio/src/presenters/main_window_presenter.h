@@ -11,6 +11,7 @@
 #include "netlist/netlist.h"
 #include "netlist/netlist_source.h"
 #include "presenters/run_output.h"
+#include "simulation/option_parameters.h"
 #include "simulation/print_parameters.h"
 #include "simulation/simulation_config.h"
 #include "simulation/xyce_log_parser.h"
@@ -88,6 +89,12 @@ namespace studio
 
         // store the accepted configuration and rewrite the managed directives in the editor
         void on_simulation_parameters_accepted(const SimulationConfig& config);
+
+        // parse the current netlist and hand out the options the options editor opens with
+        [[nodiscard]] const OptionParameters& prepare_options();
+
+        // store the accepted options and rewrite the managed directives in the editor
+        void on_options_accepted(const OptionParameters& options);
 
     private:
         // start a simulation run over the current netlist content
@@ -183,6 +190,9 @@ namespace studio
 
         // the configuration the parameters dialog edits and the run serializes
         SimulationConfig m_simulation_config = SimulationConfig::from_xyce_directives({});
+
+        // re-render the managed directives into the sanitized netlist and hand the result to the editor
+        void rewrite_managed_directives();
 
         // the netlist with its managed directives stripped, which the accepted configuration rebuilds
         std::string m_sanitized_netlist;

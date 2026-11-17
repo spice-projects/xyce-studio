@@ -10,6 +10,8 @@
 #include "core/util.h"
 #include "io/temp_output_directory.h"
 #include "netlist/editor_netlist_source.h"
+#include "netlist/netlist.h"
+#include "simulation/option_editor.h"
 #include "simulation/plot_parameters.h"
 #include "simulation/print_parameters.h"
 
@@ -247,6 +249,12 @@ void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path
     const auto [reloaded, content] = m_netlist_source->load_netlist();
     // set the editor content to the loaded netlist
     update_netlist_editor_content(content, false);
+    // a new document starts from the configuration it declares, not the previous file's
+    m_simulation_config = SimulationConfig::from_xyce_directives({});
+    // the stripped body and the topology belong to the document that was open
+    m_sanitized_netlist.clear();
+    m_pending_topology = NetlistTopology{};
+    m_pending_original_netlist.clear();
     // refresh toolbar/menu states
     refresh_action_states();
     // a new document closes the output tabs the previous netlist produced
@@ -580,8 +588,39 @@ void studio::MainWindowPresenter::on_simulation_parameters_accepted(const Simula
         static_cast<void>(prepare_simulation_parameters());
     // store the configuration the dialog accepted, which is what a later run serializes
     m_simulation_config = config;
+    // render the accepted directives into the netlist
+    rewrite_managed_directives();
+}
+
+const OptionParameters& studio::MainWindowPresenter::prepare_options() {
+    // parse the netlist the way the parameters dialog does, so the accepted options keep the analysis
+    const SimulationConfig& parsed = prepare_simulation_parameters();
+    // hand the dialog the options it edits
+    return parsed.options;
+}
+
+void studio::MainWindowPresenter::on_options_accepted(const OptionParameters& options) {
+    // an accept that changed nothing leaves the netlist exactly as the editor holds it
+    if (options == m_simulation_config.options)
+        return;
+    // store the options the dialog accepted, which the next run serializes
+    m_simulation_config.options = options;
+    // the content the editor holds, which the rewrite leaves otherwise untouched
+    const std::string content = m_view->netlist_text();
+    // replace only the .OPTIONS directives the editor owns
+    const std::string final_netlist = option_editor::rewrite_directives(content, options);
+    // an edit that changed the text marks the editor dirty, which the save action follows
+    if (update_netlist_editor_content(final_netlist, m_netlist_editor_dirty || content != final_netlist))
+        refresh_action_states();
+    // the rewritten netlist is the content a later action operates on
+    m_pending_original_netlist = final_netlist;
+}
+
+void studio::MainWindowPresenter::rewrite_managed_directives() {
     // render the managed directives the configuration owns
-    const std::vector<std::string> directives = m_simulation_config.to_xyce_directives(m_pending_topology);
+    std::vector<std::string> directives = m_simulation_config.to_xyce_directives(m_pending_topology);
+    // the .PLOT chart directives the parser extracted rejoin the block, which keeps them out of the simulator's hands
+    directives.insert(directives.end(), m_pending_topology.m_plot_directives.begin(), m_pending_topology.m_plot_directives.end());
     // re-insert them before .END in the sanitized netlist
     const std::string final_netlist = build_final_netlist(m_sanitized_netlist, directives, m_pending_topology.m_passthrough_directives);
     // an edit that changed the rendered netlist marks the editor dirty, which the save action follows

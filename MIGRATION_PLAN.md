@@ -13,12 +13,12 @@ This document outlines the architectural blueprint and step-by-step execution pl
 
 **Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; `studio/vcpkg-configuration.json` overlays that checkout's port and triplets for development.
 
-### Status Snapshot (2026-11-10, through `030f4c5`)
+### Status Snapshot (2026-11-16)
 
 - Phases 1–5 are complete, except the CI packaging re-verification in 4.4.
-- Phase 6 is in progress: 6.1, 6.2, 6.3 and the plugin-config half of 6.6 are done; the FFT and options dialogs, Add Plot, the chart pipeline and KiCad/multi-window mode remain.
-- Phase 7 has not started; the legacy Slint frontend is still the release path.
-- Current coverage: 42 studio presenter unit tests (`studio-tests/`), 30 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,970 unit tests, 75 UI scenarios).
+- Phase 6 is complete except KiCad integration (6.8): the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot and the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) are delivered.
+- Phase 7 has not started; the legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
+- Current coverage: 188 studio unit tests (`studio-tests/`), 66 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,996 shared unit tests, 75 UI scenarios).
 
 ---
 
@@ -60,13 +60,15 @@ xyce-studio/
 │   ├── vcpkg-configuration.json           # Albor overlay port & triplets for development
 │   └── src/
 │       ├── main.cpp                       # Entry point & argument overrides
-│       ├── app/                           # StudioApp lifecycle, embedded fonts & theme
-│       ├── presenters/                    # Main window, plugin config & simulation parameters
-│       ├── views/                         # Main window, plugin config & simulation dialogs
+│       ├── app/                           # StudioApp, one WindowInstance per shell, theme
+│       ├── presenters/                    # Main window, charts, options, plugin config & simulation parameters
+│       ├── views/                         # Native dialogs and the chart canvas
 │       │   ├── main_window/
+│       │   ├── charts/
+│       │   ├── options/
 │       │   ├── plugin_config/
 │       │   └── simulation_parameters/
-│       └── charts/                        # Chart pipeline (pending, 6.7)
+│       └── charts/                        # Chart pipeline helpers (6.7)
 │
 ├── studio-tests/                          # Studio presenter unit tests (links xyce-core)
 ├── tests/                                 # Fast domain unit tests (links only xyce-core)
@@ -231,7 +233,7 @@ Move files into their respective homes. Git preserves history across renames (`g
 
 Implement features in `studio/` piece by piece. For each feature, create dedicated presenter/view pairs and cover it with studio presenter unit tests (`studio-tests/`) plus Albor UI scenarios (`tests_studio/`).
 
-Status (2026-11-10, through `030f4c5`): 6.1–6.3 and the plugin-config half of 6.6 are complete; 6.4, 6.5, the Add Plot half of 6.6, 6.7 and 6.8 are open.
+Status (2026-11-16): 6.1–6.7 are complete; 6.8 is split, with multi-window mode delivered and KiCad integration open.
 
 - [x] **6.1. Window Chrome, Toolbar & Netlist Editor**
   - Implement netlist text editor view (binding to `EditorNetlistSource` from `xyce-core`).
@@ -248,27 +250,27 @@ Status (2026-11-10, through `030f4c5`): 6.1–6.3 and the plugin-config half of 
   - Cover the companion print, `.MEASURE`, `.FFT`, `.FOUR`, sensitivity, PCE and `.OPTIONS` sections; the accepted configuration is rewritten into the editor before the run.
   - Wire dialog invocation from `MainWindowPresenter`.
   - The pages share the full pane width through the Albor #206 cross-axis `ScrollView` stretch.
-- [ ] **6.4. Native Dialog: FFT Setup**
+- [x] **6.4. Native Dialog: FFT Setup**
   - Create `FftDialogPresenter` and `FftDialog` (native window).
   - Connect expression selection and `fft::FftParameters`.
-  - Status: the transient page already edits raw `.FFT` directives; the chart-driven setup dialog waits on 6.7.
-- [ ] **6.5. Native Dialog: Options Editor**
+  - Status: delivered as the chart context menu's Calculate FFT dialog: it offers the chart expressions, edits the range, points, window, output and format, refuses an empty or oversized selection with its own message, and appends the accepted transform as its own dataset. The transient page still edits raw `.FFT` directives.
+- [x] **6.5. Native Dialog: Options Editor**
   - Create `OptionsPresenter` and `OptionsDialog` (native window).
   - Populate options from `OptionCatalog` in `xyce-core`.
-  - Status: the analysis-scoped packages (TIMEINT, NONLIN, NONLIN TRAN, LINSOL AC, LOCA, FFT, OUTPUT) are edited in 6.3; the simulation-agnostic packages (DEVICE, LINSOL, PARSER, DIAGNOSTIC, DIST, MEASURE, RESTART) still need the dialog.
+  - Status: delivered. The toolbar's Options action opens a native dialog over the simulation-agnostic packages (DEVICE, LINSOL, PARSER, DIAGNOSTIC, DIST, MEASURE, RESTART), one card per package, with a one-row-per-documented-key editor: a combo for documented choices and bare flags, a text field with the reference default as its hint otherwise. Accept surgically rewrites only the `.OPTIONS` directives those packages own, so the analysis, prints, measures, plots, comments and formatting stay as the editor held them, and a no-op accept leaves the netlist untouched; cancel closes without writing. The row model and the directive rewrite live in `core` (`simulation/option_editor`) and the presenter in `studio/src/presenters/options_presenter`; the analysis-scoped packages stay in 6.3.
 - [ ] **6.6. Native Dialogs: Plugin Config & Add Plot**
   - [x] `PluginConfigPresenter` and `PluginConfigDialog` are complete: path validation, persistence, focus and cancel/accept coverage.
-  - [ ] `AddPlotPresenter` and `AddPlotDialog` (or dockable signal picker) wait on the chart pipeline in 6.7.
-- [ ] **6.7. Chart Rendering Pipeline**
+  - [x] The plot selection dialog shipped with the chart pipeline: scopes, breadcrumbs, the selected-only view, the unit legend, custom expressions and the FFT dialog share it.
+- [x] **6.7. Chart Rendering Pipeline**
   - Connect `ChartEngine` and `ChartLayout` from `xyce-core` to a native Albor chart view.
   - Implement line and Smith charts, zoom, cursor hover, step selection and the default plot layout.
   - Implementation plan and file map: [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md).
   - ImGui/ImPlot was evaluated and rejected; the textured-mesh primitive that path would need is tracked upstream as [AlborCore/albor#211](https://github.com/AlborCore/albor/issues/211), but native charts do not depend on it.
-  - Status: the first native slice is implemented (retained scene builder, `ChartsView`, dataset loader, line and Smith rendering, zoom/hover, unit and UI tests); plot tabs, run auto-load, context-menu actions and performance hardening remain.
+  - Status: delivered through plan 6.7a–e in [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md): retained scene layers, line and Smith charts, dataset tabs and run auto-load, the full context menu, plot selection, the step tool, Fourier results table parity, performance budgets and native chart windows.
 - [ ] **6.8. KiCad Integration & Multi-Window Mode**
   - Wire `KiCadSession` IPC into the Albor application lifecycle.
-  - Implement native secondary chart windows (`new_window`).
-  - Status: the editor exposes the read-only state the KiCad slice will drive, but the IPC session is not connected.
+  - [x] Implement native secondary chart windows (`new_window`): the chart context menu opens a full shell window over the dataset it reads, the application keeps every window and releases a closed one after its dispatch, and the window bookkeeping is unit-tested through an injected application and shell factory.
+  - Status: multi-window mode is delivered; the KiCad IPC session is still not connected, which is the only open Phase 6 item.
 
 ---
 

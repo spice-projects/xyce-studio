@@ -11,6 +11,7 @@
 #include "config/plugin_config.h"
 #include "io/temp_output_directory.h"
 #include "presenters/main_window_presenter.h"
+#include "simulation/option_parameters.h"
 #include "simulation/transient_simulation_parameters.h"
 #include "views/main_window/main_window_view_def.h"
 
@@ -1089,4 +1090,124 @@ TEST(StudioMainWindowPresenterChecks, reloading_the_source_does_not_report_a_new
     EXPECT_EQ(view.editor_text, raw->content);
     EXPECT_TRUE(view.read_only_last);
     EXPECT_EQ(opened, 0);
+}
+
+TEST(StudioMainWindowPresenterChecks, prepare_options_reads_the_options_directives) {
+    // arrange: an editor holding the editor-scoped packages
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.TRAN 1m 10m\n.OPTIONS DEVICE GMIN=1e-9 TEMP=25\n.OPTIONS PARSER SCALE=2\n.END\n";
+    // act: seed the options editor
+    const OptionParameters& prepared = presenter.prepare_options();
+    // assert: the editor opens on the options the netlist carries
+    EXPECT_EQ(prepared.device.at("GMIN"), "1e-9");
+    EXPECT_EQ(prepared.device.at("TEMP"), "25");
+    EXPECT_EQ(prepared.parser.at("SCALE"), "2");
+}
+
+TEST(StudioMainWindowPresenterChecks, accepted_options_rewrite_the_editor_and_keep_the_analysis) {
+    // arrange: an editor holding a transient analysis and one device option
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.TRAN 1m 10m\n.OPTIONS DEVICE GMIN=1e-12\n.END\n";
+    static_cast<void>(presenter.prepare_options());
+    // the options the dialog accepted raise the device conductance
+    const OptionParameters accepted = OptionParameters::from_xyce_directives({".OPTIONS DEVICE GMIN=1e-9"});
+    // act
+    presenter.on_options_accepted(accepted);
+    // assert: the editor carries the accepted option
+    EXPECT_NE(view.editor_text.find(".OPTIONS DEVICE GMIN=1e-9"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find("GMIN=1e-12"), std::string::npos);
+    // assert: the analysis the dialog did not edit survives the rewrite
+    EXPECT_NE(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
+    // assert: the rewrite marked the netlist dirty, which the save action follows
+    EXPECT_TRUE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, accepted_options_before_a_parse_read_the_editor_first) {
+    // arrange: an editor holding one device option and no prior parse
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.OPTIONS DEVICE TEMP=25\n.END\n";
+    // the options the dialog accepted raise the device temperature
+    const OptionParameters accepted = OptionParameters::from_xyce_directives({".OPTIONS DEVICE TEMP=50"});
+    // act: accept without a preceding prepare
+    presenter.on_options_accepted(accepted);
+    // assert: the editor carries the accepted option instead of the old one
+    EXPECT_NE(view.editor_text.find(".OPTIONS DEVICE TEMP=50"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find("TEMP=25"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, accepting_the_options_keeps_the_untouched_directives) {
+    // arrange: an editor holding every kind of managed directive around one device option
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "* divider\nR1 1 0 1k\nV1 1 0 5\n.TRAN 1m 10m\n.PRINT TRAN V(1)\n.MEASURE TRAN vout_max MAX V(1)\n.IC V(1)=0\n.PLOT TRAN V(1)\n.NODESET 1 3.3\n.OPTIONS DEVICE GMIN=1e-12\n.END\n";
+    static_cast<void>(presenter.prepare_options());
+    const OptionParameters accepted = OptionParameters::from_xyce_directives({".OPTIONS DEVICE GMIN=1e-9"});
+    // act
+    presenter.on_options_accepted(accepted);
+    // assert: the accepted option replaced the old one and nothing else was rendered in
+    EXPECT_NE(view.editor_text.find("GMIN=1e-9"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find("GMIN=1e-12"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find(".PREPROCESS"), std::string::npos);
+    // assert: every directive the options editor does not own survives
+    EXPECT_NE(view.editor_text.find("* divider"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".PRINT TRAN V(1)"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".MEASURE TRAN vout_max MAX V(1)"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".IC V(1)=0"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".PLOT TRAN V(1)"), std::string::npos);
+    EXPECT_NE(view.editor_text.find(".NODESET 1 3.3"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, accepting_without_a_change_leaves_the_netlist_unchanged) {
+    // arrange: an editor whose options the dialog leaves alone
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "* divider\nR1 1 0 1k\n.OPTIONS DEVICE GMIN=1e-12\n.END\n";
+    const std::string original = view.editor_text;
+    const OptionParameters prepared = presenter.prepare_options();
+    // act
+    presenter.on_options_accepted(prepared);
+    // assert: the no-op accept neither rewrites the netlist nor marks it dirty
+    EXPECT_EQ(view.editor_text, original);
+    EXPECT_FALSE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, opening_a_netlist_drops_the_previous_analysis) {
+    // arrange: two netlists on disk, the first with an analysis and the second without
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-open-reset";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path first = root / "first.cir";
+    {
+        std::ofstream file(first);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    }
+    const std::filesystem::path second = root / "second.cir";
+    {
+        std::ofstream file(second);
+        file << "R1 1 0 1k\n.OPTIONS DEVICE GMIN=1e-9\n.END\n";
+    }
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(first);
+    static_cast<void>(presenter.prepare_simulation_parameters());
+    // act: the second document loads and describes itself
+    presenter.on_open_file(second);
+    const SimulationConfig& prepared = presenter.prepare_simulation_parameters();
+    // assert: the analysis of the previous document is gone
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(prepared.analysis));
+    // assert: the second document's options are the ones it carries
+    EXPECT_EQ(prepared.options.device.at("GMIN"), "1e-9");
+    // release the scratch files
+    std::filesystem::remove_all(root, error);
 }

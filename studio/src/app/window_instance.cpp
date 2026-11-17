@@ -13,6 +13,7 @@
 #include "albor/text/text_engine.h"
 #include "presenters/charts_presenter.h"
 #include "presenters/main_window_presenter.h"
+#include "presenters/options_presenter.h"
 #include "presenters/plugin_config_presenter.h"
 #include "presenters/simulation_parameters_presenter.h"
 #include "views/charts/add_plot_dialog_view.h"
@@ -21,6 +22,7 @@
 #include "views/charts/step_tool_dialog_view.h"
 #include "views/main_window/document_tabs.h"
 #include "views/main_window/main_window_view.h"
+#include "views/options/options_dialog_view.h"
 #include "views/plugin_config/plugin_config_dialog_view.h"
 #include "views/simulation_parameters/simulation_parameters_dialog_view.h"
 
@@ -181,6 +183,19 @@ bool studio::WindowInstance::create() {
         const SimulationConfig& current = m_presenter->prepare_simulation_parameters();
         m_simulation_parameters_presenter->show(*m_simulation_parameters_view, current, [this](const SimulationConfig& config) { m_presenter->on_simulation_parameters_accepted(config); });
     });
+    // the options dialog is parented to the shell and outlives individual shows
+    m_options_view = std::make_unique<AlborOptionsDialogView>(m_application, m_view->handle());
+    m_options_presenter = std::make_unique<OptionsPresenter>();
+    // the toolbar action opens the dialog over the options the netlist carries
+    m_view->set_on_edit_options([this] {
+        // a dialog that is already open owns the interaction
+        if (m_options_view == nullptr || m_options_view->is_open() || m_presenter == nullptr)
+            return;
+        // seed the editor from the parsed netlist and apply the accepted options
+        const OptionParameters& current = m_presenter->prepare_options();
+        m_options_presenter->begin(current);
+        m_options_view->show(*m_options_presenter, [this](const OptionParameters& options) { m_presenter->on_options_accepted(options); });
+    });
     // the shell is wired and shown
     m_alive = true;
     return true;
@@ -279,6 +294,9 @@ bool studio::WindowInstance::on_window_closed(const albor::WindowHandle closed) 
     // the FFT dialog clears its state the same way
     if (m_fft_view != nullptr)
         m_fft_view->on_window_closed(closed);
+    // the options dialog clears its state the same way
+    if (m_options_view != nullptr)
+        m_options_view->on_window_closed(closed);
     // the plugin configuration dialog clears its presenter before the shell clears its facade
     if (m_plugin_config_view != nullptr)
         m_plugin_config_view->on_window_closed(closed);

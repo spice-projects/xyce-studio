@@ -211,6 +211,37 @@ with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
 - Cancelling leaves the editor untouched; the accepted configuration is the
   only path that rewrites the directive block.
 
+### Edit the simulation-agnostic `.OPTIONS` packages (from `options_test.py`)
+
+The toolbar's options action opens the `.OPTIONS` editor over the packages the
+simulation parameters dialog does not show (DEVICE, LINSOL, PARSER,
+DIAGNOSTIC, DIST, MEASURE, RESTART). Every row carries the id
+`options_row_<PACKAGE>_<KEY>`, where the package is the directive name with a
+hyphen (`options_row_DEVICE_GMIN`):
+
+```python
+app.get_by_id("main_options").click()
+field = app.get_by_id("options_row_DEVICE_GMIN")
+field.wait_for_exists()
+expect(field).to_have_value("1e-12")
+field.fill("1e-9")
+app.get_by_id("options_ok").click()
+app.get_by_id("options_ok").wait_for_gone()
+editor = app.get_by_id("netlist_editor")
+app.wait_for_condition(lambda: "GMIN=1e-9" in editor.value(), timeout=5.0,
+                       message="expected the editor to carry the accepted option")
+```
+
+- A documented choice and a bare flag render a combo under the same id: call
+  `select_next` to move the highlight and `activate` to commit, which writes
+  the chosen value. `<default>` clears the option and `flag is set` keeps it
+  as a bare flag.
+- Every other key renders a text field whose placeholder is the reference
+  default; an empty field omits the option.
+- `options_ok` rewrites only the values the editor owns, so the analysis the
+  parameters dialog configured survives; `options_cancel` leaves the netlist
+  untouched.
+
 ### Open the plugin configuration dialog (from `plugin_config_test.py`)
 
 The dialog opens from the main window toolbar button; the field resolves
