@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -14,12 +15,14 @@
 #include "albor/application/application.h"
 #include "albor/application/task_queue.h"
 #include "albor/window/window_handle.h"
+#include "app/schematic_session.h"
 #include "app/studio_app.h"
 #include "app/window_set.h"
 #include "charts/chart_engine.h"
 #include "config/plugin_config.h"
 #include "io/xyce_csv_file.h"
 #include "io/xyce_output_file.h"
+#include "netlist/netlist_source.h"
 
 namespace
 {
@@ -106,6 +109,45 @@ namespace
 
         // the work the release performs
         std::function<void()> on_destroyed;
+    };
+
+    // the schematic source double the session hands to the shell
+    class FakeSchematicSource final : public NetlistSource
+    {
+    public:
+        [[nodiscard]] std::string title() const override { return "schematic.kicad_sch"; }
+
+        [[nodiscard]] bool is_read_only() const override { return true; }
+
+        [[nodiscard]] bool has_backing_file() const override { return true; }
+
+        [[nodiscard]] std::filesystem::path working_directory() const override { return {}; }
+
+        [[nodiscard]] std::tuple<bool, std::string> load_netlist() override { return {false, "R1 1 0 1k\n.END\n"}; }
+
+        void save_netlist(const std::string&) override {}
+    };
+
+    // the schematic session double, which hands one source to the first shell that asks
+    class FakeSchematicSession final : public studio::SchematicSession
+    {
+    public:
+        [[nodiscard]] std::unique_ptr<NetlistSource> take_netlist_source() override {
+            // a session that never built a source hands none over
+            if (!provide_source)
+                return nullptr;
+            // the session owns one source, which the shell takes once
+            if (handed)
+                return nullptr;
+            handed = true;
+            return std::make_unique<FakeSchematicSource>();
+        }
+
+        // whether the session holds a source to hand over
+        bool provide_source = true;
+
+        // whether the shell took the source
+        bool handed = false;
     };
 
     // the native loop double, which returns as soon as it is asked to run
@@ -222,7 +264,7 @@ TEST(StudioStudioAppChecks, run_builds_the_primary_shell_and_seeds_it) {
     std::vector<FakeShellWindow*> shells;
     int factory_calls = 0;
     PluginConfig config;
-    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&) -> std::unique_ptr<studio::ShellWindow> {
+    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource>) -> std::unique_ptr<studio::ShellWindow> {
         // the shell the application builds for a window
         auto shell = std::make_unique<FakeShellWindow>();
         shells.push_back(shell.get());
@@ -230,7 +272,7 @@ TEST(StudioStudioAppChecks, run_builds_the_primary_shell_and_seeds_it) {
         return shell;
     });
     // the files the command line named
-    app.set_startup_netlist("/tmp/run.cir");
+    app.set_startup_netlist("run.cir");
     app.set_startup_dataset("/tmp/run.csv");
     // act: run, over a loop that returns at once
     const int code = app.run();
@@ -238,7 +280,7 @@ TEST(StudioStudioAppChecks, run_builds_the_primary_shell_and_seeds_it) {
     EXPECT_EQ(code, 0);
     EXPECT_EQ(factory_calls, 1);
     ASSERT_EQ(shells.size(), 1U);
-    EXPECT_EQ(shells[0]->netlists, std::vector<std::filesystem::path>{"/tmp/run.cir"});
+    EXPECT_EQ(shells[0]->netlists, std::vector<std::filesystem::path>{"run.cir"});
     EXPECT_EQ(shells[0]->startup, std::vector<std::filesystem::path>{"/tmp/run.csv"});
     EXPECT_TRUE(static_cast<bool>(shells[0]->on_new_window));
     // assert: the app ran the native loop once
@@ -262,7 +304,7 @@ TEST(StudioStudioAppChecks, a_chart_new_window_request_spawns_a_seeded_shell) {
     albor::Application application(std::move(event_loop));
     std::vector<FakeShellWindow*> shells;
     PluginConfig config;
-    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&) -> std::unique_ptr<studio::ShellWindow> {
+    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource>) -> std::unique_ptr<studio::ShellWindow> {
         // the shell the application builds for a window
         auto shell = std::make_unique<FakeShellWindow>();
         shells.push_back(shell.get());
@@ -301,7 +343,7 @@ TEST(StudioStudioAppChecks, a_refused_dataset_closes_the_spawned_shell) {
     albor::Application application(std::move(event_loop));
     std::vector<FakeShellWindow*> shells;
     PluginConfig config;
-    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&) -> std::unique_ptr<studio::ShellWindow> {
+    studio::StudioApp app(config, application, [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource>) -> std::unique_ptr<studio::ShellWindow> {
         // the shell the application builds for a window
         auto shell = std::make_unique<FakeShellWindow>();
         // the primary window owns the startup files, a spawned one must show the dataset
@@ -319,4 +361,106 @@ TEST(StudioStudioAppChecks, a_refused_dataset_closes_the_spawned_shell) {
     EXPECT_TRUE(shells[0]->alive());
     // release the scratch file
     std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioStudioAppChecks, run_binds_the_schematic_source_to_the_primary_shell) {
+    // arrange: an app over a schematic session and a factory that records the source it is handed
+    auto event_loop = std::make_unique<FakeEventLoop>();
+    albor::Application application(std::move(event_loop));
+    std::vector<FakeShellWindow*> shells;
+    std::vector<std::string> titles;
+    PluginConfig config;
+    auto session = std::make_shared<FakeSchematicSession>();
+    studio::StudioApp app(
+        config, application,
+        [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource> netlist_source) -> std::unique_ptr<studio::ShellWindow> {
+            // the shell the application builds for a window
+            auto shell = std::make_unique<FakeShellWindow>();
+            shells.push_back(shell.get());
+            titles.push_back(netlist_source != nullptr ? netlist_source->title() : std::string{});
+            return shell;
+        },
+        session);
+    // the command line names a netlist and a dataset, neither of which a plugin launch may replace the document with
+    app.set_startup_netlist("run.cir");
+    app.set_startup_dataset("/tmp/run.csv");
+    // act
+    const int code = app.run();
+    // assert: the primary shell reads the schematic source and the command line is ignored
+    EXPECT_EQ(code, 0);
+    ASSERT_EQ(shells.size(), 1U);
+    EXPECT_EQ(titles[0], "schematic.kicad_sch");
+    EXPECT_TRUE(session->handed);
+    EXPECT_TRUE(shells[0]->netlists.empty());
+    EXPECT_TRUE(shells[0]->startup.empty());
+}
+
+TEST(StudioStudioAppChecks, a_spawned_window_opens_without_the_schematic_source) {
+    // arrange: a parsed dataset and an app over a schematic session
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "app-schematic-spawn";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "run.csv";
+    {
+        std::ofstream file(dataset);
+        file << "TIME,V(1)\n0,0\n1,1\n";
+    }
+    const std::optional<std::shared_ptr<XyceOutputFile>> parsed = xyce_csv_file_parser(dataset);
+    ASSERT_TRUE(parsed.has_value());
+    auto event_loop = std::make_unique<FakeEventLoop>();
+    albor::Application application(std::move(event_loop));
+    std::vector<FakeShellWindow*> shells;
+    std::vector<std::string> titles;
+    PluginConfig config;
+    auto session = std::make_shared<FakeSchematicSession>();
+    studio::StudioApp app(
+        config, application,
+        [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource> netlist_source) -> std::unique_ptr<studio::ShellWindow> {
+            // the shell the application builds for a window
+            auto shell = std::make_unique<FakeShellWindow>();
+            shells.push_back(shell.get());
+            titles.push_back(netlist_source != nullptr ? netlist_source->title() : std::string{});
+            return shell;
+        },
+        session);
+    ASSERT_EQ(app.run(), 0);
+    ASSERT_EQ(shells.size(), 1U);
+    ASSERT_EQ(titles[0], "schematic.kicad_sch");
+    // act: the chart command hands the dataset to the shell
+    shells[0]->on_new_window(parsed.value(), ChartKind::XY, "run");
+    // assert: a spawned window is standalone, so it reads no schematic
+    ASSERT_EQ(shells.size(), 2U);
+    EXPECT_TRUE(titles[1].empty());
+    EXPECT_EQ(shells[1]->dataset, parsed.value());
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioStudioAppChecks, a_session_without_a_source_keeps_the_command_line_netlist) {
+    // arrange: a session that built no source, so the primary shell is standalone
+    auto event_loop = std::make_unique<FakeEventLoop>();
+    albor::Application application(std::move(event_loop));
+    std::vector<FakeShellWindow*> shells;
+    std::vector<std::string> titles;
+    PluginConfig config;
+    auto session = std::make_shared<FakeSchematicSession>();
+    session->provide_source = false;
+    studio::StudioApp app(
+        config, application,
+        [&](PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource> netlist_source) -> std::unique_ptr<studio::ShellWindow> {
+            // the shell the application builds for a window
+            auto shell = std::make_unique<FakeShellWindow>();
+            shells.push_back(shell.get());
+            titles.push_back(netlist_source != nullptr ? netlist_source->title() : std::string{});
+            return shell;
+        },
+        session);
+    app.set_startup_netlist("run.cir");
+    // act
+    ASSERT_EQ(app.run(), 0);
+    // assert: without a schematic the command line still opens its netlist
+    ASSERT_EQ(shells.size(), 1U);
+    EXPECT_TRUE(titles[0].empty());
+    EXPECT_EQ(shells[0]->netlists, std::vector<std::filesystem::path>{"run.cir"});
 }

@@ -11,6 +11,7 @@
 #include "app/window_set.h"
 #include "charts/chart_engine.h"
 #include "config/plugin_config.h"
+#include "netlist/netlist_source.h"
 
 class XyceOutputFile;
 
@@ -21,14 +22,16 @@ namespace albor
 
 namespace studio
 {
+    class SchematicSession;
+
     // owns the shell windows and their presenters, and runs the Albor event loop
     class StudioApp
     {
     public:
         // the factory the application builds a shell with, which a test substitutes
-        using ShellFactory = std::function<std::unique_ptr<ShellWindow>(PluginConfig&, albor::Application&)>;
+        using ShellFactory = std::function<std::unique_ptr<ShellWindow>(PluginConfig&, albor::Application&, std::unique_ptr<NetlistSource>)>;
 
-        StudioApp(PluginConfig config, albor::Application& application, ShellFactory factory);
+        StudioApp(PluginConfig config, albor::Application& application, ShellFactory factory, std::shared_ptr<SchematicSession> schematic = nullptr);
 
         StudioApp(const StudioApp&) = delete;
 
@@ -39,15 +42,15 @@ namespace studio
         // build the windows and block until the last one closes
         int run();
 
-        // the netlist the shell opens through the file dispatch once it is up
+        // the netlist the standalone shell opens through the file dispatch once it is up
         void set_startup_netlist(const std::filesystem::path& path);
 
-        // add an output file the charts open once the shell is up
+        // add an output file the standalone shell opens in the charts once it is up
         void set_startup_dataset(const std::filesystem::path& path);
 
     private:
         // build and show one shell through the factory, returning null when it could not be created
-        ShellWindow* build_window();
+        ShellWindow* build_window(std::unique_ptr<NetlistSource> netlist_source = nullptr);
 
         // open a dataset in a window of its own
         void open_window(std::shared_ptr<XyceOutputFile> file, ChartKind kind, std::string title);
@@ -63,6 +66,9 @@ namespace studio
 
         // the factory every shell is built with
         ShellFactory m_factory;
+
+        // the schematic session the plugin shell binds, null when running standalone
+        std::shared_ptr<SchematicSession> m_schematic;
 
         // the configuration every window reads and the plugin dialog updates
         PluginConfig m_plugin_config;

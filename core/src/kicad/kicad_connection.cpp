@@ -92,8 +92,8 @@ std::unique_ptr<KiCadConnection> KiCadConnection::from_environment() {
     // read the socket URL and token from the environment
     const auto socket = get_environment_variable("KICAD_API_SOCKET");
     const auto token = get_environment_variable("KICAD_API_TOKEN");
-    // log information
-    spdlog::info("Running in KiCad plugin mode, KICAD_API_SOCKET={}, KICAD_API_TOKEN={}", socket.value_or(""), token.value_or(""));
+    // log the launch without the token, which must not reach a captured log
+    spdlog::info("Running in KiCad plugin mode, KICAD_API_SOCKET={}, KICAD_API_TOKEN={}", socket.value_or(""), token.has_value() && !token->empty() ? "<set>" : "<missing>");
     // create the connection
     return std::make_unique<KiCadConnection>(socket.value_or(""), token.value_or(""), CLIENT_NAME);
 }

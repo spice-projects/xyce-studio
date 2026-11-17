@@ -9,6 +9,7 @@
 #include "app/shell_window.h"
 #include "charts/chart_engine.h"
 #include "config/plugin_config.h"
+#include "netlist/netlist_source.h"
 
 class XyceOutputFile;
 
@@ -36,8 +37,8 @@ namespace studio
     class WindowInstance final : public ShellWindow
     {
     public:
-        // build a shell over the application and the configuration the window reads
-        WindowInstance(albor::Application& application, PluginConfig& plugin_config);
+        // build a shell over the application, the configuration and the source the editor reads
+        WindowInstance(albor::Application& application, PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source = nullptr);
 
         WindowInstance(const WindowInstance&) = delete;
 
@@ -90,6 +91,12 @@ namespace studio
 
         // the configuration the window reads and the plugin dialog updates
         PluginConfig& m_plugin_config;
+
+        // the netlist source the shell binds, empty when the editor owns an untitled netlist
+        std::unique_ptr<NetlistSource> m_netlist_source;
+
+        // whether the shell displays a schematic netlist
+        bool m_schematic = false;
 
         // the shell window of this instance
         std::unique_ptr<MainWindowView> m_view;

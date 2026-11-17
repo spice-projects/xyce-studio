@@ -1,8 +1,10 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <system_error>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -10,6 +12,7 @@
 
 #include "config/plugin_config.h"
 #include "io/temp_output_directory.h"
+#include "netlist/netlist_source.h"
 #include "presenters/main_window_presenter.h"
 #include "simulation/option_parameters.h"
 #include "simulation/transient_simulation_parameters.h"
@@ -163,17 +166,38 @@ namespace
         // the content the source reports as reloaded
         std::string content = "* reloaded schematic\nV1 in 0 1\n.END\n";
 
+        // whether the load reports a reload
+        bool reloaded = true;
+
+        // whether the source reports itself read only
+        bool read_only = true;
+
+        // whether the exporter fails the load
+        bool fail = false;
+
+        // how many times the shell loaded and saved the source
+        int loads = 0;
+
+        int saves = 0;
+
         [[nodiscard]] std::string title() const override { return "schematic.kicad_sch"; }
 
-        [[nodiscard]] bool is_read_only() const override { return true; }
+        [[nodiscard]] bool is_read_only() const override { return read_only; }
 
         [[nodiscard]] bool has_backing_file() const override { return true; }
 
         [[nodiscard]] std::filesystem::path working_directory() const override { return {}; }
 
-        [[nodiscard]] std::tuple<bool, std::string> load_netlist() override { return {true, content}; }
+        [[nodiscard]] std::tuple<bool, std::string> load_netlist() override {
+            // the shell asks the exporter for the current netlist
+            loads++;
+            // a failed export reports the way the KiCad exporter does
+            if (fail)
+                throw std::runtime_error("kicad-cli failed");
+            return {reloaded, content};
+        }
 
-        void save_netlist(const std::string&) override {}
+        void save_netlist(const std::string&) override { saves++; }
     };
 } // namespace
 
@@ -1210,4 +1234,244 @@ TEST(StudioMainWindowPresenterChecks, opening_a_netlist_drops_the_previous_analy
     EXPECT_EQ(prepared.options.device.at("GMIN"), "1e-9");
     // release the scratch files
     std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_standalone_shell_keeps_the_file_actions_available) {
+    // arrange: a shell over an untitled editor source
+    const PluginConfig config;
+    FakeView view;
+    // act
+    studio::MainWindowPresenter presenter(view, config);
+    // assert: the file actions stay available to a netlist the user owns
+    EXPECT_TRUE(view.open_enabled);
+    EXPECT_FALSE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_shell_seeds_the_editor_and_locks_the_file_actions) {
+    // arrange: a shell over the source a plugin session supplies
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->content = "R1 1 0 1k\n.END\n";
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    // act
+    presenter.load_schematic();
+    // assert: the editor shows the exported netlist and refuses edits
+    EXPECT_EQ(view.editor_text, "R1 1 0 1k\n.END\n");
+    EXPECT_TRUE(view.read_only_last);
+    // assert: the file actions stay off while the run stays available
+    EXPECT_FALSE(view.open_enabled);
+    EXPECT_FALSE(view.save_enabled);
+    EXPECT_TRUE(view.run_enabled);
+    // assert: the title names the schematic the netlist came from
+    ASSERT_FALSE(view.titles.empty());
+    EXPECT_EQ(view.titles.back(), "schematic.kicad_sch");
+    EXPECT_EQ(exported->loads, 1);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_reload_replaces_the_editor_content) {
+    // arrange: a schematic shell showing the first export
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->content = "R1 1 0 1k\n.END\n";
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    // act: the user edits the schematic, which the next export describes
+    exported->content = "R1 1 0 2k\n.END\n";
+    presenter.load_schematic();
+    // assert: the editor follows the export and stays read only
+    EXPECT_EQ(view.editor_text, "R1 1 0 2k\n.END\n");
+    EXPECT_TRUE(view.read_only_last);
+    EXPECT_EQ(exported->loads, 2);
+}
+
+TEST(StudioMainWindowPresenterChecks, an_edit_in_plugin_mode_never_enables_save) {
+    // arrange: a schematic shell whose editor a read-only view should not edit
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config, std::make_unique<FakeNetlistSource>(), true);
+    presenter.load_schematic();
+    // act: the view reports an edit anyway
+    presenter.on_netlist_edited();
+    // assert: the schematic owns the netlist, so the save action stays off
+    EXPECT_FALSE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_shell_locks_save_even_when_the_source_is_writable) {
+    // arrange: a schematic shell whose source claims it could be written
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    source->read_only = false;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    // act: the view reports an edit
+    presenter.on_netlist_edited();
+    // assert: the plugin mode alone locks Save and suppresses the unsaved marker
+    EXPECT_FALSE(view.save_enabled);
+    EXPECT_FALSE(view.open_enabled);
+    ASSERT_FALSE(view.titles.empty());
+    EXPECT_EQ(view.titles.back(), "schematic.kicad_sch");
+}
+
+TEST(StudioMainWindowPresenterChecks, an_empty_schematic_export_leaves_the_run_disabled) {
+    // arrange: a schematic shell whose exporter returns nothing
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    source->content.clear();
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    // act
+    presenter.load_schematic();
+    // assert: an empty export leaves the run action off and the editor empty
+    EXPECT_TRUE(view.editor_text.empty());
+    EXPECT_FALSE(view.run_enabled);
+    EXPECT_FALSE(view.open_enabled);
+    EXPECT_FALSE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_failed_schematic_export_reports_a_status_message) {
+    // arrange: a schematic shell whose exporter fails
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    source->fail = true;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    // act: the shell asks for the export, which fails
+    presenter.load_schematic();
+    // assert: the failure is reported instead of ending the process
+    ASSERT_FALSE(view.statuses.empty());
+    EXPECT_EQ(view.statuses.back(), "Schematic netlist export failed");
+    EXPECT_TRUE(view.editor_text.empty());
+    EXPECT_FALSE(view.run_enabled);
+    EXPECT_TRUE(view.read_only_last);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_reload_seeds_the_editor_without_a_reload_flag) {
+    // arrange: a schematic shell whose exporter reports no change
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->reloaded = false;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    // act
+    presenter.load_schematic();
+    exported->content = "R1 1 0 3k\n.END\n";
+    presenter.load_schematic();
+    // assert: the editor follows the export whether or not the source reported a reload
+    EXPECT_EQ(view.editor_text, "R1 1 0 3k\n.END\n");
+    EXPECT_TRUE(view.read_only_last);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_run_re_exports_the_schematic) {
+    // arrange: a valid executable and a schematic shell over the first export
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-schematic-run");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->content = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    // act: the schematic changes and the user starts a run
+    exported->content = "R1 1 0 2k\n.TRAN 1m 10m\n.END\n";
+    presenter.on_run_clicked();
+    // assert: the export seeded the editor before the run described it
+    EXPECT_EQ(view.editor_text, "R1 1 0 2k\n.TRAN 1m 10m\n.END\n");
+    EXPECT_EQ(view.start_count, 1);
+    std::ifstream written(view.start_netlist_path);
+    const std::string content((std::istreambuf_iterator<char>(written)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find("R1 1 0 2k"), std::string::npos);
+    // assert: the plugin shell stays locked after the run started
+    EXPECT_TRUE(view.read_only_last);
+    EXPECT_FALSE(view.open_enabled);
+    EXPECT_FALSE(view.save_enabled);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_run_keeps_the_accepted_directives_when_the_schematic_did_not_change) {
+    // arrange: a valid executable and a schematic shell whose export did not change
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-schematic-accepted");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->content = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    exported->reloaded = false;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    // act: the dialog accepts a longer run, then the user starts it
+    presenter.on_simulation_parameters_accepted(SimulationConfig::from_xyce_directives({".TRAN 1m 20m"}));
+    presenter.on_run_clicked();
+    // assert: the run netlist carries the accepted final time instead of the export's
+    EXPECT_EQ(view.start_count, 1);
+    std::ifstream written(view.start_netlist_path);
+    const std::string content((std::istreambuf_iterator<char>(written)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find(".TRAN 1m 20m"), std::string::npos);
+    EXPECT_EQ(content.find(".TRAN 1m 10m"), std::string::npos);
+    // assert: the editor keeps the accepted directive too
+    EXPECT_NE(view.editor_text.find(".TRAN 1m 20m"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_schematic_re_export_keeps_the_accepted_directives) {
+    // arrange: a valid executable and a schematic shell showing the first export
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-schematic-reexport");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    FakeNetlistSource* exported = source.get();
+    exported->content = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    exported->reloaded = false;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    presenter.on_simulation_parameters_accepted(SimulationConfig::from_xyce_directives({".TRAN 1m 20m"}));
+    // act: the user edits the schematic and starts another run
+    exported->content = "R1 1 0 2k\n.TRAN 1m 10m\n.END\n";
+    exported->reloaded = true;
+    presenter.on_run_clicked();
+    // assert: the new device reaches the run and the accepted directives survive the re-export
+    EXPECT_EQ(view.start_count, 1);
+    std::ifstream written(view.start_netlist_path);
+    const std::string content((std::istreambuf_iterator<char>(written)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find("R1 1 0 2k"), std::string::npos);
+    EXPECT_NE(content.find(".TRAN 1m 20m"), std::string::npos);
+    EXPECT_EQ(content.find(".TRAN 1m 10m"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, the_simulation_dialog_describes_the_accepted_directives) {
+    // arrange: a schematic shell that accepted a longer run
+    const PluginConfig config;
+    FakeView view;
+    auto source = std::make_unique<FakeNetlistSource>();
+    source->content = "R1 1 0 1k\n.TRAN 1m 10m\n.END\n";
+    source->reloaded = false;
+    studio::MainWindowPresenter presenter(view, config, std::move(source), true);
+    presenter.load_schematic();
+    presenter.on_simulation_parameters_accepted(SimulationConfig::from_xyce_directives({".TRAN 1m 20m"}));
+    // act: the user reopens the dialog
+    const SimulationConfig& prepared = presenter.prepare_simulation_parameters();
+    // assert: the dialog opens on the accepted run instead of the stale export
+    ASSERT_TRUE(std::holds_alternative<TransientSimulationParameters>(prepared.analysis));
+    EXPECT_EQ(std::get<TransientSimulationParameters>(prepared.analysis).final_time_value, "20m");
 }

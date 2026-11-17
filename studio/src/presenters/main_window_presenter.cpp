@@ -193,10 +193,11 @@ namespace
     }
 } // namespace
 
-studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source) :
+studio::MainWindowPresenter::MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source, const bool schematic) :
     m_view(&view),
     // a plugin session supplies its own source; standalone starts from an untitled editor source
     m_netlist_source(netlist_source != nullptr ? std::move(netlist_source) : std::make_unique<EditorNetlistSource>([this]() { return m_view->netlist_text(); }, std::filesystem::path{})),
+    m_schematic(schematic),
     m_plugin_config(plugin_config) {
     // initialize the toolbar action states before the window is shown
     refresh_action_states();
@@ -210,17 +211,40 @@ void studio::MainWindowPresenter::set_run_started_handler(RunStartedHandler hand
 
 void studio::MainWindowPresenter::set_on_netlist_opened(NetlistOpenedHandler handler) { m_on_netlist_opened = std::move(handler); }
 
+void studio::MainWindowPresenter::load_schematic() {
+    // the schematic owns the netlist, so the editor refuses edits while it is shown
+    m_view->set_netlist_read_only(true);
+    try {
+        // the source exports the schematic on demand
+        const auto [reloaded, content] = m_netlist_source->load_netlist();
+        // the export is the content the shell shows whether or not it reported a change
+        (void)reloaded;
+        // the editor follows the exported netlist
+        update_netlist_editor_content(content, false);
+        // the title names the schematic the netlist came from
+        set_base_title(m_netlist_source->title());
+    }
+    catch (const std::exception& error) {
+        // a failed export keeps the previous content and says why
+        spdlog::error("Schematic netlist export failed: {}", error.what());
+        // the status bar reports the failure the shell absorbed
+        m_view->set_status_text("Schematic netlist export failed");
+    }
+    // the plugin mode locks the file actions whatever the content reports
+    refresh_action_states();
+}
+
 void studio::MainWindowPresenter::reload_netlist_source() {
     // a presenter without a source has nothing to reload
     if (m_netlist_source == nullptr)
         return;
     // the plugin source re-exports only when the schematic changed
-    const auto [reloaded, content] = m_netlist_source->load_netlist();
+    const auto [reloaded, exported] = m_netlist_source->load_netlist();
     // an unchanged schematic leaves the editor and the tabs untouched
     if (!reloaded)
         return;
-    // the new netlist replaces the editor content without dirtying it
-    update_netlist_editor_content(content, false);
+    // the new export replaces the editor body, keeping the accepted directives
+    seed_from_source(exported);
     // the title and the read only flag follow the source
     set_base_title(m_netlist_source->title());
     m_view->set_netlist_read_only(m_netlist_source->is_read_only());
@@ -251,6 +275,8 @@ void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path
     update_netlist_editor_content(content, false);
     // a new document starts from the configuration it declares, not the previous file's
     m_simulation_config = SimulationConfig::from_xyce_directives({});
+    // the accepted directives belong to the document that was open
+    m_directives_accepted = false;
     // the stripped body and the topology belong to the document that was open
     m_sanitized_netlist.clear();
     m_pending_topology = NetlistTopology{};
@@ -316,8 +342,25 @@ void studio::MainWindowPresenter::run_simulation() {
         // exit
         return;
     }
-    // load the netlist source content, which reads the live editor text
-    const auto [reloaded, content] = m_netlist_source->load_netlist();
+    // the netlist content the run describes
+    std::string content;
+    try {
+        // load the source, which reports whether the schematic changed
+        const auto [reloaded, exported] = m_netlist_source->load_netlist();
+        // a reloaded export replaces the editor body before the run describes it
+        if (reloaded)
+            seed_from_source(exported);
+        // the editor is the document the user configured, so accepted directives reach the run
+        content = m_view->netlist_text();
+    }
+    catch (const std::exception& error) {
+        // a failed export refuses the run instead of ending the process
+        spdlog::error("Schematic netlist export failed: {}", error.what());
+        // the status bar reports the failure the shell absorbed
+        m_view->set_status_text("Schematic netlist export failed");
+        // exit without launching
+        return;
+    }
     // guard against an editor that holds no netlist content
     if (content.empty()) {
         // update the statusbar
@@ -560,11 +603,13 @@ bool studio::MainWindowPresenter::copy_output_to_destination(const PrintOutputCo
 }
 
 const SimulationConfig& studio::MainWindowPresenter::prepare_simulation_parameters() {
-    // load the current editor content, which is what the dialog describes
-    const auto [reloaded, content] = m_netlist_source->load_netlist();
-    // a reloaded source seeds the editor before the parse reads it back
+    // load the source, which reports whether the schematic changed
+    const auto [reloaded, exported] = m_netlist_source->load_netlist();
+    // a reloaded export replaces the editor body before the dialog reads it
     if (reloaded)
-        update_netlist_editor_content(content, false);
+        seed_from_source(exported);
+    // the editor is the document the dialog describes, so accepted directives survive a source that did not reload
+    const std::string content = m_view->netlist_text();
     // split the managed directives out of the netlist body, which the accepted configuration rebuilds
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // remember the parse result so the accepted configuration can rebuild the netlist
@@ -588,6 +633,8 @@ void studio::MainWindowPresenter::on_simulation_parameters_accepted(const Simula
         static_cast<void>(prepare_simulation_parameters());
     // store the configuration the dialog accepted, which is what a later run serializes
     m_simulation_config = config;
+    // a schematic re-export must keep the directives the dialog set
+    m_directives_accepted = true;
     // render the accepted directives into the netlist
     rewrite_managed_directives();
 }
@@ -605,6 +652,8 @@ void studio::MainWindowPresenter::on_options_accepted(const OptionParameters& op
         return;
     // store the options the dialog accepted, which the next run serializes
     m_simulation_config.options = options;
+    // a schematic re-export must keep the options the dialog set
+    m_directives_accepted = true;
     // the content the editor holds, which the rewrite leaves otherwise untouched
     const std::string content = m_view->netlist_text();
     // replace only the .OPTIONS directives the editor owns
@@ -614,6 +663,21 @@ void studio::MainWindowPresenter::on_options_accepted(const OptionParameters& op
         refresh_action_states();
     // the rewritten netlist is the content a later action operates on
     m_pending_original_netlist = final_netlist;
+}
+
+void studio::MainWindowPresenter::seed_from_source(const std::string& content) {
+    // the reloaded content replaces the editor body
+    update_netlist_editor_content(content, false);
+    // remember the body and the topology the accepted directives render into
+    const auto [sanitized_netlist, topology] = parse_netlist(content);
+    m_sanitized_netlist = sanitized_netlist;
+    m_pending_topology = topology;
+    m_pending_original_netlist = content;
+    // a dialog accepted this session keeps its directives across the reload
+    if (!m_directives_accepted)
+        return;
+    // render the accepted configuration over the fresh body
+    rewrite_managed_directives();
 }
 
 void studio::MainWindowPresenter::rewrite_managed_directives() {
@@ -631,9 +695,9 @@ void studio::MainWindowPresenter::rewrite_managed_directives() {
 }
 
 void studio::MainWindowPresenter::refresh_action_states() {
-    // open stays available; save needs unsaved changes on content a writable source can write
-    m_view->set_open_enabled(true);
-    m_view->set_save_enabled(m_netlist_editor_dirty && m_netlist_has_content && !m_netlist_source->is_read_only());
+    // a schematic owns the netlist, so the file actions stay off; standalone keeps open available
+    m_view->set_open_enabled(!m_schematic);
+    m_view->set_save_enabled(!m_schematic && m_netlist_editor_dirty && m_netlist_has_content && !m_netlist_source->is_read_only());
     // the run action reads Run once the editor holds netlist content and Stop while the simulation runs
     m_view->set_run_enabled(m_netlist_has_content);
     // the configure action needs a netlist to describe an analysis
@@ -644,10 +708,10 @@ void studio::MainWindowPresenter::refresh_action_states() {
 bool studio::MainWindowPresenter::set_netlist_editor_dirty(bool flag) {
     // previous dirty state
     const bool previous_dirty_state = m_netlist_editor_dirty;
-    // store the dirty state
-    m_netlist_editor_dirty = flag;
+    // a schematic cannot be saved, so it never reports unsaved changes
+    m_netlist_editor_dirty = !m_schematic && flag;
     // prefix the base title while the editor holds unsaved changes
-    m_view->set_title(flag ? "* " + m_base_title : m_base_title);
+    m_view->set_title(m_netlist_editor_dirty ? "* " + m_base_title : m_base_title);
     // return true if the dirty state changed, false if it remained the same
     return previous_dirty_state != m_netlist_editor_dirty;
 }

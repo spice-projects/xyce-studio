@@ -38,8 +38,8 @@ namespace studio
         // the callback a new netlist document reaches, which closes the previous output tabs
         using NetlistOpenedHandler = std::function<void()>;
 
-        // the shell and configuration outlive the presenter; a plugin session may supply the source
-        MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source = nullptr);
+        // the shell and configuration outlive the presenter; a plugin session may supply the schematic source
+        MainWindowPresenter(MainWindowViewDef& view, const PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source = nullptr, bool schematic = false);
 
         MainWindowPresenter(const MainWindowPresenter&) = delete;
 
@@ -59,6 +59,9 @@ namespace studio
 
         // reload the current netlist source in place, which a schematic edit does
         void reload_netlist_source();
+
+        // seed the editor and the title from the schematic the plugin session exports
+        void load_schematic();
 
         // the user picked a file in the open panel, which the view resolved
         void on_open_file(const std::filesystem::path& path) override;
@@ -170,6 +173,12 @@ namespace studio
         // the FILE= destinations the run netlist named, with the default files the run produces
         std::vector<PrintOutputCopy> m_run_output_copies;
 
+        // whether the shell displays a schematic netlist, which locks the file actions
+        bool m_schematic = false;
+
+        // whether a dialog accepted directives this session, which a schematic re-export must keep
+        bool m_directives_accepted = false;
+
         // the plugin configuration the Xyce executable path is read from
         const PluginConfig& m_plugin_config;
 
@@ -190,6 +199,9 @@ namespace studio
 
         // the configuration the parameters dialog edits and the run serializes
         SimulationConfig m_simulation_config = SimulationConfig::from_xyce_directives({});
+
+        // replace the editor body with a source that reloaded and re-render the accepted directives over it
+        void seed_from_source(const std::string& content);
 
         // re-render the managed directives into the sanitized netlist and hand the result to the editor
         void rewrite_managed_directives();

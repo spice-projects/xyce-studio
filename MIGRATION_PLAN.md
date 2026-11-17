@@ -16,9 +16,9 @@ This document outlines the architectural blueprint and step-by-step execution pl
 ### Status Snapshot (2026-11-16)
 
 - Phases 1–5 are complete, except the CI packaging re-verification in 4.4.
-- Phase 6 is complete except KiCad integration (6.8): the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot and the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) are delivered.
+- Phase 6 is complete: the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot, the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) and the KiCad plugin session are delivered.
 - Phase 7 has not started; the legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
-- Current coverage: 188 studio unit tests (`studio-tests/`), 66 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,996 shared unit tests, 75 UI scenarios).
+- Current coverage: 203 studio unit tests (`studio-tests/`), 69 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
 
 ---
 
@@ -233,7 +233,7 @@ Move files into their respective homes. Git preserves history across renames (`g
 
 Implement features in `studio/` piece by piece. For each feature, create dedicated presenter/view pairs and cover it with studio presenter unit tests (`studio-tests/`) plus Albor UI scenarios (`tests_studio/`).
 
-Status (2026-11-16): 6.1–6.7 are complete; 6.8 is split, with multi-window mode delivered and KiCad integration open.
+Status (2026-11-16): 6.1–6.8 are complete.
 
 - [x] **6.1. Window Chrome, Toolbar & Netlist Editor**
   - Implement netlist text editor view (binding to `EditorNetlistSource` from `xyce-core`).
@@ -267,10 +267,11 @@ Status (2026-11-16): 6.1–6.7 are complete; 6.8 is split, with multi-window mod
   - Implementation plan and file map: [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md).
   - ImGui/ImPlot was evaluated and rejected; the textured-mesh primitive that path would need is tracked upstream as [AlborCore/albor#211](https://github.com/AlborCore/albor/issues/211), but native charts do not depend on it.
   - Status: delivered through plan 6.7a–e in [`docs/development/chart-engine-plan.md`](docs/development/chart-engine-plan.md): retained scene layers, line and Smith charts, dataset tabs and run auto-load, the full context menu, plot selection, the step tool, Fourier results table parity, performance budgets and native chart windows.
-- [ ] **6.8. KiCad Integration & Multi-Window Mode**
-  - Wire `KiCadSession` IPC into the Albor application lifecycle.
+- [x] **6.8. KiCad Integration & Multi-Window Mode**
+  - [x] Wire `KiCadSession` IPC into the Albor application lifecycle: the composition root opens a session when `KICAD_API_SOCKET` and `KICAD_API_TOKEN` describe a plugin launch, the application hands the session's schematic source to the primary shell (spawned windows stay standalone), the shell seeds its editor from the exported netlist, marks the editor read-only and locks Open/Save while the run action stays available, and every run re-exports the schematic so a schematic edit reaches the simulator.
   - [x] Implement native secondary chart windows (`new_window`): the chart context menu opens a full shell window over the dataset it reads, the application keeps every window and releases a closed one after its dispatch, and the window bookkeeping is unit-tested through an injected application and shell factory.
-  - Status: multi-window mode is delivered; the KiCad IPC session is still not connected, which is the only open Phase 6 item.
+  - Status: delivered. The session is a `SchematicSession` seam (`studio/src/app/schematic_session.h`) so the shell wiring is unit-tested without KiCad; the automation build additionally binds a file-backed stub from `XYCE_STUDIO_SCHEMATIC`, which drives the plugin path end-to-end in `tests_studio/kicad_test.py` (editor seeded from the export, read-only, Open/Save locked, Run available, a dialog-accepted directive reaching the run, failed export reported). A genuine KiCad instance remains a manual check, because the plugin launch needs a live API socket. A failing session or export now degrades to the standalone shell with a status message instead of terminating the process.
+  - The editor is the live document once the export has seeded it: a run and the parameters dialog describe the editor when the schematic did not change, so an analysis accepted in the dialog reaches the simulator; a schematic re-export still keeps the accepted directives, because the managed block is re-rendered over the fresh devices.
 
 ---
 

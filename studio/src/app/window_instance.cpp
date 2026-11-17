@@ -26,8 +26,8 @@
 #include "views/plugin_config/plugin_config_dialog_view.h"
 #include "views/simulation_parameters/simulation_parameters_dialog_view.h"
 
-studio::WindowInstance::WindowInstance(albor::Application& application, PluginConfig& plugin_config) :
-    m_application(application), m_plugin_config(plugin_config) {}
+studio::WindowInstance::WindowInstance(albor::Application& application, PluginConfig& plugin_config, std::unique_ptr<NetlistSource> netlist_source) :
+    m_application(application), m_plugin_config(plugin_config), m_netlist_source(std::move(netlist_source)), m_schematic(m_netlist_source != nullptr && m_netlist_source->is_read_only()) {}
 
 studio::WindowInstance::~WindowInstance() = default;
 
@@ -43,7 +43,7 @@ bool studio::WindowInstance::create() {
         return false;
     }
     // the shell reports the netlist lifecycle to the presenter, which reads the Xyce path
-    m_presenter = std::make_unique<MainWindowPresenter>(*m_view, m_plugin_config);
+    m_presenter = std::make_unique<MainWindowPresenter>(*m_view, m_plugin_config, std::move(m_netlist_source), m_schematic);
     m_view->set_event_handler(m_presenter.get());
     // a new netlist document closes the output tabs of the previous one and selects the netlist tab
     m_presenter->set_on_netlist_opened([this] {
@@ -56,6 +56,9 @@ bool studio::WindowInstance::create() {
         // the strip lists only the netlist
         refresh_documents();
     });
+    // a schematic shell seeds its editor from the exported netlist
+    if (m_schematic)
+        m_presenter->load_schematic();
     // the shell owns the native charts view the charts presenter drives
     wire_charts();
     // the add/remove plots dialog is parented to the shell and outlives individual shows
