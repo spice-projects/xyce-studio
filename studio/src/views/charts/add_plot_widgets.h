@@ -202,7 +202,7 @@ namespace studio
     {
     public:
         // build the legend over the engines the dialog uses
-        PlotLegend(albor::BindingEngine* engine, albor::TextEngine* text);
+        PlotLegend(albor::BindingEngine* engine, albor::TextEngine* text, std::string explicit_id);
 
         // replace the legend rows
         void set_entries(std::vector<expression_colors::LegendEntry> entries);

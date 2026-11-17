@@ -113,7 +113,7 @@ void studio::AlborAddPlotDialogView::show(PlotSelectionState state, AcceptedHand
     if (breadcrumb_host != nullptr)
         breadcrumb_host->add_child(std::move(breadcrumb));
     // the legend names the units the grid shows
-    auto legend = std::make_unique<PlotLegend>(m_engine, m_text);
+    auto legend = std::make_unique<PlotLegend>(m_engine, m_text, "add_plot_legend");
     // the bar is seeded only once its host owns it, so a missing host leaves no dangling pointer
     m_legend = legend_host != nullptr ? legend.get() : nullptr;
     // the legend only exists once its host does

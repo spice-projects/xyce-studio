@@ -45,6 +45,10 @@ class AlborClient:
         # write the text an editable node edits
         self._mcp.call_tool("semantic.set_value", {"id": node_id, "value": value})
 
+    def value(self, node_id: str) -> str:
+        # read the primary value a node publishes, where a checkable node answers yes or no
+        return self._mcp.call_tool("semantic.value", {"id": node_id})
+
     def set_focused(self, node_id: str, focused: bool) -> None:
         # record what assistive technology reported about focus
         self._mcp.call_tool("semantic.set_focused", {"id": node_id, "value": "1" if focused else "0"})

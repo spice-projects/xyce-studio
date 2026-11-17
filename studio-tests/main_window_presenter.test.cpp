@@ -361,7 +361,7 @@ TEST(StudioMainWindowPresenterChecks, run_refuses_an_invalid_xyce_executable) {
     const std::filesystem::path netlist = scratch.path() / "tran.cir";
     {
         std::ofstream file(netlist);
-        file << ".tran 1m 10m\n.END\n";
+        file << "* tran\n.tran 1m 10m\n.END\n";
     }
     const PluginConfig config;
     FakeView view;
@@ -410,7 +410,7 @@ TEST(StudioMainWindowPresenterChecks, run_starts_the_process_and_streams_the_log
     const std::filesystem::path netlist = scratch.path() / "tran.cir";
     {
         std::ofstream file(netlist);
-        file << ".tran 1m 10m\n.END\n";
+        file << "* tran\n.tran 1m 10m\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
@@ -425,9 +425,10 @@ TEST(StudioMainWindowPresenterChecks, run_starts_the_process_and_streams_the_log
     EXPECT_EQ(view.start_working_directory, scratch.path());
     std::ifstream temp_netlist(view.start_netlist_path);
     const std::string written((std::istreambuf_iterator<char>(temp_netlist)), std::istreambuf_iterator<char>());
-    EXPECT_EQ(written, ".tran 1m 10m\n.END\n");
-    // assert: the shell entered the running state with a reset log in a visible panel
-    EXPECT_TRUE(view.output_panel_visible);
+    EXPECT_NE(written.find(".TRAN 1m 10m"), std::string::npos);
+    EXPECT_NE(written.find(".END"), std::string::npos);
+    // assert: the shell entered the running state with a reset log and a panel held back for diagnostics
+    EXPECT_FALSE(view.output_panel_visible);
     EXPECT_EQ(view.clear_count, 1);
     EXPECT_TRUE(view.output_lines.empty());
     EXPECT_TRUE(view.running_label);
@@ -437,7 +438,8 @@ TEST(StudioMainWindowPresenterChecks, run_starts_the_process_and_streams_the_log
     presenter.on_simulation_stdout("Netlist warning in file tran.cir at or near line 1");
     presenter.on_simulation_stderr("Netlist warning in file tran.cir at or near line 1");
     presenter.on_simulation_stdout("***** Percent complete: 50 %");
-    // assert: the duplicate copy was dropped and the other two lines were shown
+    // assert: the duplicate copy was dropped, the other two lines were shown and the warning surfaced the panel
+    EXPECT_TRUE(view.output_panel_visible);
     EXPECT_EQ(view.output_lines.size(), 2);
     EXPECT_EQ(view.output_lines[0].first, "Netlist warning in file tran.cir at or near line 1");
     EXPECT_EQ(view.output_lines[1].first, "***** Percent complete: 50 %");
@@ -462,7 +464,7 @@ TEST(StudioMainWindowPresenterChecks, a_failed_run_reports_the_exit_code) {
     const std::filesystem::path netlist = scratch.path() / "tran.cir";
     {
         std::ofstream file(netlist);
-        file << ".tran 1m 10m\n.END\n";
+        file << "* tran\n.tran 1m 10m\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
@@ -475,6 +477,8 @@ TEST(StudioMainWindowPresenterChecks, a_failed_run_reports_the_exit_code) {
     // assert: the run is over and the status carries the exit code
     EXPECT_FALSE(view.running_label);
     EXPECT_EQ(view.statuses.back(), "Simulation failed with exit code 2");
+    // assert: a failed run leaves its log visible so the exit code can be read
+    EXPECT_TRUE(view.output_panel_visible);
 }
 
 TEST(StudioMainWindowPresenterChecks, a_second_run_click_cancels_and_the_run_reports_canceled) {
@@ -489,7 +493,7 @@ TEST(StudioMainWindowPresenterChecks, a_second_run_click_cancels_and_the_run_rep
     const std::filesystem::path netlist = scratch.path() / "tran.cir";
     {
         std::ofstream file(netlist);
-        file << ".tran 1m 10m\n.END\n";
+        file << "* tran\n.tran 1m 10m\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
@@ -504,12 +508,13 @@ TEST(StudioMainWindowPresenterChecks, a_second_run_click_cancels_and_the_run_rep
     EXPECT_EQ(view.start_count, 1);
     // act: the process reports the cancel
     presenter.on_simulation_finished(0, true);
-    // assert: the run is over and the status reports the cancel
+    // assert: the run is over, the status reports the cancel and the log stays readable
     EXPECT_FALSE(view.running_label);
     EXPECT_EQ(view.statuses.back(), "Simulation canceled");
+    EXPECT_TRUE(view.output_panel_visible);
 }
 
-TEST(StudioMainWindowPresenterChecks, closing_the_output_panel_hides_it_until_the_next_run) {
+TEST(StudioMainWindowPresenterChecks, closing_the_output_panel_leaves_it_hidden_until_a_diagnostic) {
     // arrange: a valid executable, a loaded netlist and a started run
     const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-close");
     const std::filesystem::path fake_exe = scratch.path() / "Xyce";
@@ -521,24 +526,109 @@ TEST(StudioMainWindowPresenterChecks, closing_the_output_panel_hides_it_until_th
     const std::filesystem::path netlist = scratch.path() / "tran.cir";
     {
         std::ofstream file(netlist);
-        file << ".tran 1m 10m\n.END\n";
+        file << "* tran\n.tran 1m 10m\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
     studio::MainWindowPresenter presenter(view, config);
     presenter.on_open_file(netlist);
     presenter.on_run_clicked();
-    // finish the run, which leaves the panel inspectable
+    // finish the run without results, which leaves the log inspectable
     presenter.on_simulation_finished(0, false);
     // act: the user closes the output panel
     presenter.on_output_close();
     // assert: the panel is hidden
     EXPECT_FALSE(view.output_panel_visible);
-    // act: a new run reveals the panel again and resets the log
+    // act: a new run resets the log and keeps the panel hidden
     presenter.on_run_clicked();
-    // assert: the panel is visible again with a reset log
-    EXPECT_TRUE(view.output_panel_visible);
+    // assert: the panel waits for the first diagnostic of the new run
+    EXPECT_FALSE(view.output_panel_visible);
     EXPECT_EQ(view.clear_count, 2);
+    // act: the first diagnostic arrives
+    presenter.on_simulation_stdout("Netlist warning in file tran.cir at or near line 1");
+    // assert: the warning reveals the panel again
+    EXPECT_TRUE(view.output_panel_visible);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_quiet_run_keeps_the_output_panel_hidden) {
+    // arrange: a valid executable, a loaded netlist and a started run
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-quiet");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        std::ofstream file(netlist);
+        file << "* tran\n.tran 1m 10m\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    presenter.on_run_clicked();
+    // act: stream the progress lines a quiet run writes
+    presenter.on_simulation_stdout("*** Running Xyce simulation ***");
+    presenter.on_simulation_stdout("***** Percent complete: 100");
+    // assert: no diagnostic arrived, so the log stays hidden while the run advances
+    EXPECT_FALSE(view.output_panel_visible);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_warning_surfaces_the_panel_only_once_per_run) {
+    // arrange: a valid executable, a loaded netlist and a started run
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-warning-once");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        std::ofstream file(netlist);
+        file << "* tran\n.tran 1m 10m\n.END\n";
+    }
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.on_open_file(netlist);
+    presenter.on_run_clicked();
+    // act: the first warning surfaces the panel
+    presenter.on_simulation_stdout("Netlist warning in file tran.cir at or near line 1");
+    // assert: the warning opened the log
+    EXPECT_TRUE(view.output_panel_visible);
+    // act: the user closes the panel while the run continues and a second warning arrives
+    presenter.on_output_close();
+    presenter.on_simulation_stdout("Netlist warning in file tran.cir at or near line 2");
+    // assert: the run respects the close instead of reopening the log on every diagnostic
+    EXPECT_FALSE(view.output_panel_visible);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_successful_run_with_results_hides_the_output_panel) {
+    // arrange: a netlist with a print statement and a handler that adopts the produced dataset
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-hide");
+    const std::filesystem::path netlist = scratch.path() / "tran.cir";
+    {
+        std::ofstream file(netlist);
+        file << "R1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+    }
+    const PluginConfig config("/bin/echo");
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    presenter.set_run_output_handler([](const studio::RunOutput&, std::shared_ptr<TempOutputDirectory>) { return studio::RunOutputResult{.outcome = studio::RunOutputOutcome::Primary, .analysis_loaded = true}; });
+    presenter.on_open_file(netlist);
+    presenter.on_run_clicked();
+    // act: a warning surfaces the panel during the run
+    presenter.on_simulation_stdout("Netlist warning in file tran.cir at or near line 1");
+    // assert: the warning opened the log
+    EXPECT_TRUE(view.output_panel_visible);
+    // act: the run finishes and produces a dataset
+    presenter.on_simulation_finished(0, false);
+    // assert: the results replace the log, which folds away
+    EXPECT_FALSE(view.output_panel_visible);
+    EXPECT_EQ(view.statuses.back(), "Simulation finished");
 }
 
 TEST(StudioMainWindowPresenterChecks, the_run_action_needs_netlist_content) {
@@ -739,7 +829,7 @@ TEST(StudioMainWindowPresenterChecks, a_canceled_run_skips_the_run_output_handle
     {
         // write a transient netlist with a print
         std::ofstream file(netlist);
-        file << ".TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+        file << "* tran\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
@@ -777,7 +867,7 @@ TEST(StudioMainWindowPresenterChecks, a_failed_run_skips_the_run_output_handler)
     {
         // write a transient netlist with a print
         std::ofstream file(netlist);
-        file << ".TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
+        file << "* tran\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n";
     }
     const PluginConfig config(fake_exe.string());
     FakeView view;
@@ -1474,4 +1564,74 @@ TEST(StudioMainWindowPresenterChecks, the_simulation_dialog_describes_the_accept
     // assert: the dialog opens on the accepted run instead of the stale export
     ASSERT_TRUE(std::holds_alternative<TransientSimulationParameters>(prepared.analysis));
     EXPECT_EQ(std::get<TransientSimulationParameters>(prepared.analysis).final_time_value, "20m");
+}
+
+TEST(StudioMainWindowPresenterChecks, a_run_without_an_analysis_asks_for_one_instead_of_starting) {
+    // arrange: a valid executable and a typed netlist without an analysis
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-prompt");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.END\n";
+    int prompted = 0;
+    presenter.set_on_run_needs_configuration([&] { prompted++; });
+    // act
+    presenter.on_run_clicked();
+    // assert: the shell opens the dialog and nothing starts
+    EXPECT_EQ(prompted, 1);
+    EXPECT_EQ(view.start_count, 0);
+}
+
+TEST(StudioMainWindowPresenterChecks, an_accepted_analysis_starts_the_run_that_waited) {
+    // arrange: a valid executable and a typed netlist that asked for an analysis
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-resume");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.END\n";
+    presenter.set_on_run_needs_configuration([&] {});
+    presenter.on_run_clicked();
+    ASSERT_EQ(view.start_count, 0);
+    // act: the dialog accepts a transient analysis
+    presenter.on_simulation_parameters_accepted(SimulationConfig::from_xyce_directives({".TRAN 1m 10m"}));
+    // assert: the waiting run starts over the accepted analysis
+    EXPECT_EQ(view.start_count, 1);
+    std::ifstream written(view.start_netlist_path);
+    const std::string content((std::istreambuf_iterator<char>(written)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find(".TRAN 1m 10m"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, a_cancelled_dialog_drops_the_pending_run) {
+    // arrange: a valid executable and a run that waited for an analysis
+    const ScratchDirectory scratch(std::filesystem::temp_directory_path() / "xyce-studio-tests" / "mw-run-cancel");
+    const std::filesystem::path fake_exe = scratch.path() / "Xyce";
+    {
+        std::ofstream file(fake_exe);
+        file << "#!/bin/sh\nexit 0\n";
+    }
+    std::filesystem::permissions(fake_exe, std::filesystem::perms::owner_all);
+    const PluginConfig config(fake_exe.string());
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.END\n";
+    presenter.set_on_run_needs_configuration([&] {});
+    presenter.on_run_clicked();
+    ASSERT_EQ(view.start_count, 0);
+    // act: the dialog is cancelled, then reopened and accepted
+    presenter.on_simulation_parameters_cancelled();
+    presenter.on_simulation_parameters_accepted(SimulationConfig::from_xyce_directives({".TRAN 1m 10m"}));
+    // assert: the cancellation dropped the run the accept did not resume
+    EXPECT_EQ(view.start_count, 0);
 }

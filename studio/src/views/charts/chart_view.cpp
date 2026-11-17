@@ -1142,8 +1142,8 @@ std::vector<studio::ChartContextMenuEntry> studio::ChartView::context_menu_entri
     // the FFT only applies to a cartesian chart of a time-domain dataset
     if (cartesian && m_fft_available)
         entries.push_back(ChartContextMenuEntry{.label = "Calculate FFT...", .command = ChartCommand::CalculateFft});
-    // the step tool only applies to a cartesian chart of a stepped dataset
-    if (cartesian && m_step_tool_available)
+    // the step tool applies to either plane of a stepped dataset
+    if (m_step_tool_available)
         entries.push_back(ChartContextMenuEntry{.label = "Step Tool...", .command = ChartCommand::StepTool});
     // the chart stack commands apply to a cartesian chart only
     if (cartesian) {
@@ -1332,7 +1332,7 @@ albor::SemanticNode studio::ChartView::semantic_node() const {
         if (!m_frames[index].smith && m_fft_available)
             (void)node.add_action(prefix + "calculate-fft", [this, index] { run_chart_command(ChartCommand::CalculateFft, index); });
         // choose the steps the chart keeps active
-        if (!m_frames[index].smith && m_step_tool_available)
+        if (m_step_tool_available)
             (void)node.add_action(prefix + "step-tool", [this, index] { run_chart_command(ChartCommand::StepTool, index); });
         // drop every plotted series of the chart
         (void)node.add_action(prefix + "delete-all-plots", [this, index] { run_chart_command(ChartCommand::DeleteAllPlots, index); });

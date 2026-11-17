@@ -573,8 +573,8 @@ albor::SemanticNode studio::PlotBreadcrumb::semantic_node() const {
     return node;
 }
 
-studio::PlotLegend::PlotLegend(albor::BindingEngine* engine, albor::TextEngine* text) :
-    albor::Widget(engine, "add_plot_legend"), m_text(text) {}
+studio::PlotLegend::PlotLegend(albor::BindingEngine* engine, albor::TextEngine* text, std::string explicit_id) :
+    albor::Widget(engine, std::move(explicit_id)), m_text(text) {}
 
 void studio::PlotLegend::set_entries(std::vector<expression_colors::LegendEntry> entries) {
     // the rows the legend draws
@@ -638,8 +638,13 @@ albor::SemanticNode studio::PlotLegend::semantic_node() const {
     albor::SemanticNode node{albor::SemanticRole::Group};
     // the author id lets the automation select the legend
     node.set_explicit_id(identity().explicit_id);
-    // the name names the legend
-    node.set_name("Legend");
+    // the name names the legend and the categories it lists
+    std::string name = "Legend";
+    // every listed category joins the announcement
+    for (const expression_colors::LegendEntry& entry : m_entries)
+        name += ", " + entry.label;
+    // keep the announcement the adapter reads
+    node.set_name(std::move(name));
     // the bounds place the announcement
     node.set_bounds(bounds());
     // hand the announcement to the adapter

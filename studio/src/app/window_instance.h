@@ -86,6 +86,9 @@ namespace studio
         // wire the charts presenter, its dialogs and the document strip
         void wire_charts();
 
+        // open the simulation parameters dialog over the analysis the netlist describes
+        void open_simulation_parameters();
+
         // the application that owns the window
         albor::Application& m_application;
 

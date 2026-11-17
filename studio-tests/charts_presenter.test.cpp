@@ -645,3 +645,83 @@ TEST(StudioChartsPresenterChecks, adopting_a_dataset_after_a_detach_reports_fail
     // release the scratch file
     std::filesystem::remove_all(root, error);
 }
+
+TEST(StudioChartsPresenterChecks, a_magnitude_only_plot_does_not_select_the_complex_source) {
+    // arrange: an AC dataset whose current is a complex column pair
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-complex-magnitude";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "ac.csv";
+    {
+        std::ofstream file(dataset);
+        file << "FREQ,Re(I(L1)),Im(I(L1))\n";
+        file << "1.0,0.1,0.2\n";
+        file << "2.0,0.2,0.3\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // act: plot only the magnitude the .PLOT directive names
+    ASSERT_TRUE(presenter.apply_plot_selection(0, {"db(I(L1))"}));
+    // assert: the derived magnitude is selected and its complex source is not
+    const std::optional<studio::PlotSelectionState> selection = presenter.plot_selection(0);
+    ASSERT_TRUE(selection.has_value());
+    bool magnitude = false;
+    bool source = false;
+    for (const studio::PlotExpression& expression : selection->expressions) {
+        // the magnitude the chart plots
+        if (expression.name == "db(I(L1))") {
+            magnitude = true;
+            EXPECT_TRUE(expression.selected);
+        }
+        // the complex source the magnitude was derived from
+        if (expression.name == "I(L1)") {
+            source = true;
+            EXPECT_FALSE(expression.selected);
+        }
+    }
+    EXPECT_TRUE(magnitude);
+    EXPECT_TRUE(source);
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(StudioChartsPresenterChecks, selecting_a_complex_source_shows_its_derived_series) {
+    // arrange: an AC dataset whose current is a complex column pair
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "xyce-studio-tests" / "presenter-complex-source";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(root, error);
+    const std::filesystem::path dataset = root / "ac.csv";
+    {
+        std::ofstream file(dataset);
+        file << "FREQ,Re(I(L1)),Im(I(L1))\n";
+        file << "1.0,0.1,0.2\n";
+        file << "2.0,0.2,0.3\n";
+    }
+    albor::BindingEngine engine;
+    FakeTextEngine text;
+    studio::ChartView view(&engine, &text);
+    studio::FourierResultsView results(&engine, &text);
+    studio::ChartsPresenter presenter(view, results, text);
+    ASSERT_TRUE(presenter.show_file(dataset));
+    // act: the dialog selects the complex source itself
+    ASSERT_TRUE(presenter.apply_plot_selection(0, {"I(L1)"}));
+    // assert: both derived series are selected and the source row is not
+    const std::optional<studio::PlotSelectionState> selection = presenter.plot_selection(0);
+    ASSERT_TRUE(selection.has_value());
+    for (const studio::PlotExpression& expression : selection->expressions) {
+        // the two series the chart plots for a complex source
+        if (expression.name == "db(I(L1))" || expression.name == "phase(I(L1))")
+            EXPECT_TRUE(expression.selected) << expression.name;
+        // the source row stays unselected because the chart plots its derived series
+        if (expression.name == "I(L1)")
+            EXPECT_FALSE(expression.selected);
+    }
+    // release the scratch file
+    std::filesystem::remove_all(root, error);
+}

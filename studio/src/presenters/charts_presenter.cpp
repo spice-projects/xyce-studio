@@ -100,13 +100,8 @@ namespace
 
     // whether a chart already plots the expression, including the derived traces a complex line chart draws
     bool is_expression_plotted(const Series& series, const AnyExpression& expression) {
-        // the expression name the chart keys its series by
-        const std::string name = expression_name(expression);
-        // a real expression and a smith trace carry their own name
-        if (series.contains(name))
-            return true;
-        // a complex line chart plots the magnitude and phase under derived names
-        return std::holds_alternative<Expression<std::complex<double>>>(expression) && (series.contains("db(" + name + ")") || series.contains("phase(" + name + ")"));
+        // a chart keys every series by its own name, so a complex source is selected through its derived rows
+        return series.contains(expression_name(expression));
     }
     // the window name the FFT dataset title carries
     std::string fft_window_label(const fft::WindowFunction window) {

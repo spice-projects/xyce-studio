@@ -7,7 +7,7 @@ from albor_automation import TestSession, expect, launch
 
 
 class SimulationOutputChecks(unittest.TestCase):
-    # the run action drives the simulation over the loaded netlist, the output panel shows the live log, and the close action hides the panel again
+    # the run action drives the simulation over the loaded netlist, the output panel surfaces on a diagnostic and stays hidden otherwise, and the close action hides the panel again
 
     def test_run_shows_the_output_log_and_close_hides_the_panel(self) -> None:
         # arrange: a fake Xyce executable the configuration points at, which prints the banner, a reported warning and the completion lines
@@ -22,21 +22,22 @@ class SimulationOutputChecks(unittest.TestCase):
             )
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # assert: the panel is absent before the first run
                 expect(app.get_by_id("output_log")).not_().to_exist()
                 # step 1: start the run from the toolbar
                 app.get_by_id("main_run").click()
-                # assert: the panel mounts and streams the whole log, which the flush coalescing delivers as one value
+                # assert: the warning surfaced the panel, which streams the whole log the flush coalescing delivers as one value
                 log = app.get_by_id("output_log")
                 log.wait_for_exists()
                 expect(log).to_have_value(
                     "*** Running Xyce simulation ***\n"
                     "Netlist warning: parallel device count mismatch\n"
                     "***** Percent complete: 100\n"
-                    "Simulation completed.\n"
+                    "Simulation completed.\n",
+                    timeout=10.0,
                 )
                 # assert: the run finished, so the action reads Run again and the status reports the outcome
                 expect(app.get_by_id("main_run")).to_have_name("Run")
@@ -53,7 +54,7 @@ class SimulationOutputChecks(unittest.TestCase):
             exe.write_text("#!/bin/sh\nsleep 30\n")
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # step 1: start the run
@@ -79,7 +80,7 @@ class SimulationOutputChecks(unittest.TestCase):
             )
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # assert: the output action has nothing to reveal before the first run
@@ -94,8 +95,9 @@ class SimulationOutputChecks(unittest.TestCase):
                 expect(app.get_by_id("output_warning_badge")).to_have_name("1 warning")
                 # assert: no error was reported, so its badge stays out of the tree
                 expect(app.get_by_id("output_error_badge")).not_().to_exist()
-                # assert: the log is now reachable from the toolbar again
-                expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
+                # assert: the warning opened the log by itself, which leaves the toolbar action disabled
+                expect(app.get_by_id("output_log")).to_exist()
+                expect(app.get_by_id("main_output")).to_have_state("disabled")
                 # step 2: stop the run, which folds the live indicator away
                 app.get_by_id("main_run").click()
                 progress.wait_for_gone()
@@ -111,7 +113,7 @@ class SimulationOutputChecks(unittest.TestCase):
             )
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # step 1: start the run from the toolbar
@@ -138,7 +140,7 @@ class SimulationOutputChecks(unittest.TestCase):
             )
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             # arrange: launch the application in a session scoped to this test
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
                 # step 1: run to completion, which streams the whole log
@@ -147,7 +149,8 @@ class SimulationOutputChecks(unittest.TestCase):
                 log.wait_for_exists()
                 expect(log).to_have_value(
                     "*** Running Xyce simulation ***\n"
-                    "Simulation completed.\n"
+                    "Simulation completed.\n",
+                    timeout=10.0,
                 )
                 # step 2: close the panel, which keeps the log in the shell
                 app.get_by_id("output_close").click()
@@ -157,14 +160,119 @@ class SimulationOutputChecks(unittest.TestCase):
                 log.wait_for_exists()
                 expect(log).to_have_value(
                     "*** Running Xyce simulation ***\n"
-                    "Simulation completed.\n"
+                    "Simulation completed.\n",
+                    timeout=10.0,
                 )
                 # step 4: copy the whole log, which must leave the panel and its content untouched
                 app.get_by_id("output_copy").click()
                 expect(log).to_have_value(
                     "*** Running Xyce simulation ***\n"
-                    "Simulation completed.\n"
+                    "Simulation completed.\n",
+                    timeout=10.0,
                 )
+
+    def test_a_quiet_live_run_keeps_the_panel_hidden_and_the_action_available(self) -> None:
+        # arrange: a fake Xyce that reports progress and then keeps running without a diagnostic
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "echo '*** Running Xyce simulation ***'\n"
+                "echo '***** Percent complete: 40 %'\n"
+                "exec sleep 30\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # assert: the panel is absent and its action has nothing to offer before the run
+                expect(app.get_by_id("output_log")).not_().to_exist()
+                expect(app.get_by_id("main_output")).to_have_state("disabled")
+                # step 1: start the run
+                app.get_by_id("main_run").click()
+                # assert: the quiet log arrives without opening the panel
+                expect(app.get_by_id("main_progress")).to_have_name("40%", timeout=10.0)
+                expect(app.get_by_id("output_log")).not_().to_exist()
+                # assert: the hidden log is reachable through the toolbar action
+                expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
+                # step 2: reveal the log from the toolbar
+                app.get_by_id("main_output").click()
+                log = app.get_by_id("output_log")
+                log.wait_for_exists()
+                expect(log).to_have_value(
+                    "*** Running Xyce simulation ***\n"
+                    "***** Percent complete: 40 %\n",
+                    timeout=10.0,
+                )
+                # assert: a log already on screen leaves the action disabled
+                expect(app.get_by_id("main_output")).to_have_state("disabled")
+                # step 3: stop the run
+                app.get_by_id("main_run").click()
+                expect(app.get_by_id("main_status")).to_have_name("Simulation canceled")
+
+    def test_a_warning_during_the_run_opens_the_output_panel(self) -> None:
+        # arrange: a fake Xyce that reports a warning and then keeps running
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "echo 'Netlist warning: parallel device count mismatch'\n"
+                "exec sleep 30\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # step 1: start the run
+                app.get_by_id("main_run").click()
+                # assert: the warning opened the panel without a click and its log carries the line
+                log = app.get_by_id("output_log")
+                log.wait_for_exists()
+                expect(log).to_have_value("Netlist warning: parallel device count mismatch\n", timeout=10.0)
+                # assert: the log on screen leaves the toolbar action disabled
+                expect(app.get_by_id("main_output")).to_have_state("disabled")
+                # step 2: close the panel while the run lives, which keeps the log reachable from the toolbar
+                app.get_by_id("output_close").click()
+                log.wait_for_gone()
+                expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
+                # step 3: stop the run
+                app.get_by_id("main_run").click()
+                expect(app.get_by_id("main_status")).to_have_name("Simulation canceled")
+
+    def test_a_successful_run_with_results_hides_the_output_panel(self) -> None:
+        # arrange: a fake Xyce that reports a warning and writes the table the charts parse, so the run produces a dataset
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Xyce"
+            exe.write_text(
+                "#!/bin/sh\n"
+                "echo 'Netlist warning: parallel device count mismatch'\n"
+                "DIR=$(dirname \"$1\")\n"
+                "cat > \"$DIR/netlist.cir.csv\" <<'EOF'\n"
+                "TIME,V(1)\n"
+                "0,0\n"
+                "1,1\n"
+                "EOF\n"
+                "sleep 3\n"
+                "echo 'Simulation completed.'\n"
+            )
+            os.chmod(exe, 0o755)
+            netlist = Path(tmp) / "tran.cir"
+            netlist.write_text("* plot\nR1 1 0 1k\n.TRAN 1m 10m\n.PRINT TRAN FORMAT=CSV V(1)\n.END\n")
+            # arrange: launch the application in a session scoped to this test
+            with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist)]), self.id()) as app:
+                # step 1: start the run
+                app.get_by_id("main_run").click()
+                # assert: the warning surfaced the log during the run
+                log = app.get_by_id("output_log")
+                log.wait_for_exists()
+                # step 2: wait for the run to deliver its dataset
+                expect(app.get_by_id("main_status")).to_have_name("Simulation finished", timeout=15.0)
+                # assert: the results replace the log, so the panel folds away
+                log.wait_for_gone()
+                # assert: the hidden log stays reachable from the toolbar action
+                expect(app.get_by_id("main_output")).not_().to_have_state("disabled")
 
 
     def test_closing_a_window_mid_run_keeps_the_application_alive(self) -> None:
@@ -174,7 +282,7 @@ class SimulationOutputChecks(unittest.TestCase):
             exe.write_text("#!/bin/sh\nexec sleep 30\n")
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
-            netlist.write_text(".tran 1m 10m\n.END\n")
+            netlist.write_text("* run\n.tran 1m 10m\n.END\n")
             dataset = Path(__file__).resolve().parent / "fixtures" / "tran-simple-01.csv"
             with TestSession(launch(args=["--xyce", str(exe), "--netlist", str(netlist), "--dataset", str(dataset)]), self.id()) as app:
                 # step: start the run in the shell that owns the netlist

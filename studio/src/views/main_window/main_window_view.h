@@ -157,6 +157,9 @@ namespace studio
         // queue one highlight rebuild per event loop iteration, which coalesces typing
         void schedule_netlist_highlight();
 
+        // enable the output action only while a hidden log holds content
+        void refresh_output_availability();
+
         // copy the log selection, or the whole log when nothing is selected
         void copy_output();
 

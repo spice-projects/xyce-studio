@@ -14,6 +14,7 @@
 #include "albor/widgets/theme_controller.h"
 #include "albor/window/window.h"
 #include "app/theme.h"
+#include "core/util.h"
 #include "main_window.h"
 #include "netlist/netlist_lexer.h"
 #include "views/charts/chart_view.h"
@@ -451,23 +452,31 @@ void studio::MainWindowView::set_simulation_progress(const SimulationProgress& p
 void studio::MainWindowView::show_output_panel() {
     if (m_root == nullptr)
         return;
-    // a revealed panel makes its log reachable from the toolbar
-    m_root->set_output_available(true);
-    // an already mounted panel needs no rebuild
-    if (m_output_visible)
-        return;
-    m_output_visible = true;
-    m_root->set_output_visible(true);
+    // mount the panel unless it already sits in the shell
+    if (!m_output_visible) {
+        m_output_visible = true;
+        m_root->set_output_visible(true);
+    }
+    // a visible log needs no toolbar action
+    refresh_output_availability();
 }
 
 void studio::MainWindowView::hide_output_panel() {
     if (m_root == nullptr)
         return;
     // an already hidden panel leaves the tree and the theme alone
-    if (!m_output_visible)
-        return;
-    m_output_visible = false;
-    m_root->set_output_visible(false);
+    if (m_output_visible) {
+        m_output_visible = false;
+        m_root->set_output_visible(false);
+    }
+    // a hidden log with content stays reachable from the toolbar
+    refresh_output_availability();
+}
+
+void studio::MainWindowView::refresh_output_availability() {
+    // an empty log or a visible panel leaves no toolbar action to offer
+    if (m_root != nullptr)
+        m_root->set_output_available(!m_output_visible && m_output_line_count > 0);
 }
 
 void studio::MainWindowView::clear_output() {
@@ -482,7 +491,7 @@ void studio::MainWindowView::clear_output() {
     m_root->set_output_text(m_output_text);
     m_root->set_output_decorations(m_output_decorations);
     // an empty log has no content the toolbar action could reveal
-    m_root->set_output_available(false);
+    refresh_output_availability();
     // an empty log reports no severity, so both header badges are hidden
     m_root->set_output_warning_text("");
     m_root->set_output_warning_visible(false);
@@ -547,8 +556,8 @@ void studio::MainWindowView::flush_output() {
     // the facade reads the log and its decorations as one binding each
     m_root->set_output_text(m_output_text);
     m_root->set_output_decorations(m_output_decorations);
-    // any log line makes the panel reachable from the toolbar again
-    m_root->set_output_available(true);
+    // a hidden log with content becomes reachable from the toolbar
+    refresh_output_availability();
 }
 
 void studio::MainWindowView::rebuild_netlist_highlight() {
@@ -613,6 +622,11 @@ void studio::MainWindowView::cancel_simulation_process() {
 }
 
 std::optional<std::filesystem::path> studio::MainWindowView::request_netlist_save_path() {
+#ifdef XYCE_STUDIO_AUTOMATION
+    // the automation build names the destination in the environment, because the platform panel is unreachable
+    if (const std::optional<std::string> path = get_environment_variable("XYCE_STUDIO_SAVE_PATH"); path.has_value() && !path->empty())
+        return std::filesystem::path(*path);
+#endif
     // describe the native save panel, owned by the shell so it presents as its sheet
     albor::SaveFileOptions options;
     options.parent = m_handle;

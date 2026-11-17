@@ -17,8 +17,8 @@ This document outlines the architectural blueprint and step-by-step execution pl
 
 - Phases 1–5 are complete, except the CI packaging re-verification in 4.4.
 - Phase 6 is complete: the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot, the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) and the KiCad plugin session are delivered.
-- Phase 7 has not started; the legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
-- Current coverage: 203 studio unit tests (`studio-tests/`), 69 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
+- Phase 7 is in progress: 7.1 is complete (see [`parity.md`](docs/development/parity.md)); 7.2–7.4 remain. The legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
+- Current coverage: 207 studio unit tests (`studio-tests/`), 92 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
 
 ---
 
@@ -277,9 +277,10 @@ Status (2026-11-16): 6.1–6.8 are complete.
 
 ### Phase 7: Parity Verification, Binary Cutover & Slint Retirement
 
-- [ ] **7.1. Feature Parity Audit**
+- [x] **7.1. Feature Parity Audit**
   - Run side-by-side manual and automated test sweeps between `xyce-studio` and `xyce-studio-next`.
   - Validate netlist editing, all simulation types, chart interactions, and dialog results.
+  - Status: delivered. [`docs/development/parity.md`](docs/development/parity.md) maps every legacy UI scenario (75), every user-visible surface and the four audit areas, with a verdict for each: covered, ported, accepted difference or not applicable. The audit found and fixed ten issues (a run without an analysis did not ask for one, `.PLOT`-only quantities were never printed, the Smith plane hid the step tool, the CLI lacked `--log-level` and `--raw`, unparseable initial conditions were silently dropped, and several testability gaps) and ported 18 native scenarios, so the native suite now covers the legacy capabilities end to end.
 - [ ] **7.2. Author New Framework CI Workflows**
   - Create separate GitHub Actions workflow(s) (e.g. `.github/workflows/studio.yaml`) dedicated to building and testing `xyce-studio-next`.
   - Keep `.github/workflows/default.yaml` and `coverage.yml` completely untouched and active throughout.

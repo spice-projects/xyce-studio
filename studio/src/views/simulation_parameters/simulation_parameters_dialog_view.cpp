@@ -1699,7 +1699,22 @@ void studio::AlborSimulationParametersDialogView::accept() {
     // an accept without a live dialog is stale
     if (m_root == nullptr || m_events == nullptr)
         return;
-    // hand the configuration the fields describe to the presenter, which owns validation
+    // the raw initial conditions line the selected tab edits
+    std::string ic_text;
+    // only the analyses with an initial conditions section validate one
+    if (const int tab = m_root->selected_tab(); tab == 0)
+        ic_text = m_root->op().initial_conditions;
+    else if (tab == 1)
+        ic_text = m_root->dc().initial_conditions;
+    else if (tab == 2)
+        ic_text = m_root->tran().initial_conditions;
+    // an initial conditions line that parses to nothing is refused, so the typed text is never dropped
+    if (ic_text.find_first_not_of(" \t\r\n") != std::string::npos && ICParameters::from_line(ic_text).to_line().empty()) {
+        // the error keeps the dialog open for corrections
+        show_error("Invalid initial conditions");
+        return;
+    }
+    // hand the configuration the fields describe to the presenter, which owns the remaining validation
     m_events->on_accept(build_config());
 }
 

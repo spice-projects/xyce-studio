@@ -15,20 +15,20 @@ namespace
 } // namespace
 
 std::optional<KiCadSession> KiCadSession::from_environment() {
-    // the project directory decides the schematic, so a launch without one is not a plugin launch
+    // the launch environment names plugin mode, so a standalone shell never reads the project variable
+    if (!KiCadConnection::is_kicad_mode())
+        return std::nullopt;
+    // the project directory decides the schematic, which every plugin launch names
     const auto project_dir = get_environment_variable(PROJECT_DIR_ENV);
     if (!project_dir.has_value() || project_dir->empty()) {
-        // an unset project directory needs no connection attempt
-        spdlog::error("KIPRJMOD environment variable is not set");
+        // plugin mode without a project cannot resolve the active schematic
+        spdlog::error("{} environment variable is not set", PROJECT_DIR_ENV);
         // fail when the project directory is missing
         return std::nullopt;
     }
     try {
         // connect to the KiCad API server, which fails when the socket is gone
         auto connection = KiCadConnection::from_environment();
-        // no session when the environment does not describe a KiCad plugin launch
-        if (!connection)
-            return std::nullopt;
         // resolve the kicad-cli binary path through the API connection
         const std::string kicad_cli_path = connection->get_kicad_binary_path("kicad-cli");
         // build the CLI-based netlist source for the active project

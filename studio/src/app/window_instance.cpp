@@ -178,14 +178,9 @@ bool studio::WindowInstance::create() {
     m_simulation_parameters_view = std::make_unique<AlborSimulationParametersDialogView>(m_application, m_view->handle());
     m_simulation_parameters_presenter = std::make_unique<SimulationParametersPresenter>();
     // the toolbar action opens the dialog over the analysis the netlist describes
-    m_view->set_on_configure_simulation([this] {
-        // a dialog that is already open owns the interaction
-        if (m_simulation_parameters_view->is_open())
-            return;
-        // hand the parsed configuration to the dialog and keep the accepted value in the shell
-        const SimulationConfig& current = m_presenter->prepare_simulation_parameters();
-        m_simulation_parameters_presenter->show(*m_simulation_parameters_view, current, [this](const SimulationConfig& config) { m_presenter->on_simulation_parameters_accepted(config); });
-    });
+    m_view->set_on_configure_simulation([this] { open_simulation_parameters(); });
+    // a run over a netlist without an analysis asks for one first
+    m_presenter->set_on_run_needs_configuration([this] { open_simulation_parameters(); });
     // the options dialog is parented to the shell and outlives individual shows
     m_options_view = std::make_unique<AlborOptionsDialogView>(m_application, m_view->handle());
     m_options_presenter = std::make_unique<OptionsPresenter>();
@@ -408,6 +403,15 @@ void studio::WindowInstance::close_document(const int index) {
         return;
     // the presenter owns the dataset and republishes the remaining set
     m_charts->close_dataset(static_cast<std::size_t>(index - 1));
+}
+
+void studio::WindowInstance::open_simulation_parameters() {
+    // a dialog that is already open owns the interaction
+    if (m_simulation_parameters_view == nullptr || m_simulation_parameters_view->is_open() || m_presenter == nullptr)
+        return;
+    // hand the parsed configuration to the dialog and keep the accepted value in the shell
+    const SimulationConfig& current = m_presenter->prepare_simulation_parameters();
+    m_simulation_parameters_presenter->show(*m_simulation_parameters_view, current, [this](const SimulationConfig& config) { m_presenter->on_simulation_parameters_accepted(config); }, [this] { m_presenter->on_simulation_parameters_cancelled(); });
 }
 
 void studio::WindowInstance::wire_charts() {

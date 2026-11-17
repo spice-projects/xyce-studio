@@ -589,3 +589,32 @@ TEST(StudioChartsControllerChecks, repointing_the_dataset_changes_the_chart_revi
     // assert: dropping the charts moves the revision again
     EXPECT_NE(controller.revision(), repointed);
 }
+
+TEST(StudioChartsControllerChecks, a_descending_sweep_maps_its_extent_left_to_right) {
+    // arrange: a sweep whose abscissa descends, as a reversed DC sweep produces
+    std::vector<std::pair<size_t, size_t>> slices{{0, 5}};
+    std::vector<AnyExpression> expressions;
+    expressions.emplace_back(Expression<double>("time", std::vector<double>{5.0, 4.0, 3.0, 2.0, 1.0}, slices, "s"));
+    expressions.emplace_back(Expression<double>("V(out)", std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0}, slices, "V"));
+    ExpressionManager manager(expressions, slices);
+    StepInformation steps({}, {}, {{1.0, 5.0}});
+    studio::ChartsController controller(400.0f, 300.0f, [](const std::string& text) { return static_cast<float>(text.size()) * 6.0f; });
+    controller.set_dataset(manager, steps, AbscissaScale::LINEAR);
+    // act: plot the descending sweep
+    ChartEngine* chart = controller.add_chart();
+    ASSERT_NE(chart, nullptr);
+    chart->plot_series({manager.evaluate("V(out)")});
+    controller.rebuild_frames();
+    ASSERT_EQ(controller.frames().size(), 1U);
+    // assert: the extent runs from the lowest to the highest value, so the axis reads left to right
+    const ChartFrame& frame = controller.frames()[0];
+    std::vector<std::string> labels;
+    for (const ChartTick& tick : frame.x_ticks) {
+        // only the labelled ticks name the axis
+        if (tick.show_label)
+            labels.push_back(tick.label);
+    }
+    ASSERT_GE(labels.size(), 2U);
+    EXPECT_EQ(labels.front(), "1 s");
+    EXPECT_EQ(labels.back(), "5 s");
+}

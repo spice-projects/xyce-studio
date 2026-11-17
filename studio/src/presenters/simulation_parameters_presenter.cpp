@@ -14,13 +14,14 @@ namespace
     [[nodiscard]] bool is_blank(std::string_view value) { return value.find_first_not_of(" \t\r\n") == std::string_view::npos; }
 } // namespace
 
-void studio::SimulationParametersPresenter::show(SimulationParametersDialogView& view, const SimulationConfig& current, AcceptedHandler on_accepted) {
+void studio::SimulationParametersPresenter::show(SimulationParametersDialogView& view, const SimulationConfig& current, AcceptedHandler on_accepted, CancelledHandler on_cancelled) {
     // a second open request while the dialog is up is ignored
     if (m_view != nullptr)
         return;
-    // remember the surface and the result destination for the dialog lifetime
+    // remember the surface and the result destinations for the dialog lifetime
     m_view = &view;
     m_on_accepted = std::move(on_accepted);
+    m_on_cancelled = std::move(on_cancelled);
     // open the dialog seeded with the configuration a run currently uses
     view.show(current, *this);
 }
@@ -50,18 +51,29 @@ void studio::SimulationParametersPresenter::on_cancel() {
     // a cancel without an open dialog is stale
     if (m_view == nullptr)
         return;
-    // take the view out before closing, so the closed notification is a no-op
+    // take the view and the handler out before closing, so the closed notification is a no-op
     SimulationParametersDialogView* view = m_view;
     m_view = nullptr;
     m_on_accepted = nullptr;
+    CancelledHandler on_cancelled = std::move(m_on_cancelled);
+    m_on_cancelled = nullptr;
     // close the dialog without changing the shell configuration
     view->close();
+    // the shell drops whatever the dialog was opened for
+    if (on_cancelled)
+        on_cancelled();
 }
 
 void studio::SimulationParametersPresenter::on_dialog_closed() {
     // the window is gone, so the next show is free to open a new one
     m_view = nullptr;
     m_on_accepted = nullptr;
+    // a window that vanished without an answer closed the dialog
+    CancelledHandler on_cancelled = std::move(m_on_cancelled);
+    m_on_cancelled = nullptr;
+    // the shell drops whatever the dialog was opened for
+    if (on_cancelled)
+        on_cancelled();
 }
 
 std::optional<std::string> studio::SimulationParametersPresenter::validate(const SimulationConfig& config) {

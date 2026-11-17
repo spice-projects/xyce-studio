@@ -209,6 +209,8 @@ void studio::MainWindowPresenter::set_run_output_handler(RunOutputHandler handle
 
 void studio::MainWindowPresenter::set_run_started_handler(RunStartedHandler handler) { m_run_started_handler = std::move(handler); }
 
+void studio::MainWindowPresenter::set_on_run_needs_configuration(std::function<void()> handler) { m_on_run_needs_configuration = std::move(handler); }
+
 void studio::MainWindowPresenter::set_on_netlist_opened(NetlistOpenedHandler handler) { m_on_netlist_opened = std::move(handler); }
 
 void studio::MainWindowPresenter::load_schematic() {
@@ -275,8 +277,9 @@ void studio::MainWindowPresenter::on_open_file(const std::filesystem::path& path
     update_netlist_editor_content(content, false);
     // a new document starts from the configuration it declares, not the previous file's
     m_simulation_config = SimulationConfig::from_xyce_directives({});
-    // the accepted directives belong to the document that was open
+    // the accepted directives and the pending run belong to the document that was open
     m_directives_accepted = false;
+    m_run_pending = false;
     // the stripped body and the topology belong to the document that was open
     m_sanitized_netlist.clear();
     m_pending_topology = NetlistTopology{};
@@ -351,7 +354,7 @@ void studio::MainWindowPresenter::run_simulation() {
         if (reloaded)
             seed_from_source(exported);
         // the editor is the document the user configured, so accepted directives reach the run
-        content = m_view->netlist_text();
+        content = document_text(exported);
     }
     catch (const std::exception& error) {
         // a failed export refuses the run instead of ending the process
@@ -376,8 +379,20 @@ void studio::MainWindowPresenter::run_simulation() {
     m_run_config = SimulationConfig::from_xyce_directives(topology.m_directives);
     // remember the charts the netlist's .PLOT directives declare
     m_run_suggested_plots = plot_chart_groups(topology.m_plot_directives);
+    // the plotted quantities join the analysis print, so a chart can read a quantity the netlist only plotted
+    m_run_config.augment_analysis_print_variables(plot_output_variables(m_run_suggested_plots), true);
     m_run_num_ports = std::max(1, static_cast<int>(std::count_if(topology.m_devices.begin(), topology.m_devices.end(), [](const Device& device) { return device.m_type_letter == "P"; })));
     m_run_working_directory = working_directory;
+    // a netlist without an analysis needs one before the run can start
+    if (std::holds_alternative<std::monostate>(m_run_config.analysis)) {
+        // the run resumes once the dialog accepts an analysis
+        m_run_pending = true;
+        // the shell opens the parameters dialog over the configuration the netlist describes
+        if (m_on_run_needs_configuration)
+            m_on_run_needs_configuration();
+        // the launch waits for the accepted analysis
+        return;
+    }
     // create the private directory every output of this run writes into
     const auto run_artifacts = TempOutputDirectory::create();
     // check the run directory was created
@@ -395,8 +410,10 @@ void studio::MainWindowPresenter::run_simulation() {
     m_run_title = m_netlist_source->title().empty() ? "Simulation" : m_netlist_source->title();
     // record the FILE= destination of every .PRINT directive with the default file the run produces for it
     m_run_output_copies = collect_print_file_copies(topology.m_directives, temp_path, working_directory);
+    // the directives the simulator reads, which carry the augmented print and no chart-only directive
+    const std::vector<std::string> run_directives = m_run_config.to_xyce_directives(topology);
     // rebuild the netlist without the chart-only directives, which the simulator must not see
-    const std::string run_netlist = insert_run_directives(sanitized, topology.m_directives, topology.m_passthrough_directives);
+    const std::string run_netlist = insert_run_directives(sanitized, run_directives, topology.m_passthrough_directives);
     // remove every FILE= destination so the produced files stay in the private run directory
     if (!run_artifacts->write_netlist(strip_print_file_options(run_netlist))) {
         // update the statusbar with an error
@@ -411,9 +428,12 @@ void studio::MainWindowPresenter::run_simulation() {
     // drop the distilled state and the remembered log of the previous run
     m_log_parser.reset();
     m_recent_log_lines.clear();
-    // reset the output log for this run and reveal the panel
+    // reset the output log for this run
     m_view->clear_output();
-    m_view->show_output_panel();
+    // the fresh log starts hidden and surfaces on a diagnostic
+    m_view->hide_output_panel();
+    // a new run reveals the panel on its first diagnostic
+    m_output_revealed = false;
     // release the previous run's companions before the simulator rewrites any external file they map
     if (m_run_started_handler)
         m_run_started_handler();
@@ -428,7 +448,7 @@ void studio::MainWindowPresenter::run_simulation() {
 }
 
 void studio::MainWindowPresenter::on_output_close() {
-    // hide the output panel; the next run reveals it again
+    // hide the output panel, which the run leaves closed until its next diagnostic
     m_view->hide_output_panel();
 }
 
@@ -457,6 +477,11 @@ void studio::MainWindowPresenter::handle_simulation_log_line(const std::string& 
     const LogSeverity severity = m_log_parser.feed(line, row);
     // forward the line to the view for display
     m_view->append_output_line(line, severity);
+    // the first diagnostic of a run surfaces the panel, which stays hidden for a quiet log
+    if (m_simulation_running && !m_output_revealed && (severity == LogSeverity::warning || severity == LogSeverity::error)) {
+        m_output_revealed = true;
+        m_view->show_output_panel();
+    }
     // hand the refreshed progress to the view
     publish_simulation_progress();
 }
@@ -491,12 +516,12 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
     refresh_action_states();
     // fold the indicator away while the log keeps the final counts
     publish_simulation_progress();
-    // keep the output panel visible so the log can be inspected
-    m_view->show_output_panel();
     // handle canceled simulations
     if (was_canceled) {
         // update the statusbar
         m_view->set_status_text("Simulation canceled");
+        // reveal the log a cancelled run left behind
+        m_view->show_output_panel();
         // release the canceled run directory, no dataset references its outputs
         m_active_run_artifacts.reset();
         // exit
@@ -550,6 +575,11 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
             m_view->set_status_text("Simulation finished but output copy failed");
         else
             m_view->set_status_text("Simulation finished");
+        // a produced result replaces the log; a run without one keeps the panel so the log stays readable
+        if (handler_called && result.outcome != RunOutputOutcome::None)
+            m_view->hide_output_panel();
+        else
+            m_view->show_output_panel();
         // exit
         return;
     }
@@ -557,6 +587,8 @@ void studio::MainWindowPresenter::on_simulation_finished(const int exit_code, co
     m_active_run_artifacts.reset();
     // report the failure
     m_view->set_status_text("Simulation failed with exit code " + std::to_string(exit_code));
+    // reveal the log a failed run left behind
+    m_view->show_output_panel();
 }
 
 bool studio::MainWindowPresenter::copy_output_to_destination(const PrintOutputCopy& copy) const {
@@ -609,7 +641,7 @@ const SimulationConfig& studio::MainWindowPresenter::prepare_simulation_paramete
     if (reloaded)
         seed_from_source(exported);
     // the editor is the document the dialog describes, so accepted directives survive a source that did not reload
-    const std::string content = m_view->netlist_text();
+    const std::string content = document_text(exported);
     // split the managed directives out of the netlist body, which the accepted configuration rebuilds
     const auto [sanitized_netlist, topology] = parse_netlist(content);
     // remember the parse result so the accepted configuration can rebuild the netlist
@@ -637,7 +669,16 @@ void studio::MainWindowPresenter::on_simulation_parameters_accepted(const Simula
     m_directives_accepted = true;
     // render the accepted directives into the netlist
     rewrite_managed_directives();
+    // a run that waited for an analysis starts once the dialog accepted one
+    if (m_run_pending) {
+        // this accept settles the pending run
+        m_run_pending = false;
+        // the rewritten netlist is the one the run describes
+        run_simulation();
+    }
 }
+
+void studio::MainWindowPresenter::on_simulation_parameters_cancelled() { m_run_pending = false; }
 
 const OptionParameters& studio::MainWindowPresenter::prepare_options() {
     // parse the netlist the way the parameters dialog does, so the accepted options keep the analysis
@@ -663,6 +704,13 @@ void studio::MainWindowPresenter::on_options_accepted(const OptionParameters& op
         refresh_action_states();
     // the rewritten netlist is the content a later action operates on
     m_pending_original_netlist = final_netlist;
+}
+
+std::string studio::MainWindowPresenter::document_text(const std::string& exported) const {
+    // the editor holds the document once it is seeded
+    const std::string& editor = m_view->netlist_text();
+    // a view that has not been seeded yet describes the source content instead
+    return editor.empty() ? exported : editor;
 }
 
 void studio::MainWindowPresenter::seed_from_source(const std::string& content) {

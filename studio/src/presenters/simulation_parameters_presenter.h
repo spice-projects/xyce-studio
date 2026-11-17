@@ -16,8 +16,11 @@ namespace studio
         // notified with the configuration the user accepted
         using AcceptedHandler = std::function<void(const SimulationConfig&)>;
 
+        // notified when the dialog closed without accepting
+        using CancelledHandler = std::function<void()>;
+
         // open the dialog seeded with the configuration a run currently uses; a second call while it is open is ignored
-        void show(SimulationParametersDialogView& view, const SimulationConfig& current, AcceptedHandler on_accepted);
+        void show(SimulationParametersDialogView& view, const SimulationConfig& current, AcceptedHandler on_accepted, CancelledHandler on_cancelled = {});
 
         void on_accept(SimulationConfig config) override;
 
@@ -34,5 +37,8 @@ namespace studio
 
         // the shell destination for an accepted configuration
         AcceptedHandler m_on_accepted;
+
+        // the shell destination for a dialog that closed without accepting
+        CancelledHandler m_on_cancelled;
     };
 } // namespace studio

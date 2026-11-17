@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdio>
 #include <exception>
 #include <filesystem>
@@ -5,11 +6,15 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include <spdlog/spdlog.h>
 
 #include "albor/application/application.h"
 #include "albor/text/text_engine.h"
 #include "albor_embedded_fonts.h"
 #include "app/schematic_session.h"
+#include "app/startup_options.h"
 #include "app/studio_app.h"
 #include "app/window_instance.h"
 #include "config/plugin_config.h"
@@ -18,64 +23,25 @@
 
 namespace
 {
-    // apply the two spellings of the xyce override
-    void apply_xyce_override(PluginConfig& config, int argc, char** argv) {
-        // walk the arguments after the program name
-        for (int index = 1; index < argc; ++index) {
-            // read the argument as a view
-            const std::string_view argument(argv[index]);
-            // the separated spelling takes the next argument
-            if (argument == "--xyce" && index + 1 < argc) {
-                config.set_xyce_executable_path(argv[++index]);
-                continue;
-            }
-            // the joined spelling carries the value in the same argument
-            constexpr std::string_view prefix = "--xyce=";
-            if (argument.starts_with(prefix))
-                config.set_xyce_executable_path(std::string(argument.substr(prefix.size())));
+    // apply the verbosity the command line named, which defaults to the info level
+    void apply_log_level(const std::string& level) {
+        // the debug level narrows nothing
+        if (level == "debug") {
+            spdlog::set_level(spdlog::level::debug);
+            return;
         }
-    }
-
-    // apply the two spellings of the dataset override, which the charts open at startup
-    void apply_dataset_override(studio::StudioApp& app, int argc, char** argv) {
-        // walk the arguments after the program name
-        for (int index = 1; index < argc; ++index) {
-            // read the argument as a view
-            const std::string_view argument(argv[index]);
-            // the separated spelling takes the next argument
-            if (argument == "--dataset" && index + 1 < argc) {
-                app.set_startup_dataset(argv[++index]);
-                continue;
-            }
-            // the joined spelling carries the value in the same argument
-            constexpr std::string_view prefix = "--dataset=";
-            if (argument.starts_with(prefix))
-                app.set_startup_dataset(std::string(argument.substr(prefix.size())));
+        // the warning level hides the informational lines
+        if (level == "warn") {
+            spdlog::set_level(spdlog::level::warn);
+            return;
         }
-    }
-
-    // apply the two spellings of the netlist override, which only netlist files reach
-    void apply_netlist_override(studio::StudioApp& app, int argc, char** argv) {
-        // walk the arguments after the program name
-        for (int index = 1; index < argc; ++index) {
-            // read the argument as a view
-            const std::string_view argument(argv[index]);
-            // the separated spelling takes the next argument
-            std::string_view value;
-            if (argument == "--netlist" && index + 1 < argc)
-                value = argv[++index];
-            // the joined spelling carries the value in the same argument
-            else {
-                constexpr std::string_view prefix = "--netlist=";
-                if (!argument.starts_with(prefix))
-                    continue;
-                value = argument.substr(prefix.size());
-            }
-            // only netlist files are accepted through this option
-            const std::filesystem::path path(value);
-            if (path.extension().string() == ".cir")
-                app.set_startup_netlist(path);
+        // the error level hides everything below a failure
+        if (level == "error") {
+            spdlog::set_level(spdlog::level::err);
+            return;
         }
+        // an unnamed or unknown level keeps the default
+        spdlog::set_level(spdlog::level::info);
     }
 } // namespace
 
@@ -83,10 +49,16 @@ int main(int argc, char** argv) {
     try {
         // name the embedded family before the first window shapes any text
         albor::set_installed_font_family(std::string(albor::generated::DEFAULT_FAMILY));
+        // the overrides the command line named, without the program name
+        const std::vector<std::string_view> arguments(argv + 1, argv + static_cast<std::ptrdiff_t>(argc));
+        const studio::StartupOptions options = studio::parse_startup_options(arguments);
+        // the requested verbosity applies before the first log line the shell writes
+        apply_log_level(options.log_level);
         // load the persisted configuration before the overrides apply
         PluginConfig config = PluginConfig::load();
         // an explicit executable wins for this run without rewriting the file
-        apply_xyce_override(config, argc, argv);
+        if (!options.xyce_path.empty())
+            config.set_xyce_executable_path(options.xyce_path);
         // build a schematic session when the plugin launched inside KiCad
         std::optional<KiCadSession> session = KiCadSession::from_environment();
         // the shell binds the session, which keeps the API connection open for the plugin lifetime
@@ -112,9 +84,11 @@ int main(int argc, char** argv) {
             },
             std::move(schematic));
         // a --netlist argument opens a netlist at startup in the standalone shell
-        apply_netlist_override(app, argc, argv);
-        // a --dataset argument opens an output file in the charts at startup
-        apply_dataset_override(app, argc, argv);
+        if (!options.netlist.empty())
+            app.set_startup_netlist(options.netlist);
+        // a --dataset or --raw argument opens an output file in the charts at startup
+        for (const std::filesystem::path& dataset : options.datasets)
+            app.set_startup_dataset(dataset);
         // run the application
         return app.run();
     }

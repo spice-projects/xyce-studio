@@ -54,6 +54,9 @@ namespace studio
         // install the callback a run reaches before the process starts
         void set_run_started_handler(RunStartedHandler handler);
 
+        // install the callback a run reaches when the netlist declares no analysis, which opens the parameters dialog
+        void set_on_run_needs_configuration(std::function<void()> handler);
+
         // install the callback a new netlist document reaches
         void set_on_netlist_opened(NetlistOpenedHandler handler);
 
@@ -98,6 +101,9 @@ namespace studio
 
         // store the accepted options and rewrite the managed directives in the editor
         void on_options_accepted(const OptionParameters& options);
+
+        // drop the run that waited for an analysis, which the dialog cancellation reports
+        void on_simulation_parameters_cancelled();
 
     private:
         // start a simulation run over the current netlist content
@@ -149,6 +155,9 @@ namespace studio
         // the callback a run reaches before the process starts
         RunStartedHandler m_run_started_handler;
 
+        // the callback a run reaches when it needs an analysis first
+        std::function<void()> m_on_run_needs_configuration;
+
         // the callback a new netlist document reaches
         NetlistOpenedHandler m_on_netlist_opened;
 
@@ -194,6 +203,9 @@ namespace studio
         // whether a simulation process is live
         bool m_simulation_running = false;
 
+        // whether the run already surfaced the output panel for a diagnostic
+        bool m_output_revealed = false;
+
         // the parser that distills the Xyce console log into a run state
         XyceLogParser m_log_parser;
 
@@ -203,8 +215,14 @@ namespace studio
         // replace the editor body with a source that reloaded and re-render the accepted directives over it
         void seed_from_source(const std::string& content);
 
+        // the document text the dialogs and the run describe, which falls back to the source before the editor is seeded
+        [[nodiscard]] std::string document_text(const std::string& exported) const;
+
         // re-render the managed directives into the sanitized netlist and hand the result to the editor
         void rewrite_managed_directives();
+
+        // whether a run is waiting for the parameters dialog to accept an analysis
+        bool m_run_pending = false;
 
         // the netlist with its managed directives stripped, which the accepted configuration rebuilds
         std::string m_sanitized_netlist;
