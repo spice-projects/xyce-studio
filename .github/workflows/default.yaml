@@ -55,7 +55,10 @@ jobs:
           - os: windows-latest
             platform: windows-x64
             build_enabled: true
-          - os: ubuntu-latest
+          # pinned: ubuntu-latest moved to 26.04 (amd64v3, gcc 15, glibc 2.43)
+          # and every object it compiled required x86-64-v3, so the v1.3 linux
+          # package aborted on pre-AVX2 cpus (issue #290)
+          - os: ubuntu-24.04
             platform: ubuntu-x64
             build_enabled: true
     runs-on: ${{ matrix.os }}
