@@ -1101,7 +1101,7 @@ std::optional<studio::FftSelectionState> studio::ChartsPresenter::fft_selection(
     // the dataset expressions the dialog lists
     ExpressionManager& manager = state->file->expression_manager();
     // the state the dialog opens with
-    FftSelectionState result{.chart_index = chart_index, .dataset_id = state->id};
+    FftSelectionState result{.chart_index = chart_index, .dataset_id = state->id, .expressions = {}};
     // the dataset abscissa range
     const StepInformation& steps = state->file->step_information();
     result.all_from = steps.abscissa_left_value();
@@ -1298,7 +1298,7 @@ std::optional<studio::StepToolState> studio::ChartsPresenter::step_tool_state(co
     if (steps.length() <= 1)
         return std::nullopt;
     // the state the dialog opens with
-    StepToolState result{.chart_index = chart_index, .dataset_id = state->id};
+    StepToolState result{.chart_index = chart_index, .dataset_id = state->id, .keys = {}, .rows = {}};
     // the per-step parameter values, when the file carries one vector per step
     const std::vector<std::vector<double>>& values = steps.values();
     // a file without a value per key and step opens with the index column only
@@ -1311,7 +1311,7 @@ std::optional<studio::StepToolState> studio::ChartsPresenter::step_tool_state(co
     // one row per parameter combination
     for (std::size_t index = 0; index < steps.length(); ++index) {
         // the row starts with its index and selection
-        StepToolRow row{.index = index, .selected = selected.contains(index)};
+        StepToolRow row{.index = index, .values = {}, .selected = selected.contains(index)};
         // the formatted parameter values follow when the file carries them
         if (values_per_step) {
             // one formatted cell per key
@@ -1357,7 +1357,7 @@ std::optional<studio::PlotSelectionState> studio::ChartsPresenter::plot_selectio
     // a smith chart offers the diagonal entries and no custom row
     const bool smith = state->kind == ChartKind::SMITH;
     // the state the dialog opens with
-    PlotSelectionState selection{.chart_index = chart_index, .dataset_id = state->id, .smith = smith, .allow_custom = !smith};
+    PlotSelectionState selection{.chart_index = chart_index, .dataset_id = state->id, .smith = smith, .allow_custom = !smith, .expressions = {}};
     // the expressions the dataset resolved
     ExpressionManager& manager = state->file->expression_manager();
     // the abscissa is not a plotted series

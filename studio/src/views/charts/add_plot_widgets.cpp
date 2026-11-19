@@ -399,7 +399,7 @@ void studio::PlotBreadcrumb::set_entries(std::vector<BreadcrumbEntry> entries, c
     m_segments.clear();
     // every entry becomes a segment with its own label and level
     for (const BreadcrumbEntry& entry : entries)
-        m_segments.push_back(Segment{.label = entry.label, .level = entry.level});
+        m_segments.push_back(Segment{.label = entry.label, .level = entry.level, .bounds = {}, .layout = {}});
     // the selected-only state mirrors the tree
     m_show_selected = show_selected;
     // the new segments need a layout pass

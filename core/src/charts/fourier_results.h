@@ -23,10 +23,10 @@ namespace fourier
         std::string phase;
 
         // the magnitude relative to the fundamental, which the file prints as `Norm. Mag`
-        std::string norm_magnitude;
+        std::string norm_magnitude = "";
 
         // the phase relative to the fundamental, which the file prints as `Norm. Phase`
-        std::string norm_phase;
+        std::string norm_phase = "";
     };
 
     // one signal and step block: its header, its analysis settings and its harmonic rows
@@ -36,19 +36,19 @@ namespace fourier
         std::string signal;
 
         // the step label, empty for a single-step file
-        std::string step;
+        std::string step = "";
 
         // the total harmonic distortion the block records
-        std::string thd;
+        std::string thd = "";
 
         // the harmonic count the analysis reported, empty when the file records none
-        std::string harmonics;
+        std::string harmonics = "";
 
         // the interpolation grid points the analysis used, empty when the file records none
-        std::string gridsize;
+        std::string gridsize = "";
 
         // the interpolation type the analysis used, empty when the file records none
-        std::string interpolation;
+        std::string interpolation = "";
 
         // the harmonic rows of the block
         std::vector<ResultRow> rows;

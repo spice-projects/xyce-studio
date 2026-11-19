@@ -64,7 +64,13 @@ if(MSVC)
     target_compile_definitions(xyce-build-flags INTERFACE NOMINMAX WINVER=0x0A00 _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A000006)
 else()
     # shadowing is the diagnostic the tree was not held to, and a designated initializer that misses a field is a bug
-    target_compile_options(xyce-build-flags INTERFACE -Wall -Wextra -Wpedantic -Wshadow -Wmissing-field-initializers)
+    target_compile_options(xyce-build-flags INTERFACE
+        -Wall -Wextra -Wpedantic -Wshadow -Wmissing-field-initializers
+        -Wconversion -Wsign-conversion)
+    # a designated initializer that omits a field is the aggregate counterpart of the same rule, which only clang states
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(xyce-build-flags INTERFACE -Wmissing-designated-field-initializers)
+    endif()
 endif()
 
 # generate compile_commands.json for clangd

@@ -228,17 +228,37 @@ endif()
 
 ### 4.2 Phase 2b — the strict set (separate commit)
 
-- [ ] Add `-Wconversion -Wsign-conversion`
-- [ ] Add clang's `-Wmissing-designated-field-initializers`
-- [ ] Fix the resulting diagnostics
+- [x] Add `-Wconversion -Wsign-conversion`
+- [x] Add clang's `-Wmissing-designated-field-initializers`
+- [x] Fix the resulting diagnostics
+- [x] Bring `xyce-studio-core` and `xyce-studio` into the contract, which Phase 2 missed:
+      the legacy library kept its own `-Wall -Wextra -Wpedantic`, its `NOMINMAX`, and the
+      entry point its own `_WIN32_WINNT`
 
 The codebase leans on designated initializers (for example
 `studio/src/presenters/charts_presenter.cpp`), so expect real churn in the chart geometry.
 Land it alone so a revert is clean.
 
+The compile produced 24 diagnostics in the legacy preset and 67 in the studio preset. They
+fell into three groups:
+
+- `-Wsign-conversion`/`-Wimplicit-int-float-conversion` on indexes and counts: an explicit
+  `static_cast<size_t>` where the value is already validated, at the index site rather than
+  by changing a signed type that other code compares against.
+- `-Wmissing-designated-field-initializers`: clang exempts a field that carries a default
+  member initializer, so the optional fields of the Fourier result records
+  (`norm_magnitude`, `norm_phase`, `step`, `thd`, `harmonics`, `gridsize`, `interpolation`)
+  gained `= ""`, while the dialog state aggregates name the field they leave empty
+  (`.expressions = {}`, `.keys = {}`, `.rows = {}`, `.values = {}`, `.bounds = {}`,
+  `.layout = {}`).
+- the units `albor_build_ui_component` writes: they are the generator's arithmetic, not the
+  application's, so they compile with the compiler's default warning set, the same way the
+  generated Slint units already do.
+
 ### 4.3 Verification
 
 - [x] macOS: both presets build with zero warnings under clang
+- [x] macOS: `release` builds with zero warnings too, which covers the `NDEBUG` branches
 - [ ] Windows: verified by the `windows-latest` job
 
 ---

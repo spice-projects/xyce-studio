@@ -134,7 +134,7 @@ std::optional<TransientSimulationParameters> TransientSimulationParameters::from
             }
 
             // strip schedule clause so remaining tokens parse cleanly
-            directive_without_schedule = directive.substr(0, schedule_match.position());
+            directive_without_schedule = directive.substr(0, static_cast<size_t>(schedule_match.position()));
         }
 
         // re-tokenize after schedule removal

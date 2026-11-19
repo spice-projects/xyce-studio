@@ -75,11 +75,8 @@ add_library(xyce-studio-core STATIC ${SOURCE_FILES})
 target_include_directories(xyce-studio-core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(xyce-studio-core SYSTEM PUBLIC ${SLINT_SYSTEM_INCLUDE_DIRS})
 
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(xyce-studio-core PRIVATE /W4)
-else()
-    target_compile_options(xyce-studio-core PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# the legacy library carries the same compiler contract as every other target in the tree
+target_link_libraries(xyce-studio-core PRIVATE xyce-build-flags)
 
 target_link_libraries(xyce-studio-core PUBLIC
     xyce::core
@@ -87,10 +84,6 @@ target_link_libraries(xyce-studio-core PUBLIC
     unofficial::skia::skia
     nfd::nfd
 )
-
-if(WIN32)
-    target_compile_definitions(xyce-studio-core PRIVATE NOMINMAX)
-endif()
 
 if(APPLE)
     target_link_libraries(xyce-studio-core PUBLIC
@@ -135,13 +128,12 @@ if(APPLE)
     add_executable(xyce-studio src/main.osx.mm)
 elseif(WIN32)
     add_executable(xyce-studio src/main.win32.c++)
-    target_compile_definitions(xyce-studio PRIVATE _WIN32_WINNT=0x0A00)
     set_target_properties(xyce-studio PROPERTIES WIN32_EXECUTABLE TRUE)
 elseif(LINUX)
     add_executable(xyce-studio src/main.linux.c++)
 endif()
 
-target_link_libraries(xyce-studio PRIVATE xyce-studio-core)
+target_link_libraries(xyce-studio PRIVATE xyce-studio-core xyce-build-flags)
 set_target_properties(xyce-studio PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 if(APPLE)

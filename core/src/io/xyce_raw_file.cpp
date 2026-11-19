@@ -282,6 +282,8 @@ namespace
         for (auto& variable : variables) {
             // get variable index
             const int idx = std::get<0>(variable);
+            // the index names a slot in the flat point record, which is a count
+            const size_t variable_index = static_cast<size_t>(idx);
             // check complex variables are expected
             if (is_complex) {
                 // abscissa is always real
@@ -293,7 +295,7 @@ namespace
                     // loop expected points
                     for (size_t r = 0; r < actual_points; ++r) {
                         // append real part
-                        variable_data.push_back(all_floats[r * floats_per_point + idx * 2]);
+                        variable_data.push_back(all_floats[r * floats_per_point + variable_index * 2]);
                     }
                     // add owning view
                     std::get<3>(variable) = View(std::move(variable_data));
@@ -307,9 +309,9 @@ namespace
                 // loop expected points
                 for (size_t r = 0; r < actual_points; ++r) {
                     // get real part
-                    double real_part = all_floats[r * floats_per_point + idx * 2];
+                    double real_part = all_floats[r * floats_per_point + variable_index * 2];
                     // get imag part
-                    double imag_part = all_floats[r * floats_per_point + idx * 2 + 1];
+                    double imag_part = all_floats[r * floats_per_point + variable_index * 2 + 1];
                     // append complex value
                     variable_data.emplace_back(real_part, imag_part);
                 }
@@ -325,7 +327,7 @@ namespace
             // loop expected points
             for (size_t r = 0; r < actual_points; ++r) {
                 // append value
-                variable_data.push_back(all_floats[r * floats_per_point + idx]);
+                variable_data.push_back(all_floats[r * floats_per_point + variable_index]);
             }
             // add owning view
             std::get<3>(variable) = View(std::move(variable_data));
@@ -670,12 +672,17 @@ std::optional<std::shared_ptr<XyceOutputFile>> xyce_raw_file_parser(const std::f
         }
         // loop variables
         for (auto& [idx, name, variable_type, view] : block.variables) {
+            // a negative index cannot name a variable, which the tuple type still allows
+            if (idx < 0)
+                return {};
+            // the index names a slot in the first step, which is a count once the check has accepted it
+            const size_t variable_index = static_cast<size_t>(idx);
             // validate variable index and metadata consistency across steps
-            if (idx < 0 || static_cast<size_t>(idx) >= temp_variables.size() || temp_variables[idx].name != name || temp_variables[idx].variable_type != variable_type) {
+            if (variable_index >= temp_variables.size() || temp_variables[variable_index].name != name || temp_variables[variable_index].variable_type != variable_type) {
                 return {};
             }
             // variable at index
-            auto& variable = temp_variables[idx];
+            auto& variable = temp_variables[variable_index];
             // check it is a complex variable
             if (variable.is_complex) {
                 // append view to steps

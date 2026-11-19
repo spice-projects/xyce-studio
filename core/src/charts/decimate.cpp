@@ -9,16 +9,9 @@
 
 #include "decimate.h"
 
-// ---------------------------------------------------------------------------
-// index-selection helpers (value-dependent algorithms)
-// each helper fills *out_indices* with sorted indices into the original vector.
-// separating index computation from value selection lets the same index set be
-// applied to both the abscissa and ordinate in decimate_xy().
-// ---------------------------------------------------------------------------
+// index-selection helpers: each fills *out_indices* with sorted indices, so one set applies to both axes
 
-// ensure *indices* contains at most *target* entries while keeping both endpoints.
-// if the vector is already short enough it is left unchanged.  when trimming is
-// required the first and last indices are always kept and the interior is sampled evenly.
+// keep at most *target* indices including both endpoints, sampling the interior evenly
 static void trim_indices(std::vector<size_t>& indices, size_t target) {
     // nothing to do if already within budget
     if (indices.size() <= target)
@@ -45,8 +38,7 @@ static void trim_indices(std::vector<size_t>& indices, size_t target) {
     result.push_back(first);
     // pick *count* evenly spaced positions across the interior
     for (size_t i = 0; i < count; ++i) {
-        // use rounding to match the Python linspace-based selection;
-        // when count == 1 there is no valid denominator so always pick the middle element
+        // round like the Python linspace selection, and pick the middle when there is no denominator
         size_t pos = (count == 1) ? (interior / 2) : static_cast<size_t>(std::lround(static_cast<double>(i) * static_cast<double>(interior - 1) / static_cast<double>(count - 1)));
         result.push_back(indices[1 + pos]);
     }
@@ -54,8 +46,7 @@ static void trim_indices(std::vector<size_t>& indices, size_t target) {
     indices = std::move(result);
 }
 
-// produce at most *target* evenly-spaced indices covering [0, length-1].
-// mirrors the Python _nth_point_indices() implementation.
+// produce at most *target* evenly spaced indices covering [0, length - 1], like _nth_point_indices()
 static std::vector<size_t> nth_point_indices(size_t length, size_t target) {
     // short-circuit when the input is already smaller than the target
     if (length <= target) {
@@ -63,8 +54,7 @@ static std::vector<size_t> nth_point_indices(size_t length, size_t target) {
         std::iota(all.begin(), all.end(), 0u);
         return all;
     }
-    // generate *target* evenly-spaced float positions then round to integers,
-    // removing duplicates that arise when target is close to length
+    // round *target* evenly spaced positions and drop the duplicates a target near length produces
     std::vector<size_t> indices;
     indices.reserve(target);
     for (size_t i = 0; i < target; ++i) {
@@ -77,8 +67,7 @@ static std::vector<size_t> nth_point_indices(size_t length, size_t target) {
     return indices;
 }
 
-// retain the index of the minimum and maximum value inside each bucket.
-// mirrors the Python _min_max_indices() implementation.
+// keep the minimum and maximum of each bucket, like _min_max_indices()
 static std::vector<size_t> min_max_indices(const std::span<const double>& values, size_t target) {
     size_t length = values.size();
     // trivial small-target cases
@@ -152,10 +141,7 @@ static std::vector<size_t> m4_indices(const std::span<const double>& values, siz
     return indices;
 }
 
-// largest triangle three buckets — for each output point pick the sample in
-// the current bucket that forms the triangle with the largest area relative to
-// the previously selected point and the centroid of the next bucket.
-// mirrors the Python _lttb_indices() implementation.
+// largest triangle three buckets: maximize the area against the previous point and the next centroid
 static std::vector<size_t> lttb_indices(const std::span<const double>& x, const std::span<const double>& values, size_t target) {
     size_t length = values.size();
     // handle degenerate target values explicitly
@@ -176,11 +162,11 @@ static std::vector<size_t> lttb_indices(const std::span<const double>& x, const 
     size_t prev_index = 0;
     for (size_t i = 1; i < target - 1; ++i) {
         // boundaries of the current bucket
-        size_t bucket_start = static_cast<size_t>((i - 1) * bucket_size) + 1;
-        size_t bucket_end = std::min(static_cast<size_t>(i * bucket_size) + 1, length - 1);
+        size_t bucket_start = static_cast<size_t>(static_cast<double>(i - 1) * bucket_size) + 1;
+        size_t bucket_end = std::min(static_cast<size_t>(static_cast<double>(i) * bucket_size) + 1, length - 1);
         // boundaries of the next bucket (used to compute its centroid)
         size_t next_start = bucket_end;
-        size_t next_end = std::min(static_cast<size_t>((i + 1) * bucket_size) + 1, length - 1);
+        size_t next_end = std::min(static_cast<size_t>(static_cast<double>(i + 1) * bucket_size) + 1, length - 1);
         // centroid of the next bucket — the "far" apex of the triangle
         double next_x_sum = 0.0;
         double next_y_sum = 0.0;
@@ -200,8 +186,7 @@ static std::vector<size_t> lttb_indices(const std::span<const double>& x, const 
         for (size_t j = bucket_start; j < bucket_end; ++j) {
             double bx = x[j];
             double by = values[j];
-            // triangle area = 0.5 * |cross product|; the 0.5 is constant so we
-            // maximise the absolute cross product
+            // the 0.5 in the triangle area is constant, so maximizing the absolute cross product is enough
             double area = std::abs((ax - next_x_avg) * (by - ay) - (ax - bx) * (next_y_avg - ay));
             if (area > best_area) {
                 best_area = area;
@@ -215,8 +200,7 @@ static std::vector<size_t> lttb_indices(const std::span<const double>& x, const 
     return out_indices;
 }
 
-// perpendicular distance from point (px, py) to the line from (x0, y0) to (x1, y1).
-// used by the iterative RDP helper.
+// perpendicular distance from (px, py) to the line through (x0, y0) and (x1, y1)
 static double point_to_segment_distance(double px, double py, double x0, double y0, double x1, double y1) {
     double dx = x1 - x0;
     double dy = y1 - y0;
@@ -227,8 +211,7 @@ static double point_to_segment_distance(double px, double py, double x0, double 
     return std::abs((px - x0) * dy - (py - y0) * dx) / denom;
 }
 
-// run one pass of RDP at the given epsilon and return the keep-mask.
-// mirrors the Python _rdp_indices_for_epsilon() implementation.
+// run one RDP pass at the given epsilon and return the keep mask, like _rdp_indices_for_epsilon()
 static std::vector<size_t> rdp_indices_for_epsilon(const std::span<const double>& x, const std::span<const double>& values, double epsilon) {
     size_t length = values.size();
     // initialize keep mask — always preserve endpoints
@@ -275,8 +258,7 @@ static std::vector<size_t> rdp_indices_for_epsilon(const std::span<const double>
     return indices;
 }
 
-// auto-tune the RDP epsilon via binary search so the output has at most
-// *target* points.  mirrors the Python _rdp_indices() implementation.
+// binary-search the RDP epsilon so the output stays within *target*, like _rdp_indices()
 static std::vector<size_t> rdp_indices(const std::span<const double>& x, const std::span<const double>& values, size_t target) {
     size_t length = values.size();
     // explicit tiny-target handling keeps behavior aligned with other algorithms
@@ -320,9 +302,7 @@ static std::vector<size_t> rdp_indices(const std::span<const double>& x, const s
     return best;
 }
 
-// ---------------------------------------------------------------------------
 // public entry point
-// ---------------------------------------------------------------------------
 
 std::pair<View<double>, View<double>> decimate_xy(const std::span<const double>& abscissa_values, const std::span<const double>& ordinate_values, size_t decimate_target, int algorithm) {
     // validate that both arrays are the same length

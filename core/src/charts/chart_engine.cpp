@@ -751,8 +751,8 @@ std::pair<size_t, size_t> ChartEngine::find_abscissa_indexes(const std::span<con
         if (abscissa[0] > right_value || abscissa[abscissa.size() - 1] < left_value)
             return {0, 0};
         // find left and right indexes using binary search
-        size_t left_index = std::ranges::lower_bound(abscissa, left_value) - abscissa.begin();
-        size_t right_index = std::ranges::upper_bound(abscissa, right_value) - abscissa.begin();
+        size_t left_index = static_cast<size_t>(std::ranges::lower_bound(abscissa, left_value) - abscissa.begin());
+        size_t right_index = static_cast<size_t>(std::ranges::upper_bound(abscissa, right_value) - abscissa.begin());
         // expand by one point on each side to include the bracketing line segments
         if (left_index > 0)
             left_index--;
@@ -765,8 +765,8 @@ std::pair<size_t, size_t> ChartEngine::find_abscissa_indexes(const std::span<con
     if (abscissa[0] < right_value || abscissa[abscissa.size() - 1] > left_value)
         return {0, 0};
     // find left and right indexes using binary search
-    size_t left_index = std::ranges::lower_bound(abscissa, left_value, std::greater{}) - abscissa.begin();
-    size_t right_index = std::ranges::upper_bound(abscissa, right_value, std::greater{}) - abscissa.begin();
+    size_t left_index = static_cast<size_t>(std::ranges::lower_bound(abscissa, left_value, std::greater{}) - abscissa.begin());
+    size_t right_index = static_cast<size_t>(std::ranges::upper_bound(abscissa, right_value, std::greater{}) - abscissa.begin());
     // expand by one point on each side to include the bracketing line segments
     if (left_index > 0)
         left_index--;

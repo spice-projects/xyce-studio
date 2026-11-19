@@ -82,6 +82,19 @@ albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/plugin_config/plugin_config_dialog.ui")
 albor_build_ui_component(xyce-studio-next "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_parameters_dialog.ui" IMPORTS "transient_parameters_panel.ui" "dc_parameters_panel.ui" "ac_parameters_panel.ui" "op_parameters_panel.ui" "noise_parameters_panel.ui" "hb_parameters_panel.ui" "lin_parameters_panel.ui" --manifest "${CMAKE_CURRENT_SOURCE_DIR}/src/views/simulation_parameters/simulation_ui.manifest")
 
+# the component generator writes its own arithmetic, so its units are held to the compiler's default warnings
+if(MSVC)
+    set(xyce_generated_warning_flag "/w")
+else()
+    set(xyce_generated_warning_flag "-w")
+endif()
+get_target_property(xyce_studio_next_sources xyce-studio-next SOURCES)
+foreach(xyce_studio_next_source IN LISTS xyce_studio_next_sources)
+    if(xyce_studio_next_source MATCHES "^${CMAKE_BINARY_DIR}/generated/")
+        set_source_files_properties("${xyce_studio_next_source}" PROPERTIES COMPILE_OPTIONS "${xyce_generated_warning_flag}")
+    endif()
+endforeach()
+
 target_link_libraries(xyce-studio-next PRIVATE xyce::core spdlog::spdlog albor)
 
 # the dev runtime carries the automation host when ALBOR_AUTOMATION is on, which

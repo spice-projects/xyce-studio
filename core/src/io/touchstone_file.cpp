@@ -78,9 +78,7 @@ namespace
         int num_frequencies = 0;
     };
 
-    // tolerance for the log10 ratio variation between consecutive frequency points
-    // touchstone files are text-based, so a slightly larger tolerance than binary
-    // raw files is used to accommodate rounding from fixed-precision output
+    // tolerance for the log10 ratio between consecutive points, looser than binary output needs
     constexpr double LOG_RATIO_TOLERANCE = 1e-7;
     // tolerance for how close the log10 ratio must match an integer step count
     constexpr double SWEEP_RESIDUAL_TOLERANCE = 1e-6;
@@ -429,7 +427,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
                     // reserve memory for frequencies
                     frequencies.reserve(estimated_points);
                     // allocate s-parameter vectors
-                    s_params.resize(static_cast<size_t>(header.num_ports) * header.num_ports);
+                    s_params.resize(static_cast<size_t>(header.num_ports) * static_cast<size_t>(header.num_ports));
                     for (auto& param : s_params)
                         param.reserve(estimated_points);
                 }
@@ -532,17 +530,17 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
             return {};
         }
         // compute number of frequency points
-        n_points = static_cast<int>(all_numbers.size() / nums_per_freq);
+        n_points = static_cast<int>(all_numbers.size() / static_cast<size_t>(nums_per_freq));
         // clamp to declared frequency count if specified
         if (header.num_frequencies > 0 && n_points > header.num_frequencies)
             n_points = header.num_frequencies;
         // initialize frequency vector
-        frequencies.reserve(n_points);
+        frequencies.reserve(static_cast<size_t>(n_points));
         // initialize s-parameter matrix storage (n*n complex vectors, one per s-param)
-        s_params.resize(static_cast<size_t>(n) * n);
+        s_params.resize(static_cast<size_t>(n) * static_cast<size_t>(n));
         // reserve memory for each s-parameter vector
         for (auto& param : s_params)
-            param.reserve(n_points);
+            param.reserve(static_cast<size_t>(n_points));
         // loop frequency points
         for (int i = 0; i < n_points; ++i) {
             // compute offset into the flat data array
@@ -683,7 +681,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     // initialize expressions list
     std::vector<AnyExpression> expressions;
     // reserve space for frequency + n*n s-parameters
-    expressions.reserve(1 + n * n);
+    expressions.reserve(1 + static_cast<size_t>(n) * static_cast<size_t>(n));
     // create frequency abscissa as the first expression
     expressions.emplace_back(Expression<double>("frequency", std::move(frequencies), step_slices, "Hz"));
     // create s-parameter expressions
@@ -713,9 +711,7 @@ std::optional<std::shared_ptr<XyceOutputFile>> touchstone_file_parser(const std:
     ExpressionManager expression_manager(expressions, step_slices);
     // build file-level metadata
     std::unordered_map<std::string, std::string> file_metadata;
-    // suggest two default plots, one chart per group: the dB magnitudes of the
-    // reflection entries (diagonal, the return-loss view) and of the
-    // transmission entries (off-diagonal, the insertion-loss view)
+    // suggest one chart per group: the diagonal reflection magnitudes and the off-diagonal transmissions
     std::vector<std::vector<std::string>> suggested_plots;
     {
         // names of the dB magnitude expressions per group

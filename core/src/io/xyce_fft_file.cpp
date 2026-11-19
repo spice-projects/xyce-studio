@@ -290,7 +290,7 @@ namespace
                 if (newline == nullptr)
                     break;
                 // extract the line content
-                std::string line(data + pos, newline - (data + pos));
+                std::string line(data + pos, static_cast<size_t>(newline - (data + pos)));
                 // advance the position past the newline
                 pos = static_cast<size_t>(newline - data) + 1;
                 // validate the utf8 encoding
@@ -480,9 +480,7 @@ namespace
     }
 
     std::optional<std::vector<std::shared_ptr<XyceOutputFile>>> build_output_files(const std::vector<std::filesystem::path>& matching_files, const StepInformation* step_information, ExpressionManager* expression_manager, const std::map<AbscissaKey, AbscissaEntry>& signals) {
-        // step count driving the slices: the analysis step information when
-        // provided, otherwise the files' own STEP markers (all signals of an
-        // abscissa carry the same step count)
+        // the analysis step count when provided, otherwise the files' own STEP markers
         const size_t step_count = step_information != nullptr ? step_information->length() : (signals.empty() || signals.begin()->second.signals.empty() ? 0 : signals.begin()->second.signals.begin()->second.size());
         // result
         std::vector<std::shared_ptr<XyceOutputFile>> output_files;
@@ -555,9 +553,7 @@ namespace
             value_ranges.reserve(step_count);
             for (size_t idx = 0; idx < step_count; ++idx)
                 value_ranges.emplace_back(abscissa_data.front(), abscissa_data.back());
-            // create the step information; the analysis step information is
-            // carried over when provided, otherwise the files define a
-            // step-less single-block dataset
+            // carry the analysis steps over when provided, otherwise the files define one step-less block
             StepInformation fft_step_information(step_information != nullptr ? step_information->keys() : std::vector<std::string>{}, step_information != nullptr ? step_information->values() : std::vector<std::vector<double>>{}, std::move(value_ranges));
             // create the expression manager
             ExpressionManager fft_expression_manager(expressions, step_slices);
