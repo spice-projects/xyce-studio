@@ -88,7 +88,7 @@ jobs:
             os: macos-15
             arch: arm64
             enable: true
-            preset: profile
+            preset: coverage
             vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
             setup: |
               # the vcpkg binary cache root must exist before vcpkg runs
@@ -98,8 +98,24 @@ jobs:
               ccache --max-size 2G
               # the preset is c++20, and the build follows the image toolchain rather than a pinned xcode
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
-            configure: cmake --preset profile --fresh
-            unit-tests: ./.build-profile/tests/xyce-studio-tests --gtest_filter=-Ui*
+            configure: cmake --preset coverage --fresh
+            unit-tests: ./.build-coverage/tests/xyce-studio-tests --gtest_filter=-Ui*
+          - name: macos-arm64
+            os: macos-15
+            arch: arm64
+            enable: true
+            preset: asan
+            vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
+            setup: |
+              # the vcpkg binary cache root must exist before vcpkg runs
+              mkdir -p .vcpkg-cache
+              # the preset launches the compiler through ccache, which the runner image does not ship
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+              ccache --max-size 2G
+              # the preset is c++20, and the build follows the image toolchain rather than a pinned xcode
+              sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+            configure: cmake --preset asan --fresh
+            unit-tests: ./.build-asan/tests/xyce-studio-tests --gtest_filter=-Ui*
           - name: windows-x64
             os: windows-latest
             arch: x64
@@ -232,11 +248,11 @@ jobs:
           ${{ matrix.unit-tests }}
 
       - name: runtime dependencies
-        if: matrix.enable && matrix.preset != 'profile'
+        if: matrix.enable && matrix.preset != 'coverage' && matrix.preset != 'asan'
         run: cmake --install .build-${{ matrix.preset }} --component RuntimeDeps --prefix .build-${{ matrix.preset }}
 
       - name: upload build artifact
-        if: matrix.enable && matrix.preset != 'profile'
+        if: matrix.enable && matrix.preset != 'coverage' && matrix.preset != 'asan'
         uses: actions/upload-artifact@v7
         with:
           name: xyce-studio-${{ matrix.name }}

@@ -44,9 +44,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/.vcpkg-cache
-          key: vcpkg-macos-26-profile-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('.triplets/**', '.ports/**') }}
+          key: vcpkg-macos-26-coverage-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('.triplets/**', '.ports/**') }}
           restore-keys: |
-            vcpkg-macos-26-profile-
+            vcpkg-macos-26-coverage-
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -57,11 +57,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ${{ github.workspace }}/.build-profile
+            ${{ github.workspace }}/.build-coverage
             ${{ github.workspace }}/.ccache
-          key: cmake-macos-26-profile-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('tests/CMakeLists.txt') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('CMakePresets.json') }}
+          key: cmake-macos-26-coverage-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('tests/CMakeLists.txt') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('CMakePresets.json') }}
           restore-keys: |
-            cmake-macos-26-profile-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('tests/CMakeLists.txt') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('CMakePresets.json') }}
+            cmake-macos-26-coverage-${{ hashFiles('vcpkg-configuration.json') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('tests/CMakeLists.txt') }}-${{ hashFiles('CMakeLists.txt') }}-${{ hashFiles('CMakePresets.json') }}
 
       - name: Setup ccache
         shell: bash
@@ -72,17 +72,17 @@ jobs:
 
       - name: Configure CMake
         shell: bash
-        run: cmake --preset profile --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
+        run: cmake --preset coverage --fresh -DCMAKE_OSX_SYSROOT="$(xcrun --show-sdk-path)"
 
       - name: Build C++ Target
-        run: cmake --build --preset profile --target xyce-studio-tests
+        run: cmake --build --preset coverage --target xyce-studio-tests
 
       - name: Run C++ Tests
         shell: bash
         env:
           LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage.profraw
         run: |
-          ./.build-profile/tests/xyce-studio-tests --gtest_filter=-Ui*
+          ./.build-coverage/tests/xyce-studio-tests --gtest_filter=-Ui*
 
       - name: Generate Cobertura report
         shell: bash
@@ -91,8 +91,8 @@ jobs:
           xcrun llvm-cov export \
             --instr-profile coverage.profdata \
             --format=lcov \
-            ./.build-profile/tests/xyce-studio-tests "$PWD/src" \
-            ./.build-profile/tests/xyce-studio-tests > coverage.lcov
+            ./.build-coverage/tests/xyce-studio-tests "$PWD/src" \
+            ./.build-coverage/tests/xyce-studio-tests > coverage.lcov
           pip install lcov_cobertura
           lcov_cobertura coverage.lcov --output cobertura.xml
 

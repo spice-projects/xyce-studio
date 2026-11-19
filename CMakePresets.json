@@ -7,71 +7,73 @@
     },
     "configurePresets": [
         {
-            "name": "debug",
+            "name": "base",
+            "hidden": true,
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/.build-debug",
+            "binaryDir": "${sourceDir}/.build-${presetName}",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF"
             }
         },
         {
             "name": "release",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/.build-release",
+            "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF"
             }
         },
         {
-            "name": "profile",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/.build-profile",
+            "name": "coverage",
+            "inherits": "base",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Profile",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "XYCE_COVERAGE": "ON",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF"
+            }
+        },
+        {
+            "name": "asan",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "XYCE_ASAN": "ON",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF"
             }
         },
         {
             "name": "studio-debug",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/.build-studio-debug",
+            "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "XYCE_BUILD_SLINT_FRONTEND": "OFF",
                 "XYCE_BUILD_STUDIO_FRONTEND": "ON",
                 "XYCE_BUILD_TESTS": "OFF",
                 "XYCE_BUILD_STUDIO_TESTS": "ON",
-                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor"
             }
         },
         {
             "name": "studio-release",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/.build-studio-release",
+            "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_FEATURES": "albor-package",
                 "XYCE_BUILD_SLINT_FRONTEND": "OFF",
                 "XYCE_BUILD_STUDIO_FRONTEND": "ON",
                 "XYCE_BUILD_TESTS": "OFF",
-                "XYCE_BUILD_STUDIO_TESTS": "OFF",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+                "XYCE_BUILD_STUDIO_TESTS": "OFF"
             }
         }
     ],
@@ -105,15 +107,26 @@
             "inheritConfigureEnvironment": true
         },
         {
-            "name": "profile",
+            "name": "coverage",
             "description": "",
             "displayName": "",
-            "configurePreset": "profile",
+            "configurePreset": "coverage",
             "targets": [
                 "xyce-studio",
                 "xyce-studio-tests"
             ],
-            "configuration": "Release",
+            "configuration": "Debug",
+            "inheritConfigureEnvironment": true
+        },
+        {
+            "name": "asan",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "asan",
+            "targets": [
+                "xyce-studio-tests"
+            ],
+            "configuration": "Debug",
             "inheritConfigureEnvironment": true
         },
         {

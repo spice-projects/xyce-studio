@@ -114,9 +114,28 @@ if(APPLE)
     set(CMAKE_BUILD_RPATH "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" "${CMAKE_BINARY_DIR}/_deps/slint-build")
 endif()
 
-# profile build type, activate with `cmake --preset debug -DCMAKE_BUILD_TYPE=Profile` && `cmake --build --preset debug`
-set(CMAKE_CXX_FLAGS_PROFILE "-O2 -fprofile-instr-generate -fcoverage-mapping")
-set(CMAKE_EXE_LINKER_FLAGS_PROFILE "-fprofile-instr-generate")
+# the instrumented builds are options, so a preset states the intent and every target inherits the flags
+option(XYCE_COVERAGE "Instrument the tests so a coverage report can be generated" OFF)
+option(XYCE_ASAN "Instrument every target with AddressSanitizer" OFF)
+
+if(XYCE_COVERAGE)
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+    add_link_options(-fprofile-instr-generate)
+endif()
+
+if(XYCE_ASAN)
+    # the msvc runtime checks conflict with the sanitizer flags, so this preset stays on clang and gcc
+    if(MSVC)
+        message(FATAL_ERROR "XYCE_ASAN is supported on the Clang/GCC toolchains; use the normal presets on MSVC")
+    endif()
+    # every load and store is checked, and the frame pointer keeps the report readable
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    # the block scope check catches an object destroyed before the binding that still points at it
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-fsanitize-address-use-after-scope)
+    endif()
+    add_link_options(-fsanitize=address)
+endif()
 
 add_subdirectory(core)
 

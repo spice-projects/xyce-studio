@@ -18,8 +18,9 @@ cmake --preset debug
 cmake --build --preset debug
 ```
 
-Presets available in `CMakePresets.json`: `debug`, `release`, `profile`.
-The built binary lands in `.build-debug/` (debug preset).
+Presets available in `CMakePresets.json`: `debug`, `release`, `coverage`,
+`asan`, `studio-debug` and `studio-release`. The built binary lands in
+`.build-debug/` (debug preset).
 
 The vcpkg binary cache (`.vcpkg-cache/`) and ccache speed up rebuilds;
 first configuration downloads and builds dependencies (Slint, protobuf,

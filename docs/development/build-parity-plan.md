@@ -49,7 +49,7 @@ independently buildable and revertable.
 - [x] Phase 2 — compiler contract (Must 3, 4)
 - [x] Phase 3 — options and renderer (Must 7, 8)
 - [x] Phase 4 — one dependency manifest (Must 6)
-- [ ] Phase 5 — presets and instrumentation (Should 9, 10)
+- [x] Phase 5 — presets and instrumentation (Should 9, 10)
 - [ ] Phase 6 — tests and repository checks (Should 11, 12)
 
 ---
@@ -460,36 +460,50 @@ Land this phase alone and pre-warm the cache on a throwaway branch if the wait m
 
 ### 7.1 Base preset
 
-- [ ] Add a hidden `base` preset carrying `generator`, `binaryDir`
+- [x] Add a hidden `base` preset carrying `generator`, `binaryDir`
       (`${sourceDir}/.build-${presetName}`), the toolchain file, the ccache launchers,
       `CMAKE_EXPORT_COMPILE_COMMANDS` and `cmakeMinimumRequired: 3.28`
-- [ ] Make every configure preset inherit it
+- [x] Make every configure preset inherit it
 
-`${presetName}` expands per inheriting preset, so `debug` keeps `.build-debug` exactly as
-today — no script, cache key or habit changes.
+`cmakeMinimumRequired` already sits at the file level, where every preset inherits it, so the
+base preset only carries what used to be repeated. `${presetName}` expands per inheriting
+preset — `debug` keeps `.build-debug` and a new preset creates `.build-coverage`, never
+`.build-base` — so no script, cache key or habit changes.
 
 ### 7.2 Instrumentation options
 
-- [ ] Add `XYCE_COVERAGE` and `XYCE_ASAN` to the root, each applying
+- [x] Add `XYCE_COVERAGE` and `XYCE_ASAN` to the root, each applying
       `add_compile_options`/`add_link_options`, refusing MSVC
-- [ ] Delete `CMAKE_CXX_FLAGS_PROFILE` / `CMAKE_EXE_LINKER_FLAGS_PROFILE` and the `Profile`
+- [x] Delete `CMAKE_CXX_FLAGS_PROFILE` / `CMAKE_EXE_LINKER_FLAGS_PROFILE` and the `Profile`
       build type
-- [ ] Add a `coverage` preset (Debug + `XYCE_COVERAGE=ON`, `.build-coverage`) and an `asan`
+- [x] Add a `coverage` preset (Debug + `XYCE_COVERAGE=ON`, `.build-coverage`) and an `asan`
       preset (Debug + `XYCE_ASAN=ON`, builds the test target only)
-- [ ] Delete the `profile` configure and build presets
+- [x] Delete the `profile` configure and build presets
+
+The options are set before `add_subdirectory(core)`, so the flags reach every target the
+application creates. Both preset names expand to their own build directory through `base`.
 
 ### 7.3 Workflows
 
-- [ ] `coverage.yml`: `--preset profile` → `--preset coverage`; `.build-profile` →
+- [x] `coverage.yml`: `--preset profile` → `--preset coverage`; `.build-profile` →
       `.build-coverage`; keep `--target xyce-studio-tests` and `--gtest_filter=-Ui*`
-- [ ] `default.yaml`: replace the `macos-arm64 profile` matrix entry with `coverage` and
+- [x] `default.yaml`: replace the `macos-arm64 profile` matrix entry with `coverage` and
       add an ASAN entry (macOS only, matching albor's MSVC refusal)
+
+Both instrumented entries skip the runtime-dependency install and the artifact upload,
+because neither builds the packaged application.
 
 ### 7.4 Verification
 
-- [ ] `cmake --preset coverage && cmake --build --preset coverage`, then run the binary and
+- [x] `cmake --preset coverage && cmake --build --preset coverage`, then run the binary and
       confirm `llvm-profdata`/`llvm-cov` still resolve the profile
-- [ ] `cmake --preset asan`, build and run the suite clean
+- [x] `cmake --preset asan`, build and run the suite clean
+
+Coverage: 2999 tests pass, the run writes a 3.8 MB `.profraw`, `llvm-profdata merge` and
+`llvm-cov export --format=lcov` both succeed, and the report names 201 source files.
+ASAN: 2999 tests pass with no sanitizer report. Both builds report no compiler warning, and
+`debug`/`studio-debug` still configure into `.build-debug`/`.build-studio-debug` through the
+base preset.
 
 ---
 

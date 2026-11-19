@@ -7,7 +7,7 @@ if(ALBOR_LOCAL_SOURCE_DIR)
     # the checkout is a development configuration, so it links the dev runtime
     set(ALBOR_DEV ON CACHE BOOL "" FORCE)
     # the automation host may never exist in a release link, which albor rejects at configure time
-    if(CMAKE_BUILD_TYPE MATCHES "^(Debug|Profile)$")
+    if(CMAKE_BUILD_TYPE MATCHES "^Debug$")
         set(ALBOR_AUTOMATION ON CACHE BOOL "" FORCE)
     else()
         set(ALBOR_AUTOMATION OFF CACHE BOOL "" FORCE)

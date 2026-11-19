@@ -8,7 +8,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 1. **Dialog & Window Architecture**: Slint lacks clean support for secondary OS dialog windows and multi-window workflows, forcing all dialogs into inline modal overlays inside a single monolithic window (`MainWindow.slint`). Albor, the new C++ UI framework, provides window-modal native dialogs and multi-window support.
 2. **Presenter Modularization**: The current `SlintMainWindowPresenter` is a ~1,500-line monolith that manages both the main window and all 6 inline dialog panels. The new framework will replace this with dedicated, isolated presenters for each dialog and window.
 3. **Linkage & Dependency Hygiene**: Slint has an LLVM exception-unwinding / RTTI bug at the Rust/C++ boundary, forcing all dependencies to be compiled as dynamic libraries via custom overlay triplets. The new framework eliminates this requirement and allows clean, static linking.
-4. **CI & Packaging Continuity**: The existing GitHub Actions workflows (`.github/workflows/default.yaml`, `coverage.yml`) must continue building and packaging the Slint implementation with **identical binary outputs, preset names, and artifact layouts**. No changes to existing CI workflows are permitted during development of the new framework.
+4. **CI & Packaging Continuity**: The existing GitHub Actions workflows (`.github/workflows/default.yaml`, `coverage.yml`) must continue building and packaging the Slint implementation with **identical binary outputs and artifact layouts**. The preset and workflow names follow `docs/development/build-parity-plan.md` (the `profile` preset became `coverage`, joined by `asan`), so no artifact path changes while the legacy path stays the release path.
 5. **Zero Downtime / Regression Protection**: Both frontends coexist as two separate roots (`slint/` and `studio/`), sharing a common UI-agnostic domain core (`core/`). The current app (`xyce-studio`) continues to build and pass all automated tests until the new app (`xyce-studio-next`) achieves complete feature parity; the new root carries its own presenter unit tests (`studio-tests/`) and UI automation (`tests_studio/`).
 
 **Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; the root `vcpkg-configuration.json` overlays that checkout's port for development.
@@ -83,8 +83,8 @@ xyce-studio/
 | Concern | Legacy Root (`slint/` / CI Standard) | New Framework Root (`studio/`) |
 | :--- | :--- | :--- |
 | **Executable Target** | `xyce-studio` (identical output name) | `xyce-studio-next` |
-| **CMake Presets** | `debug`, `release`, `profile` (studio frontend off) | `studio-debug`, `studio-release` (Slint frontend off) |
-| **Build Directory** | `.build-debug`, `.build-release`, `.build-profile` | `.build-studio-debug`, `.build-studio-release` |
+| **CMake Presets** | `debug`, `release`, `coverage`, `asan` (studio frontend off) | `studio-debug`, `studio-release` (Slint frontend off) |
+| **Build Directory** | `.build-debug`, `.build-release`, `.build-coverage`, `.build-asan` | `.build-studio-debug`, `.build-studio-release` |
 | **Manifest Path** | root `vcpkg.json` + `vcpkg-configuration.json` (one manifest for both roots) | root `vcpkg.json` + `vcpkg-configuration.json` (the same manifest) |
 | **Triplets** | Root `.triplets` (`VCPKG_OVERLAY_TRIPLETS`) | The same root `.triplets` |
 | **Library Linkage** | Dynamic (Skia dylib, Windows DLLs) | Static (no DLL copying or RPATH manipulation) |
@@ -184,7 +184,7 @@ Move files into their respective homes. Git preserves history across renames (`g
     endif()
     ```
 - [x] **3.5. Configure `CMakePresets.json`**
-  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend with `XYCE_BUILD_STUDIO_FRONTEND=OFF`, without altering their names or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring Albor.
+  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `coverage` presets targeting the Slint frontend with `XYCE_BUILD_STUDIO_FRONTEND=OFF`, without altering their output paths (`.build-debug`, `.build-release`, `.build-coverage`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring Albor; `asan` joins them as the sanitizer entry.
   - **Add New Framework Presets**:
     - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=ON`, `ALBOR_LOCAL_SOURCE_DIR=${sourceDir}/../albor`.
     - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_FEATURES=albor-package`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=OFF`.
@@ -281,7 +281,7 @@ Status (2026-11-16): 6.1–6.8 are complete.
   - Status: delivered. [`docs/development/parity.md`](docs/development/parity.md) maps every legacy UI scenario (75), every user-visible surface and the four audit areas, with a verdict for each: covered, ported, accepted difference or not applicable. The audit found and fixed ten issues (a run without an analysis did not ask for one, `.PLOT`-only quantities were never printed, the Smith plane hid the step tool, the CLI lacked `--log-level` and `--raw`, unparseable initial conditions were silently dropped, and several testability gaps) and ported 18 native scenarios, so the native suite now covers the legacy capabilities end to end.
 - [ ] **7.2. Author New Framework CI Workflows**
   - Create separate GitHub Actions workflow(s) (e.g. `.github/workflows/studio.yaml`) dedicated to building and testing `xyce-studio-next`.
-  - Keep `.github/workflows/default.yaml` and `coverage.yml` completely untouched and active throughout.
+  - Keep `.github/workflows/default.yaml` and `coverage.yml` active throughout, changing them only as `docs/development/build-parity-plan.md` requires.
 - [ ] **7.3. Swap Default Executables**
   - Make `studio/` produce the primary `xyce-studio` executable.
   - Update packaging scripts when ready to switch default releases.
@@ -296,7 +296,7 @@ Status (2026-11-16): 6.1–6.8 are complete.
 ## 5. Risk Mitigation & Verification Rules
 
 1. **Slint Preserved at All Times**: No commit in Phases 1–6 may break `xyce-studio` or fail any test in `tests/` or `tests_ui/`.
-2. **CI Contract Invariance**: Existing presets (`debug`, `release`, `profile`) and binary outputs must remain 100% binary-compatible with `.github/workflows/default.yaml`.
+2. **CI Contract Invariance**: Existing presets (`debug`, `release`) and binary outputs must remain binary-compatible with `.github/workflows/default.yaml`; `coverage` and `asan` replace `profile` as the instrumented entries.
 3. **Self-Contained Commits**: Every phase completion must result in a clean, buildable repository.
 4. **Cache & Linkage Isolation**: Always use distinct binary directories (`.build-debug` / `.build-release` vs `.build-studio-debug` / `.build-studio-release`) so dynamic Slint dylibs and static framework libraries never contaminate each other.
 5. **Albor Isolation**: The legacy presets must keep building without a local or published Albor package; only the studio presets opt into Albor.
