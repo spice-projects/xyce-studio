@@ -150,7 +150,8 @@ jobs:
       # the pinned tools are the ABI inputs vcpkg caches by; the vcpkg commit is per platform because each image seeds its own
       CMAKE_VERSION: 4.4.4
       NINJA_VERSION: 1.13.2
-      MSVC_TOOLSET: 14.51.36231
+      # the toolset is named by series, because an image roll replaces the patch build and an exact pin disappears with it
+      MSVC_TOOLSET: 14.51
       WINDOWS_SDK: 10.0.26100.0
       VCPKG_ABI_POLICY: pinned-toolchain-v1
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
