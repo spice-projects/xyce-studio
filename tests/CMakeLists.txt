@@ -23,8 +23,6 @@ if(WIN32)
     add_custom_command(TARGET xyce-studio-tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:xyce-studio-tests> $<TARGET_FILE_DIR:xyce-studio-tests> COMMAND_EXPAND_LISTS)
 endif()
 
-# auto-discover Gtests as Ctests
-include(CTest)
+# auto-discover Gtests as Ctests, which the root has already enabled
 include(GoogleTest)
-gtest_discover_tests(xyce-studio-tests DISCOVERY_TIMEOUT 60)
-# add_test(NAME AllGoogleTests COMMAND xyce-studio-tests)
+gtest_discover_tests(xyce-studio-tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 900)

@@ -42,3 +42,7 @@ target_link_libraries(studio-tests PRIVATE
 set_target_properties(studio-tests PROPERTIES
     OUTPUT_NAME xyce-studio-tests
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/studio-tests")
+
+# auto-discover Gtests as Ctests, which the root has already enabled
+include(GoogleTest)
+gtest_discover_tests(studio-tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 900)

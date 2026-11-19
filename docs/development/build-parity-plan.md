@@ -50,7 +50,7 @@ independently buildable and revertable.
 - [x] Phase 3 — options and renderer (Must 7, 8)
 - [x] Phase 4 — one dependency manifest (Must 6)
 - [x] Phase 5 — presets and instrumentation (Should 9, 10)
-- [ ] Phase 6 — tests and repository checks (Should 11, 12)
+- [x] Phase 6 — tests and repository checks (Should 11, 12)
 
 ---
 
@@ -514,9 +514,13 @@ and format scope).
 
 ### 8.1 Root registration
 
-- [ ] Root: `enable_testing()` unconditional, before the `add_subdirectory` calls
-- [ ] `tests/` and `studio-tests/`: drop `include(CTest)`, keep `include(GoogleTest)`
-- [ ] Add `PROPERTIES TIMEOUT 900` to both `gtest_discover_tests` calls
+- [x] Root: `enable_testing()` unconditional, before the `add_subdirectory` calls
+- [x] `tests/` and `studio-tests/`: drop `include(CTest)`, keep `include(GoogleTest)`
+- [x] Add `PROPERTIES TIMEOUT 900` to both `gtest_discover_tests` calls
+
+`studio-tests` had no discovery call at all, so it only built a binary; it now registers its
+own cases the same way the legacy suite does. `ctest` reports 3002 legacy tests and 210
+studio tests on this machine.
 
 `ctest` becomes an additional entry point; executing the test binary directly remains the
 documented route in `AGENTS.md`.
@@ -528,7 +532,7 @@ set(XYCE_UI_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python")
 if(WIN32)
     set(XYCE_UI_PYTHON "${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe")
 endif()
-if(EXISTS "${XYCE_UI_PYTHON}")
+if(XYCE_BUILD_TESTS AND EXISTS "${XYCE_UI_PYTHON}")
     add_test(NAME ui-integration
              COMMAND "${XYCE_UI_PYTHON}" -m unittest discover -s tests_ui -p "*_test.py"
              WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
@@ -536,7 +540,10 @@ if(EXISTS "${XYCE_UI_PYTHON}")
 endif()
 ```
 
-- [ ] Add the guarded test
+- [x] Add the guarded test
+
+The guard also names `XYCE_BUILD_TESTS`, because the suite drives the legacy application: a
+studio-only build must not inherit a test that launches a binary it does not produce.
 
 > [!NOTE]
 > `slint_automation/slint_application.py` launches `./.build-debug/xyce-studio`, i.e. the
@@ -545,18 +552,24 @@ endif()
 
 ### 8.3 Link boundary
 
-- [ ] Add `build/check-link-boundary.sh` mirroring albor's (`nm --defined-only` plus
+- [x] Add `build/check-link-boundary.sh` mirroring albor's (`nm --defined-only` plus
       `grep -F`, default token `automation_host`)
-- [ ] Register it only where automation is expected to be absent:
+- [x] Register it only where automation is expected to be absent:
 
 ```cmake
-if(NOT ALBOR_AUTOMATION AND TARGET xyce-studio-next)
+if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio-next)
     add_test(NAME link-boundary
              COMMAND "${CMAKE_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio-next>")
 endif()
 ```
 
 > [!NOTE]
+> The default token is the mangled namespace `albor10automation` rather than the plan's
+> `automation_host`: only the initializer of the generated `automation_host_auto.cpp` unit
+> carries that file-name spelling, while every host symbol carries the namespace, so the
+> plan's token would miss them all. The check was run against a binary that links the host
+> (fails and prints the symbol) and against the legacy application (passes).
+>
 > Albor's script is `nm`-based and runs on macOS/Linux. MSVC Release binaries carry no
 > COFF symbols, so a Windows run would always pass; run the check on the macOS jobs only.
 > The effective enforcement is the configure-time guard from Phase 3 plus `ALBOR_AUTOMATION`
@@ -564,16 +577,28 @@ endif()
 
 ### 8.4 Format scope for the merged tree
 
-- [ ] Turn the hardcoded path list into a variable: `slint core studio studio-tests tests`,
+- [x] Turn the hardcoded path list into a variable: `slint core studio studio-tests tests`,
       plus `albor` when that directory exists
-- [ ] Add albor's exclusions: `third-party/`, `albor/platform/linux/wayland/vendor/`
-- [ ] Accept `XYCE_COMMENT_BASE`, falling back to `ALBOR_COMMENT_BASE`
-- [ ] Update the header comment and `AGENTS.md`
+- [x] Add albor's exclusions: `third-party/`, `albor/platform/linux/wayland/vendor/`
+- [x] Accept `XYCE_COMMENT_BASE`, falling back to `ALBOR_COMMENT_BASE`
+- [x] Update the header comment and `AGENTS.md`
+
+The scope was verified with a temporary `albor/` probe: a misformatted file under `albor/`
+fails the check and one under `albor/third-party/` is ignored.
 
 ### 8.5 Verification
 
     bash build/check-format.sh
     ctest -R 'ui-integration|link-boundary'
+
+- [x] `bash build/check-format.sh` passes over the wider scope
+- [x] `ctest -R ui-integration` in `.build-debug` passes (1735.7 s, one test)
+- [x] `ctest -N -R link-boundary` lists the test in `.build-studio-release` and omits it from
+      `.build-studio-debug`, where automation is linked
+
+The release application cannot link while the albor drift of Phase 4 stands, so
+`link-boundary` was exercised directly: it fails on a binary that carries the host and
+passes on the legacy application, which is the same comparison the registered test makes.
 
 ---
 

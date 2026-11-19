@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# clang-format linter for the C++ sources under slint/, core/, studio/, studio-tests/ and tests/
+# clang-format linter for the C++ sources under slint/, core/, studio/, studio-tests/ and tests/,
+# plus albor/ once that checkout lives in the tree
 # exits non-zero when any file violates the project .clang-format
 # exits non-zero when .clang-format itself is not the pinned style file
 # exits non-zero when a comment rule of STYLE-GUIDE.md is violated in a file the change touched
-# set XYCE_COMMENT_BASE=<ref> to measure the comment rules against a branch point instead of HEAD
+# set XYCE_COMMENT_BASE=<ref> to measure the comment rules against a branch point instead of HEAD (ALBOR_COMMENT_BASE is accepted too)
 #
 # the tool is part of the style, because a clang-format major can change how it formats objective c++
 # literals and one line blocks: the tree is formatted with clang-format 22, so run this same major
@@ -50,10 +51,21 @@ if [ "$actual_digest" != "$CLANG_FORMAT_SHA256" ]; then
     exit 1
 fi
 
+# the source roots the formatter covers, joined by the albor checkout once the merge puts it in the tree
+SCOPE=(slint core studio studio-tests tests)
+if [ -d albor ]; then
+    SCOPE+=(albor)
+fi
+
 # generated sources that clang-format must not reformat
 EXCLUDED=(
     "slint/src/ui/font_data.h"
 )
+
+# vendored sources keep their upstream format, so the third-party and module-private vendor trees are not reformatted
+THIRD_PARTY_PREFIX='third-party/'
+ALBOR_THIRD_PARTY_PREFIX='albor/third-party/'
+VENDOR_PREFIX='albor/platform/linux/wayland/vendor/'
 
 # the regex below matches every extension family in this repository:
 #   *.cpp   *.h            — core, studio, tests
@@ -68,7 +80,7 @@ files=()
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     [ -f "$file" ] && files+=("$file")
-done < <(git ls-files --cached --others --exclude-standard 'slint/**' 'core/**' 'studio/**' 'studio-tests/**' 'tests/**' | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
+done < <(git ls-files --cached --others --exclude-standard "${SCOPE[@]/%//**}" | grep -E '\.(cpp|h|c\+\+|mm)$' | grep -v -e "^${THIRD_PARTY_PREFIX}" -e "^${ALBOR_THIRD_PARTY_PREFIX}" -e "^${VENDOR_PREFIX}" | grep -Fxv -f <(printf '%s\n' "${EXCLUDED[@]}"))
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "error: no C++ source files found" >&2
@@ -80,8 +92,9 @@ fi
 COMMENT_LINE_LIMIT=124
 
 # the ref the comment rules are measured against, which keeps the sweep history in the issue tracker
-# while every file a change touches is held to the rule; override it to measure against a branch point
-COMMENT_BASE_REF="${XYCE_COMMENT_BASE:-HEAD}"
+# while every file a change touches is held to the rule; override it to measure against a branch point,
+# and accept albor's variable so one environment drives both trees
+COMMENT_BASE_REF="${XYCE_COMMENT_BASE:-${ALBOR_COMMENT_BASE:-HEAD}}"
 
 # report the comment rules over the files a change touches, because a rule a change cannot affect is not its business
 check_comment_rules() {

@@ -137,6 +137,9 @@ if(XYCE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
+# ctest is an entry point beside running a suite binary directly, so every suite registers from its own directory
+enable_testing()
+
 add_subdirectory(core)
 
 if(XYCE_BUILD_SLINT_FRONTEND)
@@ -152,6 +155,23 @@ if(XYCE_BUILD_STUDIO_TESTS)
 endif()
 
 if(XYCE_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
+endif()
+
+# the GUI suite drives the real debug build through the automation framework, which resolves the app from the repository root
+set(XYCE_UI_PYTHON "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python")
+if(WIN32)
+    set(XYCE_UI_PYTHON "${CMAKE_CURRENT_SOURCE_DIR}/.venv/Scripts/python.exe")
+endif()
+if(XYCE_BUILD_TESTS AND EXISTS "${XYCE_UI_PYTHON}")
+    add_test(NAME ui-integration
+             COMMAND "${XYCE_UI_PYTHON}" -m unittest discover -s tests_ui -p "*_test.py"
+             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(ui-integration PROPERTIES LABELS ui TIMEOUT 1800)
+endif()
+
+# the shipping app must carry no dev-only automation host, so its absence is checked rather than assumed
+if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio-next)
+    add_test(NAME link-boundary
+             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio-next>")
 endif()
