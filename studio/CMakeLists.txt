@@ -31,19 +31,12 @@ target_include_directories(xyce-studio-next PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}
 # the application publishes the standard it is written in, which is also the one the framework exposes
 target_compile_features(xyce-studio-next PRIVATE cxx_std_20)
 
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(xyce-studio-next PRIVATE /W4)
-else()
-    target_compile_options(xyce-studio-next PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# the application carries the shared compiler contract
+target_link_libraries(xyce-studio-next PRIVATE xyce-build-flags)
 
 # the automation host has no pointer command, so the dev build exposes a press trigger for click scenarios
 if(ALBOR_AUTOMATION)
     target_compile_definitions(xyce-studio-next PRIVATE XYCE_STUDIO_AUTOMATION=1)
-endif()
-
-if(WIN32)
-    target_compile_definitions(xyce-studio-next PRIVATE NOMINMAX)
 endif()
 
 # the embedded font registration must be declared before any .ui component,

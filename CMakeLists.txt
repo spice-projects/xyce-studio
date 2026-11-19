@@ -45,6 +45,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # disable compiler specific extensions, because the sources are portable c++
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# the compiler contract is one target, so the studio tree cannot drift from the framework it builds on
+add_library(xyce-build-flags INTERFACE)
+
+if(MSVC)
+    # msvc has no -W flags, so /W4 is the closest strictness and the conformance switches pin the standard it answers
+    target_compile_options(xyce-build-flags INTERFACE /W4 /permissive- /Zc:__cplusplus /EHsc /utf-8)
+    # windows 10 1809 is the supported floor, and NOMINMAX keeps the headers from defining the min and max macros
+    target_compile_definitions(xyce-build-flags INTERFACE NOMINMAX WINVER=0x0A00 _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A000006)
+else()
+    # shadowing is the diagnostic the tree was not held to, and a designated initializer that misses a field is a bug
+    target_compile_options(xyce-build-flags INTERFACE -Wall -Wextra -Wpedantic -Wshadow -Wmissing-field-initializers)
+endif()
+
 # generate compile_commands.json for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

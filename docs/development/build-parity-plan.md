@@ -46,7 +46,7 @@ independently buildable and revertable.
 - [x] Comparison against albor completed
 - [ ] Phase 0 — pre-flight decisions
 - [x] Phase 1 — toolchain floor (Must 1, 2, 5)
-- [ ] Phase 2 — compiler contract (Must 3, 4)
+- [x] Phase 2 — compiler contract (Must 3, 4)
 - [ ] Phase 3 — options and renderer (Must 7, 8)
 - [ ] Phase 4 — one dependency manifest (Must 6)
 - [ ] Phase 5 — presets and instrumentation (Should 9, 10)
@@ -199,10 +199,12 @@ else()
 endif()
 ```
 
-- [ ] Add the target
-- [ ] Link it to the four studio-side targets
-- [ ] Delete the duplicated `target_compile_options` blocks
-- [ ] Delete the per-target `NOMINMAX` definitions
+- [x] Add the target
+- [x] Link it to the four studio-side targets
+- [x] Delete the duplicated `target_compile_options` blocks
+- [x] Delete the per-target `NOMINMAX` definitions
+- [x] Fix the one diagnostic the new `-Wshadow` produced: the DC branch in
+      `simulation_parameters_dialog_view.cpp` shadowed the panel record with the same name
 
 > [!NOTE]
 > **Why per-target rather than `add_compile_options`:** the legacy presets build Slint
@@ -232,7 +234,7 @@ Land it alone so a revert is clean.
 
 ### 4.3 Verification
 
-- [ ] macOS: build both presets under clang
+- [x] macOS: both presets build with zero warnings under clang
 - [ ] Windows: verified by the `windows-latest` job
 
 ---

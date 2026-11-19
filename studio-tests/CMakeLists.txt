@@ -24,16 +24,8 @@ add_executable(studio-tests
 
 target_include_directories(studio-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../studio/src")
 
-# enable more warnings: msvc uses /W4, gnu-style frontends use -Wall -Wextra -Wpedantic
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(studio-tests PRIVATE /W4)
-else()
-    target_compile_options(studio-tests PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-if(WIN32)
-    target_compile_definitions(studio-tests PRIVATE NOMINMAX)
-endif()
+# the suite carries the same compiler contract as the application it exercises
+target_link_libraries(studio-tests PRIVATE xyce-build-flags)
 
 if(TARGET albor)
     target_link_libraries(studio-tests PRIVATE albor)

@@ -1436,9 +1436,9 @@ void studio::AlborSimulationParametersDialogView::show(const SimulationConfig& c
         if (transient->pce)
             stored_pce = &*transient->pce;
     }
-    else if (const auto* dc = std::get_if<DCSimulationParameters>(&current.analysis)) {
-        if (dc->pce)
-            stored_pce = &*dc->pce;
+    else if (const auto* dc_analysis = std::get_if<DCSimulationParameters>(&current.analysis)) {
+        if (dc_analysis->pce)
+            stored_pce = &*dc_analysis->pce;
     }
     if (stored_pce != nullptr) {
         seed_pce(*stored_pce, pce, pce_print);

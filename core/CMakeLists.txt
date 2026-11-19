@@ -39,17 +39,6 @@ target_include_directories(xyce-core PRIVATE ${POCKETFFT_INCLUDE_DIRS})
 # the shared core publishes the standard it is written in, so a consumer cannot lower it silently
 target_compile_features(xyce-core PUBLIC cxx_std_20)
 
-# compiler warnings
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(xyce-core PRIVATE /W4)
-else()
-    target_compile_options(xyce-core PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-if(WIN32)
-    target_compile_definitions(xyce-core PRIVATE NOMINMAX)
-endif()
-
 # link core dependencies
 target_link_libraries(xyce-core PUBLIC
     spdlog::spdlog
@@ -57,3 +46,6 @@ target_link_libraries(xyce-core PUBLIC
     kicad-proto
     protobuf::libprotobuf
 )
+
+# the core carries the shared compiler contract
+target_link_libraries(xyce-core PRIVATE xyce-build-flags)

@@ -14,17 +14,13 @@ add_dependencies(xyce-studio-tests kicad-proto)
 # link the core library (which brings the app headers, defines, and the slint/spdlog/nng/protobuf/platform dependencies), plus gtest
 target_link_libraries(xyce-studio-tests PRIVATE xyce-studio-core GTest::gtest GTest::gtest_main)
 
+# the suite carries the same compiler contract as the code it exercises
+target_link_libraries(xyce-studio-tests PRIVATE xyce-build-flags)
+
 if(WIN32)
     # Copy runtime DLLs (slint_cpp.dll, vcpkg DLLs) next to the test executable
     # so ctest and direct execution find them at runtime.
     add_custom_command(TARGET xyce-studio-tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:xyce-studio-tests> $<TARGET_FILE_DIR:xyce-studio-tests> COMMAND_EXPAND_LISTS)
-endif()
-
-# enable more warnings: msvc uses /W4, gnu-style frontends use -Wall -Wextra -Wpedantic
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(xyce-studio-tests PRIVATE /W4)
-else()
-    target_compile_options(xyce-studio-tests PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # auto-discover Gtests as Ctests
