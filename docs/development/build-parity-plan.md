@@ -410,14 +410,16 @@ endif()
     "kind": "git",
     "baseline": "43643e1f5cf73db40d0d4bd610183348eb09b24e",
     "repository": "https://github.com/microsoft/vcpkg"
-  },
-  "overlay-ports": [ "../albor/ports/albor" ]
+  }
 }
 ```
 
 - [x] Create `vcpkg-configuration.json` at the root
-- [x] Keep the sibling `overlay-ports` entry (relative to the repository, so it survives a
-      worktree); it disappears at the merge, when `albor` is published
+- [x] Append the sibling `../albor/ports/albor` to `VCPKG_OVERLAY_PORTS` from
+      `CMakeLists.txt`, and only when that directory exists. A configuration file cannot test
+      for a directory, and vcpkg refuses a listed overlay that is absent — which is every CI
+      runner, where the first push failed before compiling anything. The entry disappears at
+      the merge, when `albor` is published
 - [x] **Remove `overlay-triplets`** — `studio/vcpkg-configuration.json` pointed at albor's
       triplets, which would leave the Skia dynamic rule in this repository's `.triplets`
       unapplied for every studio preset
@@ -680,7 +682,7 @@ Install/export rules remain absent (item 13 deferred) and no albor version strin
 - `vcpkg format-manifest` sorts the dependency keys, so the root manifest is kept in that
   canonical order rather than the order the two old manifests used.
 - The pinned CMake (4.4.3 locally, 4.4.4 in CI) does not inject `/Zc:__cplusplus`.
-- `albor` is not in the pinned registry; it resolves only through the sibling
-  `overlay-ports` entry, which is why the transitional feature exists.
+- `albor` is not in the pinned registry; it resolves only through the sibling checkout
+  appended to `VCPKG_OVERLAY_PORTS`, which is why the transitional feature exists.
 - The `.clang-format` files of both repositories are byte-identical; the format scripts
   differ only in scope and in the environment variable name.

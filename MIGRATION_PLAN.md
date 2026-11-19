@@ -11,7 +11,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 4. **CI & Packaging Continuity**: The existing GitHub Actions workflows (`.github/workflows/default.yaml`, `coverage.yml`) must continue building and packaging the Slint implementation with **identical binary outputs and artifact layouts**. The preset and workflow names follow `docs/development/build-parity-plan.md` (the `profile` preset became `coverage`, joined by `asan`), so no artifact path changes while the legacy path stays the release path.
 5. **Zero Downtime / Regression Protection**: Both frontends coexist as two separate roots (`slint/` and `studio/`), sharing a common UI-agnostic domain core (`core/`). The current app (`xyce-studio`) continues to build and pass all automated tests until the new app (`xyce-studio-next`) achieves complete feature parity; the new root carries its own presenter unit tests (`studio-tests/`) and UI automation (`tests_studio/`).
 
-**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; the root `vcpkg-configuration.json` overlays that checkout's port for development.
+**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; the build appends that checkout's port to `VCPKG_OVERLAY_PORTS` for development.
 
 ### Status Snapshot (2026-11-16)
 
@@ -29,7 +29,7 @@ xyce-studio/
 ├── CMakeLists.txt                         # Master CMake orchestrating core & frontends
 ├── CMakePresets.json                      # Presets with isolated build dirs
 ├── vcpkg.json                             # One manifest for both roots (Skia, Albor closure, shared deps)
-├── vcpkg-configuration.json               # Registry baseline and the sibling Albor overlay port
+├── vcpkg-configuration.json               # Registry baseline and pinned versions
 ├── .triplets/                             # Overlay triplets shared by both roots
 ├── .ports/                                # Overlay ports
 │
@@ -74,7 +74,7 @@ xyce-studio/
 └── tests_studio/                          # Albor UI automation suite
 ```
 
-`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development the root `vcpkg-configuration.json` overlays a sibling checkout's port, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint type crosses outside `slint/`.
+`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development the build appends a sibling checkout's port to `VCPKG_OVERLAY_PORTS`, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint type crosses outside `slint/`.
 
 ---
 

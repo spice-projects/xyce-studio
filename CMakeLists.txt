@@ -24,7 +24,12 @@ if(NOT DEFINED VCPKG_OVERLAY_TRIPLETS)
     set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets")
 endif()
 if(NOT DEFINED VCPKG_OVERLAY_PORTS)
-    set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports")
+    # a sibling albor checkout supplies the port behind the albor-package feature, and only a development tree has one
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../albor/ports/albor")
+        set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" "${CMAKE_CURRENT_SOURCE_DIR}/../albor/ports/albor" CACHE STRING "vcpkg overlay ports")
+    else()
+        set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports")
+    endif()
 endif()
 
 if(APPLE)
