@@ -5,9 +5,6 @@
     "repository": "https://github.com/microsoft/vcpkg"
   },
   "overlay-ports": [
-    "../../albor/ports/albor"
-  ],
-  "overlay-triplets": [
-    "../../albor/.triplets"
+    "../albor/ports/albor"
   ]
 }

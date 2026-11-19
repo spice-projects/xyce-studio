@@ -8,6 +8,15 @@ if(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT DEFINED 
     set(CMAKE_OSX_DEPLOYMENT_TARGET "${XYCE_OSX_MINIMUM}" CACHE STRING "the oldest macOS the application runs on")
 endif()
 
+# the vcpkg install runs inside project(), so the floor reaches the triplet through the environment it reads
+if(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    if(CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        set(ENV{MACOSX_DEPLOYMENT_TARGET} "${XYCE_OSX_MINIMUM}")
+    endif()
+endif()
+
 # use overlay triplets (in .triplets) on all platforms. the macOS triplets
 # build skia as a dynamic library (its static archive corrupts __unwind_info
 # tables on arm64, breaking C++ exception unwinding);

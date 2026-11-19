@@ -10,7 +10,10 @@
 #
 # This overlay shadows the registry port: when the vcpkg baseline is bumped,
 # re-copy ports/skia here and re-apply the patch -- and keep the 13.3 in sync
-# with CMAKE_OSX_DEPLOYMENT_TARGET (CMakeLists.txt) and .triplets/*-osx.cmake.
+# with XYCE_OSX_MINIMUM (CMakeLists.txt), which the build exports through
+# MACOSX_DEPLOYMENT_TARGET for the triplets. The patch is the one remaining
+# literal, because gn hardcodes the triple the patch rewrites, and it dies with
+# the legacy frontend.
 include("${CMAKE_CURRENT_LIST_DIR}/skia-functions.cmake")
 
 vcpkg_from_github(

@@ -44,11 +44,11 @@ independently buildable and revertable.
 ### Status Snapshot
 
 - [x] Comparison against albor completed
-- [ ] Phase 0 — pre-flight decisions
+- [x] Phase 0 — pre-flight decisions
 - [x] Phase 1 — toolchain floor (Must 1, 2, 5)
 - [x] Phase 2 — compiler contract (Must 3, 4)
 - [x] Phase 3 — options and renderer (Must 7, 8)
-- [ ] Phase 4 — one dependency manifest (Must 6)
+- [x] Phase 4 — one dependency manifest (Must 6)
 - [ ] Phase 5 — presets and instrumentation (Should 9, 10)
 - [ ] Phase 6 — tests and repository checks (Should 11, 12)
 
@@ -70,11 +70,16 @@ Static analysis found no C++23-only facility in `core/src` or `studio/src`: ever
 ### 0.2 Decide the gtest pin
 
 The registry baseline both repositories pin (`43643e1f5c5f…`) ships **gtest 1.17.0#3**;
-`versions/g-/gtest.json` at that commit has no 1.18 entry, so albor's `version>= 1.18.0`
-cannot resolve against a checkout at the baseline. CI checks out newer vcpkg commits
-(`866e9e25…`, `8c5c8843…`), which may carry it.
+`versions/g-/gtest.json` at that commit has no 1.18 entry. That does not block a
+`version>=` constraint: the baseline only supplies the default version, while
+`version>=` is resolved from the registry's version database, which vcpkg fetches at the
+remote reference rather than the baseline commit. A dry install from the merged manifest
+resolved `gtest:x64-osx@1.18.0` with the local checkout still sitting on the baseline.
 
-- [ ] Verify availability in the CI checkouts:
+Both CI checkouts (`866e9e25…`, `8c5c8843…`) carry `"version-semver": "1.18.0"` as well, so
+the pin is safe on every path.
+
+- [x] Verify availability in the CI checkouts:
 
       git -C "$VCPKG_ROOT" fetch -q origin
       for c in 866e9e258a76437074a5cf02d4c2d71b53bff2f8 \
@@ -83,16 +88,14 @@ cannot resolve against a checkout at the baseline. CI checks out newer vcpkg com
               | grep -c '"version-semver": "1.18'
       done
 
-- [ ] Decide:
-      - any non-zero → pin `gtest >= 1.18.0`, raise the baseline to a commit that carries
-        it, and update the local `VCPKG_ROOT`;
-      - otherwise → keep `1.17.0#2` and record the deviation in the commit message (the
-        albor port itself does not depend on 1.18; only its development manifest does).
+- [x] Decide: pin `gtest >= 1.18.0`, keep the baseline unchanged. Raising it would
+      invalidate every cached port for no resolution benefit.
 
 ### 0.3 Confirm the legacy manifest surface
 
-- [ ] Confirm `skia` and `nativefiledialog-extended` stay in the merged manifest until the
-      Slint frontend is deleted.
+- [x] Confirm `skia` and `nativefiledialog-extended` stay in the merged manifest until the
+      Slint frontend is deleted. `skia` keeps its per-platform entries (the Linux one adds
+      `freetype`/`fontconfig`); `nativefiledialog-extended` carries no platform split.
 
 ---
 
@@ -309,16 +312,18 @@ gone), plus a transitional `albor` feature.
   "version-string": "1.0.0",
   "dependencies": [
     // legacy frontend; deleted with it
-    { "name": "skia", "platform": "osx", "default-features": false,
+    { "name": "skia", "version>=": "148", "platform": "osx",     "default-features": false },
+    { "name": "skia", "version>=": "148", "platform": "windows", "default-features": false },
+    { "name": "skia", "version>=": "148", "platform": "linux",   "default-features": false,
       "features": ["freetype", "fontconfig"] },
-    { "name": "nativefiledialog-extended", "default-features": false },
+    { "name": "nativefiledialog-extended", "version>=": "1.3.0" },
 
-    // studio frontend
-    { "name": "spdlog",     "default-features": false },
-    { "name": "pocketfft",  "default-features": false },
-    { "name": "gtest",      "version>=": "1.18.0", "default-features": false },
-    { "name": "nng",        "default-features": false },
-    { "name": "protobuf",   "default-features": false },
+    // shared by both roots
+    { "name": "spdlog",    "version>=": "1.17.0#1", "default-features": false },
+    { "name": "pocketfft", "version>=": "2024-11-30", "default-features": false },
+    { "name": "gtest",     "version>=": "1.18.0", "default-features": false },
+    { "name": "nng",       "version>=": "1.8.0", "default-features": false },
+    { "name": "protobuf",  "version>=": "6.33.4#2", "default-features": false },
 
     // albor's runtime closure, so a local checkout configures without the port
     { "name": "harfbuzz", "platform": "osx",     "default-features": false,
@@ -336,35 +341,41 @@ gone), plus a transitional `albor` feature.
   ],
   "features": {
     "albor-package": {
-      "description": "transitional: consume albor as a vcpkg port",
+      "description": "consume albor as a vcpkg port instead of the checkout named by ALBOR_LOCAL_SOURCE_DIR",
       "dependencies": ["albor"]
     }
   }
 }
 ```
 
-- [ ] Create the manifest (gtest pin per Phase 0.2)
+- [x] Create the manifest (gtest pin per Phase 0.2)
+
+`spdlog` loses its `fmt` and `tz-offset` default features, because one install serves both
+roots and the package's interface defines are global: the legacy frontend now compiles
+against `std::format` too. Neither root names `fmt` directly, and C++20 supplies it.
 
 ### 6.2 macOS floor for the dependencies
 
-vcpkg hashes the triplet **file contents** into every package ABI, so any edit to a triplet
-invalidates every cached port including Skia. It lands here, in the phase that already pays
-for a cache rebuild.
+vcpkg folds the triplet into every package ABI, so a change here can invalidate cached
+ports including Skia. It lands here, in the phase that already pays for a possible rebuild.
 
-- [ ] Root, before `project()`: export the floor the build resolved, so the install process
-      sees it:
+- [x] Root, before `project()`: export the floor the build resolved, so the install process
+      sees it (with the constant as the fallback when a consumer passes no target):
 
 ```cmake
 if(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    # the vcpkg install runs inside project(), so the floor reaches it through the environment that the triplets read
-    set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    if(CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        set(ENV{MACOSX_DEPLOYMENT_TARGET} "${XYCE_OSX_MINIMUM}")
+    endif()
 endif()
 ```
 
-- [ ] `.triplets/arm64-osx.cmake`, `.triplets/x64-osx.cmake`: delete the hardcoded
+- [x] `.triplets/arm64-osx.cmake`, `.triplets/x64-osx.cmake`: delete the hardcoded
       `VCPKG_OSX_DEPLOYMENT_TARGET 13.3` and read `$ENV{MACOSX_DEPLOYMENT_TARGET}`, failing
       with a message when it is unset
-- [ ] Keep `.ports/skia/015-floor-macos-target-at-13.3.patch`; note in
+- [x] Keep `.ports/skia/015-floor-macos-target-at-13.3.patch`; note in
       `.ports/skia/portfile.cmake` that it is the one remaining literal and dies with Skia
 
 ### 6.3 Root registry configuration
@@ -376,21 +387,26 @@ endif()
     "baseline": "43643e1f5cf73db40d0d4bd610183348eb09b24e",
     "repository": "https://github.com/microsoft/vcpkg"
   },
-  "overlay-ports": [ "../../albor/ports/albor" ]
+  "overlay-ports": [ "../albor/ports/albor" ]
 }
 ```
 
-- [ ] Create `vcpkg-configuration.json` at the root
-- [ ] Keep the sibling `overlay-ports` entry with a comment that it disappears at the merge
-- [ ] **Remove `overlay-triplets`** — `studio/vcpkg-configuration.json` currently points at
-      albor's triplets, which means the Skia dynamic rule in this repository's `.triplets`
-      is dead for every studio preset
+- [x] Create `vcpkg-configuration.json` at the root
+- [x] Keep the sibling `overlay-ports` entry (relative to the repository, so it survives a
+      worktree); it disappears at the merge, when `albor` is published
+- [x] **Remove `overlay-triplets`** — `studio/vcpkg-configuration.json` pointed at albor's
+      triplets, which would leave the Skia dynamic rule in this repository's `.triplets`
+      unapplied for every studio preset
 
 ### 6.4 Delete the per-root manifests
 
-- [ ] Delete `studio/vcpkg.json` and `studio/vcpkg-configuration.json`
-- [ ] Delete `slint/vcpkg.json`
-- [ ] Delete every `VCPKG_MANIFEST_DIR` entry from `CMakePresets.json`
+- [x] Delete `studio/vcpkg.json` and `studio/vcpkg-configuration.json`
+- [x] Delete `slint/vcpkg.json`
+- [x] Delete every `VCPKG_MANIFEST_DIR` entry from `CMakePresets.json`
+
+> A build directory configured before this phase caches `VCPKG_MANIFEST_DIR`, which now
+> points at a deleted file and aborts the configure. Wipe the directory or re-run the
+> configure with `-U VCPKG_MANIFEST_DIR`.
 
 > [!WARNING]
 > `slint/vcpkg.json` is the one Slint-side file this plan touches. It is a build manifest,
@@ -398,10 +414,11 @@ endif()
 
 ### 6.5 Presets and CI
 
-- [ ] `studio-debug`: no feature — the in-tree albor consumes the unconditional dependencies
-- [ ] `studio-release`: `"VCPKG_MANIFEST_FEATURES": "albor-package"`
-- [ ] Legacy presets: no feature, so CI needs no sibling checkout
-- [ ] `.github/workflows/default.yaml`: `vcpkgJsonGlob: slint/vcpkg.json` → `vcpkg.json`
+- [x] `studio-debug`: no feature — the in-tree albor consumes the unconditional dependencies
+- [x] `studio-release`: `"VCPKG_MANIFEST_FEATURES": "albor-package"`
+- [x] Legacy presets: no feature, so CI needs no sibling checkout
+- [x] `.github/workflows/default.yaml`: `vcpkgJsonGlob: slint/vcpkg.json` → `vcpkg.json`,
+      and the cache keys hash the root manifest and configuration
 - [ ] `.github/workflows/coverage.yml`: already references a root `vcpkg.json` and
       `vcpkg-configuration.json` (lines 47, 54, 62), which do not exist today — this phase
       repairs that workflow
@@ -411,15 +428,29 @@ endif()
 
 ### 6.6 Cost
 
-The vcpkg cache key changes and the legacy path gains `harfbuzz`, `icu`, `blend2d`, `zlib`
-and `bzip2`. Expect one Skia-from-source rebuild (roughly an hour) on the first CI run.
+The vcpkg cache key changes, so the first CI run after this lands rebuilds whatever the
+new key misses, including Skia from source (roughly an hour). The legacy path also gains
+`harfbuzz`, `icu`, `blend2d`, `asmjit`, `freetype`, `libpng`, `bzip2` and `zlib`. On the
+development machine the first `studio-debug` configure spent 25 minutes installing them,
+and the `debug` configure afterwards restored the whole set from `.vcpkg-cache`.
+
 Land this phase alone and pre-warm the cache on a throwaway branch if the wait matters.
 
 ### 6.7 Verification
 
     rm -rf .build-studio-debug && cmake --preset studio-debug
-    cmake --preset studio-release      # with ALBOR_LOCAL_SOURCE_DIR unset
-    cmake --preset debug && cmake --build --preset debug
+    cmake --preset studio-release -U VCPKG_MANIFEST_DIR   # with ALBOR_LOCAL_SOURCE_DIR unset
+    cmake --preset debug -U VCPKG_MANIFEST_DIR && cmake --build --preset debug
+
+- [x] `studio-debug` configures from the merged manifest and builds the app
+- [x] `debug` configures from the merged manifest and builds the app and its suite
+- [x] `studio-release` configures: `albor-package` resolves the port, `find_package(albor)`
+      succeeds, and the umbrella target exists
+- [ ] `studio-release` builds. It stops at `albor-manifest-glue` with `E0309` because the
+      port pins albor `fbf13915`, which predates `vector<T>` record fields (added in
+      `5437649`), while `simulation_ui.manifest` already uses `vector<string>`. That is the
+      deferred albor version drift (item 14), not a defect of this phase: the same port,
+      package and manifest were already in place before the merge.
 
 ---
 
@@ -536,13 +567,16 @@ endif()
 
 | # | Commit | Phases | Notes |
 | :--- | :--- | :--- | :--- |
-| 1 | `build: move the tree to the albor toolchain floor` | 1 + ride-alongs | mechanical, one concern per file |
-| 2 | `build: adopt the albor compiler contract` | 2 | flags plus a small cleanup |
-| 3 | `build: prefix the options and let albor pick the renderer` | 3 | root plus presets |
-| 4 | `build: one vcpkg manifest at the root` | 4 | the expensive one — land alone |
-| 5 | `build: base preset, coverage and asan options` | 5 | presets plus two workflows |
-| 6 | `build: register the suites and the repository checks` | 6 | scripts plus three CMake files |
-| 7 | `build: enable the conversion warnings` | 2b | churn only, separately revertable |
+| 1 | `Move the tree to the albor toolchain floor` | 1 + ride-alongs | mechanical, one concern per file |
+| 2 | `Share one compiler contract across the studio targets` | 2 | flags plus a small cleanup |
+| 3 | `Prefix the build options and let albor pick the renderer` | 3 | root plus presets |
+| 4 | `Build both roots from one dependency manifest` | 4 | the expensive one — land alone |
+| 5 | `Add a base preset and the instrumentation options` | 5 | presets plus two workflows |
+| 6 | `Register the suites and the repository checks` | 6 | scripts plus three CMake files |
+| 7 | `Enable the conversion warnings` | 2b | churn only, separately revertable |
+
+The subject is a plain imperative line, matching the repository's history, rather than a
+Conventional Commits prefix.
 
 ## 10. Risks and Mitigations
 
@@ -551,7 +585,7 @@ endif()
 | C++20 rejects something the survey missed | Phase 0.1 builds first; Phase 1 is a standalone commit |
 | `/permissive-` breaks Slint's fetched C++ | flags are per-target, so the legacy frontend is untouched |
 | Phase 4 invalidates the CI vcpkg cache (~1 h) | land alone; pre-warm on a throwaway branch |
-| `gtest >= 1.18` cannot resolve at the pinned baseline | Phase 0.2 decides before the manifest is written |
+| `gtest >= 1.18` cannot resolve at the pinned baseline | resolved: `version>=` reads the registry's version database, not the baseline; a dry install confirms 1.18.0 |
 | Removing `overlay-triplets` changes port builds | expected — it activates the repository's own Skia rule; verify a clean configure |
 | UI automation breaks | never rename the `debug` preset, its binary dir, the `xyce-studio` target or its output path |
 
@@ -577,6 +611,11 @@ Install/export rules remain absent (item 13 deferred) and no albor version strin
   exactly on it.
 - That baseline's registry carries `gtest 1.17.0#3`, `blend2d 2025-03-08#1`,
   `harfbuzz 14.2.1`, `icu 78.3`, `zlib 1.3.2`, `bzip2 1.0.8`, `libpng 1.6.58`.
+- A `version>=` constraint resolves from the registry's version database at the fetched
+  reference, so `gtest 1.18.0` installs even while the local checkout sits on the baseline;
+  the baseline's own entry only supplies the default version.
+- `vcpkg format-manifest` sorts the dependency keys, so the root manifest is kept in that
+  canonical order rather than the order the two old manifests used.
 - The pinned CMake (4.4.3 locally, 4.4.4 in CI) does not inject `/Zc:__cplusplus`.
 - `albor` is not in the pinned registry; it resolves only through the sibling
   `overlay-ports` entry, which is why the transitional feature exists.

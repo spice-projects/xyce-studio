@@ -8,11 +8,12 @@ set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES x86_64)
 
-# build cmake-based ports at the same floor as the app (see
-# CMAKE_OSX_DEPLOYMENT_TARGET in CMakeLists.txt); without it the port objects
-# inherit the build host's os version and the final link warns about objects
-# built for a newer macOS version than the one being linked
-set(VCPKG_OSX_DEPLOYMENT_TARGET 13.3)
+# the ports carry the same floor as the application, which exports it before the vcpkg install runs (see CMakeLists.txt)
+if(DEFINED ENV{MACOSX_DEPLOYMENT_TARGET})
+    set(VCPKG_OSX_DEPLOYMENT_TARGET "$ENV{MACOSX_DEPLOYMENT_TARGET}")
+else()
+    message(FATAL_ERROR "MACOSX_DEPLOYMENT_TARGET is not set, so the dependencies would inherit the sdk default")
+endif()
 
 if(PORT STREQUAL "skia")
     set(VCPKG_LIBRARY_LINKAGE dynamic)

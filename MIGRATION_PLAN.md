@@ -11,7 +11,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 4. **CI & Packaging Continuity**: The existing GitHub Actions workflows (`.github/workflows/default.yaml`, `coverage.yml`) must continue building and packaging the Slint implementation with **identical binary outputs, preset names, and artifact layouts**. No changes to existing CI workflows are permitted during development of the new framework.
 5. **Zero Downtime / Regression Protection**: Both frontends coexist as two separate roots (`slint/` and `studio/`), sharing a common UI-agnostic domain core (`core/`). The current app (`xyce-studio`) continues to build and pass all automated tests until the new app (`xyce-studio-next`) achieves complete feature parity; the new root carries its own presenter unit tests (`studio-tests/`) and UI automation (`tests_studio/`).
 
-**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; `studio/vcpkg-configuration.json` overlays that checkout's port and triplets for development.
+**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; the root `vcpkg-configuration.json` overlays that checkout's port for development.
 
 ### Status Snapshot (2026-11-16)
 
@@ -27,8 +27,10 @@ This document outlines the architectural blueprint and step-by-step execution pl
 ```
 xyce-studio/
 ├── CMakeLists.txt                         # Master CMake orchestrating core & frontends
-├── CMakePresets.json                      # Presets with isolated build dirs, manifests & triplets
-├── .triplets/                             # Overlay triplets for the legacy Slint build
+├── CMakePresets.json                      # Presets with isolated build dirs
+├── vcpkg.json                             # One manifest for both roots (Skia, Albor closure, shared deps)
+├── vcpkg-configuration.json               # Registry baseline and the sibling Albor overlay port
+├── .triplets/                             # Overlay triplets shared by both roots
 ├── .ports/                                # Overlay ports
 │
 ├── core/                                  # SHARED DOMAIN ROOT (Pure C++20, zero UI dependencies)
@@ -47,8 +49,6 @@ xyce-studio/
 │
 ├── slint/                                 # ROOT 1: legacy Slint implementation (release path)
 │   ├── CMakeLists.txt                     # Target: xyce-studio (dynamic Skia & dependencies)
-│   ├── vcpkg.json                         # Slint manifest (Skia, nfd, spdlog, pocketfft, etc.)
-│   ├── vcpkg-configuration.json           # vcpkg baseline for the legacy build
 │   └── src/
 │       ├── app/                           # App singleton & platform entry points
 │       ├── main.*                         # Platform main entry points
@@ -56,8 +56,6 @@ xyce-studio/
 │
 ├── studio/                                # ROOT 2: Albor implementation
 │   ├── CMakeLists.txt                     # Target: xyce-studio-next (clean static linkage)
-│   ├── vcpkg.json                         # Albor manifest (spdlog, nng, protobuf, albor)
-│   ├── vcpkg-configuration.json           # Albor overlay port & triplets for development
 │   └── src/
 │       ├── main.cpp                       # Entry point & argument overrides
 │       ├── app/                           # StudioApp, one WindowInstance per shell, theme
@@ -76,7 +74,7 @@ xyce-studio/
 └── tests_studio/                          # Albor UI automation suite
 ```
 
-`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development `studio/vcpkg-configuration.json` overlays a sibling checkout, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint type crosses outside `slint/`.
+`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development the root `vcpkg-configuration.json` overlays a sibling checkout's port, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint type crosses outside `slint/`.
 
 ---
 
@@ -87,8 +85,8 @@ xyce-studio/
 | **Executable Target** | `xyce-studio` (identical output name) | `xyce-studio-next` |
 | **CMake Presets** | `debug`, `release`, `profile` (studio frontend off) | `studio-debug`, `studio-release` (Slint frontend off) |
 | **Build Directory** | `.build-debug`, `.build-release`, `.build-profile` | `.build-studio-debug`, `.build-studio-release` |
-| **Manifest Path** | `slint/vcpkg.json` + `slint/vcpkg-configuration.json` | `studio/vcpkg.json` + `studio/vcpkg-configuration.json` (`VCPKG_MANIFEST_DIR`) |
-| **Triplets** | Root `.triplets` (`VCPKG_OVERLAY_TRIPLETS`) | Built-in triplets plus the Albor overlay |
+| **Manifest Path** | root `vcpkg.json` + `vcpkg-configuration.json` (one manifest for both roots) | root `vcpkg.json` + `vcpkg-configuration.json` (the same manifest) |
+| **Triplets** | Root `.triplets` (`VCPKG_OVERLAY_TRIPLETS`) | The same root `.triplets` |
 | **Library Linkage** | Dynamic (Skia dylib, Windows DLLs) | Static (no DLL copying or RPATH manipulation) |
 | **Presenter Architecture**| Monolithic (`SlintMainWindowPresenter`) | Modular (one presenter per dialog/window) |
 | **Dialog Architecture** | Inline modal overlays (`ModalPanel.slint`) | Native window-modal Albor dialogs |
@@ -97,7 +95,7 @@ xyce-studio/
 | **Packaging Artifacts**| `artifacts/` via `RuntimeDeps` install component | Separate package output |
 
 > [!IMPORTANT]
-> **CI Cache Key Preservation**: `.github/workflows/default.yaml` installs from `slint/vcpkg.json` and keys the vcpkg cache on `hashFiles('slint/vcpkg.json', 'slint/vcpkg-configuration.json', '.triplets/**', '.ports/**')`. Do not move or rename those files while the legacy workflow remains the release path.
+> **CI Cache Key Preservation**: `.github/workflows/default.yaml` installs from the root `vcpkg.json` and keys the vcpkg cache on `hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**')`. Both roots share that manifest, so a dependency change rebuilds the cache once for every preset.
 
 ---
 
@@ -145,10 +143,10 @@ Move files into their respective homes. Git preserves history across renames (`g
     - `src/ui/` → `slint/src/ui/` (all views, monolithic presenter, Slint chart renderer)
     - `src/plugin.json`, `src/plugin-icon-24x24.png` → `slint/src/`
   - Keep the overlay triplets at the root `.triplets/`, where the legacy presets and CI already reference them.
-- [x] **2.3. Setup Per-Root Manifests**
-  - `slint/vcpkg.json` carries the legacy manifest (`skia`, `spdlog`, `pocketfft`, `gtest`, `nng`, `protobuf`, `nativefiledialog-extended`); `slint/vcpkg-configuration.json` pins its baseline.
-  - `studio/vcpkg.json` carries the Albor manifest (`spdlog`, `pocketfft`, `gtest`, `nng`, `protobuf`, `albor`); `studio/vcpkg-configuration.json` overlays the sibling Albor port and triplets for development.
-  - There is no root `vcpkg.json`: each root owns its manifest so the legacy CI cache key stays stable.
+- [x] **2.3. Setup One Manifest**
+  - The root `vcpkg.json` carries the union of both roots (`skia`, `nativefiledialog-extended`, `spdlog`, `pocketfft`, `gtest`, `nng`, `protobuf`, plus Albor's runtime closure) and a transitional `albor-package` feature for the package path.
+  - The root `vcpkg-configuration.json` pins the baseline and overlays the sibling Albor port for development.
+  - No per-root manifest remains: a second manifest would install a second copy of a dependency whose features must agree.
 - [x] **2.4. Create `studio/` Skeleton**
   - Create `studio/src/app/`, `studio/src/presenters/`, `studio/src/views/`, `studio/src/charts/`.
 
@@ -188,8 +186,8 @@ Move files into their respective homes. Git preserves history across renames (`g
 - [x] **3.5. Configure `CMakePresets.json`**
   - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend with `XYCE_BUILD_STUDIO_FRONTEND=OFF`, without altering their names or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring Albor.
   - **Add New Framework Presets**:
-    - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=ON`, `ALBOR_LOCAL_SOURCE_DIR=${sourceDir}/../albor`.
-    - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=OFF`.
+    - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=ON`, `ALBOR_LOCAL_SOURCE_DIR=${sourceDir}/../albor`.
+    - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_FEATURES=albor-package`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=OFF`.
   - The legacy presets set `XYCE_BUILD_STUDIO_FRONTEND=OFF`, so they build without a local or published Albor package.
 
 ---

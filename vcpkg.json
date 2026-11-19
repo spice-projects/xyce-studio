@@ -1,0 +1,120 @@
+{
+  "name": "xyce-studio",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "blend2d",
+      "default-features": false,
+      "features": [
+        "jit"
+      ],
+      "version>=": "2025-03-08#1"
+    },
+    {
+      "name": "bzip2",
+      "default-features": false
+    },
+    {
+      "name": "gtest",
+      "default-features": false,
+      "version>=": "1.18.0"
+    },
+    {
+      "name": "harfbuzz",
+      "default-features": false,
+      "features": [
+        "coretext",
+        "freetype",
+        "icu"
+      ],
+      "platform": "osx"
+    },
+    {
+      "name": "harfbuzz",
+      "default-features": false,
+      "features": [
+        "freetype",
+        "icu"
+      ],
+      "platform": "linux"
+    },
+    {
+      "name": "harfbuzz",
+      "default-features": false,
+      "features": [
+        "directwrite",
+        "freetype",
+        "gdi",
+        "icu"
+      ],
+      "platform": "windows"
+    },
+    {
+      "name": "icu",
+      "default-features": false
+    },
+    {
+      "name": "libpng",
+      "default-features": false
+    },
+    {
+      "name": "nativefiledialog-extended",
+      "version>=": "1.3.0"
+    },
+    {
+      "name": "nng",
+      "default-features": false,
+      "version>=": "1.8.0"
+    },
+    {
+      "name": "pocketfft",
+      "default-features": false,
+      "version>=": "2024-11-30"
+    },
+    {
+      "name": "protobuf",
+      "default-features": false,
+      "version>=": "6.33.4#2"
+    },
+    {
+      "name": "skia",
+      "default-features": false,
+      "platform": "osx",
+      "version>=": "148"
+    },
+    {
+      "name": "skia",
+      "default-features": false,
+      "features": [
+        "fontconfig",
+        "freetype"
+      ],
+      "platform": "linux",
+      "version>=": "148"
+    },
+    {
+      "name": "skia",
+      "default-features": false,
+      "platform": "windows",
+      "version>=": "148"
+    },
+    {
+      "name": "spdlog",
+      "default-features": false,
+      "version>=": "1.17.0#1"
+    },
+    {
+      "name": "zlib",
+      "default-features": false,
+      "version>=": "1.3.2"
+    }
+  ],
+  "features": {
+    "albor-package": {
+      "description": "consume albor as a vcpkg port instead of the checkout named by ALBOR_LOCAL_SOURCE_DIR",
+      "dependencies": [
+        "albor"
+      ]
+    }
+  }
+}
