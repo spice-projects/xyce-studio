@@ -263,7 +263,8 @@ fell into three groups:
 
 - [x] macOS: both presets build with zero warnings under clang
 - [x] macOS: `release` builds with zero warnings too, which covers the `NDEBUG` branches
-- [ ] Windows: verified by the `windows-latest` job
+- [x] Windows: verified by the `windows-latest` job in run `44469498458`, which passed the
+      whole matrix (macOS arm64/x64, Windows x64, Linux x64, coverage and ASAN)
 
 ---
 
@@ -460,7 +461,9 @@ new key misses, including Skia from source (roughly an hour). The legacy path al
 development machine the first `studio-debug` configure spent 25 minutes installing them,
 and the `debug` configure afterwards restored the whole set from `.vcpkg-cache`.
 
-Land this phase alone and pre-warm the cache on a throwaway branch if the wait matters.
+Land this phase alone and pre-warm the cache on a throwaway branch if the wait matters. The
+first green run (`44469498458`) spent 88 minutes end to end, 87 of them on the x64 macOS
+runner rebuilding the dependency closure; later runs restore the manifest-keyed cache.
 
 ### 6.7 Verification
 
