@@ -64,7 +64,7 @@ jobs:
               # the preset launches the compiler through ccache, which the runner image does not ship
               HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
               ccache --max-size 2G
-              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              # the preset is c++20, and the build follows the image toolchain rather than a pinned xcode
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             configure: cmake --preset release
             unit-tests: ./.build-release/tests/xyce-studio-tests
@@ -80,7 +80,7 @@ jobs:
               # the preset launches the compiler through ccache, which the runner image does not ship
               HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
               ccache --max-size 2G
-              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              # the preset is c++20, and the build follows the image toolchain rather than a pinned xcode
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             configure: cmake --preset release
             unit-tests: ./.build-release/tests/xyce-studio-tests
@@ -96,7 +96,7 @@ jobs:
               # the preset launches the compiler through ccache, which the runner image does not ship
               HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
               ccache --max-size 2G
-              # the preset is c++23, so take the newest xcode the image carries rather than its default
+              # the preset is c++20, and the build follows the image toolchain rather than a pinned xcode
               sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
             configure: cmake --preset profile --fresh
             unit-tests: ./.build-profile/tests/xyce-studio-tests --gtest_filter=-Ui*

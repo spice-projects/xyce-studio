@@ -1,4 +1,12 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
+
+# the oldest macOS the application runs on, which the build states rather than inheriting from the sdk
+set(XYCE_OSX_MINIMUM "13.3")
+
+# the application's own build states the floor in its cache, while a consumer that adds it as a subdirectory keeps its own
+if(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${XYCE_OSX_MINIMUM}" CACHE STRING "the oldest macOS the application runs on")
+endif()
 
 # use overlay triplets (in .triplets) on all platforms. the macOS triplets
 # build skia as a dynamic library (its static archive corrupts __unwind_info
@@ -11,8 +19,6 @@ if(NOT DEFINED VCPKG_OVERLAY_PORTS)
 endif()
 
 if(APPLE)
-    # minimum os version for the apple binaries
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS version" FORCE)
     # enable objective-c++ language for .mm files
     project(xyce-studio LANGUAGES CXX OBJCXX)
 else()
@@ -20,11 +26,23 @@ else()
     project(xyce-studio LANGUAGES CXX)
 endif()
 
-# c++ 23
-set(CMAKE_CXX_STANDARD 23)
-# enforce the c++23 standard
+# a consumer inherits the targets rather than the cache, so the floor is applied to them after the project
+if(APPLE)
+    # a floor below the application's minimum cannot work, because the dependencies are stamped with it
+    if(CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS XYCE_OSX_MINIMUM)
+        message(FATAL_ERROR "xyce-studio: CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} is below the application's minimum ${XYCE_OSX_MINIMUM}, which the dependencies and the tested surface cover. Set CMAKE_OSX_DEPLOYMENT_TARGET to ${XYCE_OSX_MINIMUM} or higher.")
+    endif()
+    # an empty value means the consumer has no opinion, so the application adopts its tested floor
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${XYCE_OSX_MINIMUM}")
+    endif()
+endif()
+
+# c++20 is the language of the whole tree, and it is the standard the framework it builds on exposes
+set(CMAKE_CXX_STANDARD 20)
+# enforce the c++20 standard rather than accepting an older one silently
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# disable compiler specific things
+# disable compiler specific extensions, because the sources are portable c++
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # generate compile_commands.json for clangd
@@ -42,13 +60,9 @@ if(WIN32 AND NOT MSVC)
 endif()
 
 if(APPLE)
-    # enable objective-c++ language for .mm files
-    enable_language(OBJCXX)
-    # c++ 23 (mm files)
-    set(CMAKE_OBJCXX_STANDARD 23)
-    # enforce the c++23 standard
+    # objective c++ shares the c++20 standard, because the .mm files are platform code of the same tree
+    set(CMAKE_OBJCXX_STANDARD 20)
     set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
-    # disable compiler specific things
     set(CMAKE_OBJCXX_EXTENSIONS OFF)
 endif()
 

@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
-
-# shared domain core library: pure C++23, zero UI / Slint / Skia dependencies
+# shared domain core library: pure C++20, zero UI / Slint / Skia dependencies
 
 # generate C++ code from the vendored KiCad API protos
 set(KICAD_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/kicad/proto")
@@ -37,6 +35,9 @@ add_library(xyce::core ALIAS xyce-core)
 # expose core/src as PUBLIC include directory
 target_include_directories(xyce-core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(xyce-core PRIVATE ${POCKETFFT_INCLUDE_DIRS})
+
+# the shared core publishes the standard it is written in, so a consumer cannot lower it silently
+target_compile_features(xyce-core PUBLIC cxx_std_20)
 
 # compiler warnings
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")

@@ -31,7 +31,7 @@ xyce-studio/
 ├── .triplets/                             # Overlay triplets for the legacy Slint build
 ├── .ports/                                # Overlay ports
 │
-├── core/                                  # SHARED DOMAIN ROOT (Pure C++23, zero UI dependencies)
+├── core/                                  # SHARED DOMAIN ROOT (Pure C++20, zero UI dependencies)
 │   ├── CMakeLists.txt                     # Produces static library: xyce-core
 │   └── src/
 │       ├── charts/                        # ChartEngine, ChartLayout, SmithChart (pure math/geometry)

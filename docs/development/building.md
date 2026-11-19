@@ -6,7 +6,7 @@ application, everything you need is in the
 
 ## Prerequisites
 
-- C++23-capable compiler and CMake 3.25+
+- C++20-capable compiler and CMake 3.28+
 - [vcpkg](https://vcpkg.io) for dependencies (see `vcpkg.json`)
 - [ccache](https://ccache.dev) (recommended — enabled by the build
   presets)

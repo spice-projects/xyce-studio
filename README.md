@@ -68,7 +68,7 @@ Download `xyce-studio-macos.zip` from the [latest release](https://github.com/sp
 
 ## Building from Source
 
-Requires a C++23 compiler, CMake 3.25+, and vcpkg-managed dependencies (see `vcpkg.json`). Build with:
+Requires a C++20 compiler, CMake 3.28+, and vcpkg-managed dependencies (see `vcpkg.json`). Build with:
 
 ```bash
 cmake --preset debug

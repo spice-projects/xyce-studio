@@ -1,16 +1,18 @@
-cmake_minimum_required(VERSION 3.25)
-
 # a local albor checkout enables the dev runtime and the embedded automation host,
 # which the installed release package does not carry. leave it empty to consume the
 # published package (release/CI) and set it to the checkout for development.
 set(ALBOR_LOCAL_SOURCE_DIR "" CACHE PATH "local albor checkout used for development")
 
 if(ALBOR_LOCAL_SOURCE_DIR)
-    # the dev configuration is the only one allowed to link automation; the
-    # framework's own suites, examples and reference renderers are not part of
-    # the application build.
+    # the checkout is a development configuration, so it links the dev runtime
     set(ALBOR_DEV ON CACHE BOOL "" FORCE)
-    set(ALBOR_AUTOMATION ON CACHE BOOL "" FORCE)
+    # the automation host may never exist in a release link, which albor rejects at configure time
+    if(CMAKE_BUILD_TYPE MATCHES "^(Debug|Profile)$")
+        set(ALBOR_AUTOMATION ON CACHE BOOL "" FORCE)
+    else()
+        set(ALBOR_AUTOMATION OFF CACHE BOOL "" FORCE)
+    endif()
+    # the framework's own suites, examples and reference renderers are not part of the application build
     set(ALBOR_TESTS OFF CACHE BOOL "" FORCE)
     set(ALBOR_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(ALBOR_RENDERER_SKIA OFF CACHE BOOL "" FORCE)
@@ -25,6 +27,9 @@ file(GLOB_RECURSE STUDIO_CPP_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(xyce-studio-next ${STUDIO_CPP_SOURCES})
 
 target_include_directories(xyce-studio-next PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+
+# the application publishes the standard it is written in, which is also the one the framework exposes
+target_compile_features(xyce-studio-next PRIVATE cxx_std_20)
 
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     target_compile_options(xyce-studio-next PRIVATE /W4)

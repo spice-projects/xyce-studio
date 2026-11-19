@@ -1,13 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
-
-project(xyce-studio-tests LANGUAGES CXX)
-
-# c++ 23
-set(CMAKE_CXX_STANDARD 23)
-# enforce the c++23 standard
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# disable compiler specific things
-set(CMAKE_CXX_EXTENSIONS OFF)
+# the domain and legacy UI unit tests; the tree's standard and project scope come from the root
 
 find_package(GTest CONFIG REQUIRED)
 

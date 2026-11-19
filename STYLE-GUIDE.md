@@ -4,7 +4,7 @@ This document defines the code style preferences for this project.
 
 ## Language
 
-- C++23
+- C++20
 - Use RAII
 - Avoid raw owning pointers
 
