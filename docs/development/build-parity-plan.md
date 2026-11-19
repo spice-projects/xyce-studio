@@ -52,6 +52,10 @@ independently buildable and revertable.
 - [x] Phase 5 — presets and instrumentation (Should 9, 10)
 - [x] Phase 6 — tests and repository checks (Should 11, 12)
 
+Every phase landed as its own commit on `refactor/dual-root-structure`. The one open item is
+`studio-release` linking, which waits on the albor package carrying `vector<T>` record
+fields (item 14, deliberately unchanged).
+
 ---
 
 ## 2. Phase 0 — Pre-flight Decisions
@@ -626,13 +630,13 @@ passes on the legacy application, which is the same comparison the registered te
 
 | # | Commit | Phases | Notes |
 | :--- | :--- | :--- | :--- |
-| 1 | `Move the tree to the albor toolchain floor` | 1 + ride-alongs | mechanical, one concern per file |
-| 2 | `Share one compiler contract across the studio targets` | 2 | flags plus a small cleanup |
-| 3 | `Prefix the build options and let albor pick the renderer` | 3 | root plus presets |
-| 4 | `Build both roots from one dependency manifest` | 4 | the expensive one — land alone |
-| 5 | `Add a base preset and the instrumentation options` | 5 | presets plus two workflows |
-| 6 | `Register the suites and the repository checks` | 6 | scripts plus three CMake files |
-| 7 | `Enable the conversion warnings` | 2b | churn only, separately revertable |
+| 1 | `Move the tree to the albor toolchain floor` | 1 + ride-alongs | `2efee0d`, mechanical, one concern per file |
+| 2 | `Share one compiler contract across the studio targets` | 2 | `b06519c`, flags plus a small cleanup |
+| 3 | `Prefix the build options and let albor pick the renderer` | 3 | `b994c72`, root plus presets |
+| 4 | `Build both roots from one dependency manifest` | 4 | `ade8b64`, the expensive one — land alone |
+| 5 | `Add a base preset and the instrumentation options` | 5 | `bd72e5a`, presets plus two workflows |
+| 6 | `Register the suites and the repository checks` | 6 | `9038c0b`, scripts plus three CMake files |
+| 7 | `Enable the conversion warnings` | 2b | `fc735e6`, churn only, separately revertable |
 
 The subject is a plain imperative line, matching the repository's history, rather than a
 Conventional Commits prefix.
