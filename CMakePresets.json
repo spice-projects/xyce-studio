@@ -14,7 +14,7 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_DIR": "${sourceDir}/slint",
-                "BUILD_STUDIO_FRONTEND": "OFF",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
@@ -27,7 +27,7 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_DIR": "${sourceDir}/slint",
-                "BUILD_STUDIO_FRONTEND": "OFF",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
@@ -40,7 +40,7 @@
                 "CMAKE_BUILD_TYPE": "Profile",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_DIR": "${sourceDir}/slint",
-                "BUILD_STUDIO_FRONTEND": "OFF",
+                "XYCE_BUILD_STUDIO_FRONTEND": "OFF",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
@@ -53,10 +53,10 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_DIR": "${sourceDir}/studio",
-                "BUILD_SLINT_FRONTEND": "OFF",
-                "BUILD_STUDIO_FRONTEND": "ON",
-                "BUILD_TESTS": "OFF",
-                "BUILD_STUDIO_TESTS": "ON",
+                "XYCE_BUILD_SLINT_FRONTEND": "OFF",
+                "XYCE_BUILD_STUDIO_FRONTEND": "ON",
+                "XYCE_BUILD_TESTS": "OFF",
+                "XYCE_BUILD_STUDIO_TESTS": "ON",
                 "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
@@ -70,10 +70,10 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_MANIFEST_DIR": "${sourceDir}/studio",
-                "BUILD_SLINT_FRONTEND": "OFF",
-                "BUILD_STUDIO_FRONTEND": "ON",
-                "BUILD_TESTS": "OFF",
-                "BUILD_STUDIO_TESTS": "OFF",
+                "XYCE_BUILD_SLINT_FRONTEND": "OFF",
+                "XYCE_BUILD_STUDIO_FRONTEND": "ON",
+                "XYCE_BUILD_TESTS": "OFF",
+                "XYCE_BUILD_STUDIO_TESTS": "OFF",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }

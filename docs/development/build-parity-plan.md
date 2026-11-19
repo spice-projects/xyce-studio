@@ -47,7 +47,7 @@ independently buildable and revertable.
 - [ ] Phase 0 — pre-flight decisions
 - [x] Phase 1 — toolchain floor (Must 1, 2, 5)
 - [x] Phase 2 — compiler contract (Must 3, 4)
-- [ ] Phase 3 — options and renderer (Must 7, 8)
+- [x] Phase 3 — options and renderer (Must 7, 8)
 - [ ] Phase 4 — one dependency manifest (Must 6)
 - [ ] Phase 5 — presets and instrumentation (Should 9, 10)
 - [ ] Phase 6 — tests and repository checks (Should 11, 12)
@@ -164,8 +164,9 @@ eventual merged configuration to configure at all.
       `xyce-studio-core` to `xyce::core`. `tests/` is not a pure domain suite —
       `tests/ui/*.test.cpp` includes the legacy Slint headers (`ui/options_dialog_view.h`,
       `main_window::OptionRow`, `slint::SharedString`), so it genuinely links the Slint
-      frontend. `BUILD_TESTS=ON` together with `BUILD_SLINT_FRONTEND=OFF` is therefore not a
-      supported configuration until the legacy suite is retired with its frontend.
+      frontend. `XYCE_BUILD_TESTS=ON` together with `XYCE_BUILD_SLINT_FRONTEND=OFF` is
+      therefore not a supported configuration until the legacy suite is retired with its
+      frontend.
 
 ### 3.6 Verification
 
@@ -251,28 +252,29 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 else()
     set(XYCE_DEV_BUILD OFF)
 endif()
-option(XYCE_BUILD_TESTS           "Build the unit test binary"      ${XYCE_DEV_BUILD})
-option(XYCE_BUILD_STUDIO_TESTS    "Build the studio unit tests"     ${XYCE_DEV_BUILD})
-option(XYCE_BUILD_SLINT_FRONTEND  "Build legacy Slint frontend"     ON)
-option(XYCE_BUILD_STUDIO_FRONTEND "Build new framework frontend"    ON)
+option(XYCE_BUILD_TESTS           "Build the legacy unit test binary" ${XYCE_DEV_BUILD})
+option(XYCE_BUILD_STUDIO_TESTS    "Build the studio unit tests"        ${XYCE_DEV_BUILD})
+option(XYCE_BUILD_SLINT_FRONTEND  "Build legacy Slint frontend"        ON)
+option(XYCE_BUILD_STUDIO_FRONTEND "Build the new framework frontend"   ON)
 ```
 
 `XYCE_BUILD_STUDIO_TESTS` additionally requires `XYCE_BUILD_STUDIO_FRONTEND`, which
 reproduces today's behaviour (the `debug` preset disables the studio frontend, so its
 studio tests must be off) without the preset stating it.
 
-- [ ] Rename the four options
-- [ ] Update every reference: `CMakePresets.json`, `MIGRATION_PLAN.md` §3.4/3.5, and any
+- [x] Rename the four options
+- [x] Update every reference: `CMakePresets.json`, `MIGRATION_PLAN.md` §3.4/3.5, and any
       documentation that names them
-- [ ] Do not keep compatibility aliases; this is a private tree
+- [x] Do not keep compatibility aliases; this is a private tree
 
 ### 5.2 Renderer selection
 
-- [ ] Delete `ALBOR_RENDERER_SKIA` — the option no longer exists (Skia was retired in
+- [x] Delete `ALBOR_RENDERER_SKIA` — the option no longer exists (Skia was retired in
       albor commit `19eaf79`)
-- [ ] Delete `ALBOR_RENDERER_BLEND2D OFF` and let albor's own default apply: ON on Linux,
-      OFF elsewhere
-- [ ] Add a post-`add_subdirectory` guard:
+- [x] Delete `ALBOR_RENDERER_BLEND2D OFF` and let albor's own default apply. The default is
+      ON on Linux, but OFF on macOS for a checkout: `ALBOR_DEV_BUILD` is OFF whenever albor
+      is a subdirectory, which is what a fresh configure confirmed
+- [x] Add a post-`add_subdirectory` guard:
 
 ```cmake
 if(NOT TARGET albor)
@@ -282,9 +284,12 @@ endif()
 
 ### 5.3 Verification
 
-- [ ] `studio-debug` still configures with no blend2d on macOS
-- [ ] A `-DALBOR_RENDERER_BLEND2D=ON` dry configure finds the dependency (delivered by
-      Phase 4)
+- [x] `studio-debug` still configures with no blend2d on macOS
+- [ ] **Deferred to Phase 4:** a `-DALBOR_RENDERER_BLEND2D=ON` configure finds the
+      dependency. It fails today at `find_package(blend2d)`, which is the one dependency
+      the root manifest adds
+- [x] `XYCE_BUILD_STUDIO_TESTS=ON` with `XYCE_BUILD_STUDIO_FRONTEND=OFF` configures without
+      adding the studio suite
 
 ---
 

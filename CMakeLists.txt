@@ -79,10 +79,23 @@ if(APPLE)
     set(CMAKE_OBJCXX_EXTENSIONS OFF)
 endif()
 
-option(BUILD_TESTS "Build tests" ON)
-option(BUILD_STUDIO_TESTS "Build the studio unit tests" OFF)
-option(BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
-option(BUILD_STUDIO_FRONTEND "Build new framework frontend" ON)
+# a top-level build is the developer's tree, while a consumer that adds this tree builds the application only
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(XYCE_DEV_BUILD ON)
+else()
+    set(XYCE_DEV_BUILD OFF)
+endif()
+
+option(XYCE_BUILD_TESTS "Build the legacy unit test binary" ${XYCE_DEV_BUILD})
+option(XYCE_BUILD_STUDIO_TESTS "Build the studio unit tests" ${XYCE_DEV_BUILD})
+option(XYCE_BUILD_SLINT_FRONTEND "Build the legacy Slint frontend" ON)
+option(XYCE_BUILD_STUDIO_FRONTEND "Build the new framework frontend" ON)
+
+# a suite cannot exist without the application it exercises, so the pair is decided here rather than in every preset
+if(XYCE_BUILD_STUDIO_TESTS AND NOT XYCE_BUILD_STUDIO_FRONTEND)
+    message(STATUS "xyce-studio: the studio suite needs the studio frontend, so XYCE_BUILD_STUDIO_TESTS is turned off")
+    set(XYCE_BUILD_STUDIO_TESTS OFF CACHE BOOL "Build the studio unit tests" FORCE)
+endif()
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(nng CONFIG REQUIRED)
@@ -98,19 +111,19 @@ set(CMAKE_EXE_LINKER_FLAGS_PROFILE "-fprofile-instr-generate")
 
 add_subdirectory(core)
 
-if(BUILD_SLINT_FRONTEND)
+if(XYCE_BUILD_SLINT_FRONTEND)
     add_subdirectory(slint)
 endif()
 
-if(BUILD_STUDIO_FRONTEND)
+if(XYCE_BUILD_STUDIO_FRONTEND)
     add_subdirectory(studio)
 endif()
 
-if(BUILD_STUDIO_TESTS)
+if(XYCE_BUILD_STUDIO_TESTS)
     add_subdirectory(studio-tests)
 endif()
 
-if(BUILD_TESTS)
+if(XYCE_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

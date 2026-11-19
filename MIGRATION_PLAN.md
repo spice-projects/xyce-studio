@@ -170,27 +170,27 @@ Move files into their respective homes. Git preserves history across renames (`g
 - [x] **3.4. Update Root `CMakeLists.txt`**
   - Add feature options:
     ```cmake
-    option(BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
-    option(BUILD_STUDIO_FRONTEND "Build new framework frontend" ON)
-    option(BUILD_STUDIO_TESTS "Build the studio unit tests" OFF)
+    option(XYCE_BUILD_SLINT_FRONTEND "Build legacy Slint frontend" ON)
+    option(XYCE_BUILD_STUDIO_FRONTEND "Build new framework frontend" ON)
+    option(XYCE_BUILD_STUDIO_TESTS "Build the studio unit tests" OFF)
     ```
   - Un-force `VCPKG_OVERLAY_TRIPLETS` to allow preset override.
   - Include subdirectories:
     ```cmake
     add_subdirectory(core)
-    if(BUILD_SLINT_FRONTEND)
+    if(XYCE_BUILD_SLINT_FRONTEND)
         add_subdirectory(slint)
     endif()
-    if(BUILD_STUDIO_FRONTEND)
+    if(XYCE_BUILD_STUDIO_FRONTEND)
         add_subdirectory(studio)
     endif()
     ```
 - [x] **3.5. Configure `CMakePresets.json`**
-  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend with `BUILD_STUDIO_FRONTEND=OFF`, without altering their names or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring Albor.
+  - **Preserve Existing CI Presets**: Keep `debug`, `release`, and `profile` presets targeting the Slint frontend with `XYCE_BUILD_STUDIO_FRONTEND=OFF`, without altering their names or output paths (`.build-debug`, `.build-release`, `.build-profile`). They must continue to build targets `xyce-studio` and `xyce-studio-tests` without requiring Albor.
   - **Add New Framework Presets**:
-    - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `BUILD_SLINT_FRONTEND=OFF`, `BUILD_STUDIO_TESTS=ON`, `ALBOR_LOCAL_SOURCE_DIR=${sourceDir}/../albor`.
-    - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `BUILD_SLINT_FRONTEND=OFF`, `BUILD_STUDIO_TESTS=OFF`.
-  - The legacy presets set `BUILD_STUDIO_FRONTEND=OFF`, so they build without a local or published Albor package.
+    - `studio-debug` → `binaryDir`: `${sourceDir}/.build-studio-debug`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=ON`, `ALBOR_LOCAL_SOURCE_DIR=${sourceDir}/../albor`.
+    - `studio-release` → `binaryDir`: `${sourceDir}/.build-studio-release`, `VCPKG_MANIFEST_DIR`: `${sourceDir}/studio`, `XYCE_BUILD_SLINT_FRONTEND=OFF`, `XYCE_BUILD_STUDIO_TESTS=OFF`.
+  - The legacy presets set `XYCE_BUILD_STUDIO_FRONTEND=OFF`, so they build without a local or published Albor package.
 
 ---
 

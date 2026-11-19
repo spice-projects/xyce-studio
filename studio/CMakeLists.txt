@@ -15,11 +15,14 @@ if(ALBOR_LOCAL_SOURCE_DIR)
     # the framework's own suites, examples and reference renderers are not part of the application build
     set(ALBOR_TESTS OFF CACHE BOOL "" FORCE)
     set(ALBOR_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(ALBOR_RENDERER_SKIA OFF CACHE BOOL "" FORCE)
-    set(ALBOR_RENDERER_BLEND2D OFF CACHE BOOL "" FORCE)
     add_subdirectory("${ALBOR_LOCAL_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/albor" EXCLUDE_FROM_ALL)
 else()
     find_package(albor CONFIG REQUIRED)
+endif()
+
+# a build without the umbrella links no window, so the platform has to name its renderer instead of failing later
+if(NOT TARGET albor)
+    message(FATAL_ERROR "the albor umbrella is missing on this platform; link the renderer-specific target explicitly")
 endif()
 
 file(GLOB_RECURSE STUDIO_CPP_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
