@@ -147,11 +147,10 @@ jobs:
       run:
         shell: bash
     env:
-      # the pinned tools are the ABI inputs vcpkg caches by; the vcpkg commit is per platform because each image seeds its own
+      # the tools the ABI depends on are pinned or hashed below; the vcpkg commit is per platform because each image seeds its own
       CMAKE_VERSION: 4.4.4
       NINJA_VERSION: 1.13.2
-      # the toolset is named by series, because an image roll replaces the patch build and an exact pin disappears with it
-      MSVC_TOOLSET: 14.51
+      # the sdk stays pinned, while the toolset follows the image like the macOS xcode does, because an exact toolset pin disappears with a roll
       WINDOWS_SDK: 10.0.26100.0
       VCPKG_ABI_POLICY: pinned-toolchain-v1
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -171,7 +170,6 @@ jobs:
         if: matrix.enable && runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          toolset: ${{ env.MSVC_TOOLSET }}
           sdk: ${{ env.WINDOWS_SDK }}
 
       - name: pinned cmake

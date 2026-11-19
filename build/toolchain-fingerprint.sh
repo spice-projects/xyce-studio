@@ -18,9 +18,13 @@ fi
     ninja --version 2>/dev/null || true
     printf '%s\n%s\n' "$vcpkg_identity" "$vcpkg_version"
     printf '%s\n' "${VCPKG_ABI_POLICY:-unknown-policy}"
-    # the pinned toolset and sdk are the Windows stability boundary, not the image's cl.exe
+    # the toolset follows the image, so the version vcvars activated (or the compiler banner) names the ABI boundary
     if command -v cl >/dev/null 2>&1; then
-        printf '%s\n%s\n' "${MSVC_TOOLSET:-unknown-toolset}" "${WINDOWS_SDK:-unknown-sdk}"
+        toolset="${VCToolsVersion:-}"
+        if [ -z "$toolset" ]; then
+            toolset="$(cl 2>&1 | sed -n '1p' || true)"
+        fi
+        printf '%s\n%s\n' "$toolset" "${WINDOWS_SDK:-unknown-sdk}"
     else
         c++ --version | sed -n '1p'
         xcodebuild -version 2>/dev/null | tr '\n' ' ' || true
