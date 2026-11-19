@@ -53,8 +53,9 @@ independently buildable and revertable.
 - [x] Phase 6 — tests and repository checks (Should 11, 12)
 
 Every phase landed as its own commit on `refactor/dual-root-structure`. The one open item is
-`studio-release` linking, which waits on the albor package carrying `vector<T>` record
-fields (item 14, deliberately unchanged).
+`studio-release` from a clean checkout, which waits on an albor release tag past `5437649`
+(item 14, deliberately unchanged); the packaged path itself was verified against the current
+checkout.
 
 ---
 
@@ -475,11 +476,17 @@ runner rebuilding the dependency closure; later runs restore the manifest-keyed 
 - [x] `debug` configures from the merged manifest and builds the app and its suite
 - [x] `studio-release` configures: `albor-package` resolves the port, `find_package(albor)`
       succeeds, and the umbrella target exists
-- [ ] `studio-release` builds. It stops at `albor-manifest-glue` with `E0309` because the
-      port pins albor `fbf13915`, which predates `vector<T>` record fields (added in
-      `5437649`), while `simulation_ui.manifest` already uses `vector<string>`. That is the
-      deferred albor version drift (item 14), not a defect of this phase: the same port,
-      package and manifest were already in place before the merge.
+- [x] `studio-release` builds when the port builds current albor. Verified with
+      `ALBOR_PORT_SOURCE_PATH=../albor` against a scratch copy of the port carrying
+      `port-version: 1`, because that variable is not part of the package ABI and vcpkg
+      otherwise restores the cached `0.2.0` package. The app compiles, links and generates
+      its manifests with the current glue.
+
+      The only blocker left is the pin: `fbf13915` is tag `v0.2.0`, predates `vector<T>`
+      record fields (`5437649`) and has no successor tag. When albor tags a release past
+      that commit, bump the port's `REF` and `version-semver`; nothing in this tree changes.
+      Until then `studio-release` stays local-only and CI keeps building the legacy
+      frontend.
 
 ---
 
