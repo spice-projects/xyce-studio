@@ -34,7 +34,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "VCPKG_MANIFEST_FEATURES": "albor-package",
-                "XYCE_BUILD_TESTS": "OFF",
+                "XYCE_BUILD_TESTS": "ON",
                 "XYCE_BUILD_STUDIO_TESTS": "OFF"
             }
         },
@@ -75,7 +75,8 @@
             "name": "release",
             "configurePreset": "release",
             "targets": [
-                "xyce-studio"
+                "xyce-studio",
+                "xyce-studio-tests"
             ],
             "configuration": "Release",
             "inheritConfigureEnvironment": true

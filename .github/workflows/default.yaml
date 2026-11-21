@@ -140,6 +140,7 @@ jobs:
               sudo apt-get update && sudo apt-get install -y -qq ccache autoconf autoconf-archive automake libtool libltdl-dev \
               pkg-config libexpat1-dev libfontconfig1-dev libfreetype-dev \
               libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
+              libvulkan-dev libpango1.0-dev libcairo2-dev libdbus-1-dev \
               libgl1-mesa-dev libegl1-mesa-dev libwayland-dev xvfb
             configure: cmake --preset release
             unit-tests: xvfb-run -a ./.build-release/tests/xyce-studio-tests
