@@ -1,0 +1,161 @@
+name: build linux
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-linux-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  check-pr:
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    outputs:
+      has_pr: ${{ steps.check.outputs.has_pr }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/check-pr
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: linux x64 (${{ matrix.preset }})
+    needs: [check-pr]
+    if: |-
+      !cancelled() &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      pull-requests: read
+      code-quality: write
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: release
+            enable: true
+            extra-configure: ''
+          - preset: coverage
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+            # source-based coverage is llvm-only, so the coverage job pins clang instead of the image gcc
+            extra-configure: -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-%p.profraw
+    steps:
+      - uses: actions/checkout@v7
+        if: matrix.enable
+
+      - name: platform setup
+        if: matrix.enable
+        run: |
+          sudo apt-get update && sudo apt-get install -y ccache autoconf autoconf-archive automake libtool libltdl-dev \
+          pkg-config libexpat1-dev libfontconfig1-dev libfreetype-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
+          libvulkan-dev libpango1.0-dev libcairo2-dev libdbus-1-dev \
+          libgl1-mesa-dev libegl1-mesa-dev libwayland-dev xvfb
+          if [ "${{ matrix.preset }}" = "coverage" ]; then
+            sudo apt-get install -y clang-18 llvm-18
+          fi
+
+      - name: toolchain, vcpkg, caches, configure and build
+        if: matrix.enable
+        uses: ./.github/actions/build-common
+        with:
+          preset: ${{ matrix.preset }}
+          vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
+          platform: Linux
+          extra-configure: ${{ matrix.extra-configure }}
+
+      - name: unit tests
+        if: matrix.enable
+        run: |
+          xvfb-run -a ./.build-${{ matrix.preset }}/tests/xyce-studio-tests
+          if [ "${{ matrix.preset }}" != "release" ]; then
+            xvfb-run -a ./.build-${{ matrix.preset }}/studio-tests/studio-tests
+          fi
+
+      - name: link boundary (release)
+        if: matrix.enable && matrix.preset == 'release'
+        run: ctest --test-dir .build-release -R link-boundary --output-on-failure
+
+      - name: runtime dependencies
+        if: matrix.enable && matrix.preset == 'release'
+        run: cmake --install .build-release --component RuntimeDeps --prefix .build-release
+
+      - name: upload build artifact
+        if: matrix.enable && matrix.preset == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: xyce-studio-linux-x64
+          path: .build-release/artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: lcov coverage report
+        if: matrix.enable && matrix.preset == 'coverage'
+        run: |
+          llvm-profdata-18 merge -sparse coverage-*.profraw -o coverage.profdata
+          objects=()
+          for path in ./.build-coverage/tests/xyce-studio-tests ./.build-coverage/studio-tests/studio-tests; do
+            if [ -f "$path" ]; then
+              if [ ${#objects[@]} -eq 0 ]; then
+                objects+=("$path")
+              else
+                objects+=("-object" "$path")
+              fi
+            fi
+          done
+          llvm-cov-18 export --format=lcov -instr-profile=coverage.profdata -ignore-filename-regex='(^|/)tests/' "${objects[@]}" > coverage.lcov
+          # the export carries absolute source paths, which the coverage api needs relative to the repository root
+          python_bin=python3
+          command -v python3 >/dev/null 2>&1 || python_bin=python
+          "$python_bin" - <<'PY'
+          import os
+          root = os.getcwd().replace('\\', '/')
+          lines = []
+          with open('coverage.lcov', encoding='utf-8') as report:
+              for line in report:
+                  if line.startswith('SF:'):
+                      path = line[3:].strip().replace('\\', '/')
+                      if path.startswith(root + '/'):
+                          path = path[len(root) + 1:]
+                      line = 'SF:' + path + '\n'
+                  lines.append(line)
+          with open('coverage.lcov', 'w', encoding='utf-8') as report:
+              report.writelines(lines)
+          PY
+
+      - name: upload coverage to codecov
+        if: matrix.enable && matrix.preset == 'coverage'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.lcov
+          disable_search: true
+          flags: linux
+          name: linux-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

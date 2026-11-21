@@ -1,6 +1,19 @@
 # Build Parity Plan: xyce-studio → albor's Build Contract
 
 > [!NOTE]
+> CI restructure (2026-11-21): the legacy `.github/workflows/default.yaml` and `coverage.yml`
+> have been deleted and replaced by three platform workflows — `build-macos.yml` (macos-15
+> arm64 with release/coverage/asan presets, macos-15-intel x64 with release), `build-linux.yml`
+> (ubuntu-24.04, release + coverage) and `build-windows.yml` (windows-2022, release + coverage).
+> They share the composite actions `.github/actions/build-common` (pinned toolchain, vcpkg/ccache
+> caches, configure and build) and `.github/actions/check-pr` (skip duplicate push runs). Coverage
+> now uploads to Codecov via `codecov/codecov-action@v5` with flags `macos`, `linux` and `windows`
+> (lcov from llvm-profdata/llvm-cov on macOS/Linux, cobertura from OpenCppCoverage on Windows).
+> Manual follow-ups: add the `CODECOV_TOKEN` repo secret (none exists yet) and rename the
+> branch-protection required checks from `C++ CI Workflow` to `build macos` / `build linux` /
+> `build windows`. Workflow references in the historical checklist below are retained as written.
+
+> [!NOTE]
 > The cutover has landed: studio is the sole frontend (`xyce-studio`), `slint/` is retired, and the `XYCE_BUILD_SLINT_FRONTEND` / `XYCE_BUILD_STUDIO_FRONTEND` options no longer exist. The plan below is kept as a historical record.
 
 > [!NOTE]
@@ -9,8 +22,8 @@
 > the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit
 > `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), which makes a clean-checkout
 > `release` build possible without a published tag. The phase-by-phase checklist below is
-> historical and its preset names are retained as written; the remaining open item is the 7.2
-> CI workflow.
+> historical and its preset names are retained as written; the 7.2 CI workflow concern has since
+> been addressed by the three platform workflows described above.
 
 ## 1. Overview & Objective
 
@@ -72,7 +85,8 @@ albor release tag past `5437649` (item 14, deliberately unchanged); the packaged
 verified against the current checkout. Since then the presets were consolidated to four
 (`debug`, `release`, `coverage`, `asan`) and the vendored `.ports/albor` port replaced the
 sibling checkout's overlay, so the clean-checkout `release` build no longer depends on a tag.
-The remaining open item is the 7.2 CI workflow.
+The 7.2 CI workflow has since landed as the three platform workflows described at the top of
+this document.
 
 ---
 
@@ -176,6 +190,7 @@ vcpkg once the triplets read it (Phase 4).
 - [x] `MIGRATION_PLAN.md` — the "Pure C++23" annotation
 - [x] `core/CMakeLists.txt` — the header comment
 - [x] `.github/workflows/default.yaml` — the "the preset is c++23" comments
+      *(historical — file replaced by the three platform workflows)*
 - [x] `.github/copilot-instructions.md` — already says C++20, verify only
 
 ### 3.5 Ride-alongs in the same commit
@@ -467,9 +482,11 @@ endif()
 - [x] Legacy presets: no feature, so CI needs no sibling checkout
 - [x] `.github/workflows/default.yaml`: `vcpkgJsonGlob: slint/vcpkg.json` → `vcpkg.json`,
       and the cache keys hash the root manifest and configuration
-- [ ] `.github/workflows/coverage.yml`: already references a root `vcpkg.json` and
-      `vcpkg-configuration.json` (lines 47, 54, 62), which do not exist today — this phase
-      repairs that workflow
+      *(historical — file replaced by the three platform workflows)*
+- [x] `.github/workflows/coverage.yml`: already references a root `vcpkg.json` and
+      `vcpkg-configuration.json` (lines 47, 54, 62), which did not exist at the time — this phase
+      repaired that workflow; the file has since been replaced by the platform workflows, where
+      each coverage job uploads its report to Codecov with a platform flag
 - [ ] When the studio frontend enters CI, pass `--x-feature=albor-package` (or set
       `VCPKG_MANIFEST_FEATURES`) to `run-vcpkg`, because the action pre-installs before
       CMake evaluates the toolchain variable
@@ -543,8 +560,10 @@ application creates. Both preset names expand to their own build directory throu
 
 - [x] `coverage.yml`: `--preset profile` → `--preset coverage`; `.build-profile` →
       `.build-coverage`; keep `--target xyce-studio-tests` and `--gtest_filter=-Ui*`
+      *(historical — file replaced by the three platform workflows)*
 - [x] `default.yaml`: replace the `macos-arm64 profile` matrix entry with `coverage` and
       add an ASAN entry (macOS only, matching albor's MSVC refusal)
+      *(historical — file replaced by the three platform workflows)*
 
 Both instrumented entries skip the runtime-dependency install and the artifact upload,
 because neither builds the packaged application.
@@ -698,8 +717,9 @@ Conventional Commits prefix.
 The `tests_ui` line is historical: the `ui-integration` suite is retired and the native
 suite runs with `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"`.
 
-Plus green `default.yaml` on macOS and Windows, and a `coverage` run that still produces
-the report.
+Plus green `build macos`, `build linux` and `build windows` workflows (with release jobs
+installing RuntimeDeps and uploading `xyce-studio-<platform>` artifacts), and a `coverage` job
+on each platform that still produces a report and uploads it to Codecov.
 
 Install/export rules remain absent (item 13 deferred) and no albor version string changes
 (item 14 unchanged).

@@ -1,0 +1,163 @@
+name: build windows
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  check-pr:
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    outputs:
+      has_pr: ${{ steps.check.outputs.has_pr }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/check-pr
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: windows x64 (${{ matrix.preset }})
+    needs: [check-pr]
+    if: |-
+      !cancelled() &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+    runs-on: windows-2022
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      pull-requests: read
+      code-quality: write
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: release
+            enable: true
+          - preset: coverage
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+    env:
+      WINDOWS_SDK: 10.0.26100.0
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
+      - uses: actions/checkout@v7
+        if: matrix.enable
+
+      - name: platform setup
+        if: matrix.enable
+        run: |
+          mkdir -p .vcpkg-cache
+          if [ "${{ matrix.preset }}" = "coverage" ]; then
+            bash build/install-ccache.sh --coverage
+          else
+            bash build/install-ccache.sh
+          fi
+
+      - name: msvc environment
+        if: matrix.enable
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          sdk: ${{ env.WINDOWS_SDK }}
+
+      - name: toolchain, vcpkg, caches, configure and build
+        if: matrix.enable
+        uses: ./.github/actions/build-common
+        with:
+          preset: ${{ matrix.preset }}
+          vcpkg-commit: 8c5c88430ac864cf4fe8de4be61f69f003d23ffe
+          platform: Windows
+          extra-configure: -DVCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions
+
+      - name: unit tests
+        if: matrix.enable
+        run: |
+          if [ "${{ matrix.preset }}" = "coverage" ]; then
+            # msvc has no source-based coverage, so both suites run under the pdb-based collector
+            root="$(cygpath -w "$GITHUB_WORKSPACE")"
+            sources="--sources $root\\core --sources $root\\studio"
+            cd "$GITHUB_WORKSPACE/.build-coverage/tests"
+            OpenCppCoverage $sources --export_type="binary:$root\\coverage-domain.cov" --working_dir . -- ./xyce-studio-tests.exe
+            cd "$GITHUB_WORKSPACE/.build-coverage/studio-tests"
+            OpenCppCoverage $sources --input_coverage="$root\\coverage-domain.cov" --export_type="cobertura:$root\\coverage.xml" --working_dir . -- ./studio-tests.exe
+            rm -f "$(cygpath -u "$root\\coverage-domain.cov")"
+          else
+            ./.build-release/tests/xyce-studio-tests.exe
+          fi
+
+      - name: coverage report (cobertura)
+        if: matrix.enable && matrix.preset == 'coverage'
+        run: |
+          # pdb paths in the report are absolute, which the flag's path filter cannot match
+          python_bin=python3
+          command -v python3 >/dev/null 2>&1 || python_bin=python
+          "$python_bin" - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          root = os.getcwd().replace('\\', '/').rstrip('/')
+          tree = ET.parse('coverage.xml')
+          report = tree.getroot()
+          sources = report.find('sources')
+          if sources is not None:
+              for source in list(sources):
+                  source.text = '.'
+          for node in report.iter('class'):
+              name = node.get('filename')
+              if not name:
+                  continue
+              value = name.replace('\\', '/')
+              if value.lower().startswith(root.lower()):
+                  value = value[len(root):]
+              node.set('filename', value.lstrip('/'))
+          tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
+          PY
+
+      - name: link boundary (release)
+        if: matrix.enable && matrix.preset == 'release'
+        run: ctest --test-dir .build-release -R link-boundary --output-on-failure
+
+      - name: runtime dependencies
+        if: matrix.enable && matrix.preset == 'release'
+        run: cmake --install .build-release --component RuntimeDeps --prefix .build-release
+
+      - name: upload build artifact
+        if: matrix.enable && matrix.preset == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: xyce-studio-windows-x64
+          path: .build-release/artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: upload coverage to codecov
+        if: matrix.enable && matrix.preset == 'coverage'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          disable_search: true
+          flags: windows
+          name: windows-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

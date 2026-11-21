@@ -1,0 +1,219 @@
+name: build macos
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-macos-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  check-pr:
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    outputs:
+      has_pr: ${{ steps.check.outputs.has_pr }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/check-pr
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos-arm64:
+    name: macos arm64 (${{ matrix.preset }})
+    needs: [check-pr]
+    if: |-
+      !cancelled() &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+    runs-on: macos-15
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      pull-requests: read
+      code-quality: write
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: release
+            enable: true
+          - preset: coverage
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+          - preset: asan
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      MACOSX_DEPLOYMENT_TARGET: 13.3
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      LLVM_PROFILE_FILE: ${{ github.workspace }}/coverage-%p.profraw
+    steps:
+      - uses: actions/checkout@v7
+        if: matrix.enable
+
+      - name: platform setup
+        if: matrix.enable
+        run: |
+          mkdir -p .vcpkg-cache
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+          ccache --max-size 2G
+          sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+
+      - name: toolchain, vcpkg, caches, configure and build
+        if: matrix.enable
+        uses: ./.github/actions/build-common
+        with:
+          preset: ${{ matrix.preset }}
+          vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
+          platform: macOS
+
+      - name: unit tests
+        if: matrix.enable
+        run: |
+          ./.build-${{ matrix.preset }}/tests/xyce-studio-tests
+          if [ "${{ matrix.preset }}" != "release" ]; then
+            ./.build-${{ matrix.preset }}/studio-tests/studio-tests
+          fi
+
+      - name: link boundary (release)
+        if: matrix.enable && matrix.preset == 'release'
+        run: ctest --test-dir .build-release -R link-boundary --output-on-failure
+
+      - name: runtime dependencies
+        if: matrix.enable && matrix.preset == 'release'
+        run: cmake --install .build-release --component RuntimeDeps --prefix .build-release
+
+      - name: upload build artifact
+        if: matrix.enable && matrix.preset == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: xyce-studio-macos-arm64
+          path: .build-release/artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: lcov coverage report
+        if: matrix.enable && matrix.preset == 'coverage'
+        run: |
+          xcrun llvm-profdata merge -sparse coverage-*.profraw -o coverage.profdata
+          objects=()
+          for path in ./.build-coverage/tests/xyce-studio-tests ./.build-coverage/studio-tests/studio-tests; do
+            if [ -f "$path" ]; then
+              if [ ${#objects[@]} -eq 0 ]; then
+                objects+=("$path")
+              else
+                objects+=("-object" "$path")
+              fi
+            fi
+          done
+          xcrun llvm-cov export --format=lcov -instr-profile=coverage.profdata -ignore-filename-regex='(^|/)tests/' "${objects[@]}" > coverage.lcov
+          # the export carries absolute source paths, which the coverage api needs relative to the repository root
+          python_bin=python3
+          command -v python3 >/dev/null 2>&1 || python_bin=python
+          "$python_bin" - <<'PY'
+          import os
+          root = os.getcwd().replace('\\', '/')
+          lines = []
+          with open('coverage.lcov', encoding='utf-8') as report:
+              for line in report:
+                  if line.startswith('SF:'):
+                      path = line[3:].strip().replace('\\', '/')
+                      if path.startswith(root + '/'):
+                          path = path[len(root) + 1:]
+                      line = 'SF:' + path + '\n'
+                  lines.append(line)
+          with open('coverage.lcov', 'w', encoding='utf-8') as report:
+              report.writelines(lines)
+          PY
+
+      - name: upload coverage to codecov
+        if: matrix.enable && matrix.preset == 'coverage'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.lcov
+          disable_search: true
+          flags: macos
+          name: macos-arm64-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  build-macos-x64:
+    name: macos x64 (${{ matrix.preset }})
+    needs: [check-pr]
+    if: |-
+      !cancelled() &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || needs.check-pr.outputs.has_pr != 'true')
+    runs-on: macos-15-intel
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: release
+            enable: true
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      MACOSX_DEPLOYMENT_TARGET: 13.3
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
+      - uses: actions/checkout@v7
+        if: matrix.enable
+
+      - name: platform setup
+        if: matrix.enable
+        run: |
+          mkdir -p .vcpkg-cache
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
+          ccache --max-size 2G
+          sudo xcode-select --switch "$(ls -d /Applications/Xcode_[0-9]*.app | grep -v beta | sort -V | tail -n 1)"
+
+      - name: toolchain, vcpkg, caches, configure and build
+        if: matrix.enable
+        uses: ./.github/actions/build-common
+        with:
+          preset: ${{ matrix.preset }}
+          vcpkg-commit: 866e9e258a76437074a5cf02d4c2d71b53bff2f8
+          platform: macOS
+
+      - name: unit tests
+        if: matrix.enable
+        run: ./.build-release/tests/xyce-studio-tests
+
+      - name: link boundary (release)
+        if: matrix.enable && matrix.preset == 'release'
+        run: ctest --test-dir .build-release -R link-boundary --output-on-failure
+
+      - name: runtime dependencies
+        if: matrix.enable && matrix.preset == 'release'
+        run: cmake --install .build-release --component RuntimeDeps --prefix .build-release
+
+      - name: upload build artifact
+        if: matrix.enable && matrix.preset == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: xyce-studio-macos-x64
+          path: .build-release/artifacts/
+          if-no-files-found: error
+          retention-days: 7

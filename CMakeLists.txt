@@ -112,7 +112,11 @@ find_package(protobuf CONFIG REQUIRED)
 option(XYCE_COVERAGE "Instrument the tests so a coverage report can be generated" OFF)
 option(XYCE_ASAN "Instrument every target with AddressSanitizer" OFF)
 
-if(XYCE_COVERAGE)
+# msvc has no source-based coverage; the windows job collects it from the pdb with opencppcoverage instead
+if(XYCE_COVERAGE AND NOT MSVC)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "XYCE_COVERAGE requires clang; configure the coverage preset with clang++")
+    endif()
     add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
     add_link_options(-fprofile-instr-generate)
 endif()

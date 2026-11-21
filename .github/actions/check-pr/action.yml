@@ -1,0 +1,18 @@
+name: check for an open pull request
+description: report whether a branch push already has an open pull request, so the push run can defer to the pull request run
+
+outputs:
+  has_pr:
+    description: true when an open pull request names the pushed branch
+    value: ${{ steps.check.outputs.has_pr }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      run: |
+        response=$(curl -skf -H "Authorization: token $GITHUB_TOKEN" "${GITHUB_API_URL}/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${{ github.ref_name }}&state=open&per_page=1" 2>&1)
+        echo "API response: ${response}"
+        count=$(echo "$response" | grep -c '"number"' || true)
+        echo "has_pr=$( [ "$count" -gt 0 ] && echo true || echo false )" >> $GITHUB_OUTPUT

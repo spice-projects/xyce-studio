@@ -10,7 +10,9 @@
 > `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), which makes clean-checkout
 > `release` builds possible. All binary and automation paths now use `.build-debug` /
 > `.build-release`. The preset names in the plan below are historical and retained as written;
-> the remaining open item is 7.2 (a dedicated studio CI workflow).
+> the 7.2 workflow split is done — the dedicated workflows are `build-macos.yml`,
+> `build-linux.yml` and `build-windows.yml`, with the `CODECOV_TOKEN` secret and the
+> branch-protection check-name changes left as manual GitHub settings follow-ups.
 
 ## 1. Overview & Objective
 
@@ -20,7 +22,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 1. **Dialog & Window Architecture**: Slint lacks clean support for secondary OS dialog windows and multi-window workflows, forcing all dialogs into inline modal overlays inside a single monolithic window (`MainWindow.slint`). Albor, the new C++ UI framework, provides window-modal native dialogs and multi-window support.
 2. **Presenter Modularization**: The current `SlintMainWindowPresenter` is a ~1,500-line monolith that manages both the main window and all 6 inline dialog panels. The new framework will replace this with dedicated, isolated presenters for each dialog and window.
 3. **Linkage & Dependency Hygiene**: Slint has an LLVM exception-unwinding / RTTI bug at the Rust/C++ boundary, forcing all dependencies to be compiled as dynamic libraries via custom overlay triplets. The new framework eliminates this requirement and allows clean, static linking.
-4. **CI & Packaging Continuity**: The existing GitHub Actions workflows (`.github/workflows/default.yaml`, `coverage.yml`) must continue building and packaging the Slint implementation with **identical binary outputs and artifact layouts**. The preset and workflow names follow `docs/development/build-parity-plan.md` (the `profile` preset became `coverage`, joined by `asan`), so no artifact path changes while the legacy path stays the release path.
+4. **CI & Packaging Continuity**: CI must keep building and packaging the app with **identical binary outputs and artifact layouts**. The legacy `.github/workflows/default.yaml` and `coverage.yml` were deleted and replaced by `build-macos.yml` (macos-15 arm64: release/coverage/asan; macos-15-intel x64: release), `build-linux.yml` (ubuntu-24.04: release + coverage) and `build-windows.yml` (windows-2022: release + coverage); their release jobs still install RuntimeDeps and upload `xyce-studio-<platform>` artifacts. The preset names follow `docs/development/build-parity-plan.md` (the `profile` preset became `coverage`, joined by `asan`), so no artifact path changes.
 5. **Zero Downtime / Regression Protection**: Both frontends coexist as two separate roots (`slint/` and `studio/`), sharing a common UI-agnostic domain core (`core/`). The current app (`xyce-studio`) continues to build and pass all automated tests until the new app (`xyce-studio-next`) achieves complete feature parity; the new root carries its own presenter unit tests (`studio-tests/`) and UI automation (`tests_studio/`).
 
 **Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository. Albor is not published in the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), now the single overlay directory. Local development uses the sibling `../albor` checkout through `ALBOR_LOCAL_SOURCE_DIR` (via the `debug` preset), but the root `CMakeLists.txt` no longer appends that checkout's port to `VCPKG_OVERLAY_PORTS`. The `studio-debug` / `studio-release` presets named below were consolidated into `debug`, `release`, `coverage` and `asan`.
@@ -29,7 +31,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 
 - Phases 1–6 are complete, except the CI packaging re-verification in 4.4.
 - Phase 6 is complete: the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot, the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) and the KiCad plugin session are delivered.
-- Phase 7: 7.1 is complete (see [`parity.md`](docs/development/parity.md)), and 7.3–7.4 are done — the studio frontend is the only frontend and produces `xyce-studio`. Phase 7.2 (a dedicated studio CI workflow) remains open.
+- Phase 7: 7.1 is complete (see [`parity.md`](docs/development/parity.md)), and 7.2–7.4 are done — the studio frontend is the only frontend and produces `xyce-studio`. The 7.2 workflow split landed as `build-macos.yml` / `build-linux.yml` / `build-windows.yml`; only the external `CODECOV_TOKEN` secret and branch-protection check-name changes remain.
 - Current coverage: 209 studio unit tests (`studio-tests/`), 93 studio UI scenarios (`tests_studio/`), and the shared domain tests (`tests/`, executable `xyce-studio-tests`). The legacy Slint suites are retired.
 - Presets have since been consolidated to four (`debug`, `release`, `coverage`, `asan`); `studio-debug` / `studio-release` are gone, and the vendored `.ports/albor` port enables clean-checkout `release` builds without a published tag. Binary and automation paths now use `.build-debug` / `.build-release`.
 
@@ -98,11 +100,11 @@ The table records the dual-root strategy; with 7.3–7.4 complete only the `stud
 | **Presenter Architecture**| Monolithic (`SlintMainWindowPresenter`) | Modular (one presenter per dialog/window) |
 | **Dialog Architecture** | Inline modal overlays (`ModalPanel.slint`) | Native window-modal Albor dialogs |
 | **UI Test Suite** | `tests_ui/` (Slint automation) | `tests_studio/` (Albor automation) |
-| **GitHub Actions** | Built by existing `default.yaml` & `coverage.yml` | New dedicated workflow added later |
+| **GitHub Actions** | Legacy `default.yaml` & `coverage.yml` (retired) | `build-macos.yml`, `build-linux.yml`, `build-windows.yml` (release + coverage; macOS also asan) |
 | **Packaging Artifacts**| `artifacts/` via `RuntimeDeps` install component | Separate package output |
 
 > [!IMPORTANT]
-> **CI Cache Key Preservation**: `.github/workflows/default.yaml` installs from the root `vcpkg.json` and keys the vcpkg cache on `hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**')`. Both roots share that manifest, so a dependency change rebuilds the cache once for every preset.
+> **CI Cache Key Preservation**: The shared `.github/actions/build-common` composite action installs from the root `vcpkg.json` for every preset of `build-macos.yml`, `build-linux.yml` and `build-windows.yml`, and restores/saves the vcpkg cache on `hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**')` plus a platform/toolchain fingerprint, with a separate ccache key per platform and preset. Both roots shared that manifest, so a dependency change rebuilt the cache once for every preset.
 
 ---
 
@@ -221,7 +223,7 @@ Move files into their respective homes. Git preserves history across renames (`g
     ```bash
     cmake --install .build-release --component RuntimeDeps --prefix .build-release
     ```
-  - Verify that `artifacts/` contains the identical executable, dylibs/DLLs, and directory layout expected by `.github/workflows/default.yaml`.
+  - Verify that `artifacts/` contains the identical executable, dylibs/DLLs, and directory layout expected by the release jobs of `build-macos.yml`, `build-linux.yml` and `build-windows.yml` (which upload `xyce-studio-<platform>` artifacts).
   - Status: still open; the packaging inputs are untouched by the split, but the install layout has not been re-run since Phase 2.
 
 ---
@@ -292,23 +294,24 @@ Status (2026-11-16): 6.1–6.8 are complete.
   - Run side-by-side manual and automated test sweeps between `xyce-studio` and `xyce-studio-next`.
   - Validate netlist editing, all simulation types, chart interactions, and dialog results.
   - Status: delivered. [`docs/development/parity.md`](docs/development/parity.md) maps every legacy UI scenario (75), every user-visible surface and the four audit areas, with a verdict for each: covered, ported, accepted difference or not applicable. The audit found and fixed ten issues (a run without an analysis did not ask for one, `.PLOT`-only quantities were never printed, the Smith plane hid the step tool, the CLI lacked `--log-level` and `--raw`, unparseable initial conditions were silently dropped, and several testability gaps) and ported 18 native scenarios, so the native suite now covers the legacy capabilities end to end.
-- [ ] **7.2. Author New Framework CI Workflows** — still open.
-  - Create separate GitHub Actions workflow(s) (e.g. `.github/workflows/studio.yaml`) dedicated to building and testing `xyce-studio`.
-  - Keep `.github/workflows/default.yaml` and `coverage.yml` active throughout, changing them only as `docs/development/build-parity-plan.md` requires.
+- [x] **7.2. Author New Framework CI Workflows** — done.
+  - Dedicated workflows replaced the legacy `default.yaml` / `coverage.yml`: `build-macos.yml` (macos-15 arm64 with release/coverage/asan, macos-15-intel x64 with release), `build-linux.yml` (ubuntu-24.04, release + coverage) and `build-windows.yml` (windows-2022, release + coverage). They share `.github/actions/build-common` (pinned cmake/ninja/vcpkg, vcpkg+ccache caches, configure and build one preset) and `.github/actions/check-pr` (skip duplicate push runs when a PR is open); the legacy files were deleted.
+  - Release jobs install RuntimeDeps, upload `xyce-studio-<platform>` artifacts and run the `link-boundary` ctest check. Each coverage job uploads to Codecov via `codecov/codecov-action@v5` with flags `macos` / `linux` / `windows` (lcov on macOS/Linux, cobertura from OpenCppCoverage on Windows; Linux pins clang-18, source-based coverage is skipped on MSVC).
+  - Manual follow-ups in GitHub settings: add the `CODECOV_TOKEN` repo secret (none exists yet; uploads use `fail_ci_if_error: false`) and change the branch-protection required checks from `C++ CI Workflow` to `build macos` / `build linux` / `build windows`.
 - [x] **7.3. Swap Default Executables** — done.
   - `studio/` now produces both the target and the executable `xyce-studio`; the `xyce-studio-next` name is gone.
   - Packaging uses the renamed binary.
 - [x] **7.4. Decommission Slint Root** — done.
   - `slint/` has been removed, along with `tests_ui/`, `slint_automation/`, `tests/ui/`, `tests/app/app.test.cpp`, `tests/charts/chart_text_measurer.test.cpp`, `tests/netlist/netlist_lexer_adapter.test.cpp` and `tests/slint_automation/`.
   - Slint FetchContent and the `XYCE_BUILD_SLINT_FRONTEND` / `XYCE_BUILD_STUDIO_FRONTEND` options are gone; the `ui-integration` ctest suite is retired and `link-boundary` targets `xyce-studio`.
-  - `README.md`, `AGENTS.md` and the development docs are updated. Retiring the legacy CI workflows follows 7.2.
+  - `README.md`, `AGENTS.md` and the development docs are updated. The legacy CI workflows were retired with 7.2.
 
 ---
 
 ## 5. Risk Mitigation & Verification Rules
 
 1. **Slint Preserved at All Times**: No commit in Phases 1–6 may break `xyce-studio` or fail any test in `tests/` or `tests_ui/`.
-2. **CI Contract Invariance**: Existing presets (`debug`, `release`) and binary outputs must remain binary-compatible with `.github/workflows/default.yaml`; `coverage` and `asan` replace `profile` as the instrumented entries.
+2. **CI Contract Invariance**: Existing presets (`debug`, `release`) and binary outputs must remain binary-compatible with the release jobs of `build-macos.yml`, `build-linux.yml` and `build-windows.yml` (which replaced `default.yaml` / `coverage.yml`); `coverage` and `asan` replace `profile` as the instrumented entries.
 3. **Self-Contained Commits**: Every phase completion must result in a clean, buildable repository.
 4. **Cache & Linkage Isolation**: Always use distinct binary directories (`.build-debug` / `.build-release` vs `.build-debug` / `.build-release`) so dynamic Slint dylibs and static framework libraries never contaminate each other.
 5. **Albor Isolation**: The legacy presets must keep building without a local or published Albor package; only the studio presets opt into Albor.

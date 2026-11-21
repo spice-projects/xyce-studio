@@ -1,0 +1,84 @@
+name: shared build setup
+description: pin the build tools, restore vcpkg and ccache caches, then configure and build one preset
+
+inputs:
+  preset:
+    description: the CMake preset to configure and build
+    required: true
+  vcpkg-commit:
+    description: the pinned vcpkg revision for this platform
+    required: true
+  platform:
+    description: the cache key namespace, one of macOS, Windows or Linux
+    required: true
+  extra-configure:
+    description: extra arguments appended to the configure command
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: pinned cmake and ninja
+      uses: lukka/get-cmake@v4.4.4
+      with:
+        cmakeVersion: 4.4.4
+        ninjaVersion: 1.13.2
+
+    - name: pinned vcpkg
+      uses: lukka/run-vcpkg@v11.6
+      with:
+        vcpkgDirectory: ${{ github.workspace }}/vcpkg
+        vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
+        vcpkgJsonGlob: vcpkg.json
+        doNotCache: true
+
+    # the msvc action repoints VCPKG_ROOT at the image's bundled vcpkg, so the pinned checkout is restored here
+    - name: pin the vcpkg root
+      shell: bash
+      run: echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
+
+    - name: toolchain fingerprint
+      id: toolchain
+      shell: bash
+      run: echo "fingerprint=$(bash build/toolchain-fingerprint.sh)" >> "$GITHUB_OUTPUT"
+
+    - name: restore - vcpkg cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ github.workspace }}/.vcpkg-cache
+        key: vcpkg-${{ inputs.platform }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+        restore-keys: |
+          vcpkg-${{ inputs.platform }}-${{ steps.toolchain.outputs.fingerprint }}-
+          vcpkg-${{ inputs.platform }}-
+
+    - name: restore - ccache directory
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ccache-${{ inputs.platform }}-${{ inputs.preset }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ inputs.platform }}-${{ inputs.preset }}-
+
+    - name: configure
+      id: configure
+      shell: bash
+      run: cmake --preset ${{ inputs.preset }} ${{ inputs.extra-configure }}
+
+    - name: build
+      shell: bash
+      run: cmake --build --preset ${{ inputs.preset }} --parallel 4
+
+    - name: save - vcpkg cache
+      if: ${{ !cancelled() && steps.configure.outcome == 'success' }}
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ github.workspace }}/.vcpkg-cache
+        key: vcpkg-${{ inputs.platform }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', '.triplets/**', '.ports/**') }}
+
+    - name: save - ccache directory
+      if: ${{ !cancelled() }}
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ccache-${{ inputs.platform }}-${{ inputs.preset }}-${{ github.sha }}
