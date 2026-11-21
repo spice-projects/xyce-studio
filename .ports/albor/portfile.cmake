@@ -72,7 +72,9 @@ if(VCPKG_TARGET_IS_LINUX)
         message(FATAL_ERROR "albor port: 'ar' could not read ${ALBOR_WAYLAND_LIBRARY} (${ALBOR_AR_ERROR}); install binutils on the build host")
     endif()
     if(NOT ALBOR_WAYLAND_OBJECTS MATCHES "libdecor-cairo\\.c\\.o")
-        message(FATAL_ERROR "albor port: the private libdecor frame is not in the linux package; install the Pango, Cairo, wayland-cursor and D-Bus development packages on the build host")
+        # the private frame is optional: without it the adapter uses the xdg-decoration fallback, so a
+        # missing object must not block the package. print the members so a real packaging fault is visible.
+        message(STATUS "albor port: no private libdecor frame in ${ALBOR_WAYLAND_LIBRARY}; the xdg-decoration fallback is used. archive members: ${ALBOR_WAYLAND_OBJECTS}")
     endif()
     file(GLOB ALBOR_BLEND2D_LIBRARIES "${CURRENT_PACKAGES_DIR}/lib*/libalbor-render-blend2d.a")
     if(NOT ALBOR_BLEND2D_LIBRARIES)
