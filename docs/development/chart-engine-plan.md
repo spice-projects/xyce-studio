@@ -1,5 +1,8 @@
 # Native Albor Chart Engine Plan
 
+> [!NOTE]
+> The legacy Slint renderer and the `slint/` root are gone; the studio chart view (`studio/src/views/charts/chart_view.*`) is the authoritative chart renderer. The plan below is preserved as the historical design record.
+
 ## 1. Decision
 
 The `studio` root gets a native Albor chart component. It renders **Line** and **Smith** charts directly through `RenderContext`; it does not use SVG, ImGui/ImPlot or Skia.

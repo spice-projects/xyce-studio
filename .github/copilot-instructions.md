@@ -1,7 +1,7 @@
 # Copilot Review Instructions for Xyce Studio
 
-Xyce Studio is a C++20 application (CMake + vcpkg, arm64/x86-64) embedding a Slint UI
-that drives Xyce circuit simulations from KiCad. This file customizes pull request
+Xyce Studio is a C++20 application (CMake + vcpkg, arm64/x86-64) with an Albor-based
+studio UI that drives Xyce circuit simulations from KiCad. This file customizes pull request
 reviews. `AGENTS.md` (root) is the full agent guide and `STYLE-GUIDE.md` holds the
 code style rules; these instructions distill what matters for reviewing.
 
@@ -12,16 +12,15 @@ code style rules; these instructions distill what matters for reviewing.
   non-owning `View<T>` spans over them; out-of-bounds sweeps (e.g.
   `initialize_expression_data` tile copies) are real SIGSEGV hazards.
 - **Preserve the architecture.** Do not suggest restructuring:
-  - MVP wiring: views implement `MainWindowViewDef`, forward through
-    `MainWindowViewDefEvents`; presenters never touch the UI.
-  - Dialogs are inline modal overlays (`ModalPanel`), one translation unit each,
-    pimpl `Impl`, results delivered through `MainWindowViewDefEvents`.
-  - `ChartsRenderer` is platform-neutral (ImGui/ImPlot + offscreen Skia raster →
-    `slint::Image`); always use `ChartsContextScope` around ImGui/ImPlot calls.
-- **Slint conventions.** Only `src/ui/widgets/*.slint` are registered as root
-  widgets; `src/ui/components/*.slint` are imported by roots only. Slint names
-  are kebab-case; generated C++ accessors are camelCase
-  (`charts-visible` → `get_charts_visible()`).
+  - Presenter wiring: views drive a narrow interface and forward through
+    view-def events; presenters never construct UI.
+  - Dialogs are native window-modal Albor windows, one presenter/view pair each,
+    with results delivered back through the presenter.
+  - The studio chart view (`studio/src/views/charts/chart_view.*`) is the sole
+    renderer: `core::ChartEngine`/`ChartLayout` feed retained layers painted
+    through Albor's `RenderContext`.
+- **Albor conventions.** Views are `.ui` components under `studio/src/views/**`;
+  semantic ids come from the `id:` attribute and are consumed by `tests_studio`.
 
 ## Verification rules
 
@@ -43,10 +42,10 @@ code style rules; these instructions distill what matters for reviewing.
 
 - The codebase comments nearly every block (`// arrange`, `// act`, ...); do not
   flag comments as noise or ask for their removal.
-- C++20 features (concepts, ranges, `requires`) and Slint-generated camelCase
-  accessors are intentional.
-- Platform-specific host files use suffixes `.osx.mm` / `.win32.c++` /
-  `.linux.c++`; keep changes mirrored across them when behavior is shared.
+- C++20 features (concepts, ranges, `requires`) and Albor `.ui` semantic ids
+  are intentional.
+- Studio views are Albor `.ui` components (`studio/src/views/**`) with stable
+  ids used by `tests_studio`; keep view and presenter changes paired.
 - Raw pointers into `View<T>` data are owned elsewhere (mapped file or owned
   vector); do not flag them as leaks without checking the owner chain
   (`View` → `Expression` → `XyceOutputFile` → `unique_ptr<MappedFile>`).

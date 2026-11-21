@@ -38,9 +38,10 @@ target_link_libraries(studio-tests PRIVATE
     xyce::core
     GTest::gtest_main)
 
-# the suite lives beside the studio build, under the folder that names it
+# the suite lives beside the studio build, under the folder that names it; its output name stays distinct
+# from the domain suite, which owns the xyce-studio-tests name
 set_target_properties(studio-tests PROPERTIES
-    OUTPUT_NAME xyce-studio-tests
+    OUTPUT_NAME studio-tests
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/studio-tests")
 
 # auto-discover Gtests as Ctests, which the root has already enabled

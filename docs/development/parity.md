@@ -1,5 +1,8 @@
 # Feature parity audit (Phase 7.1)
 
+> [!NOTE]
+> The cutover has landed: the Albor studio frontend is now `xyce-studio` and the legacy `slint/` root is retired. The audit below is preserved as the historical Phase 7.1 record.
+
 This document records the audit that compares the legacy Slint frontend
 (`xyce-studio`) with the native Albor frontend (`xyce-studio-next`) before the
 executable cutover (7.3) and the retirement of `slint/` (7.4).
@@ -340,6 +343,6 @@ one request per frame:
 
 ```bash
 caffeinate -dimsu .venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"
-./.build-studio-debug/studio-tests/xyce-studio-tests
+./.build-studio-debug/studio-tests/studio-tests
 ./.build-debug/tests/xyce-studio-tests
 ```

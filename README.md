@@ -85,7 +85,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Project source code is licensed under Apache-2.0. See LICENSE.
 
-This repository also bundles third-party icon assets from KiCad under CC-BY-SA 4.0 in kicad-icons (and `src/ui/kicad-icons`). See:
+This repository also bundles third-party icon assets from KiCad under CC-BY-SA 4.0 in `kicad-icons`. See:
 
 - kicad-icons/LICENSE
 - kicad-icons/COPYING
@@ -100,4 +100,4 @@ This repository also bundles third-party Xyce documentation PDFs in xyce-docs. S
 
 When redistributing this project, include the project LICENSE file and all third-party license and notice files listed above.
 
-Dependencies (Slint, spdlog, protobuf, NNG, pocketfft, GoogleTest) are third-party components distributed under their own licenses. See THIRD_PARTY_NOTICES.txt for attribution and redistribution notes.
+Dependencies (Albor, spdlog, protobuf, NNG, pocketfft, GoogleTest) are third-party components distributed under their own licenses. See THIRD_PARTY_NOTICES.txt for attribution and redistribution notes.

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# clang-format linter for the C++ sources under slint/, core/, studio/, studio-tests/ and tests/,
+# clang-format linter for the C++ sources under core/, studio/, studio-tests/ and tests/,
 # plus albor/ once that checkout lives in the tree
 # exits non-zero when any file violates the project .clang-format
 # exits non-zero when .clang-format itself is not the pinned style file
@@ -52,15 +52,13 @@ if [ "$actual_digest" != "$CLANG_FORMAT_SHA256" ]; then
 fi
 
 # the source roots the formatter covers, joined by the albor checkout once the merge puts it in the tree
-SCOPE=(slint core studio studio-tests tests)
+SCOPE=(core studio studio-tests tests)
 if [ -d albor ]; then
     SCOPE+=(albor)
 fi
 
 # generated sources that clang-format must not reformat
-EXCLUDED=(
-    "slint/src/ui/font_data.h"
-)
+EXCLUDED=()
 
 # vendored sources keep their upstream format, so the third-party and module-private vendor trees are not reformatted
 THIRD_PARTY_PREFIX='third-party/'

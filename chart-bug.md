@@ -26,7 +26,7 @@ The chart content is **not** displaced. The 32 px band that looks like a shift i
 Two datasets, no simulation required to see the strip itself:
 
 ```
-./.build-studio-debug/xyce-studio-next \
+./.build-studio-debug/xyce-studio \
   --dataset tests_studio/fixtures/tran-simple-01.csv \
   --dataset tests_studio/fixtures/tran-simple-01.csv
 ```
@@ -36,7 +36,7 @@ Window geometry during capture: position `120,168`, size `1200x832`. Left click 
 The same defect was also reproduced with a simulated circuit after a Xyce run:
 
 ```
-./.build-studio-debug/xyce-studio-next \
+./.build-studio-debug/xyce-studio \
   --netlist netlists/ac-simple-01.cir \
   --xyce ~/.local/bin/Xyce
 ```
@@ -601,7 +601,7 @@ Capture names in `/private/var/folders/7r/clg5kv714dq2f6fldywnjsww0000gn/T/openc
 The user's original report: run a simulation, then left click in the chart.
 
 ```
-./.build-studio-debug/xyce-studio-next \
+./.build-studio-debug/xyce-studio \
   --netlist netlists/ac-simple-01.cir \
   --xyce ~/.local/bin/Xyce
 ```

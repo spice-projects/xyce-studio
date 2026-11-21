@@ -20,10 +20,12 @@ cmake --build --preset debug
 
 Presets available in `CMakePresets.json`: `debug`, `release`, `coverage`,
 `asan`, `studio-debug` and `studio-release`. The built binary lands in
-`.build-debug/` (debug preset).
+`.build-debug/` (debug preset). All presets build the Albor studio app; the
+first four also build the shared domain tests (`xyce-studio-tests`), and
+`studio-debug` produces `.build-studio-debug/xyce-studio`.
 
 The vcpkg binary cache (`.vcpkg-cache/`) and ccache speed up rebuilds;
-first configuration downloads and builds dependencies (Slint, protobuf,
+first configuration downloads and builds dependencies (Albor, protobuf,
 NNG, spdlog, pocketfft, GoogleTest).
 
 ## Run the application
@@ -34,15 +36,15 @@ The binary runs in two modes:
   simulation output files through the file dialog.
 - **KiCad plugin mode**: launched by KiCad over IPC using the
   `KICAD_API_SOCKET` and `KICAD_API_TOKEN` environment variables; the
-  plugin entrypoint metadata lives in `slint/src/plugin.json`.
+  plugin entrypoint metadata is the `plugin.json` packaged with the build.
 
 ## UI integration tests
 
-UI tests drive the real debug build through the `slint_automation`
-framework and live in `tests_ui/`:
+UI tests drive the real debug build through the `albor_automation`
+framework and live in `tests_studio/`:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"
+.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"
 ```
 
 The KiCad plugin mode scenario requires `pynng`

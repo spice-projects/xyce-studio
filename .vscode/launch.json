@@ -79,8 +79,8 @@
         {
             "id": "pythonTestId",
             "type": "promptString",
-            "description": "dotted test id, e.g. tests_ui.toolbar_test.ToolbarInitialChecks.test_toolbar_contains_nine_tools_in_expected_state",
-            "default": "tests_ui.toolbar_test.ToolbarInitialChecks.test_toolbar_contains_nine_tools_in_expected_state"
+            "description": "dotted test id, e.g. tests_studio.main_window_test.MainWindowShellChecks.test_exit_action_closes_the_shell",
+            "default": "tests_studio.main_window_test.MainWindowShellChecks.test_exit_action_closes_the_shell"
         }
     ]
 }

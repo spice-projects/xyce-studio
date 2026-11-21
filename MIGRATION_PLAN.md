@@ -1,5 +1,8 @@
 # Project Plan: Dual-Root UI Framework Migration
 
+> [!NOTE]
+> Cutover complete (2026-11-20): the Albor studio frontend is the only frontend, built as `xyce-studio`; Phase 7.4 retired the legacy `slint/` root. The plan below is preserved as the historical migration record.
+
 ## 1. Overview & Objective
 
 This document outlines the architectural blueprint and step-by-step execution plan for migrating the UI to Albor, a new custom C++ UI framework, while keeping the current Slint-based implementation fully operational side-by-side.
@@ -13,12 +16,12 @@ This document outlines the architectural blueprint and step-by-step execution pl
 
 **Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository and consumed as the `albor` vcpkg package. The `studio-debug` preset can build a sibling checkout through `ALBOR_LOCAL_SOURCE_DIR`; the build appends that checkout's port to `VCPKG_OVERLAY_PORTS` for development.
 
-### Status Snapshot (2026-11-16)
+### Status Snapshot (2026-11-20)
 
-- Phases 1–5 are complete, except the CI packaging re-verification in 4.4.
+- Phases 1–6 are complete, except the CI packaging re-verification in 4.4.
 - Phase 6 is complete: the window chrome, run panel, simulation parameters, FFT setup, options editor, plugin config, Add Plot, the chart pipeline (line, Smith, datasets, interactions, Fourier table, performance hardening, native chart windows) and the KiCad plugin session are delivered.
-- Phase 7 is in progress: 7.1 is complete (see [`parity.md`](docs/development/parity.md)); 7.2–7.4 remain. The legacy Slint frontend is still the release path, and no CI workflow builds `studio/` yet.
-- Current coverage: 209 studio unit tests (`studio-tests/`), 93 studio UI scenarios (`tests_studio/`), and the legacy suites recorded in Phase 4 (2,999 shared unit tests, 75 UI scenarios).
+- Phase 7: 7.1 is complete (see [`parity.md`](docs/development/parity.md)), and 7.3–7.4 are done — the studio frontend is the only frontend and produces `xyce-studio`. Phase 7.2 (a dedicated studio CI workflow) remains open.
+- Current coverage: 209 studio unit tests (`studio-tests/`), 93 studio UI scenarios (`tests_studio/`), and the shared domain tests (`tests/`, executable `xyce-studio-tests`). The legacy Slint suites are retired.
 
 ---
 
@@ -26,11 +29,11 @@ This document outlines the architectural blueprint and step-by-step execution pl
 
 ```
 xyce-studio/
-├── CMakeLists.txt                         # Master CMake orchestrating core & frontends
+├── CMakeLists.txt                         # Master CMake orchestrating core & studio
 ├── CMakePresets.json                      # Presets with isolated build dirs
-├── vcpkg.json                             # One manifest for both roots (Skia, Albor closure, shared deps)
+├── vcpkg.json                             # Manifest for the studio root (Albor closure, shared deps)
 ├── vcpkg-configuration.json               # Registry baseline and pinned versions
-├── .triplets/                             # Overlay triplets shared by both roots
+├── .triplets/                             # Overlay triplets
 ├── .ports/                                # Overlay ports
 │
 ├── core/                                  # SHARED DOMAIN ROOT (Pure C++20, zero UI dependencies)
@@ -47,15 +50,8 @@ xyce-studio/
 │       ├── runner/                        # SimulationRunner with generic event dispatcher
 │       └── simulation/                    # Simulation parameters, options catalog, log parser
 │
-├── slint/                                 # ROOT 1: legacy Slint implementation (release path)
-│   ├── CMakeLists.txt                     # Target: xyce-studio (dynamic Skia & dependencies)
-│   └── src/
-│       ├── app/                           # App singleton & platform entry points
-│       ├── main.*                         # Platform main entry points
-│       └── ui/                            # Monolithic presenter, views, widgets, chart renderer
-│
-├── studio/                                # ROOT 2: Albor implementation
-│   ├── CMakeLists.txt                     # Target: xyce-studio-next (clean static linkage)
+├── studio/                                # Albor implementation (sole frontend)
+│   ├── CMakeLists.txt                     # Target/executable: xyce-studio (clean static linkage)
 │   └── src/
 │       ├── main.cpp                       # Entry point & argument overrides
 │       ├── app/                           # StudioApp, one WindowInstance per shell, theme
@@ -68,17 +64,18 @@ xyce-studio/
 │       │   └── simulation_parameters/
 │       └── charts/                        # Chart pipeline helpers (6.7)
 │
-├── studio-tests/                          # Studio presenter unit tests (links xyce-core)
+├── studio-tests/                          # Studio presenter unit tests (links xyce-core, 209 tests)
 ├── tests/                                 # Fast domain unit tests (links only xyce-core)
-├── tests_ui/                              # Legacy Slint UI automation suite
-└── tests_studio/                          # Albor UI automation suite
+└── tests_studio/                          # Albor UI automation suite (93 scenarios)
 ```
 
-`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development the build appends a sibling checkout's port to `VCPKG_OVERLAY_PORTS`, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint type crosses outside `slint/`.
+`albor/` is not part of this repository. The studio root consumes the `albor` package; for local development the build appends a sibling checkout's port to `VCPKG_OVERLAY_PORTS`, and `ALBOR_LOCAL_SOURCE_DIR` adds it as a subdirectory. Studio views are Albor `.ui` components compiled with `albor_build_ui_component`; no Slint sources or frontend options remain. The `debug`, `release`, `coverage` and `asan` presets build the studio app plus the shared `xyce-studio-tests`, and `studio-debug` and `studio-release` are retained; the studio binary is at `.build-studio-debug/xyce-studio` and `.build-debug/xyce-studio`.
 
 ---
 
 ## 3. Dependency, Triplet & CI Strategy
+
+The table records the dual-root strategy; with 7.3–7.4 complete only the `studio/` column remains active. The options `XYCE_BUILD_SLINT_FRONTEND` and `XYCE_BUILD_STUDIO_FRONTEND` no longer exist.
 
 | Concern | Legacy Root (`slint/` / CI Standard) | New Framework Root (`studio/`) |
 | :--- | :--- | :--- |
@@ -279,17 +276,16 @@ Status (2026-11-16): 6.1–6.8 are complete.
   - Run side-by-side manual and automated test sweeps between `xyce-studio` and `xyce-studio-next`.
   - Validate netlist editing, all simulation types, chart interactions, and dialog results.
   - Status: delivered. [`docs/development/parity.md`](docs/development/parity.md) maps every legacy UI scenario (75), every user-visible surface and the four audit areas, with a verdict for each: covered, ported, accepted difference or not applicable. The audit found and fixed ten issues (a run without an analysis did not ask for one, `.PLOT`-only quantities were never printed, the Smith plane hid the step tool, the CLI lacked `--log-level` and `--raw`, unparseable initial conditions were silently dropped, and several testability gaps) and ported 18 native scenarios, so the native suite now covers the legacy capabilities end to end.
-- [ ] **7.2. Author New Framework CI Workflows**
-  - Create separate GitHub Actions workflow(s) (e.g. `.github/workflows/studio.yaml`) dedicated to building and testing `xyce-studio-next`.
+- [ ] **7.2. Author New Framework CI Workflows** — still open.
+  - Create separate GitHub Actions workflow(s) (e.g. `.github/workflows/studio.yaml`) dedicated to building and testing `xyce-studio`.
   - Keep `.github/workflows/default.yaml` and `coverage.yml` active throughout, changing them only as `docs/development/build-parity-plan.md` requires.
-- [ ] **7.3. Swap Default Executables**
-  - Make `studio/` produce the primary `xyce-studio` executable.
-  - Update packaging scripts when ready to switch default releases.
-- [ ] **7.4. Decommission Slint Root**
-  - Remove `slint/` directory: `git rm -rf slint`.
-  - Retire legacy CI workflows (`default.yaml`) once the new workflows take over primary release duties.
-  - Remove Slint FetchContent and options from root `CMakeLists.txt`.
-  - Update `README.md` and documentation.
+- [x] **7.3. Swap Default Executables** — done.
+  - `studio/` now produces both the target and the executable `xyce-studio`; the `xyce-studio-next` name is gone.
+  - Packaging uses the renamed binary.
+- [x] **7.4. Decommission Slint Root** — done.
+  - `slint/` has been removed, along with `tests_ui/`, `slint_automation/`, `tests/ui/`, `tests/app/app.test.cpp`, `tests/charts/chart_text_measurer.test.cpp`, `tests/netlist/netlist_lexer_adapter.test.cpp` and `tests/slint_automation/`.
+  - Slint FetchContent and the `XYCE_BUILD_SLINT_FRONTEND` / `XYCE_BUILD_STUDIO_FRONTEND` options are gone; the `ui-integration` ctest suite is retired and `link-boundary` targets `xyce-studio`.
+  - `README.md`, `AGENTS.md` and the development docs are updated. Retiring the legacy CI workflows follows 7.2.
 
 ---
 
@@ -303,4 +299,4 @@ Status (2026-11-16): 6.1–6.8 are complete.
 
 ---
 
-*Prepared by Antigravity (AGY) – 2026‑10‑28 · Status updated 2026‑11‑10 through `030f4c5`*
+*Prepared by Antigravity (AGY) – 2026‑10‑28 · Status updated 2026‑11‑20 (cutover complete)*

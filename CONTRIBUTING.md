@@ -24,7 +24,7 @@ building the KiCad plugin package.
 ## Testing
 
 - C++ unit tests: `./.build-debug/tests/xyce-studio-tests`
-- UI integration tests: `.venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"`
+- UI integration tests: `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"`
 
 ## Documentation
 

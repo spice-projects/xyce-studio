@@ -8,7 +8,7 @@ set -euo pipefail
 PROJECT_VERSION=${1:-0.0.1}
 # path to the compiled plugin executable, defaults to the debug build output
 EXECUTABLE=${2:-.build-debug/xyce-studio}
-# plugin entrypoint name as referenced by src/plugin.json
+# plugin entrypoint name as referenced by studio/assets/plugin.json
 ENTRYPOINT_NAME=${3:-xyce-studio}
 # platform, allowed values: macos, linux, windows
 PLATFORM=${4:-macos}
@@ -51,8 +51,8 @@ mkdir -p "$temp_dir"/resources
 cp plugin-icon-64x64.png "$temp_dir"/resources/icon.png
 
 # copy plugin manifest and icons
-sed "s|ENTRYPOINT_NAME|$ENTRYPOINT_NAME|g" slint/src/plugin.json > "$temp_dir"/plugins/plugin.json
-cp slint/src/plugin-icon-24x24.png "$temp_dir"/plugins/
+sed "s|ENTRYPOINT_NAME|$ENTRYPOINT_NAME|g" studio/assets/plugin.json > "$temp_dir"/plugins/plugin.json
+cp studio/assets/plugin-icon-24x24.png "$temp_dir"/plugins/
 
 # copy the compiled executable under the entrypoint name
 cp -r "$EXECUTABLE" "$temp_dir"/plugins/

@@ -11,14 +11,14 @@
   - Configure: `cmake --preset debug`
   - Build: `cmake --build --preset debug`
 - Unit Tests, avoid running unit tests using `ctest`. Execute unit tests by executing the process: `./.build-debug/tests/xyce-studio-tests`
-- The CMake tree registers every suite with `ctest`, which is the entry point for the checks that are not plain unit tests: `ctest -R ui-integration` and `ctest -R link-boundary`
+- The CMake tree registers the remaining checks with `ctest`, which is the entry point for the checks that are not plain unit tests: `ctest -R link-boundary` (the `ui-integration` suite is retired)
 - Unit tests must be self-contained: no helper functions, no test utilities, no external fixtures
 - Dependencies: `vcpkg`
 - Build cache:
-  - **vcpkg binary cache** (local): `.vcpkg-cache/` is auto-populated via `VCPKG_BINARY_SOURCES` in CMake presets. Caches Skia/protobuf/nng compilation between clean builds.
+  - **vcpkg binary cache** (local): `.vcpkg-cache/` is auto-populated via `VCPKG_BINARY_SOURCES` in CMake presets. Caches Albor/protobuf/nng compilation between clean builds.
   - **ccache** (local): enabled via `CMAKE_{C,CXX}_COMPILER_LAUNCHER` in CMake presets. Inspect with `ccache --show-stats`; clear with `ccache --clear`.
   - **CI**: both caches are persisted via `actions/cache@v5` keyed on runner OS + content hash. First CI run builds from source (~hour); subsequent runs restore in seconds.
-- Debug builds enable the embedded Slint MCP server. Launch the app with `SLINT_MCP_PORT=8080 ./build/xyce-studio` to expose an HTTP/MCP endpoint for AI-assisted UI inspection (browse the `.slint` component tree, read/write properties, invoke callbacks).
+- Studio debug builds embed the Albor automation host used by the `tests_studio` scenarios; the binary is `.build-studio-debug/xyce-studio` and exposes its semantic tree to `albor_automation` (release builds do not embed the host).
 
 ## Workflow
 
@@ -34,63 +34,56 @@ After editing:
 3. Run the linter check on all changed C++ files: `bash build/check-format.sh`
 4. Make every file you touch fully compliant with `STYLE-GUIDE.md`: the check covers whole files, not only the lines you changed, so fix any pre-existing violation in a file the change touches
 5. Fix every consecutive comment line in the files you changed: one comment line above a statement, and when a test marker is followed by an explanation only the `// arrange` / `// act` / `// assert` marker stays
-6. Format any changed `.slint` files in-place: `slint-lsp format -i <path/to/file.slint>`
+6. Keep any changed `.ui` files formatted consistently with the other Albor views under `studio/src/views/`
 7. Summarize changed files
 8. Do not execute unit tests unless explicitly asked
 
 ## UI Integration Tests
 
-- All UI work requires UI integration tests in `tests_ui/`; a UI change without a scenario exercising it is incomplete
-- The integration test documentation lives at `tests_ui/AUTOMATION.md` — read it before writing scenarios; every recipe there is reverse engineered from a passing test
-- The scenarios run the real debug build through the `slint_automation` framework (session/launch, locators, `expect` polling); run them with the repository virtual environment: `.venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"`
-- While developing or fixing one scenario, run only that test (it launches the real app, so keep it to the minimum): `.venv/bin/python -m unittest tests_ui.<module>.<Class>.<test_name>` — run the full suite once when the work is done to make sure nothing else got affected
-- Platform native widgets (e.g. the macOS context menu) are not reachable by the automation; debug builds expose hidden trigger elements instead (see the context-menu recipe in `tests_ui/AUTOMATION.md`) — wire any new native-rendered action to such a trigger when it needs integration coverage
+- All UI work requires UI integration tests in `tests_studio/`; a UI change without a scenario exercising it is incomplete
+- The integration test documentation lives at `tests_studio/AUTOMATION.md` — read it before writing scenarios; every recipe there is reverse engineered from a passing test
+- The scenarios run the real debug build through the `albor_automation` framework (session/launch, locators, `expect` polling); run them with the repository virtual environment: `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"`
+- While developing or fixing one scenario, run only that test (it launches the real app, so keep it to the minimum): `.venv/bin/python -m unittest tests_studio.<module>.<Class>.<test_name>` — run the full suite once when the work is done to make sure nothing else got affected
+- Native context menus are not bound by the automation host; views expose semantic actions instead (see the context-menu recipe in `tests_studio/AUTOMATION.md`) — wire any new native-rendered action to such an action when it needs integration coverage
 - Test methods must be self-contained: no helper functions, no shared utilities between tests; test doubles are the only shared objects (same rule as the unit tests above)
 
-## UI (Slint)
+## UI (Albor studio)
 
-The UI is built with Slint and lives under `slint/src/ui`:
+The UI is built with Albor and lives under `studio/src`:
 
-- Root widgets (windows/dialogs): `slint/src/ui/widgets/*.slint`
-- Shared components (imported only by roots): `slint/src/ui/components/*.slint`
-- Host C++ (`slint.h`, wiring, platform backends): flat under `slint/src/ui/` (views/presenters, dialog wrappers, `file_dialog.*`, `clipboard.*`, `charts_renderer.*`)
+- Views (native windows, dialogs and the chart canvas): `studio/src/views/**` as Albor `.ui` components plus host C++
+- Presenters (one per window or dialog): `studio/src/presenters/`
+- Application lifecycle, shells and theme: `studio/src/app/`
+- Chart pipeline helpers: `studio/src/charts/`
 
 ### Build integration (`CMakeLists.txt`)
 
-- Only `slint/src/ui/widgets/*.slint` are compiled via `slint_target_sources(... NAMESPACE <file-stem>)`. Components under `slint/src/ui/components/` are imported by roots only; never register them standalone.
-- Each root widget becomes a C++ namespace named after its file stem (e.g. `main_window::MainWindow`); its generated header is included with angle brackets: `#include <main_window.h>`.
-- Slint names are kebab-case; generated C++ accessors/callbacks are camelCase: property `charts-visible` → `get_charts_visible()`/`set_charts_visible()`; callback `show-charts` → `on_show_charts()`.
-- `SLINT_STYLE=cupertino`, `SLINT_FEATURE_RENDERER_SKIA=ON`, Slint pinned to the immutable `v1.18.1` tag via FetchContent.
-- `@image-url()` assets are embedded with `SLINT_EMBED_RESOURCES embed-files`; image paths resolve relative to the `.slint` file (`../kicad-icons/..._48.png`).
-- Platform host code uses the suffixes `.osx.mm` / `.win32.c++` / `.linux.c++`; UI colors come from `Palette` in `std-widgets.slint`.
+- Views are Albor `.ui` components compiled with `albor_build_ui_component`; stable semantic ids come from the `id:` attribute and are used by `tests_studio`.
+- The studio target and executable are both `xyce-studio`; Albor is consumed as the `albor` vcpkg package, with a sibling checkout available through `ALBOR_LOCAL_SOURCE_DIR` for local development.
+- No Slint sources or Slint-specific CMake options remain.
 
-### MVP wiring
+### Presenter wiring
 
-- Keep the view adapter pattern: a `*View` implements `MainWindowViewDef` and forwards user interactions through `MainWindowViewDefEvents` (the presenter implements it and never touches the UI). The parent creates both and wires them with `view->set_event_handler(*presenter)`.
-- Expose UI actions as `export global ... Actions { callback ...; }` on the root widget; bind them from `set_event_handler` via `m_window->global<...Actions>().on_<callback>(...)`.
-- Views/presenters hold `slint::ComponentHandle` members and are non-copyable/non-movable; keep them alive while the event loop runs.
-- Prefer `slint::SharedString` for string interop and `slint::VectorModel<T>` for models (`set_row_data` to update a row).
+- Presenters are toolkit-free and drive views through a narrow interface; a presenter never constructs UI. Dialogs are native window-modal windows, not inline overlays, and each has its own presenter.
+- Keep views alive for the lifetime of their shell; the application owns one shell per window.
 
 ### Dialogs
 
-- All dialogs are rendered as inline modal overlays within `MainWindow` using the `ModalPanel` base component (no separate OS windows). Modality is enforced by the view's `begin_modal_dialog()`/`end_modal_dialog()` and the panel's dimmed backdrop; toolbar callbacks are wrapped in `guard_modal(...)` so they are rejected while a dialog is open.
-- Each dialog wrapper (e.g. `PluginConfigDialogView`) lives in its own translation unit — the generated `main_window.h` defines a `SharedGlobals` type that conflicts with other generated headers — and uses a pimpl `Impl`. It exposes `show(...)` and an `on_closed` callback; on accept/cancel, hide the panel, call `on_closed()`, then deliver results through `MainWindowViewDefEvents`.
+- Dialogs are native Albor windows (simulation parameters, FFT, options, plugin config, Add Plot), each with its own presenter/view pair.
+- Accept/cancel results flow back through the presenter to the editor; cancelling leaves the document untouched.
 
 ### Charts renderer
 
-- `ChartsRenderer` is platform-neutral; it composes `ChartFrame` snapshots from the `ChartEngine` state through `ChartLayout` and publishes them into the Slint frame model via an injected publish function. Slint renders the charts natively in its own renderer; no per-platform backends exist.
-- There is no render loop. Frames are published synchronously from `publish_frames()` at the state-change points: data update, tab switch, step/scale/series changes, resize-finished, and after every interactive zoom/hover-driven zoom window change.
-- Drag-resize must not republish frames: the single resize-finished event triggers the republish; `ChartView` stretches its content to its own element size in between.
-- Zoom and hover hit tests use the panel-relative plot rects of the last published frames (`ChartsRenderer::plot_rect(index)`), not the engine state.
-- Slint passes chart interaction positions as `float [0..1]`; translate to a chart index with `ChartsRenderer::position_to_index()` before acting.
-- Call `reset_viewport()` when the charts panel is hidden so no frames are published while the panel is hidden.
+- The studio chart view (`studio/src/views/charts/chart_view.*`) is the authoritative renderer: `core::ChartEngine` and `core::ChartLayout` produce `ChartFrame`s and the view paints them through Albor's `RenderContext` using retained picture layers. There is no Slint frame model and no render loop.
+- Scene layers (base, series, legend, dataset strip) are cached by keys and rebuilt only when their inputs change; layer draw commands are local, with the slot offset applied by the replay transform.
+- Zoom, hover and context-menu commands run through the presenter/controller and are exposed as semantic actions for `tests_studio`.
 
 ### Lifecycle
 
-- `App::run()` owns the event loop: build the view + presenter, wire them, `show()`, then `slint::run_event_loop()`.
+- `StudioApp` owns the native event loop and the set of window shells; `studio/src/main.cpp` handles entry and argument overrides.
 
 ## Architecture
 
-- Slint owns the application lifecycle (`App` singleton + `slint::run_event_loop`)
+- Albor owns the application lifecycle (`StudioApp` + the native event loop)
 - Rendering components should remain independent where possible
 - Avoid unnecessary dependency coupling

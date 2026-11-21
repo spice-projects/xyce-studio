@@ -1,5 +1,8 @@
 # Build Parity Plan: xyce-studio → albor's Build Contract
 
+> [!NOTE]
+> The cutover has landed: studio is the sole frontend (`xyce-studio`), `slint/` is retired, and the `XYCE_BUILD_SLINT_FRONTEND` / `XYCE_BUILD_STUDIO_FRONTEND` options no longer exist. The plan below is kept as a historical record.
+
 ## 1. Overview & Objective
 
 The studio frontend (`studio/`, `core/`, `studio-tests/`) consumes **albor** as a vcpkg
@@ -36,10 +39,12 @@ independently buildable and revertable.
 | One build file under `slint/` (`vcpkg.json`) | Slint app sources and `slint/CMakeLists.txt` |
 
 > [!IMPORTANT]
-> The legacy Slint frontend remains the release path throughout this plan. Nothing here
-> renames the `debug`/`release` presets, the `xyce-studio` target, or its output directory,
-> because `slint_automation/slint_application.py` launches `.build-debug/xyce-studio`
-> directly.
+> Historical: the legacy Slint frontend was the release path while this plan was written,
+> and nothing here renamed the `debug`/`release` presets, the `xyce-studio` target or its
+> output directory because `slint_automation/slint_application.py` launched
+> `.build-debug/xyce-studio` directly. The cutover has since landed: `slint/` and
+> `slint_automation/` are retired, but the `xyce-studio` target and the `.build-debug`
+> output path were kept for the studio frontend.
 
 ### Status Snapshot
 
@@ -101,6 +106,8 @@ the pin is safe on every path.
 - [x] Confirm `skia` and `nativefiledialog-extended` stay in the merged manifest until the
       Slint frontend is deleted. `skia` keeps its per-platform entries (the Linux one adds
       `freetype`/`fontconfig`); `nativefiledialog-extended` carries no platform split.
+      Obsolete after the cutover: the Slint frontend is deleted, so these legacy entries
+      are no longer required by the studio manifest.
 
 ---
 
@@ -116,8 +123,8 @@ the pin is safe on every path.
       — they reset `PROJECT_SOURCE_DIR` and re-pin the standard
 - [x] `CMakePresets.json`: add `"cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 }`
 
-`slint/CMakeLists.txt` keeps its own minimum; it is redundant and disappears with the
-frontend.
+`slint/CMakeLists.txt` used to keep its own minimum; it disappeared with the deleted
+frontend (done in 7.4).
 
 ### 3.2 One standard
 
@@ -127,7 +134,7 @@ frontend.
       `APPLE`
 - [x] Delete the standard blocks in `tests/` and `studio-tests/`
 - [x] `core/CMakeLists.txt`: `target_compile_features(xyce-core PUBLIC cxx_std_20)`
-- [x] `studio/CMakeLists.txt`: `target_compile_features(xyce-studio-next PRIVATE cxx_std_20)`
+- [x] `studio/CMakeLists.txt`: `target_compile_features(xyce-studio PRIVATE cxx_std_20)`
 
 `PUBLIC` on `xyce-core` is what prevents a consumer (both test binaries and, later, the
 merged app) from silently lowering the standard.
@@ -174,14 +181,15 @@ eventual merged configuration to configure at all.
       `main_window::OptionRow`, `slint::SharedString`), so it genuinely links the Slint
       frontend. `XYCE_BUILD_TESTS=ON` together with `XYCE_BUILD_SLINT_FRONTEND=OFF` is
       therefore not a supported configuration until the legacy suite is retired with its
-      frontend.
+      frontend. Resolved by the cutover: the Slint-specific suites and both frontend
+      options are gone, and `tests/` is now the shared domain suite.
 
 ### 3.6 Verification
 
     cmake --preset debug          && cmake --build --preset debug
     cmake --preset studio-debug   && cmake --build --preset studio-debug
     ./.build-debug/tests/xyce-studio-tests
-    ./.build-studio-debug/studio-tests/xyce-studio-tests
+    ./.build-studio-debug/studio-tests/studio-tests
     .venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"
 
 ---
@@ -193,7 +201,7 @@ eventual merged configuration to configure at all.
 ### 4.1 One INTERFACE target for the contract
 
 The flags are duplicated in four places today. Put them in one target and link it to
-`xyce-core`, `xyce-studio-next`, `xyce-studio-tests` and `studio-tests`.
+`xyce-core`, `xyce-studio`, `xyce-studio-tests` and `studio-tests`.
 
 ```cmake
 add_library(xyce-build-flags INTERFACE)
@@ -582,9 +590,10 @@ The guard also names `XYCE_BUILD_TESTS`, because the suite drives the legacy app
 studio-only build must not inherit a test that launches a binary it does not produce.
 
 > [!NOTE]
-> `slint_automation/slint_application.py` launches `./.build-debug/xyce-studio`, i.e. the
-> legacy app. That remains correct until the frontend switch; it is why this plan never
-> renames the `debug` preset or the legacy output path.
+> `slint_automation/slint_application.py` launched `./.build-debug/xyce-studio`, i.e. the
+> legacy app. That remained correct until the frontend switch; it is why this plan never
+> renamed the `debug` preset or the output path. The `ui-integration` suite and
+> `slint_automation/` are now retired; `tests_studio/` drives the studio app instead.
 
 ### 8.3 Link boundary
 
@@ -593,9 +602,9 @@ studio-only build must not inherit a test that launches a binary it does not pro
 - [x] Register it only where automation is expected to be absent:
 
 ```cmake
-if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio-next)
+if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio)
     add_test(NAME link-boundary
-             COMMAND "${CMAKE_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio-next>")
+             COMMAND "${CMAKE_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio>")
 endif()
 ```
 
@@ -614,7 +623,7 @@ endif()
 ### 8.4 Format scope for the merged tree
 
 - [x] Turn the hardcoded path list into a variable: `slint core studio studio-tests tests`,
-      plus `albor` when that directory exists
+      plus `albor` when that directory exists (`slint` is obsolete after the cutover)
 - [x] Add albor's exclusions: `third-party/`, `albor/platform/linux/wayland/vendor/`
 - [x] Accept `XYCE_COMMENT_BASE`, falling back to `ALBOR_COMMENT_BASE`
 - [x] Update the header comment and `AGENTS.md`
@@ -670,9 +679,12 @@ Conventional Commits prefix.
     cmake --preset studio-debug   && cmake --build --preset studio-debug
     cmake --preset studio-release && cmake --build --preset studio-release
     ./.build-debug/tests/xyce-studio-tests
-    ./.build-studio-debug/studio-tests/xyce-studio-tests
+    ./.build-studio-debug/studio-tests/studio-tests
     .venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"
     bash build/check-format.sh
+
+The `tests_ui` line is historical: the `ui-integration` suite is retired and the native
+suite runs with `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"`.
 
 Plus green `default.yaml` on macOS and Windows, and a `coverage` run that still produces
 the report.

@@ -433,7 +433,7 @@ class DefaultExecutableChecks(unittest.TestCase):
         # act
         path = default_executable()
         # assert: the fallback points at the studio debug build
-        self.assertIn("xyce-studio-next", path)
+        self.assertIn("xyce-studio", path)
 
 
 if __name__ == "__main__":

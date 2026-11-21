@@ -19,7 +19,7 @@ test in `tests_studio/`; the referenced tests are the executable documentation.
   extend `albor_automation` first (with unit tests in
   `tests/albor_automation`), then use it from the scenario.
 - The application under test is the debug build
-  `.build-studio-debug/xyce-studio-next` (the `studio-debug` CMake preset,
+  `.build-studio-debug/xyce-studio` (the `studio-debug` CMake preset,
   built with `ALBOR_DEV=ON` and `ALBOR_AUTOMATION=ON` against the local Albor
   checkout). Release builds do not embed the automation host.
 - Run one module: `.venv/bin/python -m unittest tests_studio.<module>` from

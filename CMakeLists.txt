@@ -106,24 +106,12 @@ else()
     set(XYCE_DEV_BUILD OFF)
 endif()
 
-option(XYCE_BUILD_TESTS "Build the legacy unit test binary" ${XYCE_DEV_BUILD})
+option(XYCE_BUILD_TESTS "Build the shared domain unit tests" ${XYCE_DEV_BUILD})
 option(XYCE_BUILD_STUDIO_TESTS "Build the studio unit tests" ${XYCE_DEV_BUILD})
-option(XYCE_BUILD_SLINT_FRONTEND "Build the legacy Slint frontend" ON)
-option(XYCE_BUILD_STUDIO_FRONTEND "Build the new framework frontend" ON)
-
-# a suite cannot exist without the application it exercises, so the pair is decided here rather than in every preset
-if(XYCE_BUILD_STUDIO_TESTS AND NOT XYCE_BUILD_STUDIO_FRONTEND)
-    message(STATUS "xyce-studio: the studio suite needs the studio frontend, so XYCE_BUILD_STUDIO_TESTS is turned off")
-    set(XYCE_BUILD_STUDIO_TESTS OFF CACHE BOOL "Build the studio unit tests" FORCE)
-endif()
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(nng CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
-
-if(APPLE)
-    set(CMAKE_BUILD_RPATH "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" "${CMAKE_BINARY_DIR}/_deps/slint-build")
-endif()
 
 # the instrumented builds are options, so a preset states the intent and every target inherits the flags
 option(XYCE_COVERAGE "Instrument the tests so a coverage report can be generated" OFF)
@@ -152,14 +140,7 @@ endif()
 enable_testing()
 
 add_subdirectory(core)
-
-if(XYCE_BUILD_SLINT_FRONTEND)
-    add_subdirectory(slint)
-endif()
-
-if(XYCE_BUILD_STUDIO_FRONTEND)
-    add_subdirectory(studio)
-endif()
+add_subdirectory(studio)
 
 if(XYCE_BUILD_STUDIO_TESTS)
     add_subdirectory(studio-tests)
@@ -169,20 +150,8 @@ if(XYCE_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# the GUI suite drives the real debug build through the automation framework, which resolves the app from the repository root
-set(XYCE_UI_PYTHON "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python")
-if(WIN32)
-    set(XYCE_UI_PYTHON "${CMAKE_CURRENT_SOURCE_DIR}/.venv/Scripts/python.exe")
-endif()
-if(XYCE_BUILD_TESTS AND EXISTS "${XYCE_UI_PYTHON}")
-    add_test(NAME ui-integration
-             COMMAND "${XYCE_UI_PYTHON}" -m unittest discover -s tests_ui -p "*_test.py"
-             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-    set_tests_properties(ui-integration PROPERTIES LABELS ui TIMEOUT 1800)
-endif()
-
 # the shipping app must carry no dev-only automation host, so its absence is checked rather than assumed
-if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio-next)
+if(UNIX AND NOT ALBOR_AUTOMATION AND TARGET xyce-studio)
     add_test(NAME link-boundary
-             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio-next>")
+             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build/check-link-boundary.sh" "$<TARGET_FILE:xyce-studio>")
 endif()
