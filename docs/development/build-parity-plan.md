@@ -2,9 +2,10 @@
 
 > [!NOTE]
 > CI restructure (2026-11-21): the legacy `.github/workflows/default.yaml` and `coverage.yml`
-> have been deleted and replaced by three platform workflows — `build-macos.yml` (macos-15
-> arm64 with release/coverage/asan presets, macos-15-intel x64 with release), `build-linux.yml`
-> (ubuntu-24.04, release + coverage) and `build-windows.yml` (windows-2022, release + coverage).
+> have been deleted and replaced by three platform workflows — `build-macos.yml` (one matrix
+> job covering macos-15 arm64 and macos-15-intel x64 with the same release/coverage/asan
+> presets), `build-linux.yml` (ubuntu-24.04, release + coverage) and `build-windows.yml`
+> (windows-2022, release + coverage).
 > They share the composite actions `.github/actions/build-common` (pinned toolchain, vcpkg/ccache
 > caches, configure and build) and `.github/actions/check-pr` (skip duplicate push runs). Coverage
 > now uploads to Codecov via `codecov/codecov-action@v5` with flags `macos`, `linux` and `windows`

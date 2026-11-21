@@ -73,6 +73,16 @@ jobs:
             platform: macos-x64
             preset: release
             enable: true
+          - name: macos-x64
+            os: macos-15-intel
+            platform: macos-x64
+            preset: coverage
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+          - name: macos-x64
+            os: macos-15-intel
+            platform: macos-x64
+            preset: asan
+            enable: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       MACOSX_DEPLOYMENT_TARGET: 13.3
@@ -165,6 +175,6 @@ jobs:
           files: coverage.lcov
           disable_search: true
           flags: macos
-          name: macos-coverage
+          name: ${{ matrix.name }}-coverage
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
