@@ -20,6 +20,7 @@
         },
         {
             "name": "debug",
+            "description": "Local development against the sibling Albor checkout",
             "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
@@ -28,42 +29,7 @@
         },
         {
             "name": "release",
-            "inherits": "base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor"
-            }
-        },
-        {
-            "name": "coverage",
-            "inherits": "base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "XYCE_COVERAGE": "ON",
-                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor"
-            }
-        },
-        {
-            "name": "asan",
-            "inherits": "base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "XYCE_ASAN": "ON",
-                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor"
-            }
-        },
-        {
-            "name": "studio-debug",
-            "inherits": "base",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "XYCE_BUILD_TESTS": "OFF",
-                "XYCE_BUILD_STUDIO_TESTS": "ON",
-                "ALBOR_LOCAL_SOURCE_DIR": "${sourceDir}/../albor"
-            }
-        },
-        {
-            "name": "studio-release",
+            "description": "Clean-checkout release build using the vendored Albor port",
             "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
@@ -71,77 +37,67 @@
                 "XYCE_BUILD_TESTS": "OFF",
                 "XYCE_BUILD_STUDIO_TESTS": "OFF"
             }
+        },
+        {
+            "name": "coverage",
+            "description": "CI coverage build using the vendored Albor port",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "XYCE_COVERAGE": "ON",
+                "VCPKG_MANIFEST_FEATURES": "albor-package"
+            }
+        },
+        {
+            "name": "asan",
+            "description": "CI AddressSanitizer build using the vendored Albor port",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "XYCE_ASAN": "ON",
+                "VCPKG_MANIFEST_FEATURES": "albor-package"
+            }
         }
     ],
     "buildPresets": [
         {
             "name": "debug",
-            "description": "",
-            "displayName": "",
             "configurePreset": "debug",
             "targets": [
                 "xyce-studio",
-                "xyce-studio-tests"
-            ],
-            "configuration": "Debug",
-            "inheritConfigureEnvironment": true
-        },
-        {
-            "name": "release",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "release",
-            "targets": [
-                "xyce-studio",
-                "xyce-studio-tests"
-            ],
-            "configuration": "Release",
-            "inheritConfigureEnvironment": true
-        },
-        {
-            "name": "coverage",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "coverage",
-            "targets": [
-                "xyce-studio",
-                "xyce-studio-tests"
-            ],
-            "configuration": "Debug",
-            "inheritConfigureEnvironment": true
-        },
-        {
-            "name": "asan",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "asan",
-            "targets": [
-                "xyce-studio-tests"
-            ],
-            "configuration": "Debug",
-            "inheritConfigureEnvironment": true
-        },
-        {
-            "name": "studio-debug",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "studio-debug",
-            "targets": [
-                "xyce-studio",
+                "xyce-studio-tests",
                 "studio-tests"
             ],
             "configuration": "Debug",
             "inheritConfigureEnvironment": true
         },
         {
-            "name": "studio-release",
-            "description": "",
-            "displayName": "",
-            "configurePreset": "studio-release",
+            "name": "release",
+            "configurePreset": "release",
             "targets": [
                 "xyce-studio"
             ],
             "configuration": "Release",
+            "inheritConfigureEnvironment": true
+        },
+        {
+            "name": "coverage",
+            "configurePreset": "coverage",
+            "targets": [
+                "xyce-studio-tests",
+                "studio-tests"
+            ],
+            "configuration": "Debug",
+            "inheritConfigureEnvironment": true
+        },
+        {
+            "name": "asan",
+            "configurePreset": "asan",
+            "targets": [
+                "xyce-studio-tests",
+                "studio-tests"
+            ],
+            "configuration": "Debug",
             "inheritConfigureEnvironment": true
         }
     ]

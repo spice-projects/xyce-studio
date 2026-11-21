@@ -336,13 +336,13 @@ legacy behaviour, so no legacy scenario regresses.
 | `tests` (shared unit) | 2999 tests pass |
 | `tests_ui` (legacy baseline) | 75 scenarios attempted; 53 pass, the other launches exceed the harness's 30 s startup budget on this machine (the Slint application does reach its MCP server when launched by hand). Phase 4 recorded 75/75 on CI; the application itself is unchanged |
 | Formatter | `build/check-format.sh` clean |
-| Release build | `studio-release` clean |
+| Release build | `release` clean |
 
 Run the suites with the display held awake, because the automation host serves
 one request per frame:
 
 ```bash
 caffeinate -dimsu .venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"
-./.build-studio-debug/studio-tests/studio-tests
+./.build-debug/studio-tests/studio-tests
 ./.build-debug/tests/xyce-studio-tests
 ```

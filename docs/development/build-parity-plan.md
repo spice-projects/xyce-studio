@@ -3,6 +3,15 @@
 > [!NOTE]
 > The cutover has landed: studio is the sole frontend (`xyce-studio`), `slint/` is retired, and the `XYCE_BUILD_SLINT_FRONTEND` / `XYCE_BUILD_STUDIO_FRONTEND` options no longer exist. The plan below is kept as a historical record.
 
+> [!NOTE]
+> Presets have since been consolidated to four — `debug`, `release`, `coverage` and
+> `asan` — and the `studio-debug` / `studio-release` presets are gone. Albor is not published in
+> the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit
+> `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), which makes a clean-checkout
+> `release` build possible without a published tag. The phase-by-phase checklist below is
+> historical and its preset names are retained as written; the remaining open item is the 7.2
+> CI workflow.
+
 ## 1. Overview & Objective
 
 The studio frontend (`studio/`, `core/`, `studio-tests/`) consumes **albor** as a vcpkg
@@ -57,10 +66,13 @@ independently buildable and revertable.
 - [x] Phase 5 — presets and instrumentation (Should 9, 10)
 - [x] Phase 6 — tests and repository checks (Should 11, 12)
 
-Every phase landed as its own commit on `refactor/dual-root-structure`. The one open item is
-`studio-release` from a clean checkout, which waits on an albor release tag past `5437649`
-(item 14, deliberately unchanged); the packaged path itself was verified against the current
-checkout.
+Every phase landed as its own commit on `refactor/dual-root-structure`. At the time this plan
+was written the one open item was `studio-release` from a clean checkout, which waited on an
+albor release tag past `5437649` (item 14, deliberately unchanged); the packaged path itself was
+verified against the current checkout. Since then the presets were consolidated to four
+(`debug`, `release`, `coverage`, `asan`) and the vendored `.ports/albor` port replaced the
+sibling checkout's overlay, so the clean-checkout `release` build no longer depends on a tag.
+The remaining open item is the 7.2 CI workflow.
 
 ---
 
@@ -189,7 +201,7 @@ eventual merged configuration to configure at all.
     cmake --preset debug          && cmake --build --preset debug
     cmake --preset studio-debug   && cmake --build --preset studio-debug
     ./.build-debug/tests/xyce-studio-tests
-    ./.build-studio-debug/studio-tests/studio-tests
+    ./.build-debug/studio-tests/studio-tests
     .venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"
 
 ---
@@ -476,7 +488,7 @@ runner rebuilding the dependency closure; later runs restore the manifest-keyed 
 
 ### 6.7 Verification
 
-    rm -rf .build-studio-debug && cmake --preset studio-debug
+    rm -rf .build-debug && cmake --preset studio-debug
     cmake --preset studio-release -U VCPKG_MANIFEST_DIR   # with ALBOR_LOCAL_SOURCE_DIR unset
     cmake --preset debug -U VCPKG_MANIFEST_DIR && cmake --build --preset debug
 
@@ -546,7 +558,7 @@ because neither builds the packaged application.
 Coverage: 2999 tests pass, the run writes a 3.8 MB `.profraw`, `llvm-profdata merge` and
 `llvm-cov export --format=lcov` both succeed, and the report names 201 source files.
 ASAN: 2999 tests pass with no sanitizer report. Both builds report no compiler warning, and
-`debug`/`studio-debug` still configure into `.build-debug`/`.build-studio-debug` through the
+`debug`/`studio-debug` still configure into `.build-debug`/`.build-debug` through the
 base preset.
 
 ---
@@ -638,8 +650,8 @@ fails the check and one under `albor/third-party/` is ignored.
 
 - [x] `bash build/check-format.sh` passes over the wider scope
 - [x] `ctest -R ui-integration` in `.build-debug` passes (1735.7 s, one test)
-- [x] `ctest -N -R link-boundary` lists the test in `.build-studio-release` and omits it from
-      `.build-studio-debug`, where automation is linked
+- [x] `ctest -N -R link-boundary` lists the test in `.build-release` and omits it from
+      `.build-debug`, where automation is linked
 
 The release application cannot link while the albor drift of Phase 4 stands, so
 `link-boundary` was exercised directly: it fails on a binary that carries the host and
@@ -679,7 +691,7 @@ Conventional Commits prefix.
     cmake --preset studio-debug   && cmake --build --preset studio-debug
     cmake --preset studio-release && cmake --build --preset studio-release
     ./.build-debug/tests/xyce-studio-tests
-    ./.build-studio-debug/studio-tests/studio-tests
+    ./.build-debug/studio-tests/studio-tests
     .venv/bin/python -m unittest discover -s tests_ui -p "*_test.py"
     bash build/check-format.sh
 

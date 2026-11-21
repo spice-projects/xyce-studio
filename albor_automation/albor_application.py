@@ -187,7 +187,7 @@ def default_executable() -> str:
     if override:
         return override
     # fall back to the studio debug build at the repository root
-    return str(Path(__file__).resolve().parents[1] / ".build-studio-debug" / "xyce-studio")
+    return str(Path(__file__).resolve().parents[1] / ".build-debug" / "xyce-studio")
 
 
 def _launch_attempt(executable_path: str, startup_timeout: float, env_overrides: dict[str, str], command_arguments: list[str], config_dir: bool) -> "AlborApplication":

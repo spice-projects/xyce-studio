@@ -18,7 +18,7 @@
   - **vcpkg binary cache** (local): `.vcpkg-cache/` is auto-populated via `VCPKG_BINARY_SOURCES` in CMake presets. Caches Albor/protobuf/nng compilation between clean builds.
   - **ccache** (local): enabled via `CMAKE_{C,CXX}_COMPILER_LAUNCHER` in CMake presets. Inspect with `ccache --show-stats`; clear with `ccache --clear`.
   - **CI**: both caches are persisted via `actions/cache@v5` keyed on runner OS + content hash. First CI run builds from source (~hour); subsequent runs restore in seconds.
-- Studio debug builds embed the Albor automation host used by the `tests_studio` scenarios; the binary is `.build-studio-debug/xyce-studio` and exposes its semantic tree to `albor_automation` (release builds do not embed the host).
+- Studio debug builds embed the Albor automation host used by the `tests_studio` scenarios; the binary is `.build-debug/xyce-studio` and exposes its semantic tree to `albor_automation` (release builds do not embed the host).
 
 ## Workflow
 

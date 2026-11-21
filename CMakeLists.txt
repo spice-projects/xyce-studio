@@ -17,19 +17,14 @@ if(APPLE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     endif()
 endif()
 
-# use overlay triplets (in .triplets) on all platforms. the macOS triplets
-# build skia as a dynamic library (its static archive corrupts __unwind_info
-# tables on arm64, breaking C++ exception unwinding);
+# use the overlay triplets in .triplets on all platforms
 if(NOT DEFINED VCPKG_OVERLAY_TRIPLETS)
     set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/.triplets" CACHE STRING "vcpkg overlay triplets")
 endif()
 if(NOT DEFINED VCPKG_OVERLAY_PORTS)
-    # a sibling albor checkout supplies the port behind the albor-package feature, and only a development tree has one
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../albor/ports/albor")
-        set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" "${CMAKE_CURRENT_SOURCE_DIR}/../albor/ports/albor" CACHE STRING "vcpkg overlay ports")
-    else()
-        set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports")
-    endif()
+    # .ports carries the albor port behind the albor-package feature; a sibling checkout is used
+    # through ALBOR_LOCAL_SOURCE_DIR instead of a second copy of the port
+    set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_SOURCE_DIR}/.ports" CACHE STRING "vcpkg overlay ports")
 endif()
 
 if(APPLE)

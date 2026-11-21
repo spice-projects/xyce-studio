@@ -7,7 +7,7 @@ This document records the defect, the reproduction, every test and measurement p
 - Branch: `refactor/dual-root-structure`
 - HEAD: `6e7557f` (nothing from this work is committed)
 - Date of measurements: Nov 13–14 2026
-- Build: `cmake --preset studio-debug` / `cmake --build --preset studio-debug`
+- Build: `cmake --preset debug` / `cmake --build --preset debug` (the preset was later renamed from `studio-debug` to `debug`)
 
 ---
 
@@ -26,7 +26,7 @@ The chart content is **not** displaced. The 32 px band that looks like a shift i
 Two datasets, no simulation required to see the strip itself:
 
 ```
-./.build-studio-debug/xyce-studio \
+./.build-debug/xyce-studio \
   --dataset tests_studio/fixtures/tran-simple-01.csv \
   --dataset tests_studio/fixtures/tran-simple-01.csv
 ```
@@ -36,7 +36,7 @@ Window geometry during capture: position `120,168`, size `1200x832`. Left click 
 The same defect was also reproduced with a simulated circuit after a Xyce run:
 
 ```
-./.build-studio-debug/xyce-studio \
+./.build-debug/xyce-studio \
   --netlist netlists/ac-simple-01.cir \
   --xyce ~/.local/bin/Xyce
 ```
@@ -102,7 +102,7 @@ The `PAINT` line is emitted **before** the strip picture is recorded, which is w
 
 ### 4.1 Unit tests — `StudioChartViewChecks`
 
-Runner: `./.build-studio-debug/studio-tests/xyce-studio-tests --gtest_filter='StudioChartViewChecks.*'`
+Runner: `./.build-debug/studio-tests/xyce-studio-tests --gtest_filter='StudioChartViewChecks.*'`
 
 Source: `studio-tests/chart_view.test.cpp`
 
@@ -145,7 +145,7 @@ Source: `studio-tests/charts_controller.test.cpp`
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Full unit suite | `./.build-studio-debug/studio-tests/xyce-studio-tests` | 81 → 85 → 86 → 87 → 90 tests, all pass (after each layer step) |
+| Full unit suite | `./.build-debug/studio-tests/xyce-studio-tests` | 81 → 85 → 86 → 87 → 90 tests, all pass (after each layer step) |
 | Full UI suite | `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"` | 42 → 44 → 48 tests, OK |
 | Format/lint | `bash build/check-format.sh` | see §4.4 |
 
@@ -601,7 +601,7 @@ Capture names in `/private/var/folders/7r/clg5kv714dq2f6fldywnjsww0000gn/T/openc
 The user's original report: run a simulation, then left click in the chart.
 
 ```
-./.build-studio-debug/xyce-studio \
+./.build-debug/xyce-studio \
   --netlist netlists/ac-simple-01.cir \
   --xyce ~/.local/bin/Xyce
 ```
@@ -627,7 +627,7 @@ This is the scenario that originally produced the gray band. The only pixel chan
 
 | Check | Command | Result |
 |---|---|---|
-| Studio unit | `./.build-studio-debug/studio-tests/xyce-studio-tests` | **90 passed** |
+| Studio unit | `./.build-debug/studio-tests/xyce-studio-tests` | **90 passed** |
 | Studio UI | `.venv/bin/python -m unittest discover -s tests_studio -p "*_test.py"` | **48 passed** |
 | Format / comments | `bash build/check-format.sh` | clean |
 | Albor | `.build-test/tests/albor-tests` | **4283 passed, 1 skipped** |

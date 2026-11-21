@@ -1,0 +1,38 @@
+albor provides C++ targets for the declarative UI framework:
+
+    find_package(albor CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE albor)          # recommended GPU runtime (Metal / Direct3D / Vulkan)
+
+The portable CPU renderer arrives through the package feature `albor[blend2d]` on macOS and
+Windows; the Linux package carries it by default as the fallback and software reference:
+
+    target_link_libraries(main PRIVATE albor-blend2d)  # the blend2d feature's umbrella
+
+Compile a .ui component at build time:
+
+    albor_build_ui_component(main "${CMAKE_CURRENT_SOURCE_DIR}/panel.ui")
+
+The public headers install under an `albor/` folder, so consumer sources include
+`#include "albor/application/application.h"` and the paths match the `albor::` namespace.
+
+Exactly one text engine and one renderer may be linked; the umbrella target carries them all.
+On Linux the umbrella links both the Wayland and X11 adapters and selects the session's one at
+run time. The granular albor-*-auto targets are the expert surface.
+
+On Windows the consumer's configuration must match the installed binaries' MSVC runtime,
+which vcpkg's own consumption provides automatically (both debug and release are built);
+a plain-prefix consumer links release at the minimum.
+
+On macOS the deployment floor is 13.3: export MACOSX_DEPLOYMENT_TARGET before configuring,
+or set VCPKG_OSX_DEPLOYMENT_TARGET in the triplet you build the package with.
+
+On Linux the Wayland and X11 adapters build against the host's Wayland, xkbcommon, XCB,
+Vulkan, Pango/Cairo and D-Bus development packages. The libdecor frame and the Wayland
+protocol definitions are vendored into the package, so no libdecor package, plugin
+directory or CMake option is needed. The supported floor is RHEL/Alma 9 (glibc 2.34,
+libstdc++ 3.4.29, Wayland 1.21); Ubuntu 24.04 is the current configuration. On
+Debian/Ubuntu install:
+
+    sudo apt-get install libwayland-dev libxkbcommon-dev libxcb1-dev libvulkan-dev libpango1.0-dev libcairo2-dev libdbus-1-dev pkg-config
+
+The portable CPU renderer stays the Linux fallback while `albor` carries the Vulkan backend.

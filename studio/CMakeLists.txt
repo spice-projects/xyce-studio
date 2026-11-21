@@ -104,3 +104,9 @@ if(ALBOR_LOCAL_SOURCE_DIR)
 endif()
 
 set_target_properties(xyce-studio PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+# the release build is statically linked, so the RuntimeDeps component carries the executable alone
+install(CODE [[file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/artifacts")]] COMPONENT RuntimeDeps)
+install(TARGETS xyce-studio
+    RUNTIME DESTINATION artifacts COMPONENT RuntimeDeps
+    BUNDLE DESTINATION artifacts COMPONENT RuntimeDeps)

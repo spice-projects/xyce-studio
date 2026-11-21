@@ -18,11 +18,26 @@ cmake --preset debug
 cmake --build --preset debug
 ```
 
-Presets available in `CMakePresets.json`: `debug`, `release`, `coverage`,
-`asan`, `studio-debug` and `studio-release`. The built binary lands in
-`.build-debug/` (debug preset). All presets build the Albor studio app; the
-first four also build the shared domain tests (`xyce-studio-tests`), and
-`studio-debug` produces `.build-studio-debug/xyce-studio`.
+Four presets remain in `CMakePresets.json`:
+
+- `debug` — local development against the sibling `../albor` checkout via
+  `ALBOR_LOCAL_SOURCE_DIR`; Debug build of the app plus both test suites
+  (`xyce-studio-tests` and `studio-tests`), with the automation host embedded.
+  Binary: `.build-debug/xyce-studio`.
+- `release` — clean-checkout release build using the vendored Albor port via
+  `VCPKG_MANIFEST_FEATURES=albor-package`; Release build of the app with no tests
+  and no automation host, and it runs the `link-boundary` check. Binary:
+  `.build-release/xyce-studio`.
+- `coverage` — CI coverage build using the vendored port; Debug with
+  instrumentation.
+- `asan` — CI sanitizer build using the vendored port.
+
+Albor is not published in the vcpkg registry. Its overlay port is vendored in
+`.ports/albor`, which fetches the framework from GitHub at pinned commit
+`e369cdbf1d452d99141db5b9f39d7cd52dfea924` (version 0.3.0). `.ports` is the single
+overlay directory. Local development still uses the sibling `../albor` checkout via
+`ALBOR_LOCAL_SOURCE_DIR`, but the root `CMakeLists.txt` no longer adds that
+checkout's port to `VCPKG_OVERLAY_PORTS`.
 
 The vcpkg binary cache (`.vcpkg-cache/`) and ccache speed up rebuilds;
 first configuration downloads and builds dependencies (Albor, protobuf,
