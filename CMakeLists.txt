@@ -135,6 +135,16 @@ if(XYCE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
+# the installed albor package references imported targets its own config does not recreate on linux;
+# provide them before find_package(albor) so the exported targets resolve (a local checkout creates them itself)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ALBOR_LOCAL_SOURCE_DIR)
+    find_package(PkgConfig)
+    find_package(Fontconfig)
+    find_package(Vulkan)
+    pkg_check_modules(ATSPI_DBUS_PC IMPORTED_TARGET dbus-1)
+    pkg_check_modules(XCB_PC IMPORTED_TARGET xcb)
+endif()
+
 # ctest is an entry point beside running a suite binary directly, so every suite registers from its own directory
 enable_testing()
 
