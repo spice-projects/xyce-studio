@@ -53,6 +53,10 @@ class AlborClient:
         # record what assistive technology reported about focus
         self._mcp.call_tool("semantic.set_focused", {"id": node_id, "value": "1" if focused else "0"})
 
+    def bounds(self, node_id: str) -> dict:
+        # read the geometry the node occupies in logical pixels
+        return self._mcp.call_tool("semantic.bounds", {"id": node_id})
+
     def screenshot(self) -> bytes:
         # capture a png screenshot of the active window
         data = self._mcp.call_tool("capture.screenshot", {"format": "png"})

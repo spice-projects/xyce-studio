@@ -75,7 +75,7 @@ component MainWindow {
 
         ToolBar {
             padding: 12px;
-            spacing: 2px;
+            spacing: 6px;
             corner_radius: 0px;
             vertical_align: Align.start;
 
@@ -119,8 +119,9 @@ component MainWindow {
                 Button {
                     id: main_run;
                     text: "Run";
+                    tooltip: "Run";
                     icon: @image("icons/sim_run_48.png");
-                    icon_size: 16px;
+                    icon_size: 20px;
                     disabled: !run_enabled;
                     on_clicked: {
                         run_clicked();
@@ -132,8 +133,9 @@ component MainWindow {
                 Button {
                     id: main_run;
                     text: "Stop";
+                    tooltip: "Stop";
                     icon: @image("icons/cancel_48.png");
-                    icon_size: 16px;
+                    icon_size: 20px;
                     on_clicked: {
                         run_clicked();
                     }

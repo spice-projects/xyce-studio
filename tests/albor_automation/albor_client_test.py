@@ -118,6 +118,15 @@ class AlborClientFacadeChecks(unittest.TestCase):
             ("semantic.set_focused", {"id": "ok", "value": "0"}),
         ])
 
+    def test_bounds_reads_the_node_geometry(self) -> None:
+        # arrange: the bounds tool answers with the geometry of one node
+        self._mcp.replies["semantic.bounds"] = {"x": 12, "y": 12, "width": 24, "height": 20}
+        # act
+        bounds = self._client.bounds("main_open")
+        # assert
+        self.assertEqual(bounds, {"x": 12, "y": 12, "width": 24, "height": 20})
+        self.assertEqual(self._mcp.calls, [("semantic.bounds", {"id": "main_open"})])
+
     def test_screenshot_requests_a_png(self) -> None:
         # arrange: the capture tool answers with the png payload
         self._mcp.replies["capture.screenshot"] = b"png-bytes"

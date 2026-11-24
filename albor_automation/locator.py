@@ -59,6 +59,10 @@ class Locator:
         # report whether the node accepts a value write
         return self.node().get("writable", False)
 
+    def bounds(self) -> dict:
+        # return the geometry the resolved node occupies in logical pixels
+        return self._app.client().bounds(self._node_id)
+
     def click(self, action: str = "activate") -> None:
         # invoke the node action, which presses a control the way a user does
         self._app.client().invoke(self._node_id, action)

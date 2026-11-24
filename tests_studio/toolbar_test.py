@@ -23,6 +23,18 @@ class ToolbarChecks(unittest.TestCase):
             # assert: the edit enables the save action
             expect(app.get_by_id("main_save")).not_().to_have_state("disabled")
 
+    def test_every_toolbar_button_shares_one_geometry(self) -> None:
+        # arrange: a netlist so every document action is present
+        netlist = Path(__file__).resolve().parents[1] / "netlists" / "tran-simple-01.cir"
+        with TestSession(launch(args=["--netlist", str(netlist)]), self.id()) as app:
+            app.get_by_id("netlist_editor").wait_for_exists()
+            # act: read the geometry of every toolbar action
+            node_ids = ("main_open", "main_save", "main_output", "main_run", "main_configure", "main_options", "main_plugin_settings", "main_exit")
+            geometries = {node_id: app.get_by_id(node_id).bounds() for node_id in node_ids}
+            # assert: every plate has the same height and sits on one row
+            self.assertEqual({geometry["height"] for geometry in geometries.values()}, {20.0})
+            self.assertEqual({geometry["y"] for geometry in geometries.values()}, {12.0})
+
 
 if __name__ == "__main__":
     unittest.main()

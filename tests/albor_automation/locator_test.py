@@ -15,6 +15,8 @@ class FakeClient:
         self.invokes: list[tuple[str, str]] = []
         # values records every (id, text) fill requested
         self.values: list[tuple[str, str]] = []
+        # bounded names the last node whose geometry the facade read
+        self.bounded = ""
 
     def find(self, node_id: str) -> dict | None:
         # the lookup matches the full id exactly, which mirrors the facade
@@ -28,6 +30,12 @@ class FakeClient:
 
     def set_value(self, node_id: str, value: str) -> None:
         self.values.append((node_id, value))
+
+    def bounds(self, node_id: str) -> dict:
+        # the geometry read records the node the facade asked about
+        self.bounded = node_id
+        # the canned geometry matches a toolbar icon plate
+        return {"x": 12, "y": 12, "width": 24, "height": 20}
 
 
 class FakeApp:
@@ -187,6 +195,16 @@ class LocatorWaitChecks(unittest.TestCase):
             locator.wait_for_exists(timeout=0.2, poll_interval=0.05)
         self.assertIn("node 'missing' did not appear", str(context.exception))
         self.assertIn("last observed: tree dump", str(context.exception))
+
+    def test_bounds_reads_the_resolved_node(self) -> None:
+        # arrange
+        app = FakeApp([{"role": "button", "id": "main_open", "name": "Open"}])
+        locator = Locator(app, "main_open")
+        # act
+        bounds = locator.bounds()
+        # assert
+        self.assertEqual(bounds["height"], 20)
+        self.assertEqual(app.client().bounded, "main_open")
 
     def test_wait_for_gone_passes_when_absent(self) -> None:
         # arrange
