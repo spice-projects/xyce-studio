@@ -116,7 +116,7 @@ component SimulationParametersDialog {
         }
 
         Column {
-            spacing: 12px;
+            spacing: 4px;
 
             Padding {
                 padding: Insets { top: 16px };
@@ -516,41 +516,56 @@ component SimulationParametersDialog {
                 }
 
                 Padding {
-                    padding: Insets { left: 20px, right: 20px, bottom: 16px };
+                    padding: Insets { left: 20px, right: 20px };
                     horizontal_align: Align.stretch;
                     vertical_align: Align.stretch;
 
-                    Column {
-                        spacing: 8px;
+                    // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
+                    Label {
+                        font_size: 13px;
+                        id: simulation_parameters_error;
+                        text: error_message;
+                        foreground: #CC0000;
+                    }
+                }
+            }
 
-                        // the error row keeps its reachable place in the tree, so the footer never moves when a message appears
-                        Label {
-                            font_size: 13px;
-                            id: simulation_parameters_error;
-                            text: error_message;
-                            foreground: #CC0000;
-                        }
+            // the bordered footer spans the whole window and marks the dialog action area
+            Panel {
+                padding: 8px;
+                spacing: 8px;
+                corner_radius: 0px;
+                border_width: 1px;
+                horizontal_align: Align.stretch;
 
-                        Row {
-                            spacing: 8px;
-                            horizontal_align: Align.end;
+                Row {
+                    spacing: 8px;
+                    horizontal_align: Align.end;
 
-                            Button {
-                                id: simulation_parameters_cancel;
-                                text: "Cancel";
-                                cancel: true;
-                                on_clicked: {
-                                    dismissed();
-                                }
+                    SizedBox {
+                        width: 80px;
+                        height: 28px;
+
+                        Button {
+                            id: simulation_parameters_cancel;
+                            text: "Cancel";
+                            cancel: true;
+                            on_clicked: {
+                                dismissed();
                             }
+                        }
+                    }
 
-                            Button {
-                                id: simulation_parameters_ok;
-                                text: "OK";
-                                default: true;
-                                on_clicked: {
-                                    accepted();
-                                }
+                    SizedBox {
+                        width: 80px;
+                        height: 28px;
+
+                        Button {
+                            id: simulation_parameters_ok;
+                            text: "OK";
+                            default: true;
+                            on_clicked: {
+                                accepted();
                             }
                         }
                     }

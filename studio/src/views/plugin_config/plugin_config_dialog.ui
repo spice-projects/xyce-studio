@@ -11,73 +11,103 @@ component PluginConfigDialog {
     signal accepted();
     signal dismissed();
 
-    // the column is the dialog body, which lets the footer stretch spacer pin
-    // the actions to the bottom edge of the fixed size window
     Column {
-        padding: 16px;
-        spacing: 12px;
+        spacing: 0px;
 
-        Row {
-            spacing: 10px;
+        Padding {
+            padding: 16px;
+            vertical_align: Align.stretch;
+
+            Column {
+                spacing: 12px;
+                vertical_align: Align.stretch;
+
+                Row {
+                    spacing: 10px;
+                    horizontal_align: Align.stretch;
+
+                    // the caption names the value, and a passive label stays out of the focus order
+                    Label {
+                        id: plugin_config_caption;
+                        text: "Xyce path:";
+                        vertical_align: Align.center;
+                    }
+
+                    TextField {
+                        id: plugin_config_path;
+                        value: path;
+                        horizontal_align: Align.stretch;
+                        on_changed: {
+                            path = value;
+                        }
+                    }
+
+                    Button {
+                        id: plugin_config_browse;
+                        text: "Browse...";
+                        on_clicked: {
+                            browse_clicked();
+                        }
+                    }
+                }
+
+                // the error row keeps its place in the tree, so showing it never rebuilds a control
+                Label {
+                    id: plugin_config_error;
+                    visible: show_error;
+                    text: error_message;
+                    foreground: #CC0000;
+                }
+
+                // pushes the footer to the bottom of the fixed size dialog
+                Label {
+                    vertical_align: Align.stretch;
+                }
+            }
+        }
+
+        SizedBox {
+            height: 8px;
+        }
+
+        // the bordered panel marks the dialog action area
+        Panel {
+            padding: 8px;
+            spacing: 8px;
+            corner_radius: 0px;
+            border_width: 1px;
             horizontal_align: Align.stretch;
 
-            // the caption names the value, and a passive label stays out of the focus order
-            Label {
-                id: plugin_config_caption;
-                text: "Xyce path:";
-                vertical_align: Align.center;
-            }
+            Row {
+                spacing: 8px;
+                horizontal_align: Align.end;
 
-            TextField {
-                id: plugin_config_path;
-                value: path;
-                horizontal_align: Align.stretch;
-                on_changed: {
-                    path = value;
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
+
+                    Button {
+                        id: plugin_config_cancel;
+                        text: "Cancel";
+                        cancel: true;
+                        on_clicked: {
+                            dismissed();
+                        }
+                    }
                 }
-            }
 
-            Button {
-                id: plugin_config_browse;
-                text: "Browse...";
-                on_clicked: {
-                    browse_clicked();
-                }
-            }
-        }
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
 
-        // the error row keeps its place in the tree, so showing it never rebuilds a control
-        Label {
-            id: plugin_config_error;
-            visible: show_error;
-            text: error_message;
-            foreground: #CC0000;
-        }
-
-        // pushes the footer to the bottom of the fixed size dialog
-        Label {
-            vertical_align: Align.stretch;
-        }
-
-        Row {
-            spacing: 8px;
-            horizontal_align: Align.end;
-
-            Button {
-                id: plugin_config_cancel;
-                text: "Cancel";
-                cancel: true;
-                on_clicked: {
-                    dismissed();
-                }
-            }
-
-            Button {
-                id: plugin_config_ok;
-                text: "OK";
-                default: true;
-                on_clicked: {
-                    accepted();
+                    Button {
+                        id: plugin_config_ok;
+                        text: "OK";
+                        default: true;
+                        on_clicked: {
+                            accepted();
+                        }
+                    }
                 }
             }
         }

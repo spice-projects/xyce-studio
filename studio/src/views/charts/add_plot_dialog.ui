@@ -115,34 +115,28 @@ component AddPlotDialog {
         }
 
         SizedBox {
-            height: 1px;
-
-            Panel {
-                padding: 0px;
-                background: #00000010;
-                border_width: 0px;
-                corner_radius: 0px;
-            }
+            height: 8px;
         }
 
-        // footer actions
-        SizedBox {
-            height: 42px;
+        // the bordered panel marks the dialog action area
+        Panel {
+            padding: 8px;
+            spacing: 8px;
+            corner_radius: 0px;
+            border_width: 1px;
+            horizontal_align: Align.stretch;
 
-            Panel {
-                padding: 7px;
-                spacing: 0px;
-                background: #00000000;
-                border_width: 0px;
-                corner_radius: 0px;
+            Row {
+                spacing: 8px;
 
-                Row {
-                    spacing: 8px;
+                Label {
+                    text: "";
+                    horizontal_align: Align.stretch;
+                }
 
-                    Label {
-                        text: "";
-                        horizontal_align: Align.stretch;
-                    }
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
 
                     Button {
                         id: add_plot_cancel;
@@ -152,6 +146,11 @@ component AddPlotDialog {
                             dismissed();
                         }
                     }
+                }
+
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
 
                     Button {
                         id: add_plot_ok;

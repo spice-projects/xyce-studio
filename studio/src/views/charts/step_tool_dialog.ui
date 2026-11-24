@@ -7,95 +7,127 @@ component StepToolDialog {
     signal dismissed();
 
     Column {
-        padding: 14px;
-        spacing: 10px;
+        spacing: 0px;
 
-        Label {
-            text: "Step Tool";
-            font_size: 16px;
-            font_weight: Weight.semibold;
-        }
-
-        Label {
-            text: "Select one or more parameter combinations to keep active for this chart";
-            font_size: 12px;
-        }
-
-        // the grid host columns are set by the host once the keys are known
-        Panel {
+        Padding {
+            padding: 14px;
             vertical_align: Align.stretch;
-            padding: 0px;
-            spacing: 0px;
-            background: #00000000;
-            border_width: 0px;
 
-            ScrollView {
+            Column {
+                spacing: 10px;
                 vertical_align: Align.stretch;
-                scrollbar: Scrollbar.as_needed;
 
-                Column {
-                    id: step_tool_rows;
-                    vertical_align: Align.start;
-                    spacing: 6px;
-                    horizontal_align: Align.stretch;
+                Label {
+                    text: "Step Tool";
+                    font_size: 16px;
+                    font_weight: Weight.semibold;
+                }
+
+                Label {
+                    text: "Select one or more parameter combinations to keep active for this chart";
+                    font_size: 12px;
+                }
+
+                // the grid host columns are set by the host once the keys are known
+                Panel {
+                    vertical_align: Align.stretch;
+                    padding: 0px;
+                    spacing: 0px;
+                    background: #00000000;
+                    border_width: 0px;
+
+                    ScrollView {
+                        vertical_align: Align.stretch;
+                        scrollbar: Scrollbar.as_needed;
+
+                        Column {
+                            id: step_tool_rows;
+                            vertical_align: Align.start;
+                            spacing: 6px;
+                            horizontal_align: Align.stretch;
+                        }
+                    }
+                }
+
+                Row {
+                    spacing: 8px;
+                    vertical_align: Align.center;
+
+                    Button {
+                        id: step_tool_select_all;
+                        text: "Select All";
+                        on_clicked: {
+                            select_all();
+                        }
+                    }
+
+                    Button {
+                        id: step_tool_clear_all;
+                        text: "Clear All";
+                        on_clicked: {
+                            clear_all();
+                        }
+                    }
+
+                    Button {
+                        id: step_tool_invert;
+                        text: "Invert";
+                        on_clicked: {
+                            invert_selection();
+                        }
+                    }
+
+                    Label {
+                        id: step_tool_count;
+                        text: "";
+                        font_size: 12px;
+                    }
                 }
             }
         }
 
-        Row {
-            spacing: 8px;
-            vertical_align: Align.center;
-
-            Button {
-                id: step_tool_select_all;
-                text: "Select All";
-                on_clicked: {
-                    select_all();
-                }
-            }
-
-            Button {
-                id: step_tool_clear_all;
-                text: "Clear All";
-                on_clicked: {
-                    clear_all();
-                }
-            }
-
-            Button {
-                id: step_tool_invert;
-                text: "Invert";
-                on_clicked: {
-                    invert_selection();
-                }
-            }
-
-            Label {
-                id: step_tool_count;
-                text: "";
-                font_size: 12px;
-            }
+        SizedBox {
+            height: 8px;
         }
 
-        Row {
+        // the bordered panel marks the dialog action area
+        Panel {
+            padding: 8px;
             spacing: 8px;
-            horizontal_align: Align.end;
+            corner_radius: 0px;
+            border_width: 1px;
+            horizontal_align: Align.stretch;
 
-            Button {
-                id: step_tool_cancel;
-                text: "Cancel";
-                cancel: true;
-                on_clicked: {
-                    dismissed();
+            Row {
+                spacing: 8px;
+                horizontal_align: Align.end;
+
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
+
+                    Button {
+                        id: step_tool_cancel;
+                        text: "Cancel";
+                        cancel: true;
+                        on_clicked: {
+                            dismissed();
+                        }
+                    }
                 }
-            }
 
-            Button {
-                id: step_tool_ok;
-                text: "OK";
-                default: true;
-                on_clicked: {
-                    accepted();
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
+
+                    Button {
+                        id: step_tool_ok;
+                        text: "OK";
+                        default: true;
+                        on_clicked: {
+                            accepted();
+                        }
+                    }
                 }
             }
         }

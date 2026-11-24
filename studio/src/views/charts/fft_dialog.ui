@@ -65,9 +65,8 @@ component FftDialog {
             }
         }
 
-        Column {
-            padding: 14px;
-            spacing: 10px;
+        Padding {
+            padding: Insets { left: 14px, right: 14px };
 
             Label {
                 id: fft_error;
@@ -75,26 +74,49 @@ component FftDialog {
                 font_size: 12px;
                 foreground: #CC0000;
             }
+        }
+
+        SizedBox {
+            height: 8px;
+        }
+
+        // the bordered panel marks the dialog action area
+        Panel {
+            padding: 8px;
+            spacing: 8px;
+            corner_radius: 0px;
+            border_width: 1px;
+            horizontal_align: Align.stretch;
 
             Row {
                 spacing: 8px;
                 horizontal_align: Align.end;
 
-                Button {
-                    id: fft_cancel;
-                    text: "Cancel";
-                    cancel: true;
-                    on_clicked: {
-                        dismissed();
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
+
+                    Button {
+                        id: fft_cancel;
+                        text: "Cancel";
+                        cancel: true;
+                        on_clicked: {
+                            dismissed();
+                        }
                     }
                 }
 
-                Button {
-                    id: fft_ok;
-                    text: "OK";
-                    default: true;
-                    on_clicked: {
-                        accepted();
+                SizedBox {
+                    width: 80px;
+                    height: 28px;
+
+                    Button {
+                        id: fft_ok;
+                        text: "OK";
+                        default: true;
+                        on_clicked: {
+                            accepted();
+                        }
                     }
                 }
             }
