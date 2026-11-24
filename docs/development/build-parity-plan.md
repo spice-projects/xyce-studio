@@ -20,9 +20,9 @@
 > [!NOTE]
 > Presets have since been consolidated to four — `debug`, `release`, `coverage` and
 > `asan` — and the `studio-debug` / `studio-release` presets are gone. Albor is not published in
-> the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit
-> `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), which makes a clean-checkout
-> `release` build possible without a published tag. The phase-by-phase checklist below is
+> the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned to the published
+> `v0.0.1` release commit `7d2f0c6f52a780762802d667a0a49fa5eed110a7`, version 0.0.1), which makes
+> a clean-checkout `release` build possible without a registry entry. The phase-by-phase checklist below is
 > historical and its preset names are retained as written; the 7.2 CI workflow concern has since
 > been addressed by the three platform workflows described above.
 

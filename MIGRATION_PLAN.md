@@ -4,12 +4,12 @@
 > Cutover complete (2026-11-20): the Albor studio frontend is the only frontend, built as `xyce-studio`; Phase 7.4 retired the legacy `slint/` root. The plan below is preserved as the historical migration record.
 
 > [!NOTE]
-> Current status (2026-11-21): presets have since been consolidated to four — `debug`, `release`,
+> Current status (2026-11-24): presets have since been consolidated to four — `debug`, `release`,
 > `coverage` and `asan` — and the `studio-debug` / `studio-release` presets are gone. Albor is not
-> published in the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit
-> `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), which makes clean-checkout
-> `release` builds possible. All binary and automation paths now use `.build-debug` /
-> `.build-release`. The preset names in the plan below are historical and retained as written;
+> published in the vcpkg registry; its overlay port is vendored in `.ports/albor`, pinned to the
+> published `v0.0.1` release commit `7d2f0c6f52a780762802d667a0a49fa5eed110a7` (version 0.0.1),
+> which makes clean-checkout `release` builds possible. All binary and automation paths now use
+> `.build-debug` / `.build-release`. The preset names in the plan below are historical and retained as written;
 > the 7.2 workflow split is done — the dedicated workflows are `build-macos.yml`,
 > `build-linux.yml` and `build-windows.yml`, with the `CODECOV_TOKEN` secret and the
 > branch-protection check-name changes left as manual GitHub settings follow-ups.
@@ -25,7 +25,7 @@ This document outlines the architectural blueprint and step-by-step execution pl
 4. **CI & Packaging Continuity**: CI must keep building and packaging the app with **identical binary outputs and artifact layouts**. The legacy `.github/workflows/default.yaml` and `coverage.yml` were deleted and replaced by `build-macos.yml` (macos-15 arm64: release/coverage/asan; macos-15-intel x64: release/coverage/asan), `build-linux.yml` (ubuntu-24.04: release + coverage) and `build-windows.yml` (windows-2022: release + coverage); their release jobs still install RuntimeDeps and upload `xyce-studio-<platform>` artifacts. The preset names follow `docs/development/build-parity-plan.md` (the `profile` preset became `coverage`, joined by `asan`), so no artifact path changes.
 5. **Zero Downtime / Regression Protection**: Both frontends coexist as two separate roots (`slint/` and `studio/`), sharing a common UI-agnostic domain core (`core/`). The current app (`xyce-studio`) continues to build and pass all automated tests until the new app (`xyce-studio-next`) achieves complete feature parity; the new root carries its own presenter unit tests (`studio-tests/`) and UI automation (`tests_studio/`).
 
-**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository. Albor is not published in the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned commit `e369cdbf1d452d99141db5b9f39d7cd52dfea924`, version 0.3.0), now the single overlay directory. Local development uses the sibling `../albor` checkout through `ALBOR_LOCAL_SOURCE_DIR` (via the `debug` preset), but the root `CMakeLists.txt` no longer appends that checkout's port to `VCPKG_OVERLAY_PORTS`. The `studio-debug` / `studio-release` presets named below were consolidated into `debug`, `release`, `coverage` and `asan`.
+**Framework**: The new root is built on **Albor**, a separate C++ UI framework developed in its own repository. Albor is not published in the vcpkg registry; its overlay port is vendored in `.ports/albor` (pinned to the published `v0.0.1` release commit `7d2f0c6f52a780762802d667a0a49fa5eed110a7`, version 0.0.1), now the single overlay directory. Local development uses the sibling `../albor` checkout through `ALBOR_LOCAL_SOURCE_DIR` (via the `debug` preset), but the root `CMakeLists.txt` no longer appends that checkout's port to `VCPKG_OVERLAY_PORTS`. The `studio-debug` / `studio-release` presets named below were consolidated into `debug`, `release`, `coverage` and `asan`.
 
 ### Status Snapshot (2026-11-20)
 

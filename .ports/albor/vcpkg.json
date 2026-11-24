@@ -1,6 +1,6 @@
 {
   "name": "albor",
-  "version-semver": "0.3.0",
+  "version-semver": "0.0.1",
   "port-version": 1,
   "description": "Cross-platform declarative UI framework for C++",
   "homepage": "https://github.com/AlborCore/albor",

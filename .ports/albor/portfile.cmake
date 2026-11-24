@@ -1,8 +1,8 @@
 # the albor port, which pins the source the package builds from and installs the checked-in cmake story of it (AD-19)
 #
-# albor is not in the vcpkg registry, so this overlay port is vendored here and fetches the framework from
-# GitHub at the pinned commit below. ALBOR_PORT_SOURCE_PATH overrides the fetch for a local pass. Bump the
-# REF and the version together: the version is what invalidates a cached package built from an older commit.
+# albor is not in the vcpkg registry, so this overlay port is vendored here and fetches the published
+# release from GitHub at the tag commit below. ALBOR_PORT_SOURCE_PATH overrides the fetch for a local
+# pass. Bump the REF and the version together: the version invalidates a cached package from an older commit.
 
 if(DEFINED ENV{ALBOR_PORT_SOURCE_PATH})
     # a local pass builds the checkout itself, which is announced rather than silently adopted (AD-19)
@@ -13,11 +13,11 @@ if(DEFINED ENV{ALBOR_PORT_SOURCE_PATH})
     set(SOURCE_PATH "${local_source}")
     message(STATUS "albor port: building from the local checkout ${SOURCE_PATH} (unpinned)")
 else()
-    # pin an immutable commit; the app needs fixes that postdate the v0.2.0 tag
+    # pin the published v0.0.1 release tag; its commit is immutable
     vcpkg_from_git(
         OUT_SOURCE_PATH SOURCE_PATH
         URL "https://github.com/AlborCore/albor.git"
-        REF e369cdbf1d452d99141db5b9f39d7cd52dfea924
+        REF 7d2f0c6f52a780762802d667a0a49fa5eed110a7
         HEAD_REF main
     )
 endif()

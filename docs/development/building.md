@@ -32,9 +32,9 @@ Four presets remain in `CMakePresets.json`:
   instrumentation.
 - `asan` — CI sanitizer build using the vendored port.
 
-Albor is not published in the vcpkg registry. Its overlay port is vendored in
-`.ports/albor`, which fetches the framework from GitHub at pinned commit
-`e369cdbf1d452d99141db5b9f39d7cd52dfea924` (version 0.3.0). `.ports` is the single
+Albor is not published in the vcpkg registry. Its published GitHub release is
+`v0.0.1`; the overlay port vendored in `.ports/albor` pins that release's commit
+`7d2f0c6f52a780762802d667a0a49fa5eed110a7` (version 0.0.1). `.ports` is the single
 overlay directory. Local development still uses the sibling `../albor` checkout via
 `ALBOR_LOCAL_SOURCE_DIR`, but the root `CMakeLists.txt` no longer adds that
 checkout's port to `VCPKG_OVERLAY_PORTS`.
