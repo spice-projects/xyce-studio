@@ -95,13 +95,14 @@ foreach(xyce_studio_source IN LISTS xyce_studio_sources)
     endif()
 endforeach()
 
-target_link_libraries(xyce-studio PRIVATE xyce::core spdlog::spdlog albor)
-
 # the dev runtime carries the automation host when ALBOR_AUTOMATION is on, which
 # is what makes the real application drivable by the UI scenarios.
 if(ALBOR_LOCAL_SOURCE_DIR)
     target_link_libraries(xyce-studio PRIVATE albor-devrt-auto)
 endif()
+
+# the umbrella follows the dev runtime so single-pass linkers resolve the widget references it brings in
+target_link_libraries(xyce-studio PRIVATE xyce::core spdlog::spdlog albor)
 
 set_target_properties(xyce-studio PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 

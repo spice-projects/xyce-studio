@@ -11,8 +11,7 @@
 
 namespace
 {
-    // parse the leading numeric portion of a value (supports SI suffixes like 1k);
-    // returns false when the value does not start with a number
+    // parse a numeric prefix with SI suffixes, failing when no number leads
     [[nodiscard]] bool parse_number(const std::string& text, double& value) {
         if (text.empty()) {
             return false;
@@ -57,8 +56,7 @@ namespace
         return std::nullopt;
     }
 
-    // consume log sweep tuples (DEC/OCT) from tokens starting at a given index;
-    // each tuple is: DEC|OCT var start stop points
+    // consume DEC and OCT sweeps as DEC|OCT var start stop points tuples
     void parse_log_sweeps(const std::vector<std::string_view>& tokens, size_t start_index, std::vector<DcSweep>& sweeps) {
         size_t i = start_index;
         while (i + 4 < tokens.size()) {
@@ -75,8 +73,7 @@ namespace
         }
     }
 
-    // consume LIN sweep tuples from tokens starting at a given index;
-    // each tuple is: var start stop step  (no leading LIN keyword when implicit)
+    // consume implicit LIN sweeps as var start stop step tuples
     void parse_lin_sweeps(const std::vector<std::string_view>& tokens, size_t start_index, std::vector<DcSweep>& sweeps) {
         size_t i = start_index;
         while (i + 3 < tokens.size()) {
@@ -95,8 +92,8 @@ namespace
     }
 } // namespace
 
-DCSimulationParameters::DCSimulationParameters(std::string sweep_mode, std::vector<DcSweep> sweeps, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce) :
-    sweep_mode(std::move(sweep_mode)), sweeps(std::move(sweeps)), data_table_name(std::move(data_table_name)), print_parameters(std::move(print_parameters)), measure_parameters(std::move(measure_parameters)), sensitivity(std::move(sensitivity)), pce(std::move(pce)) {}
+DCSimulationParameters::DCSimulationParameters(std::string a_sweep_mode, std::vector<DcSweep> a_sweeps, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters, std::vector<MeasureEntry> a_measure_parameters, std::optional<SensParameter> a_sensitivity, std::optional<PceParameters> a_pce) :
+    sweep_mode(std::move(a_sweep_mode)), sweeps(std::move(a_sweeps)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)), measure_parameters(std::move(a_measure_parameters)), sensitivity(std::move(a_sensitivity)), pce(std::move(a_pce)) {}
 
 std::optional<DCSimulationParameters> DCSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults
@@ -161,8 +158,7 @@ std::optional<DCSimulationParameters> DCSimulationParameters::from_xyce_directiv
         // flag indicating a valid DC directive was found
         found = true;
 
-        // a new .DC directive supersedes any previously parsed one: reset sweep
-        // state so duplicate directives do not merge into a combined analysis
+        // reset sweeps so a new .DC directive supersedes the previous one
         sweeps.clear();
         data_table_name.clear();
 

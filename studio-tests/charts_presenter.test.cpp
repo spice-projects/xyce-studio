@@ -715,12 +715,14 @@ TEST(StudioChartsPresenterChecks, selecting_a_complex_source_shows_its_derived_s
     const std::optional<studio::PlotSelectionState> selection = presenter.plot_selection(0);
     ASSERT_TRUE(selection.has_value());
     for (const studio::PlotExpression& expression : selection->expressions) {
-        // the two series the chart plots for a complex source
-        if (expression.name == "db(I(L1))" || expression.name == "phase(I(L1))")
+        if (expression.name == "db(I(L1))" || expression.name == "phase(I(L1))") {
+            // the two series the chart plots for a complex source
             EXPECT_TRUE(expression.selected) << expression.name;
-        // the source row stays unselected because the chart plots its derived series
-        if (expression.name == "I(L1)")
+        }
+        if (expression.name == "I(L1)") {
+            // the source row stays unselected because the chart plots its derived series
             EXPECT_FALSE(expression.selected);
+        }
     }
     // release the scratch file
     std::filesystem::remove_all(root, error);

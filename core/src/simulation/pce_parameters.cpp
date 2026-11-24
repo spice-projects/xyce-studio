@@ -46,8 +46,7 @@ namespace
         return joined;
     }
 
-    // parse KEY=VALUE tokens into the options map with uppercased keys;
-    // bare tokens without '=' are stored as KEY=1 flags
+    // parse KEY=VALUE options, storing bare tokens as KEY=1 flags
     void parse_option_tokens(const std::vector<std::string_view>& tokens, size_t start_index, std::map<std::string, std::string>& options) {
         // iterate over the option tokens
         for (size_t i = start_index; i < tokens.size(); ++i) {
@@ -67,8 +66,8 @@ namespace
     }
 } // namespace
 
-PceParameters::PceParameters(bool use_expression, std::vector<std::string> parameters, std::vector<std::string> distribution_types, std::vector<std::string> means, std::vector<std::string> std_deviations, std::vector<std::string> lower_bounds, std::vector<std::string> upper_bounds, std::vector<std::string> alphas, std::vector<std::string> betas, std::map<std::string, std::string> pces_options, std::optional<PrintParameters> print_parameters) :
-    use_expression(use_expression), parameters(std::move(parameters)), distribution_types(std::move(distribution_types)), means(std::move(means)), std_deviations(std::move(std_deviations)), lower_bounds(std::move(lower_bounds)), upper_bounds(std::move(upper_bounds)), alphas(std::move(alphas)), betas(std::move(betas)), pces_options(std::move(pces_options)), print_parameters(std::move(print_parameters)) {}
+PceParameters::PceParameters(bool a_use_expression, std::vector<std::string> a_parameters, std::vector<std::string> a_distribution_types, std::vector<std::string> a_means, std::vector<std::string> a_std_deviations, std::vector<std::string> a_lower_bounds, std::vector<std::string> a_upper_bounds, std::vector<std::string> a_alphas, std::vector<std::string> a_betas, std::map<std::string, std::string> a_pces_options, std::optional<PrintParameters> a_print_parameters) :
+    use_expression(a_use_expression), parameters(std::move(a_parameters)), distribution_types(std::move(a_distribution_types)), means(std::move(a_means)), std_deviations(std::move(a_std_deviations)), lower_bounds(std::move(a_lower_bounds)), upper_bounds(std::move(a_upper_bounds)), alphas(std::move(a_alphas)), betas(std::move(a_betas)), pces_options(std::move(a_pces_options)), print_parameters(std::move(a_print_parameters)) {}
 
 std::optional<PceParameters> PceParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init directive found flag

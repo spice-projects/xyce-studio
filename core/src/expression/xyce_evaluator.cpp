@@ -618,9 +618,9 @@ namespace
                 if (value) {
                     // check complex
                     if (is_complex(*value))
-                        return broadcast_unary_complex(*value, [](std::complex<double> value) { return -value; });
+                        return broadcast_unary_complex(*value, [](std::complex<double> component) { return -component; });
                     // real negation
-                    return broadcast_unary_real(*value, [](double value) { return -value; });
+                    return broadcast_unary_real(*value, [](double component) { return -component; });
                 }
             }
             // differential probe keys

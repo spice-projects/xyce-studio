@@ -6,8 +6,8 @@
 #include "core/util.h"
 #include "hb_simulation_parameters.h"
 
-HbSimulationParameters::HbSimulationParameters(std::vector<std::string> frequencies, std::vector<int> harmonics, std::optional<int> tahb, std::optional<std::string> selectharms, std::optional<int> startup_periods, std::optional<PrintParameters> print_parameters, std::map<std::string, std::string> nonlin_options, std::map<std::string, std::string> linsol_options) :
-    frequencies(std::move(frequencies)), harmonics(std::move(harmonics)), tahb(std::move(tahb)), selectharms(std::move(selectharms)), startup_periods(std::move(startup_periods)), print_parameters(std::move(print_parameters)), nonlin_options(std::move(nonlin_options)), linsol_options(std::move(linsol_options)) {}
+HbSimulationParameters::HbSimulationParameters(std::vector<std::string> a_frequencies, std::vector<int> a_harmonics, std::optional<int> a_tahb, std::optional<std::string> a_selectharms, std::optional<int> a_startup_periods, std::optional<PrintParameters> a_print_parameters, std::map<std::string, std::string> a_nonlin_options, std::map<std::string, std::string> a_linsol_options) :
+    frequencies(std::move(a_frequencies)), harmonics(std::move(a_harmonics)), tahb(std::move(a_tahb)), selectharms(std::move(a_selectharms)), startup_periods(std::move(a_startup_periods)), print_parameters(std::move(a_print_parameters)), nonlin_options(std::move(a_nonlin_options)), linsol_options(std::move(a_linsol_options)) {}
 
 std::optional<HbSimulationParameters> HbSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults

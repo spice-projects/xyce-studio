@@ -1,4 +1,3 @@
-#include <cctype>
 #include <optional>
 #include <string>
 #include <vector>
@@ -6,8 +5,8 @@
 #include "core/util.h"
 #include "lin_simulation_parameters.h"
 
-LinSimulationParameters::LinSimulationParameters(bool sparcalc, std::string format, std::string lintype, std::string dataformat, std::string file, std::string width, std::string precision, std::string sweep_mode, std::string points, std::string start, std::string end, std::string data_table_name, std::optional<PrintParameters> print_parameters) :
-    sparcalc(sparcalc), format(std::move(format)), lintype(std::move(lintype)), dataformat(std::move(dataformat)), file(std::move(file)), width(std::move(width)), precision(std::move(precision)), sweep_mode(std::move(sweep_mode)), points(std::move(points)), start(std::move(start)), end(std::move(end)), data_table_name(std::move(data_table_name)), print_parameters(std::move(print_parameters)) {}
+LinSimulationParameters::LinSimulationParameters(bool a_sparcalc, std::string a_format, std::string a_lintype, std::string a_dataformat, std::string a_file, std::string a_width, std::string a_precision, std::string a_sweep_mode, std::string a_points, std::string a_start, std::string a_end, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters) :
+    sparcalc(a_sparcalc), format(std::move(a_format)), lintype(std::move(a_lintype)), dataformat(std::move(a_dataformat)), file(std::move(a_file)), width(std::move(a_width)), precision(std::move(a_precision)), sweep_mode(std::move(a_sweep_mode)), points(std::move(a_points)), start(std::move(a_start)), end(std::move(a_end)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)) {}
 
 std::optional<LinSimulationParameters> LinSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults
@@ -140,8 +139,7 @@ std::optional<LinSimulationParameters> LinSimulationParameters::from_xyce_direct
                 format = to_upper(val);
             }
             else if (key_upper == "TYPE" || key_upper == "LINTYPE") {
-                // set the s-parameter type
-                // LINTYPE is the documented RG keyword; TYPE is accepted for backward compatibility
+                // set the s-parameter type from LINTYPE or the legacy TYPE keyword
                 lintype = to_upper(val);
             }
             else if (key_upper == "DATAFORMAT") {
@@ -197,9 +195,7 @@ std::vector<std::string> LinSimulationParameters::to_xyce_directives(const Netli
     }
     directives.push_back(ac_directive);
 
-    // build and append the .LIN directive
-    // SPARCALC/FORMAT/LINTYPE/DATAFORMAT are always emitted so a config that
-    // round-trips through the dialog keeps the original directive text
+    // append the .LIN directive with all formatting keywords for round-tripping
     std::string lin_directive = ".LIN";
     lin_directive += " SPARCALC=";
     lin_directive += sparcalc ? "1" : "0";

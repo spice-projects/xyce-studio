@@ -19,7 +19,7 @@
 namespace
 {
 
-    // check whether an already printed output variable covers a quantity through a wildcard, e.g. a printed V(*) covers V(N1) and V(N2,N3) while a printed I(*) does not cover the lead current IC(Q1)
+    // check whether a printed wildcard covers the quantity, where I(*) excludes lead currents
     bool wildcard_covers(const std::string& printed, const std::string& quantity) {
         // a wildcard output variable carries the probe name followed by the (*) argument list
         if (!to_upper(printed).ends_with("(*)"))
@@ -31,7 +31,7 @@ namespace
         return to_upper(printed.substr(0, printed.size() - 3)) == to_upper(quantity.substr(0, quantity.find('(')));
     }
 
-    // merge output variables into an output variable list, a variable already present passes through once and a printed wildcard suppresses the quantities it already covers; additionally_printed names quantities the print already carries outside its variable list (the device noise operators of a .PRINT NOISE), so they are not appended twice
+    // merge printed variables, skipping duplicates and quantities already carried elsewhere
     std::vector<std::string> merge_output_variables(const std::vector<std::string>& printed, const std::vector<std::string>& variables, const std::vector<std::string>& additionally_printed = {}) {
         // the merged output variables
         std::vector<std::string> merged = printed;
@@ -56,7 +56,7 @@ namespace
         return merged;
     }
 
-    // render the device noise operators of a .PRINT NOISE back to their output variable spelling, the noise parser stores them beside the output variables and the serialization appends them there, so a plotted operator must not be added to the variable list as well
+    // render noise operators as output variables already carried outside the variable list
     std::vector<std::string> device_noise_operator_variables(const std::vector<DeviceNoiseOperator>& operators) {
         // the rendered operator tokens
         std::vector<std::string> variables;
@@ -87,7 +87,7 @@ namespace
 
         template <typename T>
         void operator()(T& params) const {
-            // the noise analysis carries its device noise operators beside the output variables, they must take part in the deduplication
+            // include the noise operators carried beside the output variables in deduplication
             std::vector<std::string> carried_outside;
             if constexpr (std::is_same_v<T, NoiseSimulationParameters>)
                 carried_outside = device_noise_operator_variables(params.device_noise_operators);
@@ -111,8 +111,8 @@ namespace
 
 } // anonymous namespace
 
-SimulationConfig::SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground, ICParameters ic_parameters, std::optional<std::string> remove_unused, std::vector<std::string> add_resistors) :
-    analysis_type(std::move(analysis_type)), analysis(std::move(analysis)), steps(std::move(steps)), data_blocks(std::move(data_blocks)), options(std::move(options)), unassociated_prints(std::move(unassociated_prints)), replace_ground(replace_ground), ic_parameters(std::move(ic_parameters)), remove_unused(std::move(remove_unused)), add_resistors(std::move(add_resistors)) {}
+SimulationConfig::SimulationConfig(std::string a_analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> a_analysis, std::vector<StepParameters> a_steps, std::vector<DataBlock> a_data_blocks, OptionParameters a_options, std::vector<PrintParameters> a_unassociated_prints, bool a_replace_ground, ICParameters a_ic_parameters, std::optional<std::string> a_remove_unused, std::vector<std::string> a_add_resistors) :
+    analysis_type(std::move(a_analysis_type)), analysis(std::move(a_analysis)), steps(std::move(a_steps)), data_blocks(std::move(a_data_blocks)), options(std::move(a_options)), unassociated_prints(std::move(a_unassociated_prints)), replace_ground(a_replace_ground), ic_parameters(std::move(a_ic_parameters)), remove_unused(std::move(a_remove_unused)), add_resistors(std::move(a_add_resistors)) {}
 
 StepParameters SimulationConfig::step() const {
     // return the first step for backward compatibility, or a disabled default
@@ -145,7 +145,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis = std::monostate{};
     std::string analysis_type;
 
-    // list of simulation parameter types in order of precedence, LinSimulationParameters MUST appear before AcSimulationParameters because .LIN netlists also contain a .AC directive and the Lin class embeds the AC sweep so it must claim the match first
+    // keep LIN before AC because a .LIN netlist also carries a .AC directive
     const std::vector<std::string> simulation_types = {"LIN", "AC", "HB", "NOISE", "DC", "OP", "TRAN"};
 
     // iterate all registered simulation types to find a match
@@ -281,13 +281,13 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
         else if (analysis_type == "DC") {
             handled_print_types.insert("DC");
             handled_print_types.insert("HOMOTOPY");
-            // the DC parser claims .PRINT PCE into its structured PCE parameters, without this the same directive would also be appended to the unassociated prints
+            // let DC claim .PRINT PCE so it is not appended to unassociated prints
             handled_print_types.insert("PCE");
         }
         else if (analysis_type == "TRAN") {
             handled_print_types.insert("TRAN");
             handled_print_types.insert("TRANADJOINT");
-            // the TRAN parser claims .PRINT PCE into its structured PCE parameters, without this the same directive would also be appended to the unassociated prints
+            // let TRAN claim .PRINT PCE so it is not appended to unassociated prints
             handled_print_types.insert("PCE");
         }
         else if (analysis_type == "HB") {
@@ -301,7 +301,7 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
             handled_print_types.insert("NOISE");
         }
         else if (analysis_type == "OP") {
-            // the OP parser claims .PRINT DC into its structured print parameters, without this the same directive would also be appended to the unassociated prints and duplicated in the Xyce netlist
+            // let OP claim .PRINT DC so it is not appended twice
             handled_print_types.insert("DC");
         }
     }
@@ -359,7 +359,7 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
     const auto option_directives = options.to_xyce_directives(topology);
     directives.insert(directives.end(), option_directives.begin(), option_directives.end());
 
-    // emit the replace-ground preprocessing directive at most once for the whole netlist, the state is always emitted explicitly so that a disabled replacement round-trips
+    // emit the replace-ground directive once, always stating its enabled state
     directives.push_back(replace_ground ? ".PREPROCESS REPLACEGROUND TRUE" : ".PREPROCESS REPLACEGROUND FALSE");
 
     // emit the remove-unused preprocessing directive when configured
@@ -374,7 +374,7 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
         directives.push_back(".PREPROCESS ADDRESISTORS " + add_resistor);
     }
 
-    // emit the merged .IC line for every analysis type: Xyce consumes it in whichever DCOP the analysis performs, never rejects it, and documents no effect only for HB (RG .IC and .HB sections)
+    // emit the merged .IC line for every analysis, including HB
     const auto ic_directives = ic_parameters.to_xyce_directives(topology);
     directives.insert(directives.end(), ic_directives.begin(), ic_directives.end());
 
@@ -439,7 +439,7 @@ std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() con
             // structured print parameters when set
             if (a.print_parameters.has_value())
                 return a.print_parameters;
-            // legacy OP representation: derive the structured print from the print_dc_* fields (de-duplicated variables, matching the legacy directive emission)
+            // derive the legacy OP print from the print_dc_* fields
             if constexpr (std::is_same_v<TX, OpSimulationParameters>) {
                 if (a.print_dc_enabled) {
                     // de-duplicate the variables preserving order, matching the legacy emission
@@ -474,7 +474,7 @@ void SimulationConfig::augment_analysis_print_variables(const std::vector<std::s
     // nothing declared, nothing to merge
     if (variables.empty())
         return;
-    // the print type of the configured analysis, an .OP run prints the DC operating point and a .LIN run writes its touchstone output instead of an analysis print
+    // resolve the print type of the configured analysis
     std::string print_type;
     if (!std::holds_alternative<std::monostate>(analysis) && analysis_type != "LIN")
         print_type = analysis_type == "OP" ? "DC" : to_upper(analysis_type);
@@ -546,7 +546,7 @@ std::optional<std::filesystem::path> SimulationConfig::pce_output_file_path(cons
     const auto pce_print = pce_print_parameters();
     if (!pce_print.has_value())
         return std::nullopt;
-    // FILE= is removed from every .PRINT statement for the run, so Xyce writes the default file for the print type and format next to the netlist
+    // use the default print output file after FILE= was stripped from the run
     return default_print_output_file(*pce_print, netlist_file_path);
 }
 
@@ -564,7 +564,7 @@ SimulationConfig::ProducedMeasurements SimulationConfig::produced_measurements()
         SimulationConfig::ProducedMeasurements operator()(const NoiseSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const OpSimulationParameters&) const { return {}; }
         SimulationConfig::ProducedMeasurements operator()(const TransientSimulationParameters& params) const {
-            // a .TRAN analysis with .FFT directives dumps the FFT calculation files, a .TRAN analysis with .FOUR directives dumps the Fourier analysis files and a .TRAN analysis with .PCE parameters and a companion print dumps the PCE statistics output
+            // list the transient analyses that dump FFT, Fourier or PCE statistics files
             return {.fft = !params.fft_parameters.empty(), .fourier = !params.four_parameters.empty(), .pce = params.pce.has_value() && params.pce->print_parameters.has_value()};
         }
         SimulationConfig::ProducedMeasurements operator()(const LinSimulationParameters& params) const {
@@ -595,10 +595,10 @@ std::optional<std::filesystem::path> SimulationConfig::s_parameter_output_file_p
             // only touchstone output formats produce a touchstone file
             if (params.format != "TOUCHSTONE2" && params.format != "TOUCHSTONE")
                 return std::nullopt;
-            // no FILE=/FILENAME= given: Xyce writes <netlist>.sNp next to the netlist, N being the port count (P devices in the netlist)
+            // write the default <netlist>.sNp when no FILE= or FILENAME= is given
             if (params.file.empty())
                 return std::optional<std::filesystem::path>(netlist_file_path.string() + ".s" + std::to_string(num_ports) + "p");
-            // FILE= takes precedence over FILENAME= (already enforced at parse time); strip outer quotes and resolve relative values against the working directory, which is Xyce's process cwd for the run
+            // resolve FILE= against the working directory, which is Xyce's run cwd
             const auto file = strip_outer_quotes(params.file);
             if (std::filesystem::path(file).is_absolute())
                 return std::optional<std::filesystem::path>(file);

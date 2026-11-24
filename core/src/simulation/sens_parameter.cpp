@@ -7,8 +7,8 @@
 #include "netlist/netlist.h"
 #include "sens_parameter.h"
 
-SensParameter::SensParameter(std::string analysis_context, std::string objective_mode, std::vector<std::string> objective_values, std::vector<std::string> parameter_list, bool direct, bool adjoint, std::optional<PrintParameters> print_parameters, std::vector<std::string> option_tokens) :
-    analysis_context(std::move(analysis_context)), objective_mode(std::move(objective_mode)), objective_values(std::move(objective_values)), parameter_list(std::move(parameter_list)), direct(direct), adjoint(adjoint), print_parameters(std::move(print_parameters)), option_tokens(std::move(option_tokens)) {}
+SensParameter::SensParameter(std::string a_analysis_context, std::string a_objective_mode, std::vector<std::string> a_objective_values, std::vector<std::string> a_parameter_list, bool a_direct, bool a_adjoint, std::optional<PrintParameters> a_print_parameters, std::vector<std::string> a_option_tokens) :
+    analysis_context(std::move(a_analysis_context)), objective_mode(std::move(a_objective_mode)), objective_values(std::move(a_objective_values)), parameter_list(std::move(a_parameter_list)), direct(a_direct), adjoint(a_adjoint), print_parameters(std::move(a_print_parameters)), option_tokens(std::move(a_option_tokens)) {}
 
 std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vector<std::string>& directives) {
     // init directive found flag
@@ -60,8 +60,7 @@ std::optional<SensParameter> SensParameter::from_xyce_directives(const std::vect
                 if (key == "objfunc" || key == "objvars" || key == "acobjfunc") {
                     // set objective mode
                     objective_mode = key;
-                    // parse and clean values by stripping braces and splitting by comma;
-                    // keep the stripped string alive so the split views stay valid
+                    // strip braces and split values by comma, keeping the stripped string alive
                     const auto stripped = strip_chars(val, "{}");
                     const auto parts = split_by(stripped, ',');
                     // store objective values

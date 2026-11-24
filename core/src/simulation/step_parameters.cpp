@@ -20,8 +20,8 @@ static std::string normalize_equals(const std::string& directive) {
 StepParameters::StepParameters() :
     sweep_mode("LIN"), enabled(false) {}
 
-StepParameters::StepParameters(std::string sweep_mode, std::string variable, std::string start, std::string stop, std::string step, std::string points, std::vector<std::string> list_values, std::string data_table_name, bool enabled) :
-    sweep_mode(std::move(sweep_mode)), variable(std::move(variable)), start(std::move(start)), stop(std::move(stop)), step(std::move(step)), points(std::move(points)), list_values(std::move(list_values)), data_table_name(std::move(data_table_name)), enabled(enabled) {}
+StepParameters::StepParameters(std::string a_sweep_mode, std::string a_variable, std::string a_start, std::string a_stop, std::string a_step, std::string a_points, std::vector<std::string> a_list_values, std::string a_data_table_name, bool a_enabled) :
+    sweep_mode(std::move(a_sweep_mode)), variable(std::move(a_variable)), start(std::move(a_start)), stop(std::move(a_stop)), step(std::move(a_step)), points(std::move(a_points)), list_values(std::move(a_list_values)), data_table_name(std::move(a_data_table_name)), enabled(a_enabled) {}
 
 std::optional<StepParameters> StepParameters::from_single_directive(const std::string& directive) {
     // normalize spaces around equals sign
@@ -199,8 +199,7 @@ std::vector<std::string> StepParameters::to_xyce_directives() const {
 
 namespace
 {
-    // parse the leading numeric portion of a value (supports SI suffixes like 1k);
-    // returns false when the value does not start with a number
+    // parse a numeric prefix with SI suffixes, failing when no number leads
     [[nodiscard]] bool parse_number(const std::string& text, double& value) {
         if (text.empty()) {
             return false;

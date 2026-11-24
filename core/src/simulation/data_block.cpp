@@ -5,8 +5,8 @@
 
 #include "data_block.h"
 
-DataBlock::DataBlock(std::string name, std::vector<std::string> parameters, std::vector<std::vector<std::string>> records) :
-    name(std::move(name)), parameters(std::move(parameters)), records(std::move(records)) {}
+DataBlock::DataBlock(std::string a_name, std::vector<std::string> a_parameters, std::vector<std::vector<std::string>> a_records) :
+    name(std::move(a_name)), parameters(std::move(a_parameters)), records(std::move(a_records)) {}
 
 bool DataBlock::is_number(const std::string& s) {
     // normalize to lowercase

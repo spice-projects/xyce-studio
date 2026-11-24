@@ -6,16 +6,16 @@
 #include "core/util.h"
 #include "noise_simulation_parameters.h"
 
-DeviceNoiseOperator::DeviceNoiseOperator(std::string type, std::string node, std::string source) :
-    type(std::move(type)), node(std::move(node)), source(std::move(source)) {}
+DeviceNoiseOperator::DeviceNoiseOperator(std::string a_type, std::string a_node, std::string a_source) :
+    type(std::move(a_type)), node(std::move(a_node)), source(std::move(a_source)) {}
 
 bool DeviceNoiseOperator::operator==(const DeviceNoiseOperator& other) const {
     // compare all fields for equality
     return type == other.type && node == other.node && source == other.source;
 }
 
-NoiseSimulationParameters::NoiseSimulationParameters(std::string output_node, std::string ref_node, std::string source_name, std::string start_freq_value, std::string end_freq_value, std::string num_points_value, std::string sweep_type, std::vector<DeviceNoiseOperator> device_noise_operators, std::string data_table_name, std::optional<PrintParameters> print_parameters) :
-    output_node(std::move(output_node)), ref_node(std::move(ref_node)), source_name(std::move(source_name)), start_freq_value(std::move(start_freq_value)), end_freq_value(std::move(end_freq_value)), num_points_value(std::move(num_points_value)), sweep_type(std::move(sweep_type)), device_noise_operators(std::move(device_noise_operators)), data_table_name(std::move(data_table_name)), print_parameters(std::move(print_parameters)) {}
+NoiseSimulationParameters::NoiseSimulationParameters(std::string a_output_node, std::string a_ref_node, std::string a_source_name, std::string a_start_freq_value, std::string a_end_freq_value, std::string a_num_points_value, std::string a_sweep_type, std::vector<DeviceNoiseOperator> a_device_noise_operators, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters) :
+    output_node(std::move(a_output_node)), ref_node(std::move(a_ref_node)), source_name(std::move(a_source_name)), start_freq_value(std::move(a_start_freq_value)), end_freq_value(std::move(a_end_freq_value)), num_points_value(std::move(a_num_points_value)), sweep_type(std::move(a_sweep_type)), device_noise_operators(std::move(a_device_noise_operators)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)) {}
 
 std::optional<NoiseSimulationParameters> NoiseSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults

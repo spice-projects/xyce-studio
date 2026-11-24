@@ -63,9 +63,9 @@ AnyExpression* ExpressionManager::evaluate(const std::string& expression, const 
         // parse the expression string into an AST
         auto ast = m_parser.parse_expression(expression);
         // lazy loader materializes an expression the first time it is referenced
-        auto loader = [this](const std::string& key) -> std::optional<XyceValue> {
+        auto loader = [this](const std::string& expression_key) -> std::optional<XyceValue> {
             // find the expression in the context
-            if (const auto it = m_context.find(key); it != m_context.end()) {
+            if (const auto it = m_context.find(expression_key); it != m_context.end()) {
                 // materialize and return the expression value
                 return from_expression(m_expressions.at(it->second));
             }

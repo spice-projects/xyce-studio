@@ -5,8 +5,8 @@
 #include "core/util.h"
 #include "four_parameters.h"
 
-FourParameters::FourParameters(std::string fundamental_frequency, std::vector<std::string> output_variables) :
-    fundamental_frequency(std::move(fundamental_frequency)), output_variables(std::move(output_variables)) {}
+FourParameters::FourParameters(std::string a_fundamental_frequency, std::vector<std::string> a_output_variables) :
+    fundamental_frequency(std::move(a_fundamental_frequency)), output_variables(std::move(a_output_variables)) {}
 
 std::optional<FourParameters> FourParameters::from_xyce_statement(const std::string& four_statement) {
     // tokenize the directive respecting brace-enclosed expressions

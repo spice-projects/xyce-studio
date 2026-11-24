@@ -71,8 +71,8 @@ static std::vector<std::string> tokenize_fft_statement(const std::string& fft_st
     return tokens;
 }
 
-FftParameters::FftParameters(std::string output_variable, std::string np, std::string window, std::string alfa, std::string fft_format, std::string start, std::string stop, std::string freq, std::string fmin, std::string fmax) :
-    output_variable(std::move(output_variable)), np(std::move(np)), window(std::move(window)), alfa(std::move(alfa)), fft_format(std::move(fft_format)), start(std::move(start)), stop(std::move(stop)), freq(std::move(freq)), fmin(std::move(fmin)), fmax(std::move(fmax)) {}
+FftParameters::FftParameters(std::string a_output_variable, std::string a_np, std::string a_window, std::string a_alfa, std::string a_fft_format, std::string a_start, std::string a_stop, std::string a_freq, std::string a_fmin, std::string a_fmax) :
+    output_variable(std::move(a_output_variable)), np(std::move(a_np)), window(std::move(a_window)), alfa(std::move(a_alfa)), fft_format(std::move(a_fft_format)), start(std::move(a_start)), stop(std::move(a_stop)), freq(std::move(a_freq)), fmin(std::move(a_fmin)), fmax(std::move(a_fmax)) {}
 
 std::optional<FftParameters> FftParameters::from_xyce_statement(const std::string& fft_statement) {
     // parse tokens

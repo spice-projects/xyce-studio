@@ -8,16 +8,16 @@
 #include "op_simulation_parameters.h"
 #include "print_parameters.h"
 
-NodesetEntry::NodesetEntry(std::string node, std::string voltage) :
-    node(std::move(node)), voltage(std::move(voltage)) {}
+NodesetEntry::NodesetEntry(std::string a_node, std::string a_voltage) :
+    node(std::move(a_node)), voltage(std::move(a_voltage)) {}
 
 bool NodesetEntry::operator==(const NodesetEntry& other) const {
     // compare all fields for equality
     return node == other.node && voltage == other.voltage;
 }
 
-OpSimulationParameters::OpSimulationParameters(bool print_dc_enabled, bool print_dc_all_nodes, bool print_dc_all_currents, std::vector<std::string> print_dc_specific_variables, std::string print_dc_format, std::string print_dc_file, bool save_enabled, std::string save_type, std::string save_file, std::vector<NodesetEntry> nodeset_entries, std::optional<PrintParameters> print_parameters, std::string save_level) :
-    print_dc_enabled(print_dc_enabled), print_dc_all_nodes(print_dc_all_nodes), print_dc_all_currents(print_dc_all_currents), print_dc_specific_variables(std::move(print_dc_specific_variables)), print_dc_format(std::move(print_dc_format)), print_dc_file(std::move(print_dc_file)), save_enabled(save_enabled), save_type(std::move(save_type)), save_file(std::move(save_file)), save_level(std::move(save_level)), nodeset_entries(std::move(nodeset_entries)), print_parameters(std::move(print_parameters)) {}
+OpSimulationParameters::OpSimulationParameters(bool a_print_dc_enabled, bool a_print_dc_all_nodes, bool a_print_dc_all_currents, std::vector<std::string> a_print_dc_specific_variables, std::string a_print_dc_format, std::string a_print_dc_file, bool a_save_enabled, std::string a_save_type, std::string a_save_file, std::vector<NodesetEntry> a_nodeset_entries, std::optional<PrintParameters> a_print_parameters, std::string a_save_level) :
+    print_dc_enabled(a_print_dc_enabled), print_dc_all_nodes(a_print_dc_all_nodes), print_dc_all_currents(a_print_dc_all_currents), print_dc_specific_variables(std::move(a_print_dc_specific_variables)), print_dc_format(std::move(a_print_dc_format)), print_dc_file(std::move(a_print_dc_file)), save_enabled(a_save_enabled), save_type(std::move(a_save_type)), save_file(std::move(a_save_file)), save_level(std::move(a_save_level)), nodeset_entries(std::move(a_nodeset_entries)), print_parameters(std::move(a_print_parameters)) {}
 
 std::optional<OpSimulationParameters> OpSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init flag

@@ -8,16 +8,16 @@
 #include "pce_parameters.h"
 #include "transient_simulation_parameters.h"
 
-TransientSchedulePoint::TransientSchedulePoint(std::string time_value, std::string max_time_step_value) :
-    time_value(std::move(time_value)), max_time_step_value(std::move(max_time_step_value)) {}
+TransientSchedulePoint::TransientSchedulePoint(std::string a_time_value, std::string a_max_time_step_value) :
+    time_value(std::move(a_time_value)), max_time_step_value(std::move(a_max_time_step_value)) {}
 
 bool TransientSchedulePoint::operator==(const TransientSchedulePoint& other) const {
     // compare all fields for equality
     return time_value == other.time_value && max_time_step_value == other.max_time_step_value;
 }
 
-TransientSimulationParameters::TransientSimulationParameters(std::string initial_step_value, std::string final_time_value, std::string start_time_value, std::string step_ceiling_value, std::string op_keyword, std::vector<TransientSchedulePoint> schedule_points, std::optional<PrintParameters> print_parameters, std::vector<FftParameters> fft_parameters, std::vector<FourParameters> four_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce) :
-    initial_step_value(std::move(initial_step_value)), final_time_value(std::move(final_time_value)), start_time_value(std::move(start_time_value)), step_ceiling_value(std::move(step_ceiling_value)), op_keyword(std::move(op_keyword)), schedule_points(std::move(schedule_points)), print_parameters(std::move(print_parameters)), fft_parameters(std::move(fft_parameters)), four_parameters(std::move(four_parameters)), measure_parameters(std::move(measure_parameters)), sensitivity(std::move(sensitivity)), pce(std::move(pce)) {}
+TransientSimulationParameters::TransientSimulationParameters(std::string a_initial_step_value, std::string a_final_time_value, std::string a_start_time_value, std::string a_step_ceiling_value, std::string a_op_keyword, std::vector<TransientSchedulePoint> a_schedule_points, std::optional<PrintParameters> a_print_parameters, std::vector<FftParameters> a_fft_parameters, std::vector<FourParameters> a_four_parameters, std::vector<MeasureEntry> a_measure_parameters, std::optional<SensParameter> a_sensitivity, std::optional<PceParameters> a_pce) :
+    initial_step_value(std::move(a_initial_step_value)), final_time_value(std::move(a_final_time_value)), start_time_value(std::move(a_start_time_value)), step_ceiling_value(std::move(a_step_ceiling_value)), op_keyword(std::move(a_op_keyword)), schedule_points(std::move(a_schedule_points)), print_parameters(std::move(a_print_parameters)), fft_parameters(std::move(a_fft_parameters)), four_parameters(std::move(a_four_parameters)), measure_parameters(std::move(a_measure_parameters)), sensitivity(std::move(a_sensitivity)), pce(std::move(a_pce)) {}
 
 std::optional<TransientSimulationParameters> TransientSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults

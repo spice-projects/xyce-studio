@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <cctype>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -8,8 +7,8 @@
 #include "ic_parameters.h"
 #include "netlist/netlist.h"
 
-IcEntry::IcEntry(std::string node, std::string voltage) :
-    node(std::move(node)), voltage(std::move(voltage)) {}
+IcEntry::IcEntry(std::string a_node, std::string a_voltage) :
+    node(std::move(a_node)), voltage(std::move(a_voltage)) {}
 
 bool IcEntry::operator==(const IcEntry& other) const {
     // compare all fields for equality

@@ -51,7 +51,7 @@ class SimulationOutputChecks(unittest.TestCase):
         # arrange: a fake Xyce executable that keeps running until it is stopped
         with tempfile.TemporaryDirectory() as tmp:
             exe = Path(tmp) / "Xyce"
-            exe.write_text("#!/bin/sh\nsleep 30\n")
+            exe.write_text("#!/bin/sh\nexec sleep 30\n")
             os.chmod(exe, 0o755)
             netlist = Path(tmp) / "tran.cir"
             netlist.write_text("* run\n.tran 1m 10m\n.END\n")

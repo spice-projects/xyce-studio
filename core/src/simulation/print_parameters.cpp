@@ -172,11 +172,11 @@ static std::string join_tokens(const std::vector<std::string>& tokens) {
     return result;
 }
 
-PrintParameters::PrintParameters(std::string print_type, std::string print_format, std::string print_file, std::vector<std::string> output_variables, std::vector<std::string> extra_options) :
-    print_type(std::move(print_type)), print_format(std::move(print_format)), print_file(std::move(print_file)), output_variables(sanitize_print_output_variables(this->print_type, output_variables)), extra_options(std::move(extra_options)) {}
+PrintParameters::PrintParameters(std::string a_print_type, std::string a_print_format, std::string a_print_file, std::vector<std::string> a_output_variables, std::vector<std::string> a_extra_options) :
+    print_type(std::move(a_print_type)), print_format(std::move(a_print_format)), print_file(std::move(a_print_file)), output_variables(sanitize_print_output_variables(this->print_type, a_output_variables)), extra_options(std::move(a_extra_options)) {}
 
 std::vector<std::string> sanitize_print_output_variables(const std::string& print_type, const std::vector<std::string>& output_variables) {
-    // wildcard tokens unsupported by the linear frequency-domain analyses per the Xyce reference guide (power P(*)/W(*) and device lead currents), AC, NOISE and HB prints only carry voltages and branch currents (V, E, H, L devices, voltage form B device)
+    // wildcard power and lead current tokens are unsupported in AC, NOISE and HB prints
     static const std::set<std::string> UNSUPPORTED_WILDCARDS = {"P(*)", "W(*)", "IB(*)", "IC(*)", "IE(*)", "IS(*)", "ID(*)", "IG(*)"};
     // print types restricted by the reference guide statements
     static const std::set<std::string> LINEAR_PRINT_TYPES = {"AC", "NOISE", "HB", "HB_FD", "HB_TD"};
@@ -247,7 +247,7 @@ std::optional<PrintParameters> PrintParameters::from_xyce_statement(const std::s
             }
             // map file option
             if (option_key == "FILE") {
-                // store file, a quoted value is normalized so the dialog and the copy destination see the actual filename without quotes
+                // store the file name without outer quotes for the dialog and the copy destination
                 print_file = strip_outer_quotes(option_value);
                 // next
                 continue;
@@ -283,7 +283,7 @@ std::string strip_outer_quotes(std::string value) {
     return value;
 }
 
-// format a FILE= option value, outer quotes are stripped and the value is quoted again only when it contains whitespace so the statement survives tokenization
+// quote a FILE= value again only when whitespace would break tokenization
 std::string format_print_file_value(const std::string& file) {
     // normalize the value: the model must not carry outer quotes
     const std::string value = strip_outer_quotes(file);

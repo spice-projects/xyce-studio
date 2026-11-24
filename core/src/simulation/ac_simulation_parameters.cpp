@@ -6,8 +6,8 @@
 #include "ac_simulation_parameters.h"
 #include "core/util.h"
 
-AcSimulationParameters::AcSimulationParameters(std::string sweep_mode, std::string points, std::string start, std::string end, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity) :
-    sweep_mode(std::move(sweep_mode)), points(std::move(points)), start(std::move(start)), end(std::move(end)), data_table_name(std::move(data_table_name)), print_parameters(std::move(print_parameters)), measure_parameters(std::move(measure_parameters)), sensitivity(std::move(sensitivity)) {}
+AcSimulationParameters::AcSimulationParameters(std::string a_sweep_mode, std::string a_points, std::string a_start, std::string a_end, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters, std::vector<MeasureEntry> a_measure_parameters, std::optional<SensParameter> a_sensitivity) :
+    sweep_mode(std::move(a_sweep_mode)), points(std::move(a_points)), start(std::move(a_start)), end(std::move(a_end)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)), measure_parameters(std::move(a_measure_parameters)), sensitivity(std::move(a_sensitivity)) {}
 
 std::optional<AcSimulationParameters> AcSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults
