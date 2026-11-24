@@ -142,7 +142,7 @@ public:
 
     [[nodiscard]] double abscissa_right_value() const { return m_abscissa_right_value; }
 
-    static std::string format_metric(double value, std::string_view unit);
+    static std::string format_metric(double value, std::string_view unit, int extraSignificantDigits = 0);
 
     // compute power-of-two major tick values for a log2-scaled axis
     static std::vector<double> log2_major_ticks(double x_left, double x_right, int max_ticks);
