@@ -24,12 +24,12 @@
 
 using SimulationAnalysis = std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters>;
 
-// simulation config class — aggregates all simulation parameters, mirroring the Python SimulationConfig with a std::variant holding the analysis parameter types
+// simulation config class aggregates all simulation parameters across analyses
 class SimulationConfig
 {
 public:
-    // construct a simulation config from individual components, replace_ground defaults to true because KiCad netlists reference the ground node as "GND" while Xyce uses node "0" and the .PREPROCESS REPLACEGROUND directive has no default per the RG
-    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true, ICParameters ic_parameters = {}, std::optional<std::string> remove_unused = std::nullopt, std::vector<std::string> add_resistors = {});
+    // construct a simulation config from individual components
+    SimulationConfig(std::string analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> analysis, std::vector<StepParameters> steps, std::vector<DataBlock> data_blocks, OptionParameters options, std::vector<PrintParameters> unassociated_prints, bool replace_ground = true, ICParameters ic_parameters = {}, std::optional<std::string> remove_unused = std::nullopt, std::vector<std::string> add_resistors = {}, std::vector<std::string> measures = {});
 
     // parse all directives into a SimulationConfig instance
     [[nodiscard]] static SimulationConfig from_xyce_directives(const std::vector<std::string>& directives);
@@ -37,13 +37,13 @@ public:
     // serialize this instance to a list of Xyce directive strings
     [[nodiscard]] std::vector<std::string> to_xyce_directives(const NetlistTopology& topology) const;
 
-    // extract the analysis print parameters, normalizing the legacy OP representation (print_dc_* fields without structured print_parameters) into a PrintParameters instance, nullopt when no analysis is configured or the analysis print is disabled
+    // extract the analysis print parameters, normalizing the legacy OP representation
     [[nodiscard]] std::optional<PrintParameters> analysis_print_parameters() const;
 
     // serialize the analysis print directive, nullopt when no analysis is configured or the analysis print is disabled
     [[nodiscard]] std::optional<std::string> analysis_print_statement() const;
 
-    // merge output variables into the analysis print directive so the plotted expressions always have data; a variable already printed passes through once and a printed wildcard suppresses the quantities it already covers, and when the analysis has no print directive a print carrying the variables is created unless the creation is refused
+    // merge output variables into the analysis print directive so plotted expressions have data
     void augment_analysis_print_variables(const std::vector<std::string>& variables, bool create_when_absent);
 
     // compute the expected FFT output file path pattern for the configured analysis
@@ -52,13 +52,13 @@ public:
     // compute the expected FOUR output file path pattern for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> four_output_file_path_pattern(const std::filesystem::path& netlist_file_path) const;
 
-    // extract the .PRINT PCE parameters of the configured analysis (the companion print of the DC or TRAN .PCE directive), nullopt when no analysis is configured or no .PCE companion print is configured
+    // extract the .PRINT PCE parameters of the configured analysis
     [[nodiscard]] std::optional<PrintParameters> pce_print_parameters() const;
 
-    // compute the produced PCE statistics output file path for the configured analysis, the FILE= option is removed for the run so Xyce writes the default PCE suffix (.PCE.prn, .PCE.csv or .PCE.dat) next to the netlist, nullopt when the run produces no PCE output
+    // compute the produced PCE statistics output file path for the configured analysis
     [[nodiscard]] std::optional<std::filesystem::path> pce_output_file_path(const std::filesystem::path& netlist_file_path) const;
 
-    // the companion measurement data a finished run produces besides the analysis output, which entries are set depends on the configured analysis type
+    // companion measurement data a finished run produces besides the analysis output
     struct ProducedMeasurements
     {
         // a .LIN analysis with a touchstone format dumps one s-parameter file
@@ -74,19 +74,19 @@ public:
     // report the companion measurement data the configured analysis produces
     [[nodiscard]] ProducedMeasurements produced_measurements() const;
 
-    // compute the s-parameter output file path for the configured analysis, LIN runs with a touchstone FORMAT produce a touchstone file — with FILE=/FILENAME= the value is used verbatim resolved against the working directory (Xyce's process cwd), otherwise Xyce writes <netlist>.sNp next to the netlist with N being the port count, nullopt when the analysis produces no s-parameter output
+    // compute the s-parameter output file path for the configured analysis, LIN runs with a touchstone FORMAT produce
     [[nodiscard]] std::optional<std::filesystem::path> s_parameter_output_file_path(const std::filesystem::path& netlist_file_path, const std::filesystem::path& working_directory, int num_ports = 2) const;
 
     // true when the .LIN analysis carries a user FILE=/FILENAME= output name
     [[nodiscard]] bool s_parameter_output_file_is_user_defined() const;
 
-    // collect all print parameters that produce .prn output (STD, NOINDEX, GNUPLOT, SPLOT formats), including the analysis print and any unassociated .PRINT directives, empty when no .prn output is configured
+    // collect all print parameters that produce .prn output (STD, NOINDEX, GNUPLOT, SPLOT formats), including the
     [[nodiscard]] std::vector<PrintParameters> prn_print_parameters() const;
 
     // get the first step for backward compatibility
     [[nodiscard]] StepParameters step() const;
 
-    // validate the entire simulation config across all components, returns a user-facing error message or nullopt when valid
+    // validate the entire simulation config across all components, returns a user-facing error message or nullopt when
     [[nodiscard]] std::optional<std::string> validate() const;
 
     // equality operator
@@ -112,4 +112,6 @@ public:
     std::optional<std::string> remove_unused;
     // add-resistors preprocessing directives (.PREPROCESS ADDRESISTORS <qualifier> <value>)
     std::vector<std::string> add_resistors;
+    // measure directives (.MEASURE / .MEAS) stored as raw directive lines
+    std::vector<std::string> measures;
 };

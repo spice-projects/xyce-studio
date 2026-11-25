@@ -26,6 +26,7 @@ component MeasureSection {
                 height: 64px;
 
                 TextField {
+                    id: simulation_measure;
                     font_size: 13px;
                     value: text;
                     placeholder: placeholder;

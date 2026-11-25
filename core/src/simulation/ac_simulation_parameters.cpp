@@ -6,8 +6,8 @@
 #include "ac_simulation_parameters.h"
 #include "core/util.h"
 
-AcSimulationParameters::AcSimulationParameters(std::string a_sweep_mode, std::string a_points, std::string a_start, std::string a_end, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters, std::vector<MeasureEntry> a_measure_parameters, std::optional<SensParameter> a_sensitivity) :
-    sweep_mode(std::move(a_sweep_mode)), points(std::move(a_points)), start(std::move(a_start)), end(std::move(a_end)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)), measure_parameters(std::move(a_measure_parameters)), sensitivity(std::move(a_sensitivity)) {}
+AcSimulationParameters::AcSimulationParameters(std::string a_sweep_mode, std::string a_points, std::string a_start, std::string a_end, std::string a_data_table_name, std::optional<PrintParameters> a_print_parameters, std::optional<SensParameter> a_sensitivity) :
+    sweep_mode(std::move(a_sweep_mode)), points(std::move(a_points)), start(std::move(a_start)), end(std::move(a_end)), data_table_name(std::move(a_data_table_name)), print_parameters(std::move(a_print_parameters)), sensitivity(std::move(a_sensitivity)) {}
 
 std::optional<AcSimulationParameters> AcSimulationParameters::from_xyce_directives(const std::vector<std::string>& directives) {
     // init defaults
@@ -17,7 +17,6 @@ std::optional<AcSimulationParameters> AcSimulationParameters::from_xyce_directiv
     std::string end;
     std::string data_table_name;
     std::optional<PrintParameters> print_parameters;
-    std::vector<MeasureEntry> measure_parameters;
     std::optional<SensParameter> sensitivity;
     // flag indicating whether a valid directive was found
     bool found = false;
@@ -46,22 +45,6 @@ std::optional<AcSimulationParameters> AcSimulationParameters::from_xyce_directiv
                     continue;
                 }
             }
-        }
-        // parse measure directives
-        if (cmd == ".MEASURE" || cmd == ".MEAS") {
-            // parse the measure statement from the directive
-            const auto measure_statement = MeasureEntry::from_xyce_statement(directive);
-            // retain measure parameters when found and analysis type matches
-            if (measure_statement) {
-                // convert the analysis type to uppercase for case-insensitive comparison
-                const std::string analysis_type_upper = to_upper(measure_statement->analysis_type);
-                // check if the analysis type is relevant for AC analysis
-                if (analysis_type_upper == "AC" || analysis_type_upper == "AC_CONT") {
-                    // append the parsed measure parameters
-                    measure_parameters.push_back(*measure_statement);
-                }
-            }
-            continue;
         }
         // skip non-AC directives
         if (cmd != ".AC")
@@ -119,7 +102,7 @@ std::optional<AcSimulationParameters> AcSimulationParameters::from_xyce_directiv
     if (!found)
         return std::nullopt;
     // exit with a new instance of AcSimulationParameters
-    return AcSimulationParameters(sweep_mode, points, start, end, data_table_name, print_parameters, measure_parameters, sensitivity);
+    return AcSimulationParameters(sweep_mode, points, start, end, data_table_name, print_parameters, sensitivity);
 }
 
 std::vector<std::string> AcSimulationParameters::to_xyce_directives(const NetlistTopology& topology) const {
@@ -152,14 +135,11 @@ std::vector<std::string> AcSimulationParameters::to_xyce_directives(const Netlis
         // append collection
         directives.insert(directives.end(), sensitivity_directives.begin(), sensitivity_directives.end());
     }
-    // append measure directives
-    for (const auto& measure : measure_parameters)
-        directives.push_back(measure.to_xyce_statement());
     // return the full directive list
     return directives;
 }
 
 bool AcSimulationParameters::operator==(const AcSimulationParameters& other) const {
     // compare all fields for equality
-    return sweep_mode == other.sweep_mode && points == other.points && start == other.start && end == other.end && data_table_name == other.data_table_name && print_parameters == other.print_parameters && measure_parameters == other.measure_parameters && sensitivity == other.sensitivity;
+    return sweep_mode == other.sweep_mode && points == other.points && start == other.start && end == other.end && data_table_name == other.data_table_name && print_parameters == other.print_parameters && sensitivity == other.sensitivity;
 }

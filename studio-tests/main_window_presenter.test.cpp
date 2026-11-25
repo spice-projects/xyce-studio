@@ -685,7 +685,7 @@ TEST(StudioMainWindowPresenterChecks, accepted_parameters_rewrite_the_editor_and
     // the configuration the dialog accepted carries a new final time
     SimulationConfig accepted = SimulationConfig::from_xyce_directives({});
     accepted.analysis_type = "TRAN";
-    accepted.analysis = TransientSimulationParameters("2m", "20m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt);
+    accepted.analysis = TransientSimulationParameters("2m", "20m", "", "", "", {}, std::nullopt, {}, {}, std::nullopt, std::nullopt);
     // act
     presenter.on_simulation_parameters_accepted(accepted);
     // assert: the editor carries the accepted directive instead of the old one
@@ -707,7 +707,7 @@ TEST(StudioMainWindowPresenterChecks, accepted_parameters_reuse_the_sanitized_ne
     // the configuration the dialog accepted carries a new initial step
     SimulationConfig accepted = SimulationConfig::from_xyce_directives({});
     accepted.analysis_type = "TRAN";
-    accepted.analysis = TransientSimulationParameters("5m", "10m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt);
+    accepted.analysis = TransientSimulationParameters("5m", "10m", "", "", "", {}, std::nullopt, {}, {}, std::nullopt, std::nullopt);
     // act
     presenter.on_simulation_parameters_accepted(accepted);
     // assert: the devices survive and exactly one transient directive remains
@@ -715,6 +715,41 @@ TEST(StudioMainWindowPresenterChecks, accepted_parameters_reuse_the_sanitized_ne
     EXPECT_NE(view.editor_text.find("R1 1 0 1k"), std::string::npos);
     EXPECT_NE(view.editor_text.find(".TRAN 5m 10m"), std::string::npos);
     EXPECT_EQ(view.editor_text.find(".TRAN 1m 10m"), std::string::npos);
+}
+
+TEST(StudioMainWindowPresenterChecks, prepare_simulation_parameters_preserves_measures_when_no_analysis_is_declared) {
+    // arrange
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.IC V(1)=5\n.STEP TEMP 0 100 25\n.DATA mydata\n+ r val\n+ 1 10\n.ENDDATA\n.PRINT DC V(1)\n.PREPROCESS REPLACEGROUND 0\n.PREPROCESS REMOVEUNUSED 1\n.PREPROCESS ADDRESISTORS ALL 1G\n.MEASURE TRAN vmax MAX V(1)\n.END\n";
+    // act
+    const SimulationConfig& prepared = presenter.prepare_simulation_parameters();
+    // assert
+    ASSERT_EQ(prepared.measures.size(), 1);
+    EXPECT_EQ(prepared.measures[0], ".MEASURE TRAN vmax MAX V(1)");
+    EXPECT_FALSE(prepared.ic_parameters.empty());
+    EXPECT_EQ(prepared.steps.size(), 1);
+    EXPECT_EQ(prepared.data_blocks.size(), 1);
+    EXPECT_EQ(prepared.unassociated_prints.size(), 1);
+    EXPECT_FALSE(prepared.replace_ground);
+    EXPECT_TRUE(prepared.remove_unused.has_value());
+    EXPECT_EQ(prepared.add_resistors.size(), 1);
+}
+
+TEST(StudioMainWindowPresenterChecks, accepted_parameters_rewrite_edited_measure_into_netlist) {
+    // arrange
+    const PluginConfig config;
+    FakeView view;
+    studio::MainWindowPresenter presenter(view, config);
+    view.editor_text = "R1 1 0 1k\n.OP\n.TRAN 1m 10m\n.MEASURE TRAN vmax MAX V(1)\n.END\n";
+    SimulationConfig prepared = presenter.prepare_simulation_parameters();
+    prepared.measures = {".MEASURE TRAN vmax MAX V(out)"};
+    // act
+    presenter.on_simulation_parameters_accepted(prepared);
+    // assert
+    EXPECT_NE(view.editor_text.find(".MEASURE TRAN vmax MAX V(out)"), std::string::npos);
+    EXPECT_EQ(view.editor_text.find(".MEASURE TRAN vmax MAX V(1)"), std::string::npos);
 }
 
 TEST(StudioMainWindowPresenterChecks, a_successful_run_offers_its_output_to_the_charts) {

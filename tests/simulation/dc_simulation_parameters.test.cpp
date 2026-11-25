@@ -7,9 +7,7 @@
 
 #include "simulation/dc_simulation_parameters.h"
 
-// ========================================================================================
 // from_xyce_directives
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, parses_lin_sweep) {
     // arrange / act
@@ -214,13 +212,11 @@ TEST(DCSimulationParametersChecks, duplicate_dc_directives_serialize_single_line
     ASSERT_EQ(serialized[0], ".DC VDS 0 10 0.5");
 }
 
-// ========================================================================================
 // to_xyce_directives
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, generates_lin_directive) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -230,7 +226,7 @@ TEST(DCSimulationParametersChecks, generates_lin_directive) {
 
 TEST(DCSimulationParametersChecks, generates_dec_directive) {
     // arrange
-    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1k", "100MEG", "", "10"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1k", "100MEG", "", "10"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -240,7 +236,7 @@ TEST(DCSimulationParametersChecks, generates_dec_directive) {
 
 TEST(DCSimulationParametersChecks, generates_oct_directive) {
     // arrange
-    const DCSimulationParameters params("OCT", {DcSweep{"VIN", "1", "1MEG", "", "5"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("OCT", {DcSweep{"VIN", "1", "1MEG", "", "5"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -250,7 +246,7 @@ TEST(DCSimulationParametersChecks, generates_oct_directive) {
 
 TEST(DCSimulationParametersChecks, generates_list_directive) {
     // arrange
-    const DCSimulationParameters params("LIST", {DcSweep{"VIN", "", "", "", "", {"1k", "2k", "5k"}}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"VIN", "", "", "", "", {"1k", "2k", "5k"}}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -260,7 +256,7 @@ TEST(DCSimulationParametersChecks, generates_list_directive) {
 
 TEST(DCSimulationParametersChecks, generates_data_directive) {
     // arrange
-    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myTable", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myTable", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -270,7 +266,7 @@ TEST(DCSimulationParametersChecks, generates_data_directive) {
 
 TEST(DCSimulationParametersChecks, generates_secondary_sweep) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"R1", "0", "3.5", "0.05", ""}, DcSweep{"C1", "0", "3.5", "0.5", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"R1", "0", "3.5", "0.05", ""}, DcSweep{"C1", "0", "3.5", "0.5", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -280,7 +276,7 @@ TEST(DCSimulationParametersChecks, generates_secondary_sweep) {
 
 TEST(DCSimulationParametersChecks, generates_three_sweeps_roundtrip) {
     // arrange: 3 LIN sweeps
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}, DcSweep{"VOUT", "1", "10", "0.5", ""}, DcSweep{"R1", "100", "200", "10", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}, DcSweep{"VOUT", "1", "10", "0.5", ""}, DcSweep{"R1", "100", "200", "10", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -307,7 +303,7 @@ TEST(DCSimulationParametersChecks, generates_three_sweeps_roundtrip) {
 
 TEST(DCSimulationParametersChecks, generates_lin_directive_without_replace_ground) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -317,7 +313,7 @@ TEST(DCSimulationParametersChecks, generates_lin_directive_without_replace_groun
 
 TEST(DCSimulationParametersChecks, generates_dec_directive_without_replace_ground) {
     // arrange
-    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1", "100", "", "5"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1", "100", "", "5"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -327,7 +323,7 @@ TEST(DCSimulationParametersChecks, generates_dec_directive_without_replace_groun
 
 TEST(DCSimulationParametersChecks, generates_oct_directive_without_replace_ground) {
     // arrange
-    const DCSimulationParameters params("OCT", {DcSweep{"VIN", "0.125", "64", "", "2"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("OCT", {DcSweep{"VIN", "0.125", "64", "", "2"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -337,7 +333,7 @@ TEST(DCSimulationParametersChecks, generates_oct_directive_without_replace_groun
 
 TEST(DCSimulationParametersChecks, generates_list_directive_without_replace_ground) {
     // arrange
-    const DCSimulationParameters params("LIST", {DcSweep{"TEMP", "", "", "", "", {"10", "15", "18", "27", "33"}}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"TEMP", "", "", "", "", {"10", "15", "18", "27", "33"}}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -347,7 +343,7 @@ TEST(DCSimulationParametersChecks, generates_list_directive_without_replace_grou
 
 TEST(DCSimulationParametersChecks, generates_multiple_list_sweeps) {
     // arrange
-    const DCSimulationParameters params("LIST", {DcSweep{"VDS", "", "", "", "", {"0", "3.5", "0.05"}}, DcSweep{"VGS", "", "", "", "", {"0", "3.5", "0.5"}}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"VDS", "", "", "", "", {"0", "3.5", "0.05"}}, DcSweep{"VGS", "", "", "", "", {"0", "3.5", "0.5"}}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -357,7 +353,7 @@ TEST(DCSimulationParametersChecks, generates_multiple_list_sweeps) {
 
 TEST(DCSimulationParametersChecks, parses_multiple_list_sweeps_roundtrip) {
     // arrange — RG §2.1.3.4 example
-    const DCSimulationParameters params("LIST", {DcSweep{"VDS", "", "", "", "", {"0", "3.5", "0.05"}}, DcSweep{"VGS", "", "", "", "", {"0", "3.5", "0.5"}}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"VDS", "", "", "", "", {"0", "3.5", "0.05"}}, DcSweep{"VGS", "", "", "", "", {"0", "3.5", "0.5"}}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = DCSimulationParameters::from_xyce_directives(directives);
@@ -374,7 +370,7 @@ TEST(DCSimulationParametersChecks, parses_multiple_list_sweeps_roundtrip) {
 
 TEST(DCSimulationParametersChecks, generates_data_directive_without_replace_ground) {
     // arrange
-    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myCustomTable", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myCustomTable", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -412,7 +408,7 @@ TEST(DCSimulationParametersChecks, parses_dec_sweep_with_secondary) {
 
 TEST(DCSimulationParametersChecks, parses_three_dec_sweeps_roundtrip) {
     // arrange
-    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1", "100", "", "2"}, DcSweep{"R1", "1", "10", "", "0.5"}, DcSweep{"C1", "10", "1000", "", "1"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"VIN", "1", "100", "", "2"}, DcSweep{"R1", "1", "10", "", "0.5"}, DcSweep{"C1", "10", "1000", "", "1"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -516,14 +512,12 @@ TEST(DCSimulationParametersChecks, parses_empty_directives_returns_none) {
     ASSERT_FALSE(result.has_value());
 }
 
-// ========================================================================================
 // to_xyce_directives with print parameters
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, generates_generic_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("DC", "", "", {"V(*)", "I(*)", "P(*)"}, {});
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = DCSimulationParameters::from_xyce_directives(directives);
@@ -540,7 +534,7 @@ TEST(DCSimulationParametersChecks, generates_generic_wildcards_round_trip) {
 TEST(DCSimulationParametersChecks, generates_bjt_lead_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("DC", "", "", {"IB(*)", "IC(*)", "IE(*)", "IS(*)"}, {});
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = DCSimulationParameters::from_xyce_directives(directives);
@@ -557,7 +551,7 @@ TEST(DCSimulationParametersChecks, generates_bjt_lead_wildcards_round_trip) {
 TEST(DCSimulationParametersChecks, generates_fet_lead_wildcards_round_trip) {
     // arrange
     const PrintParameters print_params("DC", "", "", {"IB(*)", "ID(*)", "IG(*)", "IS(*)"}, {});
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     const auto reparsed = DCSimulationParameters::from_xyce_directives(directives);
@@ -586,7 +580,7 @@ TEST(DCSimulationParametersChecks, w_star_normalizes_to_p_star_on_parse) {
 TEST(DCSimulationParametersChecks, print_directive_uses_dc_not_tran_type) {
     // arrange
     const PrintParameters print_params("DC", "", "", {"V(*)"}, {});
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::vector<MeasureEntry>{}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -604,7 +598,7 @@ TEST(DCSimulationParametersChecks, print_directive_uses_dc_not_tran_type) {
 
 TEST(DCSimulationParametersChecks, generates_with_print_parameters) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"V(*)"}, {}), {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"V(*)"}, {}), std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -613,20 +607,9 @@ TEST(DCSimulationParametersChecks, generates_with_print_parameters) {
     ASSERT_EQ(directives[1], ".PRINT DC V(*)");
 }
 
-TEST(DCSimulationParametersChecks, generates_with_measure_parameters) {
-    // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {MeasureEntry("DC", "vout", "MAX", "V(OUT)")}, std::nullopt, std::nullopt);
-    // act
-    const auto directives = params.to_xyce_directives(NetlistTopology{});
-    // assert
-    ASSERT_EQ(directives.size(), 2);
-    ASSERT_EQ(directives[0], ".DC VIN 0 5 0.1");
-    ASSERT_EQ(directives[1], ".MEASURE DC vout MAX V(OUT)");
-}
-
 TEST(DCSimulationParametersChecks, generates_with_sensitivity) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -636,14 +619,12 @@ TEST(DCSimulationParametersChecks, generates_with_sensitivity) {
     ASSERT_EQ(directives[2], ".OPTIONS SENSITIVITY direct=0 adjoint=1");
 }
 
-// ========================================================================================
 // equality operator
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, equality_operator_equal_params) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -652,8 +633,8 @@ TEST(DCSimulationParametersChecks, equality_operator_equal_params) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_sweep_mode) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("DEC", {DcSweep{"VIN", "1k", "100MEG", "", "10"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("DEC", {DcSweep{"VIN", "1k", "100MEG", "", "10"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -662,8 +643,8 @@ TEST(DCSimulationParametersChecks, equality_operator_different_sweep_mode) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_primary_variable) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VOUT", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VOUT", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -672,8 +653,8 @@ TEST(DCSimulationParametersChecks, equality_operator_different_primary_variable)
 
 TEST(DCSimulationParametersChecks, equality_operator_different_start) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "1", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "1", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -682,8 +663,8 @@ TEST(DCSimulationParametersChecks, equality_operator_different_start) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_stop) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "10", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "10", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -692,8 +673,8 @@ TEST(DCSimulationParametersChecks, equality_operator_different_stop) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_step) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.05", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.05", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -702,18 +683,8 @@ TEST(DCSimulationParametersChecks, equality_operator_different_step) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_print_parameters) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"V(*)"}, {}), {}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"I(*)"}, {}), {}, std::nullopt, std::nullopt);
-    // act
-    const bool result = params1 == params2;
-    // assert
-    ASSERT_FALSE(result);
-}
-
-TEST(DCSimulationParametersChecks, equality_operator_different_measure_parameters) {
-    // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {MeasureEntry("DC", "vout", "MAX", "V(OUT)")}, std::nullopt, std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {MeasureEntry("DC", "iout", "MAX", "I(VOUT)")}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"V(*)"}, {}), std::nullopt, std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", PrintParameters("DC", "", "", {"I(*)"}, {}), std::nullopt, std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
@@ -722,17 +693,15 @@ TEST(DCSimulationParametersChecks, equality_operator_different_measure_parameter
 
 TEST(DCSimulationParametersChecks, equality_operator_different_sensitivity) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, SensParameter("", "objfunc", {"V(IN)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, SensParameter("", "objfunc", {"V(OUT)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, SensParameter("", "objfunc", {"V(IN)"}, {"R1:R"}, false, true, std::nullopt), std::nullopt);
     // act
     const bool result = params1 == params2;
     // assert
     ASSERT_FALSE(result);
 }
 
-// ========================================================================================
 // Tests for from_xyce_directives edge cases
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, empty_directives_returns_none) {
     // arrange
@@ -895,7 +864,7 @@ TEST(DCSimulationParametersChecks, parses_data) {
 TEST(DCSimulationParametersChecks, serializes_print_dc_directive) {
     // arrange
     const PrintParameters print_params("DC", "", "", {"V(OUT)"}, {});
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", print_params, std::nullopt, std::nullopt);
     // act
     const auto directives = params.to_xyce_directives(NetlistTopology{});
     // assert
@@ -924,82 +893,7 @@ TEST(DCSimulationParametersChecks, ignores_non_dc_print_directive) {
     ASSERT_EQ(result->print_parameters.has_value(), false);
 }
 
-// ========================================================================================
-// Tests for measure parameters
-// ========================================================================================
-
-TEST(DCSimulationParametersChecks, parses_single_measure_directive) {
-    // arrange / act
-    const auto result = DCSimulationParameters::from_xyce_directives({".DC VIN 0 5 0.1", ".MEASURE DC vout_at_2v FIND V(OUT) WHEN VIN=2"});
-    // assert
-    ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->measure_parameters.size(), 1);
-    ASSERT_EQ(result->measure_parameters[0].result_name, "vout_at_2v");
-    ASSERT_EQ(result->measure_parameters[0].measure_type, "FIND");
-    ASSERT_EQ(result->measure_parameters[0].analysis_type, "DC");
-    ASSERT_EQ(result->measure_parameters[0].variable, "V(OUT)");
-}
-
-TEST(DCSimulationParametersChecks, parses_multiple_measure_directives) {
-    // arrange / act
-    const auto result = DCSimulationParameters::from_xyce_directives({".DC VIN 0 5 0.1", ".MEASURE DC vout_at_2v FIND V(OUT) WHEN VIN=2", ".MEASURE DC vout_at_4v FIND V(OUT) WHEN VIN=4"});
-    // assert
-    ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->measure_parameters.size(), 2);
-    ASSERT_EQ(result->measure_parameters[0].result_name, "vout_at_2v");
-    ASSERT_EQ(result->measure_parameters[1].result_name, "vout_at_4v");
-}
-
-TEST(DCSimulationParametersChecks, ignores_non_dc_measure_directive) {
-    // arrange / act
-    const auto result = DCSimulationParameters::from_xyce_directives({".DC VIN 0 5 0.1", ".MEASURE TRAN avg_out AVG V(OUT)"});
-    // assert
-    ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->measure_parameters.size(), 0);
-}
-
-TEST(DCSimulationParametersChecks, emits_single_measure_directive) {
-    // arrange
-    const MeasureEntry measure("DC", "vout_at_2v", "FIND", "V(OUT)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "VIN", "=2");
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {measure}, std::nullopt, std::nullopt);
-    // act
-    const auto directives = params.to_xyce_directives(NetlistTopology{});
-    // assert
-    ASSERT_EQ(directives.size(), 2);
-    ASSERT_EQ(directives[1], ".MEASURE DC vout_at_2v FIND V(OUT) WHEN VIN=2");
-}
-
-TEST(DCSimulationParametersChecks, emits_multiple_measure_directives) {
-    // arrange
-    const MeasureEntry measure1("DC", "vout_at_2v", "FIND", "V(OUT)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "VIN", "=2");
-    const MeasureEntry measure2("DC", "vout_at_4v", "FIND", "V(OUT)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "VIN", "=4");
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {measure1, measure2}, std::nullopt, std::nullopt);
-    // act
-    const auto directives = params.to_xyce_directives(NetlistTopology{});
-    // assert
-    ASSERT_EQ(directives.size(), 3);
-    ASSERT_EQ(directives[1], ".MEASURE DC vout_at_2v FIND V(OUT) WHEN VIN=2");
-    ASSERT_EQ(directives[2], ".MEASURE DC vout_at_4v FIND V(OUT) WHEN VIN=4");
-}
-
-TEST(DCSimulationParametersChecks, measure_round_trip) {
-    // arrange
-    const MeasureEntry measure("DC", "vout_at_2v", "FIND", "V(OUT)", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "VIN", "=2");
-    const DCSimulationParameters params("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {measure}, std::nullopt, std::nullopt);
-    // act
-    const auto directives = params.to_xyce_directives(NetlistTopology{});
-    const auto reparsed = DCSimulationParameters::from_xyce_directives(directives);
-    // assert
-    ASSERT_TRUE(reparsed.has_value());
-    ASSERT_EQ(reparsed->measure_parameters.size(), 1);
-    ASSERT_EQ(reparsed->measure_parameters[0].result_name, "vout_at_2v");
-    ASSERT_EQ(reparsed->measure_parameters[0].measure_type, "FIND");
-    ASSERT_EQ(reparsed->measure_parameters[0].analysis_type, "DC");
-}
-
-// ========================================================================================
 // Tests for reference guide examples
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, reference_guide_example_lin_sweep) {
     // arrange
@@ -1159,13 +1053,11 @@ TEST(DCSimulationParametersChecks, reference_guide_example_data_sweep) {
     ASSERT_EQ(generated[0], ".DC DATA=resistorValues");
 }
 
-// ========================================================================================
 // validate
-// ========================================================================================
 
 TEST(DCSimulationParametersChecks, validate_lin_sweep_valid) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"V1", "0", "5", "0.5", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"V1", "0", "5", "0.5", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1174,7 +1066,7 @@ TEST(DCSimulationParametersChecks, validate_lin_sweep_valid) {
 
 TEST(DCSimulationParametersChecks, validate_lin_sweep_missing_step) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"V1", "0", "5", "", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"V1", "0", "5", "", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1184,7 +1076,7 @@ TEST(DCSimulationParametersChecks, validate_lin_sweep_missing_step) {
 
 TEST(DCSimulationParametersChecks, validate_lin_sweep_missing_variable) {
     // arrange
-    const DCSimulationParameters params("LIN", {DcSweep{"", "0", "5", "0.5", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIN", {DcSweep{"", "0", "5", "0.5", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1193,7 +1085,7 @@ TEST(DCSimulationParametersChecks, validate_lin_sweep_missing_variable) {
 
 TEST(DCSimulationParametersChecks, validate_dec_sweep_valid) {
     // arrange
-    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", "2"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", "2"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1202,7 +1094,7 @@ TEST(DCSimulationParametersChecks, validate_dec_sweep_valid) {
 
 TEST(DCSimulationParametersChecks, validate_dec_sweep_fractional_points) {
     // arrange — a LIN step value carried over to a DEC sweep is not a valid point count
-    const DCSimulationParameters params("DEC", {DcSweep{"V1", "0", "5", "", "0.5"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"V1", "0", "5", "", "0.5"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1212,7 +1104,7 @@ TEST(DCSimulationParametersChecks, validate_dec_sweep_fractional_points) {
 
 TEST(DCSimulationParametersChecks, validate_dec_sweep_zero_start) {
     // arrange — a log sweep cannot start at zero
-    const DCSimulationParameters params("DEC", {DcSweep{"V1", "0", "5", "", "2"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"V1", "0", "5", "", "2"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1222,7 +1114,7 @@ TEST(DCSimulationParametersChecks, validate_dec_sweep_zero_start) {
 
 TEST(DCSimulationParametersChecks, validate_oct_sweep_zero_points) {
     // arrange
-    const DCSimulationParameters params("OCT", {DcSweep{"V1", "0.125", "64", "", "0"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("OCT", {DcSweep{"V1", "0.125", "64", "", "0"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1232,7 +1124,7 @@ TEST(DCSimulationParametersChecks, validate_oct_sweep_zero_points) {
 
 TEST(DCSimulationParametersChecks, validate_dec_sweep_missing_points) {
     // arrange — a DEC sweep with an empty points value is incomplete
-    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1242,7 +1134,7 @@ TEST(DCSimulationParametersChecks, validate_dec_sweep_missing_points) {
 
 TEST(DCSimulationParametersChecks, validate_list_sweep_valid) {
     // arrange
-    const DCSimulationParameters params("LIST", {DcSweep{"V1", "", "", "", "", {"0.5", "1.0"}}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"V1", "", "", "", "", {"0.5", "1.0"}}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1251,7 +1143,7 @@ TEST(DCSimulationParametersChecks, validate_list_sweep_valid) {
 
 TEST(DCSimulationParametersChecks, validate_list_sweep_missing_values) {
     // arrange
-    const DCSimulationParameters params("LIST", {DcSweep{"V1", "", "", "", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("LIST", {DcSweep{"V1", "", "", "", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1261,7 +1153,7 @@ TEST(DCSimulationParametersChecks, validate_list_sweep_missing_values) {
 
 TEST(DCSimulationParametersChecks, validate_data_sweep_valid) {
     // arrange
-    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myTable", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "myTable", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1270,7 +1162,7 @@ TEST(DCSimulationParametersChecks, validate_data_sweep_valid) {
 
 TEST(DCSimulationParametersChecks, validate_data_sweep_missing_table) {
     // arrange
-    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DATA", {DcSweep{"", "", "", "", ""}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1279,7 +1171,7 @@ TEST(DCSimulationParametersChecks, validate_data_sweep_missing_table) {
 
 TEST(DCSimulationParametersChecks, validate_dec_secondary_sweep_invalid) {
     // arrange — secondary sweep with a non-integer point count
-    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", "2"}, DcSweep{"R1", "1", "10", "", "0.5"}}, "", std::nullopt, {}, std::nullopt, std::nullopt);
+    const DCSimulationParameters params("DEC", {DcSweep{"V1", "1", "100", "", "2"}, DcSweep{"R1", "1", "10", "", "0.5"}}, "", std::nullopt, std::nullopt, std::nullopt);
     // act
     const auto error = params.validate();
     // assert
@@ -1321,8 +1213,8 @@ TEST(DCSimulationParametersChecks, no_pce_directives_leave_pce_empty) {
 
 TEST(DCSimulationParametersChecks, equality_operator_different_pce) {
     // arrange
-    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, PceParameters(false, {"R1"}, {"normal"}, {"3K"}, {"1K"}, {}, {}, {}, {}, {}, std::nullopt));
-    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, PceParameters(false, {"R2"}, {"normal"}, {"3K"}, {"1K"}, {}, {}, {}, {}, {}, std::nullopt));
+    const DCSimulationParameters params1("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, PceParameters(false, {"R1"}, {"normal"}, {"3K"}, {"1K"}, {}, {}, {}, {}, {}, std::nullopt));
+    const DCSimulationParameters params2("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, PceParameters(false, {"R2"}, {"normal"}, {"3K"}, {"1K"}, {}, {}, {}, {}, {}, std::nullopt));
     // act
     const bool result = params1 == params2;
     // assert

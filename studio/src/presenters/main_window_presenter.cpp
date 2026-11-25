@@ -650,11 +650,21 @@ const SimulationConfig& studio::MainWindowPresenter::prepare_simulation_paramete
     m_pending_original_netlist = content;
     // build the configuration the netlist directives describe
     SimulationConfig parsed = SimulationConfig::from_xyce_directives(topology.m_directives);
-    // the options belong to the netlist even when it declares no analysis
-    m_simulation_config.options = parsed.options;
-    // a netlist that declares an analysis replaces the analysis the dialog last accepted
+    // a netlist that declares an analysis replaces the analysis and top-level directives
     if (!std::holds_alternative<std::monostate>(parsed.analysis))
         m_simulation_config = std::move(parsed);
+    // a netlist without an analysis still updates the top-level directives while keeping any prior accepted analysis
+    else {
+        m_simulation_config.steps = std::move(parsed.steps);
+        m_simulation_config.data_blocks = std::move(parsed.data_blocks);
+        m_simulation_config.options = std::move(parsed.options);
+        m_simulation_config.unassociated_prints = std::move(parsed.unassociated_prints);
+        m_simulation_config.replace_ground = parsed.replace_ground;
+        m_simulation_config.ic_parameters = std::move(parsed.ic_parameters);
+        m_simulation_config.remove_unused = std::move(parsed.remove_unused);
+        m_simulation_config.add_resistors = std::move(parsed.add_resistors);
+        m_simulation_config.measures = std::move(parsed.measures);
+    }
     // hand the dialog the configuration it edits
     return m_simulation_config;
 }

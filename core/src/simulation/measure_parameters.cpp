@@ -8,8 +8,8 @@
 
 namespace
 {
-    // analisis types allowed for measure directives
-    const std::string ALLOWED_ANALYSIS_TYPES[8] = {"TRAN", "AC", "DC", "NOISE", "TRAN_CONT", "AC_CONT", "DC_CONT", "NOISE_CONT"};
+    // analysis types allowed for measure directives
+    const std::string ALLOWED_ANALYSIS_TYPES[9] = {"TRAN", "AC", "DC", "NOISE", "FFT", "TRAN_CONT", "AC_CONT", "DC_CONT", "NOISE_CONT"};
 
     // measure type aliases for normalization
     const std::pair<std::string, std::string> MEASURE_TYPE_ALIASES[3] = {{"DERIVATIVE", "DERIV"}, {"INTEGRAL", "INTEG"}, {"PARAM", "EQN"}};
@@ -175,8 +175,8 @@ static size_t parse_trig_targ_clauses(const std::vector<std::string>& tokens, si
 }
 
 // construct a MeasureEntry with default empty fields
-MeasureEntry::MeasureEntry(std::string a_analysis_type, std::string a_result_name, std::string a_measure_type, std::string a_variable, std::string a_from_val, std::string a_to_val, std::string a_td_val, std::string a_rise_val, std::string a_fall_val, std::string a_cross_val, std::string a_minval, std::string a_default_val, std::string a_precision, std::string a_print_val, std::string a_at_val, std::string a_on_val, std::string a_off_val, std::string a_rfc_level, std::string a_output, std::string a_min_thresh, std::string a_max_thresh, std::string a_frac_max, std::string a_when_variable, std::string a_when_condition, std::string a_variable2, std::string a_trig_variable, std::string a_trig_condition, std::string a_trig_val, std::string a_trig_frac_max, std::string a_trig_td, std::string a_trig_rise, std::string a_trig_fall, std::string a_trig_cross, std::string a_trig_at_val, std::string a_targ_variable, std::string a_targ_condition, std::string a_targ_val, std::string a_targ_frac_max, std::string a_targ_td, std::string a_targ_rise, std::string a_targ_fall, std::string a_targ_cross, std::string a_targ_at_val, std::string a_error_file, std::string a_indepvarcol, std::string a_depvarcol, std::string a_comp_function, std::string a_numfreq, std::string a_gridsize, std::string a_binsiz, std::string a_maxfreq, std::string a_minfreq, std::string a_nbharm, std::string a_goal, std::string a_weight) :
-    analysis_type(std::move(a_analysis_type)), result_name(std::move(a_result_name)), measure_type(std::move(a_measure_type)), variable(std::move(a_variable)), from_val(std::move(a_from_val)), to_val(std::move(a_to_val)), td_val(std::move(a_td_val)), rise_val(std::move(a_rise_val)), fall_val(std::move(a_fall_val)), cross_val(std::move(a_cross_val)), minval(std::move(a_minval)), default_val(std::move(a_default_val)), precision(std::move(a_precision)), print_val(std::move(a_print_val)), at_val(std::move(a_at_val)), on_val(std::move(a_on_val)), off_val(std::move(a_off_val)), rfc_level(std::move(a_rfc_level)), output(std::move(a_output)), min_thresh(std::move(a_min_thresh)), max_thresh(std::move(a_max_thresh)), frac_max(std::move(a_frac_max)), when_variable(std::move(a_when_variable)), when_condition(std::move(a_when_condition)), variable2(std::move(a_variable2)), trig_variable(std::move(a_trig_variable)), trig_condition(std::move(a_trig_condition)), trig_val(std::move(a_trig_val)), trig_frac_max(std::move(a_trig_frac_max)), trig_td(std::move(a_trig_td)), trig_rise(std::move(a_trig_rise)), trig_fall(std::move(a_trig_fall)), trig_cross(std::move(a_trig_cross)), trig_at_val(std::move(a_trig_at_val)), targ_variable(std::move(a_targ_variable)), targ_condition(std::move(a_targ_condition)), targ_val(std::move(a_targ_val)), targ_frac_max(std::move(a_targ_frac_max)), targ_td(std::move(a_targ_td)), targ_rise(std::move(a_targ_rise)), targ_fall(std::move(a_targ_fall)), targ_cross(std::move(a_targ_cross)), targ_at_val(std::move(a_targ_at_val)), error_file(std::move(a_error_file)), indepvarcol(std::move(a_indepvarcol)), depvarcol(std::move(a_depvarcol)), comp_function(std::move(a_comp_function)), numfreq(std::move(a_numfreq)), gridsize(std::move(a_gridsize)), binsiz(std::move(a_binsiz)), maxfreq(std::move(a_maxfreq)), minfreq(std::move(a_minfreq)), nbharm(std::move(a_nbharm)), goal(std::move(a_goal)), weight(std::move(a_weight)) {}
+MeasureEntry::MeasureEntry(std::string a_analysis_type, std::string a_result_name, std::string a_measure_type, std::string a_variable, std::string a_from_val, std::string a_to_val, std::string a_td_val, std::string a_rise_val, std::string a_fall_val, std::string a_cross_val, std::string a_minval, std::string a_default_val, std::string a_precision, std::string a_print_val, std::string a_at_val, std::string a_on_val, std::string a_off_val, std::string a_rfc_level, std::string a_output, std::string a_min_thresh, std::string a_max_thresh, std::string a_frac_max, std::string a_when_variable, std::string a_when_condition, std::string a_variable2, std::string a_trig_variable, std::string a_trig_condition, std::string a_trig_val, std::string a_trig_frac_max, std::string a_trig_td, std::string a_trig_rise, std::string a_trig_fall, std::string a_trig_cross, std::string a_trig_at_val, std::string a_targ_variable, std::string a_targ_condition, std::string a_targ_val, std::string a_targ_frac_max, std::string a_targ_td, std::string a_targ_rise, std::string a_targ_fall, std::string a_targ_cross, std::string a_targ_at_val, std::string a_error_file, std::string a_indepvarcol, std::string a_depvarcol, std::string a_comp_function, std::string a_numfreq, std::string a_gridsize, std::string a_binsiz, std::string a_maxfreq, std::string a_minfreq, std::string a_nbharm, std::string a_goal, std::string a_weight, std::string a_ymin, std::string a_ymax) :
+    analysis_type(std::move(a_analysis_type)), result_name(std::move(a_result_name)), measure_type(std::move(a_measure_type)), variable(std::move(a_variable)), from_val(std::move(a_from_val)), to_val(std::move(a_to_val)), td_val(std::move(a_td_val)), rise_val(std::move(a_rise_val)), fall_val(std::move(a_fall_val)), cross_val(std::move(a_cross_val)), minval(std::move(a_minval)), default_val(std::move(a_default_val)), precision(std::move(a_precision)), print_val(std::move(a_print_val)), at_val(std::move(a_at_val)), on_val(std::move(a_on_val)), off_val(std::move(a_off_val)), rfc_level(std::move(a_rfc_level)), output(std::move(a_output)), min_thresh(std::move(a_min_thresh)), max_thresh(std::move(a_max_thresh)), frac_max(std::move(a_frac_max)), when_variable(std::move(a_when_variable)), when_condition(std::move(a_when_condition)), variable2(std::move(a_variable2)), trig_variable(std::move(a_trig_variable)), trig_condition(std::move(a_trig_condition)), trig_val(std::move(a_trig_val)), trig_frac_max(std::move(a_trig_frac_max)), trig_td(std::move(a_trig_td)), trig_rise(std::move(a_trig_rise)), trig_fall(std::move(a_trig_fall)), trig_cross(std::move(a_trig_cross)), trig_at_val(std::move(a_trig_at_val)), targ_variable(std::move(a_targ_variable)), targ_condition(std::move(a_targ_condition)), targ_val(std::move(a_targ_val)), targ_frac_max(std::move(a_targ_frac_max)), targ_td(std::move(a_targ_td)), targ_rise(std::move(a_targ_rise)), targ_fall(std::move(a_targ_fall)), targ_cross(std::move(a_targ_cross)), targ_at_val(std::move(a_targ_at_val)), error_file(std::move(a_error_file)), indepvarcol(std::move(a_indepvarcol)), depvarcol(std::move(a_depvarcol)), comp_function(std::move(a_comp_function)), numfreq(std::move(a_numfreq)), gridsize(std::move(a_gridsize)), binsiz(std::move(a_binsiz)), maxfreq(std::move(a_maxfreq)), minfreq(std::move(a_minfreq)), nbharm(std::move(a_nbharm)), goal(std::move(a_goal)), weight(std::move(a_weight)), ymin(std::move(a_ymin)), ymax(std::move(a_ymax)) {}
 
 std::optional<MeasureEntry> MeasureEntry::from_xyce_statement(const std::string& statement) {
     // parse tokens
@@ -276,7 +276,7 @@ std::optional<MeasureEntry> MeasureEntry::from_xyce_statement(const std::string&
                 if (key == "MINVAL") {
                     entry.minval = val;
                 }
-                else if (key == "DEFAULT") {
+                else if (key == "DEFAULT" || key == "DEFAULT_VAL") {
                     entry.default_val = val;
                 }
                 else if (key == "PRECISION") {
@@ -424,8 +424,8 @@ std::optional<MeasureEntry> MeasureEntry::from_xyce_statement(const std::string&
                 else if (key == "MINVAL") {
                     entry.minval = val;
                 }
-                // map DEFAULT
-                else if (key == "DEFAULT") {
+                // map DEFAULT and DEFAULT_VAL
+                else if (key == "DEFAULT" || key == "DEFAULT_VAL") {
                     entry.default_val = val;
                 }
                 // map PRECISION
@@ -523,6 +523,14 @@ std::optional<MeasureEntry> MeasureEntry::from_xyce_statement(const std::string&
                 // map FRAC_MAX
                 else if (key == "FRAC_MAX") {
                     entry.frac_max = val;
+                }
+                // map IGNOR and YMIN (error bounds)
+                else if (key == "IGNOR" || key == "YMIN") {
+                    entry.ymin = val;
+                }
+                // map YMAX (error bounds)
+                else if (key == "YMAX") {
+                    entry.ymax = val;
                 }
             }
         }
@@ -623,12 +631,18 @@ std::string MeasureEntry::to_xyce_statement() const {
             }
         }
 
-        // Standard qualifiers can follow TRIG-TARG
+        // standard qualifiers can follow TRIG-TARG
+        if (!from_val.empty()) {
+            tokens.push_back("FROM=" + from_val);
+        }
+        if (!to_val.empty()) {
+            tokens.push_back("TO=" + to_val);
+        }
         if (!minval.empty()) {
             tokens.push_back("MINVAL=" + minval);
         }
         if (!default_val.empty()) {
-            tokens.push_back("DEFAULT=" + default_val);
+            tokens.push_back("DEFAULT_VAL=" + default_val);
         }
         if (!precision.empty()) {
             tokens.push_back("PRECISION=" + precision);
@@ -643,7 +657,7 @@ std::string MeasureEntry::to_xyce_statement() const {
     // handle standard measurement types
     else {
         // check for FFT measure type
-        if (measure_type == "ENOB" || measure_type == "SFDR" || measure_type == "SNDR" || measure_type == "SNR" || measure_type == "THD") {
+        if ((measure_type == "ENOB" || measure_type == "SFDR" || measure_type == "SNDR" || measure_type == "SNR" || measure_type == "THD") && to_upper(analysis_type) != "FFT") {
             tokens.push_back("FFT");
         }
         // append measure type
@@ -703,7 +717,7 @@ std::string MeasureEntry::to_xyce_statement() const {
             tokens.push_back("MINVAL=" + minval);
         }
         if (!default_val.empty()) {
-            tokens.push_back("DEFAULT=" + default_val);
+            tokens.push_back("DEFAULT_VAL=" + default_val);
         }
         if (!precision.empty()) {
             tokens.push_back("PRECISION=" + precision);
@@ -776,6 +790,13 @@ std::string MeasureEntry::to_xyce_statement() const {
         if (!weight.empty()) {
             tokens.push_back("WEIGHT=" + weight);
         }
+        // error measure bounds
+        if (!ymin.empty()) {
+            tokens.push_back("YMIN=" + ymin);
+        }
+        if (!ymax.empty()) {
+            tokens.push_back("YMAX=" + ymax);
+        }
     }
 
     // return joined statement
@@ -791,5 +812,5 @@ std::string MeasureEntry::to_xyce_statement() const {
 
 bool MeasureEntry::operator==(const MeasureEntry& other) const {
     // compare all fields for equality
-    return analysis_type == other.analysis_type && result_name == other.result_name && measure_type == other.measure_type && variable == other.variable && from_val == other.from_val && to_val == other.to_val && td_val == other.td_val && rise_val == other.rise_val && fall_val == other.fall_val && cross_val == other.cross_val && minval == other.minval && default_val == other.default_val && precision == other.precision && print_val == other.print_val && at_val == other.at_val && on_val == other.on_val && off_val == other.off_val && rfc_level == other.rfc_level && output == other.output && min_thresh == other.min_thresh && max_thresh == other.max_thresh && frac_max == other.frac_max && when_variable == other.when_variable && when_condition == other.when_condition && variable2 == other.variable2 && trig_variable == other.trig_variable && trig_condition == other.trig_condition && trig_val == other.trig_val && trig_frac_max == other.trig_frac_max && trig_td == other.trig_td && trig_rise == other.trig_rise && trig_fall == other.trig_fall && trig_cross == other.trig_cross && trig_at_val == other.trig_at_val && targ_variable == other.targ_variable && targ_condition == other.targ_condition && targ_val == other.targ_val && targ_frac_max == other.targ_frac_max && targ_td == other.targ_td && targ_rise == other.targ_rise && targ_fall == other.targ_fall && targ_cross == other.targ_cross && targ_at_val == other.targ_at_val && error_file == other.error_file && indepvarcol == other.indepvarcol && depvarcol == other.depvarcol && comp_function == other.comp_function && numfreq == other.numfreq && gridsize == other.gridsize && binsiz == other.binsiz && maxfreq == other.maxfreq && minfreq == other.minfreq && nbharm == other.nbharm && goal == other.goal && weight == other.weight;
+    return analysis_type == other.analysis_type && result_name == other.result_name && measure_type == other.measure_type && variable == other.variable && from_val == other.from_val && to_val == other.to_val && td_val == other.td_val && rise_val == other.rise_val && fall_val == other.fall_val && cross_val == other.cross_val && minval == other.minval && default_val == other.default_val && precision == other.precision && print_val == other.print_val && at_val == other.at_val && on_val == other.on_val && off_val == other.off_val && rfc_level == other.rfc_level && output == other.output && min_thresh == other.min_thresh && max_thresh == other.max_thresh && frac_max == other.frac_max && when_variable == other.when_variable && when_condition == other.when_condition && variable2 == other.variable2 && trig_variable == other.trig_variable && trig_condition == other.trig_condition && trig_val == other.trig_val && trig_frac_max == other.trig_frac_max && trig_td == other.trig_td && trig_rise == other.trig_rise && trig_fall == other.trig_fall && trig_cross == other.trig_cross && trig_at_val == other.trig_at_val && targ_variable == other.targ_variable && targ_condition == other.targ_condition && targ_val == other.targ_val && targ_frac_max == other.targ_frac_max && targ_td == other.targ_td && targ_rise == other.targ_rise && targ_fall == other.targ_fall && targ_cross == other.targ_cross && targ_at_val == other.targ_at_val && error_file == other.error_file && indepvarcol == other.indepvarcol && depvarcol == other.depvarcol && comp_function == other.comp_function && numfreq == other.numfreq && gridsize == other.gridsize && binsiz == other.binsiz && maxfreq == other.maxfreq && minfreq == other.minfreq && nbharm == other.nbharm && goal == other.goal && weight == other.weight && ymin == other.ymin && ymax == other.ymax;
 }

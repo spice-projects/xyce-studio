@@ -111,8 +111,8 @@ namespace
 
 } // anonymous namespace
 
-SimulationConfig::SimulationConfig(std::string a_analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> a_analysis, std::vector<StepParameters> a_steps, std::vector<DataBlock> a_data_blocks, OptionParameters a_options, std::vector<PrintParameters> a_unassociated_prints, bool a_replace_ground, ICParameters a_ic_parameters, std::optional<std::string> a_remove_unused, std::vector<std::string> a_add_resistors) :
-    analysis_type(std::move(a_analysis_type)), analysis(std::move(a_analysis)), steps(std::move(a_steps)), data_blocks(std::move(a_data_blocks)), options(std::move(a_options)), unassociated_prints(std::move(a_unassociated_prints)), replace_ground(a_replace_ground), ic_parameters(std::move(a_ic_parameters)), remove_unused(std::move(a_remove_unused)), add_resistors(std::move(a_add_resistors)) {}
+SimulationConfig::SimulationConfig(std::string a_analysis_type, std::variant<std::monostate, AcSimulationParameters, DCSimulationParameters, HbSimulationParameters, LinSimulationParameters, NoiseSimulationParameters, OpSimulationParameters, TransientSimulationParameters> a_analysis, std::vector<StepParameters> a_steps, std::vector<DataBlock> a_data_blocks, OptionParameters a_options, std::vector<PrintParameters> a_unassociated_prints, bool a_replace_ground, ICParameters a_ic_parameters, std::optional<std::string> a_remove_unused, std::vector<std::string> a_add_resistors, std::vector<std::string> a_measures) :
+    analysis_type(std::move(a_analysis_type)), analysis(std::move(a_analysis)), steps(std::move(a_steps)), data_blocks(std::move(a_data_blocks)), options(std::move(a_options)), unassociated_prints(std::move(a_unassociated_prints)), replace_ground(a_replace_ground), ic_parameters(std::move(a_ic_parameters)), remove_unused(std::move(a_remove_unused)), add_resistors(std::move(a_add_resistors)), measures(std::move(a_measures)) {}
 
 StepParameters SimulationConfig::step() const {
     // return the first step for backward compatibility, or a disabled default
@@ -347,8 +347,21 @@ SimulationConfig SimulationConfig::from_xyce_directives(const std::vector<std::s
     // parse the initial condition (.IC / .DCVOLT) directives
     const auto ic_parameters = ICParameters::from_xyce_directives(directives);
 
+    // collect all .MEASURE / .MEAS directives verbatim across all analysis modes
+    std::vector<std::string> measures;
+    for (const auto& directive : directives) {
+        // tokenize to inspect the leading directive keyword
+        const auto tokens = tokenize(directive);
+        if (tokens.empty())
+            continue;
+        // check for .MEASURE or its HSPICE synonym .MEAS
+        const std::string cmd = to_upper(tokens[0]);
+        if (cmd == ".MEASURE" || cmd == ".MEAS")
+            measures.push_back(directive);
+    }
+
     // return the combined configuration container
-    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground, ic_parameters, remove_unused, add_resistors);
+    return SimulationConfig(analysis_type, std::move(analysis), steps, data_blocks, options, unassociated_prints, replace_ground, ic_parameters, remove_unused, add_resistors, measures);
 }
 
 std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopology& topology) const {
@@ -416,13 +429,17 @@ std::vector<std::string> SimulationConfig::to_xyce_directives(const NetlistTopol
         directives.push_back(pp.to_xyce_statement());
     }
 
+    // emit all .MEASURE / .MEAS directives verbatim
+    for (const auto& measure : measures)
+        directives.push_back(measure);
+
     // return the full consolidated directive list
     return directives;
 }
 
 bool SimulationConfig::operator==(const SimulationConfig& other) const {
     // compare all fields for equality
-    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground && remove_unused == other.remove_unused && add_resistors == other.add_resistors;
+    return analysis_type == other.analysis_type && analysis == other.analysis && steps == other.steps && data_blocks == other.data_blocks && options == other.options && unassociated_prints == other.unassociated_prints && ic_parameters == other.ic_parameters && replace_ground == other.replace_ground && remove_unused == other.remove_unused && add_resistors == other.add_resistors && measures == other.measures;
 }
 
 std::optional<PrintParameters> SimulationConfig::analysis_print_parameters() const {

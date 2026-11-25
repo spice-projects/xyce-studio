@@ -49,9 +49,7 @@ TEST(SimulationConfigReplaceGroundChecks, enabled_state_round_trips_through_dire
     EXPECT_TRUE(output.replace_ground);
 }
 
-// ========================================================================================
 // remove-unused and add-resistors preprocessing directives
-// ========================================================================================
 
 TEST(SimulationConfigRemoveUnusedChecks, from_xyce_directives_defaults_to_absent) {
     // arrange / act
@@ -198,9 +196,7 @@ TEST(SimulationConfigPreprocessChecks, equality_distinguishes_preprocess_configu
     EXPECT_NE(base, with_add_resistors);
 }
 
-// ========================================================================================
 // analysis type detection
-// ========================================================================================
 
 TEST(SimulationConfigAnalysisChecks, from_xyce_directives_identifies_transient) {
     // arrange / act
@@ -245,7 +241,7 @@ TEST(SimulationConfigAnalysisChecks, from_xyce_directives_identifies_noise) {
 }
 
 TEST(SimulationConfigAnalysisChecks, lin_claims_the_match_before_ac) {
-    // arrange — .LIN netlists also contain a .AC directive; the LIN parser embeds the AC sweep so it must win the precedence order
+    // arrange
     const std::vector<std::string> directives = {".AC DEC 10 1 1MEG", ".LIN"};
     // act
     const auto config = SimulationConfig::from_xyce_directives(directives);
@@ -264,9 +260,7 @@ TEST(SimulationConfigAnalysisChecks, without_analysis_yields_monostate) {
     EXPECT_TRUE(std::holds_alternative<std::monostate>(config.analysis));
 }
 
-// ========================================================================================
 // unassociated print directives
-// ========================================================================================
 
 TEST(SimulationConfigUnassociatedPrintChecks, prints_handled_by_the_analysis_are_not_unassociated) {
     // arrange — a transient analysis handles TRAN prints itself
@@ -336,12 +330,10 @@ TEST(SimulationConfigUnassociatedPrintChecks, unassociated_prints_round_trip_thr
     ASSERT_NE(found, directives.end());
 }
 
-// ========================================================================================
 // legacy OP print normalization
-// ========================================================================================
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_the_legacy_op_print) {
-    // arrange — an OP analysis built from the legacy print_dc_* fields with a duplicated variable; the normalized print must match the legacy emission
+    // arrange — an OP analysis built from the legacy print_dc_* fields with a duplicated variable; the normalized
     const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)", "V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -351,7 +343,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_normalizes_th
 }
 
 TEST(SimulationConfigAnalysisPrintChecks, legacy_op_print_statement_matches_the_emitted_directive) {
-    // arrange — legacy OP print fields; the emitted directive must equal the analysis print statement so the presenter strips its FILE= option
+    // arrange
     const SimulationConfig config("OP", OpSimulationParameters(true, false, false, {"V(1)"}, "RAW", "dc.raw", false, "NODESET", "", {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -383,12 +375,10 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_parameters_is_nullopt_f
     EXPECT_FALSE(config.analysis_print_parameters().has_value());
 }
 
-// ========================================================================================
 // unassociated print deduplication
-// ========================================================================================
 
 TEST(SimulationConfigUnassociatedPrintChecks, op_analysis_does_not_duplicate_its_dc_print) {
-    // arrange — a netlist with an .OP analysis and a .PRINT DC directive; the OP parser claims the print into its structured print parameters, so the directive must not be appended to the unassociated prints as well
+    // arrange — a netlist with an .OP analysis and a .PRINT DC directive; the OP parser claims the print into its
     const auto config = SimulationConfig::from_xyce_directives({".OP", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
     // assert
     ASSERT_EQ(config.analysis_type, "OP");
@@ -399,7 +389,7 @@ TEST(SimulationConfigUnassociatedPrintChecks, op_analysis_does_not_duplicate_its
 }
 
 TEST(SimulationConfigUnassociatedPrintChecks, dc_print_stays_unassociated_for_other_analyses) {
-    // arrange — a .PRINT DC under a transient analysis is not claimed by the analysis and must remain in the unassociated prints
+    // arrange — a .PRINT DC under a transient analysis is not claimed by the analysis and must remain in the
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT DC FORMAT=RAW FILE=dc.raw V(1)"});
     // assert
     ASSERT_EQ(config.analysis_type, "TRAN");
@@ -408,9 +398,7 @@ TEST(SimulationConfigUnassociatedPrintChecks, dc_print_stays_unassociated_for_ot
     EXPECT_EQ(config.unassociated_prints[0].print_file, "dc.raw");
 }
 
-// ========================================================================================
 // analysis print statement serialization
-// ========================================================================================
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_for_missing_analysis) {
     // arrange
@@ -441,7 +429,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_nullopt_wi
 }
 
 TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_a_prefix_of_the_expanded_noise_print) {
-    // arrange — a NOISE analysis carrying device noise operators; the Xyce reference guide documents DNI()/DNO() as output variables on the .PRINT NOISE line, and the noise serializer appends them after the base print statement
+    // arrange — a NOISE analysis carrying device noise operators; the Xyce reference guide documents DNI()/DNO() as
     const SimulationConfig config("NOISE", NoiseSimulationParameters("out", "", "V1", "1", "100MEG", "10", "DEC", {DeviceNoiseOperator("DNI", "R1", "")}, "", PrintParameters("NOISE", "RAW", "out.raw", {"INOISE"}, {})), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto statement = config.analysis_print_statement();
@@ -456,9 +444,7 @@ TEST(SimulationConfigAnalysisPrintChecks, analysis_print_statement_is_a_prefix_o
     EXPECT_EQ(*emitted, ".PRINT NOISE FORMAT=RAW FILE=out.raw INOISE DNI(R1)");
 }
 
-// ========================================================================================
 // FFT output file path pattern computation
-// ========================================================================================
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_requires_an_analysis) {
     // arrange
@@ -471,7 +457,7 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_requires_an_analysis) {
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_requires_fft_parameters) {
     // arrange — a transient analysis without .FFT directives
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.fft_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -480,7 +466,7 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_requires_fft_parameters) {
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_matches_transient_with_fft_parameters) {
     // arrange — a transient analysis carrying one .FFT directive
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.fft_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -490,16 +476,14 @@ TEST(SimulationConfigFftPathChecks, fft_pattern_matches_transient_with_fft_param
 
 TEST(SimulationConfigFftPathChecks, fft_pattern_is_absent_for_other_analyses) {
     // arrange
-    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.fft_output_file_path_pattern("/tmp/net.cir");
     // assert
     EXPECT_FALSE(pattern.has_value());
 }
 
-// ========================================================================================
 // FOUR output file path pattern computation
-// ========================================================================================
 
 TEST(SimulationConfigFourPathChecks, four_pattern_requires_an_analysis) {
     // arrange
@@ -512,7 +496,7 @@ TEST(SimulationConfigFourPathChecks, four_pattern_requires_an_analysis) {
 
 TEST(SimulationConfigFourPathChecks, four_pattern_requires_four_parameters) {
     // arrange — a transient analysis without .FOUR directives
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -521,7 +505,7 @@ TEST(SimulationConfigFourPathChecks, four_pattern_requires_four_parameters) {
 
 TEST(SimulationConfigFourPathChecks, four_pattern_matches_transient_with_four_parameters) {
     // arrange — a transient analysis carrying one .FOUR directive
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1u", "1m", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -531,7 +515,7 @@ TEST(SimulationConfigFourPathChecks, four_pattern_matches_transient_with_four_pa
 
 TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_ac) {
     // arrange
-    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -540,7 +524,7 @@ TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_ac) {
 
 TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_dc) {
     // arrange
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto pattern = config.four_output_file_path_pattern("/tmp/net.cir");
     // assert
@@ -583,9 +567,7 @@ TEST(SimulationConfigFourPathChecks, four_pattern_is_absent_for_op) {
     EXPECT_FALSE(pattern.has_value());
 }
 
-// ========================================================================================
 // PCE print parameter extraction
-// ========================================================================================
 
 TEST(SimulationConfigPcePrintChecks, no_analysis_yields_no_pce_print) {
     // arrange
@@ -632,9 +614,7 @@ TEST(SimulationConfigPcePrintChecks, dc_with_pce_and_print_yields_the_print) {
     EXPECT_EQ(print->print_type, "PCE");
 }
 
-// ========================================================================================
 // PCE output file path computation
-// ========================================================================================
 
 TEST(SimulationConfigPcePathChecks, pce_path_requires_a_companion_print) {
     // arrange
@@ -695,9 +675,7 @@ TEST(SimulationConfigPcePathChecks, file_option_does_not_change_the_produced_def
     EXPECT_EQ(path->generic_string(), "/tmp/net.cir.PCE.prn");
 }
 
-// ========================================================================================
 // s-parameter output file path computation
-// ========================================================================================
 
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_requires_an_analysis) {
     // arrange
@@ -710,7 +688,7 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_requires_an_analysis
 
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_is_absent_for_other_analyses) {
     // arrange
-    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
@@ -720,7 +698,7 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_is_absent_for_other_
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_defaults_to_netlist_plus_s2p_without_file) {
     // arrange — a LIN analysis with the default touchstone format and no FILE=
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
-    // act — without FILE= Xyce writes <netlist>.sNp next to the netlist, N being the port count (2 here), so the working directory plays no role
+    // act — without FILE= Xyce writes <netlist>.sNp next to the netlist, N being the port count (2 here), so the
     const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
     // assert
     ASSERT_TRUE(path.has_value());
@@ -738,7 +716,7 @@ TEST(SimulationConfigSParameterPathChecks, s_parameter_path_uses_port_count_for_
 }
 
 TEST(SimulationConfigSParameterPathChecks, s_parameter_path_resolves_file_against_working_directory) {
-    // arrange — a LIN analysis with an explicit FILE=; Xyce resolves the value against its process cwd, which is the run's working directory
+    // arrange — a LIN analysis with an explicit FILE=; Xyce resolves the value against its process cwd, which is the
     const SimulationConfig config("LIN", LinSimulationParameters(true, "TOUCHSTONE2", "S", "RI", "out.s2p", "", "", "LIN", "101", "1", "100k", "", std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto path = config.s_parameter_output_file_path("/tmp/net.cir", "/tmp/work");
@@ -842,9 +820,7 @@ TEST(SimulationConfigSParameterPathChecks, user_defined_output_is_absent_for_oth
     EXPECT_FALSE(user_defined);
 }
 
-// ========================================================================================
 // produced measurements
-// ========================================================================================
 
 TEST(SimulationConfigProducedMeasurementsChecks, no_analysis_produces_nothing) {
     // arrange
@@ -882,7 +858,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, lin_without_touchstone_format_p
 
 TEST(SimulationConfigProducedMeasurementsChecks, tran_with_fft_directives_produces_fft) {
     // arrange
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {FftParameters("V(1)", "", "", "", "", "", "", "", "", "")}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto produced = config.produced_measurements();
     // assert
@@ -893,7 +869,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_with_fft_directives_produc
 
 TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_produces_no_fft) {
     // arrange
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto produced = config.produced_measurements();
     // assert
@@ -904,7 +880,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_without_fft_directives_pro
 
 TEST(SimulationConfigProducedMeasurementsChecks, tran_with_four_directives_produces_fourier) {
     // arrange — a transient analysis carrying one .FOUR directive
-    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("TRAN", TransientSimulationParameters("1n", "10u", "", "", "", {}, std::nullopt, {}, {FourParameters("1k", {"V(1)"})}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto produced = config.produced_measurements();
     // assert
@@ -916,7 +892,7 @@ TEST(SimulationConfigProducedMeasurementsChecks, tran_with_four_directives_produ
 
 TEST(SimulationConfigProducedMeasurementsChecks, other_analyses_produce_nothing) {
     // arrange
-    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, {}, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("AC", AcSimulationParameters("DEC", "10", "1", "1MEG", "", std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act
     const auto produced = config.produced_measurements();
     // assert
@@ -954,13 +930,11 @@ TEST(SimulationConfigProducedMeasurementsChecks, dc_with_pce_print_produces_pce)
     EXPECT_TRUE(produced.pce);
 }
 
-// ========================================================================================
 // validate
-// ========================================================================================
 
 TEST(SimulationConfigValidationChecks, validate_passes_when_no_steps) {
     // arrange
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt), {}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
@@ -968,7 +942,7 @@ TEST(SimulationConfigValidationChecks, validate_passes_when_no_steps) {
 TEST(SimulationConfigValidationChecks, validate_passes_when_step_is_disabled) {
     // arrange
     const StepParameters disabled_step("LIN", "R1", "1k", "10k", "1k", "", {}, "", false);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {disabled_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt), {disabled_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
@@ -986,7 +960,7 @@ TEST(SimulationConfigValidationChecks, validate_rejects_step_without_analysis) {
 TEST(SimulationConfigValidationChecks, validate_checks_invalid_step_params) {
     // arrange — a step has empty variable
     const StepParameters bad_step("LIST", "", "", "", "", "", {}, "", true);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {bad_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt), {bad_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     const auto error = config.validate();
     ASSERT_TRUE(error.has_value());
@@ -996,36 +970,33 @@ TEST(SimulationConfigValidationChecks, validate_checks_invalid_step_params) {
 TEST(SimulationConfigValidationChecks, validate_passes_with_enabled_step_and_analysis) {
     // arrange
     const StepParameters valid_step("LIN", "R1", "1k", "10k", "1k", "", {}, "", true);
-    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, {}, std::nullopt, std::nullopt), {valid_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
+    const SimulationConfig config("DC", DCSimulationParameters("LIN", {DcSweep{"VIN", "0", "5", "0.1", ""}}, "", std::nullopt, std::nullopt, std::nullopt), {valid_step}, {}, OptionParameters({}, {}, {}, {}, {}), {}, true);
     // act / assert
     EXPECT_FALSE(config.validate().has_value());
 }
 
 TEST(SimulationConfigPrintSanitizeChecks, ac_analysis_print_drops_unsupported_wildcards) {
-    // arrange — a netlist directive set with an AC analysis and a print carrying the power and device lead wildcards the AC analysis cannot produce
-    // act
+    // arrange
     const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".PRINT AC FORMAT=RAW V(*) I(*) P(*) IC(*) ID(*)"});
-    // assert — the analysis print keeps only the supported wildcards
+    // assert
     const auto print_parameters = config.analysis_print_parameters();
     ASSERT_TRUE(print_parameters.has_value());
     ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "I(*)"}));
 }
 
 TEST(SimulationConfigPrintSanitizeChecks, lin_analysis_print_keeps_the_ac_restriction) {
-    // arrange — a LIN directive set whose associated AC print carries the power and lead wildcards
-    // act
+    // arrange
     const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 100k", ".LIN SPARCALC=1 FORMAT=TOUCHSTONE2 LINTYPE=S DATAFORMAT=RI FILE=lin.s2p", ".PRINT AC FORMAT=RAW V(*) P(*) IC(*)"});
-    // assert — the LIN analysis print is an AC print, sanitized the same way
+    // assert
     const auto print_parameters = config.analysis_print_parameters();
     ASSERT_TRUE(print_parameters.has_value());
     ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)"}));
 }
 
 TEST(SimulationConfigPrintSanitizeChecks, transient_analysis_print_keeps_power_and_leads) {
-    // arrange — a transient netlist carrying the full wildcard set
-    // act
+    // arrange
     const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN FORMAT=RAW V(*) P(*) IC(*)"});
-    // assert — transient prints keep the power and lead current wildcards
+    // assert
     const auto print_parameters = config.analysis_print_parameters();
     ASSERT_TRUE(print_parameters.has_value());
     ASSERT_EQ(print_parameters->output_variables, std::vector<std::string>({"V(*)", "P(*)", "IC(*)"}));
@@ -1433,9 +1404,7 @@ TEST(SimulationConfigOptionsChecks, multiple_option_statements_round_trip_throug
     ASSERT_NE(found, directives.end());
 }
 
-// ========================================================================================
 // analysis print augmentation for the .PLOT directives
-// ========================================================================================
 
 TEST(SimulationConfigPlotAugmentChecks, merges_the_quantities_into_an_existing_transient_print) {
     // arrange
@@ -1610,4 +1579,135 @@ TEST(SimulationConfigPlotAugmentChecks, keeps_a_plotted_noise_operator_that_the_
     for (auto position = print->find("DNI(R1)"); position != std::string::npos; position = print->find("DNI(R1)", position + 1))
         ++occurrences;
     ASSERT_EQ(occurrences, 1);
+}
+
+// measure directives across all analyses
+
+TEST(SimulationConfigMeasureChecks, preserves_tran_measure_when_op_is_also_present) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".TRAN 1u 1m", ".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_tran_measure_when_ac_is_also_present) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".AC DEC 10 1 1k", ".TRAN 1u 1m", ".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_noise_measure_with_noise_analysis) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".NOISE V(out) V(in) DEC 10 1 1k", ".MEASURE NOISE nmax MAX ONOISE"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE NOISE nmax MAX ONOISE"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_measure_with_hb_analysis) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".HB 1MEG", ".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_measure_with_lin_analysis) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".LIN", ".AC DEC 10 1 1k", ".MEASURE AC amax MAX VM(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE AC amax MAX VM(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_measure_when_no_analysis_is_declared) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_fft_measure_verbatim) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".MEASURE FFT e ENOB V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE FFT e ENOB V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_meas_synonym_and_qualifiers_verbatim) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".MEAS TRAN vout MAX V(out) DEFAULT_VAL=0"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEAS TRAN vout MAX V(out) DEFAULT_VAL=0"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, preserves_multiple_measures_in_original_order) {
+    // arrange
+    const std::vector<std::string> raw = {".MEASURE TRAN m1 MAX V(1)", ".MEASURE AC m2 MIN VM(2)", ".MEASURE NOISE m3 MAX ONOISE"};
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", raw[0], raw[1], raw[2]});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_EQ(config.measures, raw);
+    for (const auto& measure : raw)
+        EXPECT_EQ(std::count(directives.begin(), directives.end(), measure), 1);
+}
+
+TEST(SimulationConfigMeasureChecks, equality_compares_measures) {
+    // arrange
+    auto config1 = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".MEASURE TRAN m1 MAX V(1)"});
+    auto config2 = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".MEASURE TRAN m2 MAX V(1)"});
+    // act / assert
+    EXPECT_NE(config1, config2);
+    config2.measures = config1.measures;
+    EXPECT_EQ(config1, config2);
+}
+
+TEST(SimulationConfigMeasureChecks, lowercase_measure_directive_is_collected_verbatim) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".measure tran v MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    ASSERT_EQ(config.measures.size(), 1);
+    EXPECT_EQ(config.measures[0], ".measure tran v MAX V(1)");
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".measure tran v MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, measures_survive_other_config_mutations) {
+    // arrange
+    auto config = SimulationConfig::from_xyce_directives({".TRAN 1u 1m", ".PRINT TRAN V(1)", ".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    config.augment_analysis_print_variables({"V(2)"}, false);
+    const auto error = config.validate();
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    EXPECT_FALSE(error.has_value());
+    ASSERT_EQ(config.measures.size(), 1);
+    EXPECT_EQ(config.measures[0], ".MEASURE TRAN vmax MAX V(1)");
+    EXPECT_NE(std::find(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)"), directives.end());
+}
+
+TEST(SimulationConfigMeasureChecks, no_duplicate_measure_when_analysis_has_no_measure_storage) {
+    // arrange
+    const auto config = SimulationConfig::from_xyce_directives({".OP", ".TRAN 1u 1m", ".MEASURE TRAN vmax MAX V(1)"});
+    // act
+    const auto directives = config.to_xyce_directives(NetlistTopology{});
+    // assert
+    const auto count = std::count(directives.begin(), directives.end(), ".MEASURE TRAN vmax MAX V(1)");
+    EXPECT_EQ(count, 1);
 }

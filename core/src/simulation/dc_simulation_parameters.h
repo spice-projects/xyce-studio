@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "measure_parameters.h"
 #include "netlist/netlist.h"
 #include "pce_parameters.h"
 #include "print_parameters.h"
@@ -30,22 +29,20 @@ struct DcSweep
     [[nodiscard]] bool operator==(const DcSweep& other) const { return variable == other.variable && start == other.start && stop == other.stop && step == other.step && points == other.points && list_values == other.list_values; }
 };
 
-// DC simulation parameters class — parses and serializes Xyce .DC directives
+// DC simulation parameters class parses and serializes Xyce .DC directives
 class DCSimulationParameters
 {
 public:
     // construct a DC simulation parameters instance from individual fields
-    DCSimulationParameters(std::string sweep_mode, std::vector<DcSweep> sweeps, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce);
+    DCSimulationParameters(std::string sweep_mode, std::vector<DcSweep> sweeps, std::string data_table_name, std::optional<PrintParameters> print_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce);
 
-    // parse all directives into a DCSimulationParameters instance;
-    // returns nullopt when no .DC directive is found
+    // parse all directives into a DCSimulationParameters instance, returns nullopt when no .DC directive is found
     [[nodiscard]] static std::optional<DCSimulationParameters> from_xyce_directives(const std::vector<std::string>& directives);
 
     // serialize this instance to a list of Xyce directive strings
     [[nodiscard]] std::vector<std::string> to_xyce_directives(const NetlistTopology& topology) const;
 
-    // validate the sweep parameters against the Xyce reference guide;
-    // returns a user-facing error message, or nullopt when the parameters are valid
+    // validate the sweep parameters against the Xyce reference guide, returning an error message or nullopt
     [[nodiscard]] std::optional<std::string> validate() const;
 
     // equality operator
@@ -59,8 +56,6 @@ public:
     std::string data_table_name;
     // optional print parameters
     std::optional<PrintParameters> print_parameters;
-    // measure directives
-    std::vector<MeasureEntry> measure_parameters;
     // optional sensitivity parameters
     std::optional<SensParameter> sensitivity;
     // optional PCE (Polynomial Chaos Expansion) parameters

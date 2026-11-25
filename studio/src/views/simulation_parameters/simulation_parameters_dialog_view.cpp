@@ -204,30 +204,18 @@ namespace
             values.push_back(value);
     }
 
-    // parse the .MEASURE directives, one per line
-    [[nodiscard]] std::vector<MeasureEntry> parse_measure_lines(std::string_view text) {
-        // the entries the lines describe
-        std::vector<MeasureEntry> measures;
-        // every line is one directive
+    // split raw .MEASURE directive lines, skipping blank lines
+    [[nodiscard]] std::vector<std::string> split_measure_lines(std::string_view text) {
+        // the raw directive lines the editor holds
+        std::vector<std::string> measures;
+        // every non-empty line is one directive
         for (const std::string_view line : split_by(text, '\n')) {
-            // a blank line names no directive
-            if (line.find_first_not_of(" \t\r") == std::string_view::npos)
-                continue;
-            // the core parser owns the directive grammar
-            if (std::optional<MeasureEntry> parsed = MeasureEntry::from_xyce_statement(std::string(line)))
-                measures.push_back(std::move(*parsed));
+            // trim whitespace from both ends
+            const std::string trimmed = trim(line);
+            if (!trimmed.empty())
+                measures.push_back(trimmed);
         }
         return measures;
-    }
-
-    // format the .MEASURE directives, one per line
-    [[nodiscard]] std::string format_measure_lines(const std::vector<MeasureEntry>& measures) {
-        // the directive spellings the editor shows
-        std::vector<std::string> lines;
-        // every entry is one line
-        for (const MeasureEntry& measure : measures)
-            lines.push_back(measure.to_xyce_statement());
-        return join_with(lines, "\n");
     }
 
     // parse the .FFT directives, one per line
@@ -669,6 +657,8 @@ namespace
         // the ground flag and the initial conditions are global to the run
         tran.replace_ground = current.replace_ground;
         tran.initial_conditions = current.ic_parameters.to_line();
+        // the measure directives are global to the run
+        tran.measure = join_with(current.measures, "\n");
         // a transient analysis fills the timing fields and the companion sections
         if (const auto* stored = std::get_if<TransientSimulationParameters>(&current.analysis)) {
             // the timing fields the netlist carries
@@ -682,7 +672,6 @@ namespace
             tran.schedule = format_schedule_text(stored->schedule_points);
             tran.fft = format_fft_lines(stored->fft_parameters);
             tran.four = format_four_lines(stored->four_parameters);
-            tran.measure = format_measure_lines(stored->measure_parameters);
             // the managed option packages are edited as key=value lines
             tran.timeint_options = format_key_values(current.options.timeint);
             tran.nonlin_tran_options = format_key_values(current.options.nonlin_tran);
@@ -709,7 +698,7 @@ namespace
         if (const auto* previous = std::get_if<TransientSimulationParameters>(&seed.analysis))
             sensitivity = previous->sensitivity;
         // the panel state builds the analysis
-        return TransientSimulationParameters(trim(tran.initial_step), trim(tran.final_time), trim(tran.start_time), trim(tran.step_ceiling), op_keyword, parse_schedule_text(tran.schedule), build_print(print, true, true, true, "TRAN", {"TRAN", "TRANADJOINT"}), parse_fft_lines(tran.fft), parse_four_lines(tran.four), parse_measure_lines(tran.measure), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
+        return TransientSimulationParameters(trim(tran.initial_step), trim(tran.final_time), trim(tran.start_time), trim(tran.step_ceiling), op_keyword, parse_schedule_text(tran.schedule), build_print(print, true, true, true, "TRAN", {"TRAN", "TRANADJOINT"}), parse_fft_lines(tran.fft), parse_four_lines(tran.four), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
     }
 
     // format a print format index as the stored spelling
@@ -872,14 +861,14 @@ namespace
         // the ground flag and the initial conditions are global to the run
         dc.replace_ground = current.replace_ground;
         dc.initial_conditions = current.ic_parameters.to_line();
+        // the measure directives are global to the run
+        dc.measure = join_with(current.measures, "\n");
         // a DC analysis fills the sweep fields and the companion sections
         if (const auto* stored = std::get_if<DCSimulationParameters>(&current.analysis)) {
             // the sweep mode is the combo position
             dc.sweep_mode_index = choice_index(DC_MODES, stored->sweep_mode);
             // the table is what a DATA sweep reads
             dc.data_table = stored->data_table_name;
-            // the measure directives are edited as text
-            dc.measure = format_measure_lines(stored->measure_parameters);
             // the managed option package is edited as key=value lines
             dc.nonlin_options = format_key_values(current.options.nonlin);
             // the slice edits the first sweep tuple
@@ -950,13 +939,15 @@ namespace
         if (const auto* previous = std::get_if<DCSimulationParameters>(&seed.analysis))
             sensitivity = previous->sensitivity;
         // the panel state builds the analysis
-        return DCSimulationParameters(mode, std::move(sweeps), std::move(table), build_print(print, true, true, true, "DC", {"DC", "HOMOTOPY"}), parse_measure_lines(dc.measure), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
+        return DCSimulationParameters(mode, std::move(sweeps), std::move(table), build_print(print, true, true, true, "DC", {"DC", "HOMOTOPY"}), std::move(sensitivity), build_pce(pce_state, pce_rows, pce_print));
     }
 
     // seed the AC panel from the configuration a run uses
     void seed_ac(const SimulationConfig& current, albor::AcUi& ac, albor::PrintUi& print) {
         // the ground flag is global to the run
         ac.replace_ground = current.replace_ground;
+        // the measure directives are global to the run
+        ac.measure = join_with(current.measures, "\n");
         // an AC analysis fills the sweep fields and the companion sections
         if (const auto* stored = std::get_if<AcSimulationParameters>(&current.analysis)) {
             // the sweep mode is the combo position
@@ -967,8 +958,6 @@ namespace
             ac.end = stored->end;
             // the table is what a DATA sweep reads
             ac.data_table = stored->data_table_name;
-            // the measure directives are edited as text
-            ac.measure = format_measure_lines(stored->measure_parameters);
             // the managed option package is edited as key=value lines
             ac.linsol_options = format_key_values(current.options.linsol_ac);
             // the print card mirrors the stored print
@@ -1010,7 +999,7 @@ namespace
         if (const auto* previous = std::get_if<AcSimulationParameters>(&seed.analysis))
             sensitivity = previous->sensitivity;
         // the panel state builds the analysis
-        return AcSimulationParameters(mode, std::move(points), std::move(start), std::move(end), std::move(table), build_print(print, false, false, false, "AC", {"AC", "AC_IC"}), parse_measure_lines(ac.measure), std::move(sensitivity));
+        return AcSimulationParameters(mode, std::move(points), std::move(start), std::move(end), std::move(table), build_print(print, false, false, false, "AC", {"AC", "AC_IC"}), std::move(sensitivity));
     }
 
     // seed the operating point panel from the configuration a run uses
@@ -1630,9 +1619,10 @@ SimulationConfig studio::AlborSimulationParametersDialogView::build_config() con
         config.analysis = build_dc(m_root->dc(), m_root->dc_sweeps(), m_root->dc_print(), m_root->pce(), m_root->pce_rows(), m_root->pce_print(), m_seed);
         // the stored spelling is what the run reports
         config.analysis_type = "DC";
-        // the tab owns the ground flag and the initial conditions
+        // the tab owns the ground flag, initial conditions, and measures
         config.replace_ground = m_root->dc().replace_ground;
         config.ic_parameters = ICParameters::from_line(m_root->dc().initial_conditions);
+        config.measures = split_measure_lines(m_root->dc().measure);
         // the NONLIN package is the option card the DC panel edits
         config.options.nonlin = apply_option_rows(m_root->nonlin_rows());
         return config;
@@ -1643,9 +1633,10 @@ SimulationConfig studio::AlborSimulationParametersDialogView::build_config() con
         config.analysis = build_transient(m_root->tran(), m_root->tran_print(), m_root->pce(), m_root->pce_rows(), m_root->pce_print(), m_seed);
         // the stored spelling is what the run reports
         config.analysis_type = "TRAN";
-        // the tab owns the ground flag and the initial conditions
+        // the tab owns the ground flag, initial conditions, and measures
         config.replace_ground = m_root->tran().replace_ground;
         config.ic_parameters = ICParameters::from_line(m_root->tran().initial_conditions);
+        config.measures = split_measure_lines(m_root->tran().measure);
         // the five transient packages are the cards the panel edits
         config.options.timeint = apply_option_rows(m_root->timeint_rows());
         config.options.nonlin_tran = apply_option_rows(m_root->nonlin_tran_rows());
@@ -1660,8 +1651,9 @@ SimulationConfig studio::AlborSimulationParametersDialogView::build_config() con
         config.analysis = build_ac(m_root->ac(), m_root->ac_print(), m_seed);
         // the stored spelling is what the run reports
         config.analysis_type = "AC";
-        // the tab owns the ground flag
+        // the tab owns the ground flag and measures
         config.replace_ground = m_root->ac().replace_ground;
+        config.measures = split_measure_lines(m_root->ac().measure);
         // the LINSOL-AC package is the option card the AC panel edits
         config.options.linsol_ac = apply_option_rows(m_root->linsol_ac_rows());
         return config;
@@ -1714,8 +1706,18 @@ void studio::AlborSimulationParametersDialogView::accept() {
         show_error("Invalid initial conditions");
         return;
     }
+    // construct the configuration the selected tab builds
+    SimulationConfig config = build_config();
+    // every non-empty measure line must parse so invalid directives are never silently dropped
+    for (const std::string& line : config.measures) {
+        // validate against the core measure parser
+        if (!MeasureEntry::from_xyce_statement(line).has_value()) {
+            show_error("Invalid measure directive");
+            return;
+        }
+    }
     // hand the configuration the fields describe to the presenter, which owns the remaining validation
-    m_events->on_accept(build_config());
+    m_events->on_accept(std::move(config));
 }
 
 void studio::AlborSimulationParametersDialogView::dismiss() {

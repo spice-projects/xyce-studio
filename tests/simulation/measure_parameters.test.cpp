@@ -4,9 +4,7 @@
 
 #include "simulation/measure_parameters.h"
 
-// ========================================================================================
 // from_xyce_statement
-// ========================================================================================
 
 TEST(MeasureEntryChecks, minimal_avg_measure) {
     // arrange
@@ -582,9 +580,7 @@ TEST(MeasureEntryChecks, avg_with_goal_weight) {
     ASSERT_EQ(result->weight, "0.5");
 }
 
-// ========================================================================================
 // to_xyce_statement
-// ========================================================================================
 
 TEST(MeasureEntryChecks, to_xyce_statement_minimal) {
     // arrange
@@ -601,12 +597,10 @@ TEST(MeasureEntryChecks, to_xyce_statement_with_all_fields) {
     // act
     const std::string statement = entry.to_xyce_statement();
     // assert
-    ASSERT_EQ(statement, ".MEASURE TRAN avgAll AVG V(1) V(IN) WHEN V(IN)>0.5 FROM=1m TO=5m TD=10n RISE=1 FALL=2 CROSS=3 MINVAL=0.5 DEFAULT=0 PRECISION=6 FRAC_MAX=0.9 PRINT=1 AT=1m ON=0.5 OFF=0.1 RFC_LEVEL=0.5 OUTPUT=avg_result MIN_THRESH=0.1 MAX_THRESH=1.0 FILE=error.txt INDEPVARCOL=time DEPVARCOL=vout COMP_FUNCTION=abs NUMFREQ=10 GRIDSIZE=100 BINSIZ=10 MAXFREQ=1MEG MINFREQ=1k NBHARM=10 GOAL=1.0 WEIGHT=0.5");
+    ASSERT_EQ(statement, ".MEASURE TRAN avgAll AVG V(1) V(IN) WHEN V(IN)>0.5 FROM=1m TO=5m TD=10n RISE=1 FALL=2 CROSS=3 MINVAL=0.5 DEFAULT_VAL=0 PRECISION=6 FRAC_MAX=0.9 PRINT=1 AT=1m ON=0.5 OFF=0.1 RFC_LEVEL=0.5 OUTPUT=avg_result MIN_THRESH=0.1 MAX_THRESH=1.0 FILE=error.txt INDEPVARCOL=time DEPVARCOL=vout COMP_FUNCTION=abs NUMFREQ=10 GRIDSIZE=100 BINSIZ=10 MAXFREQ=1MEG MINFREQ=1k NBHARM=10 GOAL=1.0 WEIGHT=0.5");
 }
 
-// ========================================================================================
 // equality operator
-// ========================================================================================
 
 TEST(MeasureEntryChecks, equality_operator_equal_entries) {
     // arrange
@@ -656,4 +650,68 @@ TEST(MeasureEntryChecks, equality_operator_different_variable) {
     const bool result = entry1 == entry2;
     // assert
     ASSERT_FALSE(result);
+}
+
+TEST(MeasureEntryChecks, parses_fft_analysis_type) {
+    // arrange
+    const std::string statement = ".MEASURE FFT enobval ENOB V(1)";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->analysis_type, "FFT");
+    ASSERT_EQ(result->result_name, "enobval");
+    ASSERT_EQ(result->measure_type, "ENOB");
+    ASSERT_EQ(result->variable, "V(1)");
+}
+
+TEST(MeasureEntryChecks, parses_default_val_qualifier) {
+    // arrange
+    const std::string statement = ".MEASURE TRAN vout MAX V(out) DEFAULT_VAL=0";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->default_val, "0");
+}
+
+TEST(MeasureEntryChecks, parses_ymin_and_ymax_qualifiers) {
+    // arrange
+    const std::string statement = ".MEASURE TRAN errval ERR1 V(1) V(2) YMIN=1e-3 YMAX=10";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->ymin, "1e-3");
+    ASSERT_EQ(result->ymax, "10");
+}
+
+TEST(MeasureEntryChecks, fft_analysis_type_round_trips) {
+    // arrange
+    const std::string statement = ".MEASURE FFT e ENOB V(1)";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->to_xyce_statement(), statement);
+}
+
+TEST(MeasureEntryChecks, default_val_round_trips_to_documented_spelling) {
+    // arrange
+    const std::string statement = ".MEASURE TRAN vout MAX V(out) DEFAULT_VAL=0";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->to_xyce_statement(), statement);
+}
+
+TEST(MeasureEntryChecks, trig_targ_round_trips_default_val_and_from_to) {
+    // arrange
+    const std::string statement = ".MEASURE TRAN td TRIG V(in) VAL=0.5 RISE=1 TARG V(out) VAL=0.5 RISE=1 FROM=1m TO=5m DEFAULT_VAL=0";
+    // act
+    const auto result = MeasureEntry::from_xyce_statement(statement);
+    // assert
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->to_xyce_statement(), statement);
 }

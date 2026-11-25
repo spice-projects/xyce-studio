@@ -6,7 +6,6 @@
 
 #include "fft_parameters.h"
 #include "four_parameters.h"
-#include "measure_parameters.h"
 #include "netlist/netlist.h"
 #include "pce_parameters.h"
 #include "print_parameters.h"
@@ -32,10 +31,9 @@ class TransientSimulationParameters
 {
 public:
     // construct a transient simulation parameters instance from individual fields
-    TransientSimulationParameters(std::string initial_step_value, std::string final_time_value, std::string start_time_value, std::string step_ceiling_value, std::string op_keyword, std::vector<TransientSchedulePoint> schedule_points, std::optional<PrintParameters> print_parameters, std::vector<FftParameters> fft_parameters, std::vector<FourParameters> four_parameters, std::vector<MeasureEntry> measure_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce);
+    TransientSimulationParameters(std::string initial_step_value, std::string final_time_value, std::string start_time_value, std::string step_ceiling_value, std::string op_keyword, std::vector<TransientSchedulePoint> schedule_points, std::optional<PrintParameters> print_parameters, std::vector<FftParameters> fft_parameters, std::vector<FourParameters> four_parameters, std::optional<SensParameter> sensitivity, std::optional<PceParameters> pce);
 
-    // parse all directives into a TransientSimulationParameters instance;
-    // returns nullopt when no .TRAN directive is found
+    // parse all directives into a TransientSimulationParameters instance, returning nullopt when absent
     [[nodiscard]] static std::optional<TransientSimulationParameters> from_xyce_directives(const std::vector<std::string>& directives);
 
     // serialize this instance to a list of Xyce directive strings
@@ -62,8 +60,6 @@ public:
     std::vector<FftParameters> fft_parameters;
     // Fourier parameters
     std::vector<FourParameters> four_parameters;
-    // measure directives
-    std::vector<MeasureEntry> measure_parameters;
     // optional sensitivity parameters
     std::optional<SensParameter> sensitivity;
     // optional PCE (Polynomial Chaos Expansion) parameters
